@@ -1,3 +1,5 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
+import {testWorkItemService} from '@wbs/store-memory/testing/service-fixtures';
 import type { ImportOutcome } from '@wbs/core';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { expect, mock, spyOn, test } from 'bun:test';
@@ -8,7 +10,7 @@ import { testWrites } from '../testing/writes-fixture';
 
 const summary = {
   ok: true as const,
-  projectId: 'project-imported',
+  workPackageId: 'work-package-imported',
   rows: 2,
   created: {
     teams: ['Billing'],
@@ -25,7 +27,7 @@ function request(body: string, headers: HeadersInit = {}) {
   const requestHeaders = new Headers(headers);
   requestHeaders.set('authorization', 'Bearer token');
   requestHeaders.set('content-type', 'application/json');
-  return new Request('http://localhost/api/projects/import', {
+  return new Request('http://localhost/api/work-packages/import', {
     method: 'POST',
     headers: requestHeaders,
     body,
@@ -39,7 +41,7 @@ function mounted(
   const auth = testAuthService();
   spyOn(auth, 'authenticateOrRefuse').mockResolvedValue({ id: 'actor', username: 'actor', scopes });
   const imports = mock(() => Promise.resolve(outcome));
-  const writes = testWrites();
+  const writes = testWrites(undefined,{workItems:testWorkItemService(openTestSource())});
   writes.imports = { import: imports };
   return { app: testApp({ auth, writes }), imports };
 }
@@ -51,7 +53,7 @@ test('mounts the production import path and returns the typed 201 summary', asyn
 
   expect(response.status).toBe(201);
   expect(await response.json()).toEqual({
-    projectId: summary.projectId,
+    workPackageId: summary.workPackageId,
     rows: summary.rows,
     created: summary.created,
     solutionRef: summary.solutionRef,

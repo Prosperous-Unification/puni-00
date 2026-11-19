@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
 import { openSeededPlan, type SeededPlan, seedPlan } from './plan-fixture';
 import { expectAnchoredColumn } from './signed-out-column';

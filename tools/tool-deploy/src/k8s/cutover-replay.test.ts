@@ -40,7 +40,7 @@ function fixture(kinds = ['replace_blockage', 'move_progress_v1']) {
   const source = join(root, 'source.sqlite');
   const db = new Database(source);
   db.run(
-    'CREATE TABLE command_journal(payload TEXT,inverse TEXT,preconditions TEXT); CREATE TABLE __drizzle_migrations(name TEXT,created_at INTEGER); INSERT INTO __drizzle_migrations VALUES("m1",0); CREATE TABLE project(name TEXT); INSERT INTO project VALUES("known")',
+    'CREATE TABLE command_journal(payload TEXT,inverse TEXT,preconditions TEXT); CREATE TABLE __drizzle_migrations(name TEXT,created_at INTEGER); INSERT INTO __drizzle_migrations VALUES("m1",0); CREATE TABLE work_package(name TEXT); INSERT INTO work_package VALUES("known")',
   );
   db.query('INSERT INTO command_journal VALUES(?,?,?)').run(
     JSON.stringify({ forward: { do: 'batch', steps: [{ do: 'replace_blockage' }] } }),

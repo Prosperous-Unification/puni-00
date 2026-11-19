@@ -1,3 +1,5 @@
+import {retainFirstChildWrite} from '../step-catalogue/first-child';
+import {retainSubtreeWrite} from '../step-catalogue/subtree-write';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type { WorkItemStore } from '../../ports/work-item-store';
 
@@ -20,11 +22,31 @@ export function createWorkingPlanSubtrees(
   refreshRows: (ids: readonly string[], insertedIds?: readonly string[]) => Promise<void>,
 ): SubtreeStore {
   return {
+    writeFirstChild: async (write,stamp) => {
+      assertOpen();
+      const kept=retainFirstChildWrite(write,stamp);
+      const written=await source().writeFirstChild(kept.write,kept.stamp);
+      assertOpen();
+      if(written.kind!=='written')return written;
+      const child=written.record.child;
+      const direction=kept.write.kind==='fresh'?'down':kept.write.direction;
+      await refreshRows([
+        child.parentId,child.id,...kept.write.respaced.map(({id})=>id),
+        ...kept.write.localDependencies.flatMap(({predecessor,successor})=>[predecessor.workItemId,successor.workItemId]),
+      ],direction==='down'?[child.id]:[]);
+      assertOpen();
+      return written;
+    },
     insertSubtree: async (copy, stamp) => {
       assertOpen();
+      const kept=retainSubtreeWrite(copy,stamp);
+      copy=kept.copy;stamp=kept.stamp;
       const reparentedBefore =
         copy.reparented.length === 0 ? [] : await reads.byIds(copy.reparented.map(({ id }) => id));
-      await source().insertSubtree(copy, stamp);
+      assertOpen();
+      const written=await source().insertSubtree(copy,stamp);
+      assertOpen();
+      if(written!=='written')return written;
       const insertedIds = copy.rows.map(({ id }) => id);
       await refreshRows(
         [
@@ -46,6 +68,7 @@ export function createWorkingPlanSubtrees(
         ],
         insertedIds,
       );
+      return written;
     },
   };
 }

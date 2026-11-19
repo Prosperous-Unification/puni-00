@@ -1,7 +1,17 @@
-import { expect, type Page, test } from '@playwright/test';
+import {
+  applyDirectoryCommands as applyDirectoryCommandsShape,
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  createWorkPackage as createWorkPackageShape,
+  getWorkItems as getWorkItemsShape,
+  listWorkPackages as listWorkPackagesShape,
+  recordWorkPackageOpen as recordWorkPackageOpenShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 import { measureInk } from './measure-ink';
+import { assertOrdinaryAccount, openCompactAccount, readOrdinaryFixture } from './ordinary-context';
+import { expect, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /**
  * The plan on a phone, measured by a browser.
@@ -95,7 +105,7 @@ async function openTheSheet(page: Page): Promise<void> {
  * Gives the plan a day zero, which is the one thing standing between a phone
  * and its earliest-start field.
  *
- * `CardNotBeforeField` is **disabled without a project start date** — the
+ * `CardNotBeforeField` is **disabled without a work package start date** — the
  * table cell's own refusal, word for word, because be-01 ignores the
  * constraint when there is no day to count from. `seedPlan` builds a dateless
  * plan (nothing else in this file needs a calendar), so the case below has to
@@ -114,7 +124,7 @@ async function openTheSheet(page: Page): Promise<void> {
  */
 async function giveThePlanADayZero(page: Page, day: string): Promise<void> {
   await openTheSheet(page);
-  const starts = page.getByLabel('Project start date');
+  const starts = page.getByLabel('Work package start date');
   await starts.fill(day);
   await starts.blur();
   await page.keyboard.press('Escape');
@@ -132,9 +142,9 @@ async function giveThePlanADayZero(page: Page, day: string): Promise<void> {
 async function seedPlan(page: Page, _account: string): Promise<void> {
   await page.goto('/');
 
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await assertOrdinaryAccount(page);
 
-  await createProject(page);
+  await createWorkPackage(page);
 
   // The desktop case at the bottom of this file shares this fixture and asks
   // one thing of it: a dialog, whose density is a fact about the dialog and not
@@ -143,7 +153,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   // `rendererForViewport` draws the table from 768 wide up, and only where the
   // viewport is at least `TABLE_NEEDS_HEIGHT` tall.
   if (!drawsCards(page)) {
-    await expect(page.getByRole('button', { name: 'Project settings' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Work package settings' })).toBeVisible();
     return;
   }
 
@@ -152,11 +162,14 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   // add from its card sheet. Seed that prerequisite through the same API the
   // Directory uses, so the 44px case below measures real, non-vacuous fields.
   const vocabularyStatus = await page.evaluate(
-    async () =>
-      (
+    async ({ requestHeaders }) => {
+      return (
         await fetch('/api/directory/commands', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            ...Object.fromEntries(requestHeaders.applyDirectoryCommands),
+            ...{ 'content-type': 'application/json' },
+          },
           body: JSON.stringify({
             commands: [
               { kind: 'createTag', name: 'mobile e2e tag' },
@@ -164,7 +177,13 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
             ],
           }),
         })
-      ).status,
+      ).status;
+    },
+    {
+      requestHeaders: {
+        applyDirectoryCommands: createOrdinaryHeaders(applyDirectoryCommandsShape),
+      },
+    },
   );
   expect(vocabularyStatus, 'the card-label vocabularies were not seeded').toBe(200);
 
@@ -196,72 +215,110 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
  */
 async function aPeerRenames(page: Page, workItemId: string, name: string): Promise<void> {
   const status = await page.evaluate(
-    async ([id, newName]) => {
-      // A batch of one on the page's own project, as every write is now.
-      const projectId = window.localStorage.getItem('wbs.project');
-      if (projectId === null) throw new Error('no wbs.project in localStorage');
-      const res = await fetch(`/api/projects/${projectId}/commands`, {
+    async ({ requestHeaders, fixtureInput }) => {
+      const [id, newName] = fixtureInput;
+
+      // A batch of one on the page's own work package, as every write is now.
+      const workPackageId = window.localStorage.getItem('wbs.workPackage');
+      if (workPackageId === null) throw new Error('no wbs.work package in localStorage');
+      const res = await fetch(`/api/work-packages/${workPackageId}/commands`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify({
           commands: [{ kind: 'patchWorkItem', workItemId: id, patch: { name: newName } }],
         }),
       });
       return res.status;
     },
-    [workItemId, name] as const,
+    {
+      requestHeaders: {
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+      fixtureInput: [workItemId, name] as const,
+    },
   );
   expect(status, 'the peer edit was refused by be-01').toBe(200);
 }
 
 interface MobilePlanSnapshot {
-  projectId: string;
+  workPackageId: string;
   workItems: { id: string; number: string }[];
 }
 
 /** Reads this page's plan while account-wide recency changes twice around the listing GET. */
 async function readSelectedPlanAfterInterleaving(page: Page): Promise<MobilePlanSnapshot> {
-  const reading = await page.evaluate(async () => {
-    const selectedProjectId = window.localStorage.getItem('wbs.project');
-    if (selectedProjectId === null) throw new Error('the mobile fixture has no selected project');
-    const createAndOpen = async (label: string) => {
-      const made = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: `${label} ${crypto.randomUUID()}` }),
-      });
-      if (made.status !== 200) throw new Error(`${label} creation failed: ${String(made.status)}`);
-      const { project } = (await made.json()) as { project: { id: string } };
-      const opened = await fetch(`/api/projects/${project.id}/opened`, { method: 'POST' });
-      return opened.status;
-    };
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const promotedStatus = await createAndOpen('mobile promoted project');
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const interleavedStatus = await createAndOpen('mobile interleaved project');
-    const { projects } = (await (await fetch('/api/projects')).json()) as {
-      projects: { id: string }[];
-    };
-    // Proof: replacing this selected id with `projects[0].id` made the controlled
-    // interleaving case read the empty interleaved project instead of 010/020.
-    const tree = (await (await fetch(`/api/projects/${selectedProjectId}/work-items`)).json()) as {
-      workItems: { id: string; number: string }[];
-    };
-    return {
-      projectId: selectedProjectId,
-      workItems: tree.workItems,
-      promotedStatus,
-      interleavedStatus,
-      globalFirstId: projects[0]?.id ?? null,
-    };
-  });
-  expect(reading.promotedStatus, 'the promoted project was not opened').toBe(204);
-  expect(reading.interleavedStatus, 'the interleaved project was not opened').toBe(204);
-  expect(reading.globalFirstId, 'the global project list was empty').not.toBeNull();
-  expect(reading.globalFirstId, 'global first still names this page selected fixture').not.toBe(
-    reading.projectId,
+  const reading = await page.evaluate(
+    async ({ requestHeaders, fixtureProjectId }) => {
+      const selectedWorkPackageId = window.localStorage.getItem('wbs.workPackage');
+      if (selectedWorkPackageId === null)
+        throw new Error('the mobile fixture has no selected work package');
+      const createAndOpen = async (label: string) => {
+        const made = await fetch('/api/work-packages', {
+          method: 'POST',
+          headers: {
+            ...Object.fromEntries(requestHeaders.createWorkPackage),
+            ...{ 'content-type': 'application/json' },
+          },
+          body: JSON.stringify({
+            projectId: fixtureProjectId,
+            name: `${label} ${crypto.randomUUID()}`,
+          }),
+        });
+        if (made.status !== 200)
+          throw new Error(`${label} creation failed: ${String(made.status)}`);
+        const { workPackage } = (await made.json()) as { workPackage: { id: string } };
+        const opened = await fetch(`/api/work-packages/${workPackage.id}/opened`, {
+          headers: requestHeaders.recordWorkPackageOpen,
+          method: 'POST',
+        });
+        return opened.status;
+      };
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const promotedStatus = await createAndOpen('mobile promoted work package');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const interleavedStatus = await createAndOpen('mobile interleaved work package');
+      const { workPackages } = (await (
+        await fetch('/api/work-packages', { headers: requestHeaders.listWorkPackages })
+      ).json()) as {
+        workPackages: { id: string }[];
+      };
+      // Proof: replacing this selected id with `workPackages[0].id` made the controlled
+      // interleaving case read the empty interleaved work package instead of 010/020.
+      const tree = (await (
+        await fetch(`/api/work-packages/${selectedWorkPackageId}/work-items`, {
+          headers: requestHeaders.getWorkItems,
+        })
+      ).json()) as {
+        workItems: { id: string; number: string }[];
+      };
+      return {
+        workPackageId: selectedWorkPackageId,
+        workItems: tree.workItems,
+        promotedStatus,
+        interleavedStatus,
+        globalFirstId: workPackages[0]?.id ?? null,
+      };
+    },
+    {
+      requestHeaders: {
+        createWorkPackage: createOrdinaryHeaders(createWorkPackageShape),
+        recordWorkPackageOpen: createOrdinaryHeaders(recordWorkPackageOpenShape),
+        listWorkPackages: createOrdinaryHeaders(listWorkPackagesShape),
+        getWorkItems: createOrdinaryHeaders(getWorkItemsShape),
+      },
+      fixtureProjectId: readOrdinaryFixture().projectId,
+    },
   );
-  return { projectId: reading.projectId, workItems: reading.workItems };
+  expect(reading.promotedStatus, 'the promoted work package was not opened').toBe(204);
+  expect(reading.interleavedStatus, 'the interleaved work package was not opened').toBe(204);
+  expect(reading.globalFirstId, 'the global work package list was empty').not.toBeNull();
+  expect(reading.globalFirstId, 'global first still names this page selected fixture').not.toBe(
+    reading.workPackageId,
+  );
+  return { workPackageId: reading.workPackageId, workItems: reading.workItems };
 }
 
 /**
@@ -473,8 +530,8 @@ test.describe('the plan on a phone, measured by a browser', () => {
    *
    * Watched red at `22b9a73` — the sheet reported 30 short controls (13px tick
    * rows, 25px `Close`, 32px buttons), the Teams dialog 2, the account menu 4.
-   * That dialog is the project settings modal's teams section since
-   * `project-config-modal`, and the sweep now also covers its tab list.
+   * That dialog is the work package settings modal's teams section since
+   * `work-package-config-modal`, and the sweep now also covers its tab list.
    */
   test('gives every control on the phone’s own surfaces at least 44px', async ({ page }) => {
     // The account menu **first**, and the order is not arbitrary: it is chrome
@@ -484,6 +541,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // pointer events` — and an Escape between the two did not put the sheet away
     // either, watched at `f9781b0`. A surface reached before anything covers it
     // needs no dismissal to be right.
+    const accountSummary = await openCompactAccount(page);
     await page.locator('[data-hint="This account"]').click();
     await expect(page.getByRole('menu', { name: `Signed in as ${username}` })).toBeVisible();
     expect
@@ -504,6 +562,8 @@ test.describe('the plan on a phone, measured by a browser', () => {
       'the grown controls made the page scroll sideways',
     ).toBeLessThanOrEqual(root.clientWidth);
     await page.locator('[data-hint="This account"]').click();
+    await accountSummary.press('Escape');
+    await expect(accountSummary.locator('..')).not.toHaveAttribute('open', '');
 
     // The sheet, with `Filters` expanded — the state the sweep measured, and the
     // one holding the 13px controls. A `<summary>` is not the `<button>` that
@@ -515,9 +575,9 @@ test.describe('the plan on a phone, measured by a browser', () => {
       .soft(await shortTargetsIn(page, '[data-modal-surface]'), 'on the Plan actions sheet')
       .toEqual([]);
 
-    // The project settings modal, opened from that sheet because there is no
+    // The work package settings modal, opened from that sheet because there is no
     // other way in at this width. Its teams section is what the Teams dialog
-    // was until `project-config-modal`; this plan carries no team labels —
+    // was until `work-package-config-modal`; this plan carries no team labels —
     // nothing on a card edits one — so what is on screen is the empty
     // sentence, `Done` and the ✕ rather than the seven capacity boxes the
     // sweep measured. The floor those boxes sit under is the same `input`
@@ -525,12 +585,12 @@ test.describe('the plan on a phone, measured by a browser', () => {
     //
     // The **tab list** is the surface's own new control, and it is measured
     // here for the first time: three tabs a thumb has to hit.
-    await page.getByRole('button', { name: 'Project settings' }).click();
-    await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+    await page.getByRole('button', { name: 'Work package settings' }).click();
+    await expect(page.getByRole('dialog', { name: 'Work package settings' })).toBeVisible();
     expect
       .soft(
         await shortTargetsIn(page, '[data-modal-surface="centre"]'),
-        'in the project settings modal',
+        'in the work package settings modal',
       )
       .toEqual([]);
   });
@@ -691,15 +751,25 @@ test.describe('the plan on a phone, measured by a browser', () => {
    */
   test('sizes the team picker option rows to a finger', async ({ page }) => {
     await page.evaluate(
-      async (names) => {
+      async ({ requestHeaders, fixtureInput }) => {
+        const names = fixtureInput;
+
         const res = await fetch('/api/directory/commands', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            ...Object.fromEntries(requestHeaders.applyDirectoryCommands),
+            ...{ 'content-type': 'application/json' },
+          },
           body: JSON.stringify({ commands: names.map((name) => ({ kind: 'createTeam', name })) }),
         });
         if (res.status !== 200) throw new Error(`seeding the teams failed: ${String(res.status)}`);
       },
-      ['Platform', 'Carpentry crew', 'Casting crew'],
+      {
+        requestHeaders: {
+          applyDirectoryCommands: createOrdinaryHeaders(applyDirectoryCommandsShape),
+        },
+        fixtureInput: ['Platform', 'Carpentry crew', 'Casting crew'],
+      },
     );
     await page.reload();
 
@@ -831,7 +901,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // there is no day zero to give the plan and no disabled state to clear.
     await expect(field).toBeEnabled();
     // `Medium 50` and not an empty chip: since `priority-default-medium` every
-    // created work item carries the project's rank-2 default, so the starting
+    // created work item carries the work package's rank-2 default, so the starting
     // state this line establishes is "ordinary", not "unset". Asserting the
     // count was 0 here until that change, and it is kept as an assertion rather
     // than deleted because it is now the only place the new default is read
@@ -842,7 +912,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     await expect(page.getByRole('dialog', { name: 'Priority for 010' })).toBeVisible();
     // A band is one tap and no Save — the team sheet's rule, because choosing
     // *is* the whole gesture. `data-card-priority-band` is keyed on the rung
-    // and never on the label: a project may rename `High`, and the rung is what
+    // and never on the label: a work package may rename `High`, and the rung is what
     // "more important" means.
     await page.locator('[data-card-priority-band="1"]').click();
     await expect(page.getByRole('dialog', { name: 'Priority for 010' })).toBeHidden();
@@ -954,23 +1024,36 @@ test.describe('the plan on a phone, measured by a browser', () => {
   test('no card sheet covers the card it edits, also at the end of a list', async ({ page }) => {
     const cards = page.locator('[data-plan-cards] > article');
     const fixtureRows = await cards.count();
-    await page.evaluate(async (count: number) => {
-      const projectId = window.localStorage.getItem('wbs.project');
-      if (projectId === null) throw new Error('no wbs.project in localStorage');
-      // One batch of `count` rows, each after the one before it by ref.
-      const res = await fetch(`/api/projects/${projectId}/commands`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          commands: Array.from({ length: count }, (_, each) => ({
-            kind: 'createWorkItem',
-            ref: `r${String(each)}`,
-            ...(each === 0 ? {} : { afterRef: `r${String(each - 1)}` }),
-          })),
-        }),
-      });
-      if (!res.ok) throw new Error(`create refused: ${String(res.status)}`);
-    }, 28);
+    await page.evaluate(
+      async ({ requestHeaders, fixtureInput }) => {
+        const count: number = fixtureInput;
+
+        const workPackageId = window.localStorage.getItem('wbs.workPackage');
+        if (workPackageId === null) throw new Error('no wbs.work package in localStorage');
+        // One batch of `count` rows, each after the one before it by ref.
+        const res = await fetch(`/api/work-packages/${workPackageId}/commands`, {
+          method: 'POST',
+          headers: {
+            ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+            ...{ 'content-type': 'application/json' },
+          },
+          body: JSON.stringify({
+            commands: Array.from({ length: count }, (_, each) => ({
+              kind: 'createWorkItem',
+              ref: `r${String(each)}`,
+              ...(each === 0 ? {} : { afterRef: `r${String(each - 1)}` }),
+            })),
+          }),
+        });
+        if (!res.ok) throw new Error(`create refused: ${String(res.status)}`);
+      },
+      {
+        requestHeaders: {
+          applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+        },
+        fixtureInput: 28,
+      },
+    );
     // The creates went straight to be-01, so nothing here measures a long
     // list until the SPA has actually rendered one: without the count wait
     // the case below could be reading the fixture's own rows.
@@ -1221,7 +1304,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
    * measurement is taken, for `aPeerRenames`'s reason: what is measured is
    * what be-01 holds, not what React remembers.
    */
-  test('reads its selected fixture through a controlled project-open interleaving', async ({
+  test('reads its selected fixture through a controlled work-package-open interleaving', async ({
     page,
   }) => {
     const selected = await readSelectedPlanAfterInterleaving(page);
@@ -1232,37 +1315,50 @@ test.describe('the plan on a phone, measured by a browser', () => {
     page,
   }) => {
     const selected = await readSelectedPlanAfterInterleaving(page);
-    const seeded = await page.evaluate(async ({ projectId, workItems }) => {
-      const last = workItems[workItems.length - 1]?.id ?? null;
-      // Four waits on 020, the shape the fault was found in: a header, four
-      // rows already taken, then the long list.
-      const successor = workItems.find((each) => each.number === '020');
-      if (successor === undefined) throw new Error('no 020 in the seeded plan');
-      // Thirty-eight rows and the four waits in one batch: each row after the
-      // one before it by ref, the first after the seeded plan's last row.
-      const res = await fetch(`/api/projects/${projectId}/commands`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          commands: [
-            ...Array.from({ length: 38 }, (_, i) => ({
-              kind: 'createWorkItem',
-              ref: `f${String(i)}`,
-              parentId: null,
-              ...(i === 0 ? { afterId: last } : { afterRef: `f${String(i - 1)}` }),
-              name: `Fixture row ${String(i)}`,
-            })),
-            ...Array.from({ length: 4 }, (_, i) => ({
-              kind: 'addDependency',
-              workItemId: successor.id,
-              predecessorRef: `f${String(i)}`,
-            })),
-          ],
-        }),
-      });
-      if (res.status !== 200) throw new Error(`seeding the plan failed: ${String(res.status)}`);
-      return { rows: workItems.length + 38 };
-    }, selected);
+    const seeded = await page.evaluate(
+      async ({ requestHeaders, fixtureInput }) => {
+        const { workPackageId, workItems } = fixtureInput;
+
+        const last = workItems[workItems.length - 1]?.id ?? null;
+        // Four waits on 020, the shape the fault was found in: a header, four
+        // rows already taken, then the long list.
+        const successor = workItems.find((each) => each.number === '020');
+        if (successor === undefined) throw new Error('no 020 in the seeded plan');
+        // Thirty-eight rows and the four waits in one batch: each row after the
+        // one before it by ref, the first after the seeded plan's last row.
+        const res = await fetch(`/api/work-packages/${workPackageId}/commands`, {
+          method: 'POST',
+          headers: {
+            ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+            ...{ 'content-type': 'application/json' },
+          },
+          body: JSON.stringify({
+            commands: [
+              ...Array.from({ length: 38 }, (_, i) => ({
+                kind: 'createWorkItem',
+                ref: `f${String(i)}`,
+                parentId: null,
+                ...(i === 0 ? { afterId: last } : { afterRef: `f${String(i - 1)}` }),
+                name: `Fixture row ${String(i)}`,
+              })),
+              ...Array.from({ length: 4 }, (_, i) => ({
+                kind: 'addDependency',
+                workItemId: successor.id,
+                predecessorRef: `f${String(i)}`,
+              })),
+            ],
+          }),
+        });
+        if (res.status !== 200) throw new Error(`seeding the plan failed: ${String(res.status)}`);
+        return { rows: workItems.length + 38 };
+      },
+      {
+        requestHeaders: {
+          applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+        },
+        fixtureInput: selected,
+      },
+    );
     expect(seeded.rows, 'the plan did not take the forty rows').toBe(40);
     await page.reload();
 
@@ -1526,8 +1622,8 @@ test.describe('the same dialog on a desktop, where the density is the point', ()
   test('leaves a dialog and the account menu at their own size at 1400 and at 768', async ({
     page,
   }) => {
-    await page.getByRole('button', { name: 'Project settings' }).click();
-    await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+    await page.getByRole('button', { name: 'Work package settings' }).click();
+    await expect(page.getByRole('dialog', { name: 'Work package settings' })).toBeVisible();
 
     // Teams' Done is gone with the modal's one commit model (UI review D7, F-060);
     // Steps' Add step is the dialog's `size="sm"` button to measure instead.
@@ -1566,26 +1662,36 @@ test.describe('the same dialog on a desktop, where the density is the point', ()
   });
 });
 
-/** The project this page has open, which every API write below is aimed at. */
-async function openProjectId(page: Page): Promise<string> {
-  const projectId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no wbs.project in localStorage');
-  return projectId;
+/** The work package this page has open, which every API write below is aimed at. */
+async function openWorkPackageId(page: Page): Promise<string> {
+  const workPackageId = await page.evaluate(() => window.localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no wbs.work package in localStorage');
+  return workPackageId;
 }
 
 /** One batch of plan commands from outside the page's UI, refused loudly. */
 async function sendCommands(page: Page, commands: readonly unknown[]): Promise<void> {
-  const projectId = await openProjectId(page);
+  const workPackageId = await openWorkPackageId(page);
   const status = await page.evaluate(
-    async ([id, batch]) =>
-      (
-        await fetch(`/api/projects/${id}/commands`, {
+    async ({ requestHeaders, fixtureInput }) => {
+      const [id, batch] = fixtureInput;
+      return (
+        await fetch(`/api/work-packages/${id}/commands`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+            ...{ 'content-type': 'application/json' },
+          },
           body: JSON.stringify({ commands: batch }),
         })
-      ).status,
-    [projectId, commands] as const,
+      ).status;
+    },
+    {
+      requestHeaders: {
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+      fixtureInput: [workPackageId, commands] as const,
+    },
   );
   expect(status, 'be-01 refused the fixture commands').toBe(200);
 }
@@ -1595,19 +1701,32 @@ async function sendDirectoryCommands(
   page: Page,
   commands: readonly Record<string, unknown>[],
 ): Promise<string[]> {
-  return page.evaluate(async (batch) => {
-    const res = await fetch('/api/directory/commands', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ commands: batch }),
-    });
-    if (res.status !== 200) throw new Error(`directory commands failed: ${String(res.status)}`);
-    const { results } = (await res.json()) as { results: { id?: string }[] };
-    return results.map((each) => {
-      if (each.id === undefined) throw new Error('a directory command made nothing');
-      return each.id;
-    });
-  }, commands);
+  return page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const batch = fixtureInput;
+
+      const res = await fetch('/api/directory/commands', {
+        method: 'POST',
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyDirectoryCommands),
+          ...{ 'content-type': 'application/json' },
+        },
+        body: JSON.stringify({ commands: batch }),
+      });
+      if (res.status !== 200) throw new Error(`directory commands failed: ${String(res.status)}`);
+      const { results } = (await res.json()) as { results: { id?: string }[] };
+      return results.map((each) => {
+        if (each.id === undefined) throw new Error('a directory command made nothing');
+        return each.id;
+      });
+    },
+    {
+      requestHeaders: {
+        applyDirectoryCommands: createOrdinaryHeaders(applyDirectoryCommandsShape),
+      },
+      fixtureInput: commands,
+    },
+  );
 }
 
 /** The id of the work item a card draws, read off the card itself. */

@@ -58,7 +58,7 @@ test('SCIM resource requests require fresh dependency admission after provisioni
         'organization_scim_user',
         'organization_membership',
         'organization_audit',
-        'project',
+        'work_package',
         'event_log',
         'command_journal',
       ].map((table) => authority.db.all(`SELECT * FROM ${table}`));
@@ -92,7 +92,7 @@ test('SCIM resource requests require fresh dependency admission after provisioni
     isCapable = false;
     expect((await request('GET', undefined, 'cross-project-dependencies-v1')).status).toBe(409);
     connection.db.run('PRAGMA ignore_check_constraints=ON');
-    connection.db.run("UPDATE cross_project_dependency_activation SET state='UNKNOWN'");
+    connection.db.run("UPDATE cross_work_package_dependency_activation SET state='UNKNOWN'");
     const malformed = await request('GET', undefined, 'cross-project-dependencies-v1');
     expect(malformed.status).toBe(500);
     expect(await malformed.json()).toMatchObject({ status: '500', detail: 'internal_error' });

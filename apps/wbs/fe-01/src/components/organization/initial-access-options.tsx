@@ -9,8 +9,8 @@ export type InitialRoleId = Extract<
 const choices = [
   { id: 'org-admin', name: 'Organization admin' },
   { id: 'org-viewer', name: 'Organization viewer' },
-  { id: 'project-contributor', name: 'Project contributor' },
-  { id: 'project-viewer', name: 'Project viewer' },
+  { id: 'project-contributor', name: 'Work package contributor' },
+  { id: 'project-viewer', name: 'Work package viewer' },
 ] as const;
 
 /** Describes an explicit initial grant or membership without an initial grant. */

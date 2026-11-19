@@ -1,6 +1,13 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import {
+  applyDirectoryCommands as applyDirectoryCommandsShape,
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  type EndpointShape,
+  getWorkItems as getWorkItemsShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Locator, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /**
  * The four reference cells' popover and its card, in a browser.
@@ -23,24 +30,37 @@ interface Entry {
   name: string;
 }
 
-async function jsonPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+async function jsonPost<T>(
+  page: Page,
+  shape: EndpointShape,
+  path: string,
+  body: unknown,
+): Promise<T> {
   return page.evaluate(
-    async ({ at, value }) => {
+    async ({ requestHeaders, fixtureInput }) => {
+      const { at, value } = fixtureInput;
+
       const response = await fetch(at, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.selected),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify(value),
       });
       if (!response.ok) throw new Error(`POST ${at} failed: ${String(response.status)}`);
       return response.json() as Promise<T>;
     },
-    { at: path, value: body },
+    {
+      requestHeaders: { selected: createOrdinaryHeaders(shape) },
+      fixtureInput: { at: path, value: body },
+    },
   );
 }
 
 interface Seed {
   tags: Entry[];
-  projectId: string;
+  workPackageId: string;
 }
 
 /**
@@ -62,24 +82,32 @@ interface Seed {
 async function seed(page: Page): Promise<Seed> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id after creating the plan');
+  await createWorkPackage(page);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('wbs.workPackage')))
+    .not.toBeNull();
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id after creating the plan');
 
   const numbers = ['010', '020', '030'];
-  await jsonPost(page, `/api/projects/${projectId}/commands`, {
-    commands: numbers.map((number, at) => ({
-      kind: 'createWorkItem',
-      ref: number,
-      parentId: null,
-      ...(at === 0 ? { afterId: null } : { afterRef: numbers[at - 1] }),
-      name: `Reference ${number}`,
-    })),
-  });
+  await jsonPost(
+    page,
+    applyWorkPackageCommandsShape,
+    `/api/work-packages/${workPackageId}/commands`,
+    {
+      commands: numbers.map((number, at) => ({
+        kind: 'createWorkItem',
+        ref: number,
+        parentId: null,
+        ...(at === 0 ? { afterId: null } : { afterRef: numbers[at - 1] }),
+        name: `Reference ${number}`,
+      })),
+    },
+  );
 
   const answered = await jsonPost<{ results: { entity?: Entry }[] }>(
     page,
+    applyDirectoryCommandsShape,
     '/api/directory/commands',
     {
       commands: ['Ready', 'Risk', 'Review'].map((name) => ({ kind: 'createTag', name })),
@@ -90,37 +118,52 @@ async function seed(page: Page): Promise<Seed> {
     return each.entity;
   });
 
-  const tree = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/projects/${id}/work-items`);
-    return response.json() as Promise<{ workItems: { id: string; number: string }[] }>;
-  }, projectId);
+  const tree = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const id = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      return response.json() as Promise<{ workItems: { id: string; number: string }[] }>;
+    },
+    {
+      requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+      fixtureInput: workPackageId,
+    },
+  );
   const id010 = tree.workItems.find((row) => row.number === '010')?.id;
   if (id010 === undefined) throw new Error('010 was not created');
 
-  await jsonPost(page, `/api/projects/${projectId}/commands`, {
-    commands: [
-      {
-        kind: 'createWorkItem',
-        ref: 'child',
-        parentId: id010,
-        afterId: null,
-        name: 'Inherited child',
-      },
-      {
-        kind: 'patchWorkItem',
-        workItemId: id010,
-        patch: { tagIds: tags.map(({ id }) => id) },
-      },
-      {
-        kind: 'patchWorkItem',
-        workItemRef: 'child',
-        patch: { tagIds: [tags[0].id] },
-      },
-    ],
-  });
+  await jsonPost(
+    page,
+    applyWorkPackageCommandsShape,
+    `/api/work-packages/${workPackageId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'createWorkItem',
+          ref: 'child',
+          parentId: id010,
+          afterId: null,
+          name: 'Inherited child',
+        },
+        {
+          kind: 'patchWorkItem',
+          workItemId: id010,
+          patch: { tagIds: tags.map(({ id }) => id) },
+        },
+        {
+          kind: 'patchWorkItem',
+          workItemRef: 'child',
+          patch: { tagIds: [tags[0].id] },
+        },
+      ],
+    },
+  );
   await page.reload();
   await showReferenceColumns(page);
-  return { tags, projectId };
+  return { tags, workPackageId };
 }
 
 async function showReferenceColumns(page: Page): Promise<void> {
@@ -187,8 +230,8 @@ test('a landed take keeps the focus, and the panel closes when the focus leaves'
   // Dany's report in one line. Watched in Chromium, 2026-08-31.
   //
   // The brand rather than a coordinate: `(700, 8)` was empty header at 1280
-  // until the project buttons got words, and then it was `Create new project`
-  // — this test timed out on a page that had moved to a new project (pixels
+  // until the work package buttons got words, and then it was `Create new workPackage`
+  // — this test timed out on a page that had moved to a new work package (pixels
   // shard 4/4, PR 468, 2026-09-16). The heading is inert at every width.
   await page.getByRole('heading', { name: 'WBS tool v2' }).click();
   expect(

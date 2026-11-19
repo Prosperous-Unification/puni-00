@@ -1,3 +1,4 @@
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,7 +7,7 @@ import type { PlanDocumentImport } from '@wbs/contracts';
 import { servicesOver } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { clockOf } from '@wbs/core/ports/clock';
-import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -116,6 +117,7 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
   const directory = mkdtempSync(join(tmpdir(), 'wbs-import-dependencies-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -145,7 +147,7 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
             const row = await scope.stores.workItems.findById(args[0]);
             if (row === null) throw new Error('staged imported row is missing');
             labelledRelationships = (
-              await scope.stores.typedDependencies.listByProject(row.projectId)
+              await scope.stores.typedDependencies.listByWorkPackage(row.workPackageId)
             ).length;
             return { ok: false, reason: 'unknown_tag' } as const;
           }
@@ -158,10 +160,10 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
             hasDeletingEndpoint: (
               ...args: Parameters<typeof scope.stores.typedDependencies.hasDeletingEndpoint>
             ) => scope.stores.typedDependencies.hasDeletingEndpoint(...args),
-            listByProject: (projectId: string) =>
-              scope.stores.typedDependencies.listByProject(projectId),
-            listIncident: (projectIds: readonly string[]) =>
-              scope.stores.typedDependencies.listIncident(projectIds),
+            listByWorkPackage: (workPackageId: string) =>
+              scope.stores.typedDependencies.listByWorkPackage(workPackageId),
+            listIncident: (workPackageIds: readonly string[]) =>
+              scope.stores.typedDependencies.listIncident(workPackageIds),
             add,
             update: (...args: Parameters<typeof scope.stores.typedDependencies.update>) =>
               scope.stores.typedDependencies.update(...args),
@@ -172,9 +174,10 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
             ) => scope.stores.typedDependencies.removeAllFor(...args),
           },
           workItems: {
-            listByProject: (projectId: string) => scope.stores.workItems.listByProject(projectId),
-            listUpdateInstants: (projectId: string) =>
-              scope.stores.workItems.listUpdateInstants(projectId),
+            listByWorkPackage: (workPackageId: string) =>
+              scope.stores.workItems.listByWorkPackage(workPackageId),
+            listUpdateInstants: (workPackageId: string) =>
+              scope.stores.workItems.listUpdateInstants(workPackageId),
             listByIds: (...args: Parameters<typeof scope.stores.workItems.listByIds>) =>
               scope.stores.workItems.listByIds(...args),
             listPlacements: (...args: Parameters<typeof scope.stores.workItems.listPlacements>) =>
@@ -208,7 +211,7 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
     batchServices: (scope, broadcast) =>
       servicesOver(scope.stores, {
         dependencyContext: createLocalDependencyContext(scope.stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -229,24 +232,30 @@ describe('SQLite import relationship allocation and atomicity', () => {
   it('allocates every relationship before the first insert and persists remapped endpoint scopes', async () => {
     const fixture = await harness();
     const document = documentFixture();
-    const imported = await fixture.imports.import(document, { kind: 'legacy', actorId: ACTOR });
+    const imported = await fixture.imports.import(
+      document,
+      { kind: 'legacy', actorId: ACTOR },
+      'fixture-project',
+    );
     expect(imported.ok).toBe(true);
     if (!imported.ok)
       throw new Error(`import refused: ${JSON.stringify(imported)}/${JSON.stringify(imported)}`);
     expect(new Set(fixture.allocationCounts).size).toBe(1);
     expect(fixture.allocationCounts).toHaveLength(3);
-    const stored = await fixture.source.stores.typedDependencies.listByProject(imported.projectId);
-    const rows = await fixture.source.stores.workItems.listByProject(imported.projectId);
-    const steps = await fixture.source.stores.projects.stepsOf(imported.projectId);
+    const stored = await fixture.source.stores.typedDependencies.listByWorkPackage(
+      imported.workPackageId,
+    );
+    const rows = await fixture.source.stores.workItems.listByWorkPackage(imported.workPackageId);
+    const steps = await fixture.source.stores.workPackages.stepsOf(imported.workPackageId);
     const rowIds = new Set(rows.map(({ id }) => id));
     const stepIds = new Set(steps.map(({ id }) => id));
     expect(stored).toHaveLength(3);
     expect(new Set(stored.map(({ id }) => id)).size).toBe(3);
     expect(stored.map(({ id }) => id)).not.toContain('authored-descendant');
     for (const relationship of stored) {
-      expect(relationship.projectId).toBe(imported.projectId);
+      expect(relationship.workPackageId).toBe(imported.workPackageId);
       for (const endpoint of [relationship.predecessor, relationship.successor]) {
-        expect(endpoint.projectId).toBe(imported.projectId);
+        expect(endpoint.workPackageId).toBe(imported.workPackageId);
         expect(rowIds.has(endpoint.workItemId)).toBe(true);
         if (endpoint.scope !== 'whole') expect(stepIds.has(endpoint.stepId)).toBe(true);
       }
@@ -264,13 +273,19 @@ describe('SQLite import relationship allocation and atomicity', () => {
       fixture.announcements.published.some(({ event }) => event.type === 'tree_replaced'),
     ).toBe(true);
     const original = JSON.stringify({ stored, rows, steps });
-    const copied = await fixture.imports.import(document, { kind: 'legacy', actorId: ACTOR });
+    const copied = await fixture.imports.import(
+      document,
+      { kind: 'legacy', actorId: ACTOR },
+      'fixture-project',
+    );
     expect(copied.ok).toBe(true);
     expect(
       JSON.stringify({
-        stored: await fixture.source.stores.typedDependencies.listByProject(imported.projectId),
-        rows: await fixture.source.stores.workItems.listByProject(imported.projectId),
-        steps: await fixture.source.stores.projects.stepsOf(imported.projectId),
+        stored: await fixture.source.stores.typedDependencies.listByWorkPackage(
+          imported.workPackageId,
+        ),
+        rows: await fixture.source.stores.workItems.listByWorkPackage(imported.workPackageId),
+        steps: await fixture.source.stores.workPackages.stepsOf(imported.workPackageId),
       }),
     ).toBe(original);
   });
@@ -281,7 +296,7 @@ describe('SQLite import relationship allocation and atomicity', () => {
     const before = snapshotTables(fixture.path);
     const writerBefore = snapshotWriter(fixture.source);
     const failure: unknown = await fixture.imports
-      .import(documentFixture(), { kind: 'legacy', actorId: ACTOR })
+      .import(documentFixture(), { kind: 'legacy', actorId: ACTOR }, 'fixture-project')
       .catch((cause: unknown) => cause);
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toMatchObject({
@@ -299,7 +314,11 @@ describe('SQLite import relationship allocation and atomicity', () => {
     const before = snapshotTables(fixture.path);
     const writerBefore = snapshotWriter(fixture.source);
     expect(
-      await fixture.imports.import(documentFixture(), { kind: 'legacy', actorId: ACTOR }),
+      await fixture.imports.import(
+        documentFixture(),
+        { kind: 'legacy', actorId: ACTOR },
+        'fixture-project',
+      ),
     ).toMatchObject({
       ok: false,
       code: 'source_refused',

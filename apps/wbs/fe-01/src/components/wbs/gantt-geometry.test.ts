@@ -26,7 +26,7 @@ import {
   type PlacedGantt,
   placeOnCalendar,
   placeOnWorkdays,
-  projectAttemptMarks,
+  workPackageAttemptMarks,
   routeArrow,
   startFloorByRow,
   type TagLabel,
@@ -89,7 +89,7 @@ const rowAt = (
 });
 
 /**
- * A scheduled slice over these workdays, floored by the project start and
+ * A scheduled slice over these workdays, floored by the work package start and
  * under the `dev` step, unless `extras` says otherwise.
  *
  * `duration` is the difference here only because these fixtures are whole
@@ -112,7 +112,7 @@ const sliceAt = (
   earliestFinish,
   float: 0,
   critical: false,
-  boundBy: 'projectStart',
+  boundBy: 'workPackageStart',
   resourcePredecessorId: null,
   capacityTeamId: null,
   // Width 1 is the plan nobody has sized: effort is the duration, and no pool
@@ -157,7 +157,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   teamNames: new Map([['team-platform', 'Platform']]),
   resourceLabels: new Map(),
   priorityBands: DEFAULT_PRIORITY_BANDS,
-  // The default a project takes unless it asks otherwise. The `anchor-slice`
+  // The default a work package takes unless it asks otherwise. The `anchor-slice`
   // fixtures below name it, so a test written for one rule cannot be read under
   // the other.
   depReach: 'whole-item',
@@ -292,7 +292,7 @@ describe('bars', () => {
     );
 
     expect(chart.bars.map((bar) => bar.floorWords)).toEqual([
-      'Starts with the project',
+      'Starts with the work package',
       'Waits for a dependency’s first estimated step',
       'Waits for an earlier step on this item',
       'Held by its start-no-earlier-than date',
@@ -342,7 +342,7 @@ describe('bars', () => {
     // sentence about a not-before printed on a bar that is waiting for a
     // predecessor would be the chart naming one cause and explaining another.
     //
-    // Proof: the reason appended to the shared `projectStart`/`predecessor`/
+    // Proof: the reason appended to the shared `workPackageStart`/`predecessor`/
     // `stepOrder` arm as well — **1 failed, 103 passed** — and this failed on
     // `expected 'Waits for a dependency’s first estimated step — waiting on
     // client sign-off' to be 'Waits for a dependency’s first estimated step'`.
@@ -1023,19 +1023,19 @@ describe('a binding floor this build does not know', () => {
         sliceAt('strip-dev', 'strip', 2, 5, {
           personId: 'kat',
           boundBy: 'elsewhere',
-          elsewhereHolder: { projectId: 'platform', workItemId: 'w-9' },
+          elsewhereHolder: { workPackageId: 'platform', workItemId: 'w-9' },
         }),
       ],
       elsewhereHolders: holders,
     });
 
-  it('says whom a bar held elsewhere waits for, and in which project', () => {
+  it('says whom a bar held elsewhere waits for, and in which work package', () => {
     const chart = layOutGantt(
       heldElsewhere(
         new Map([
           [
             elsewhereHolderKey('platform', 'w-9'),
-            { projectName: 'Platform', number: '010.3', name: 'Rewire' },
+            { workPackageName: 'Platform', number: '010.3', name: 'Rewire' },
           ],
         ]),
       ),
@@ -1046,7 +1046,7 @@ describe('a binding floor this build does not know', () => {
         new Map([
           [
             elsewhereHolderKey('platform', 'w-9'),
-            { projectName: 'Platform', number: '010.3', name: '' },
+            { workPackageName: 'Platform', number: '010.3', name: '' },
           ],
         ]),
       ),
@@ -1359,7 +1359,7 @@ describe('dependency arrows', () => {
       { type: 'FF', proxy: true, count: 1 },
     ]);
   });
-  it('uses project step order for whole endpoints despite shuffled slices', () => {
+  it('uses work package step order for whole endpoints despite shuffled slices', () => {
     const plan = planOf({
       rows: [rowAt('A', 0, 4), rowAt('B', 4, 8)],
       steps: [
@@ -2608,9 +2608,9 @@ describe('the calendar scale', () => {
     expect(scale.endOf(6)).toBe(8);
   });
 
-  it('begins a Saturday project on the Monday', () => {
+  it('begins a Saturday work package on the Monday', () => {
     // The normalisation `addWorkdays` already makes, inherited rather than
-    // re-implemented: a project starting Saturday 2026-08-08 answers exactly
+    // re-implemented: a work package starting Saturday 2026-08-08 answers exactly
     // like one starting on the Monday after it.
     const scale = calendarScale('2026-08-08');
 
@@ -3605,7 +3605,7 @@ describe('what holds a row’s start, for the table', () => {
       calendarOf(),
     );
 
-    expect(floors.get('020')).toBe('Starts with the project');
+    expect(floors.get('020')).toBe('Starts with the work package');
   });
 
   it('names which of several dependencies binds, and the day it stops holding', () => {
@@ -3803,7 +3803,7 @@ describe('what holds a row’s start, for the table', () => {
     expect(floors.get('020')).toBe('Waits for a dependency’s first estimated step');
     // The unreadable row loses its own sentence and nothing else does.
     expect(floors.has('040')).toBe(false);
-    expect(floors.get('030')).toBe('Starts with the project');
+    expect(floors.get('030')).toBe('Starts with the work package');
   });
 
   it('keeps the general sentence for a predecessor this view is not showing', () => {
@@ -3907,7 +3907,7 @@ describe('what holds a row’s start, for the table', () => {
     );
 
     expect(floors.has('000')).toBe(false);
-    expect(floors.get('010')).toBe('Starts with the project');
+    expect(floors.get('010')).toBe('Starts with the work package');
   });
 
   it('skips the row it cannot explain and keeps every row it can', () => {
@@ -3929,7 +3929,7 @@ describe('what holds a row’s start, for the table', () => {
     expect(() => layOutGantt(plan)).toThrow(GanttDataError);
     const floors = startFloorByRow(plan, calendarOf());
     expect(floors.has('020')).toBe(false);
-    expect(floors.get('010')).toBe('Starts with the project');
+    expect(floors.get('010')).toBe('Starts with the work package');
   });
 
   it('skips a row whose slice is under a step the plan does not list', () => {
@@ -3945,7 +3945,7 @@ describe('what holds a row’s start, for the table', () => {
     );
 
     expect(floors.has('020')).toBe(false);
-    expect(floors.get('010')).toBe('Starts with the project');
+    expect(floors.get('010')).toBe('Starts with the work package');
   });
 });
 
@@ -4381,8 +4381,8 @@ describe('attempt mark projection', () => {
       ],
       slices: [fixtureSlice('a-dev', 'a', 0, 1)],
     });
-  const project = (plan: GanttPlan, now = instant('11:45')) =>
-    projectAttemptMarks(
+  const workPackage = (plan: GanttPlan, now = instant('11:45')) =>
+    workPackageAttemptMarks(
       plan,
       placeOnCalendar(layOutGantt(plan, AXIS_RUNGS[5]), '2026-08-10'),
       '2026-08-10',
@@ -4390,7 +4390,7 @@ describe('attempt mark projection', () => {
       now,
     );
   it('one mark per eligible attempt over the planned slice at a sub-day rung', () => {
-    const projected = project(
+    const projected = workPackage(
       attemptedPlan([
         attempt(instant('09:10'), instant('09:40')),
         attempt(instant('10:00'), instant('10:20')),
@@ -4417,32 +4417,34 @@ describe('attempt mark projection', () => {
     expect(layOutGantt(plan).bars.map((bar) => bar.done)).toEqual([true]);
   });
   it('a running mark ends at the given now', () => {
-    expect(project(attemptedPlan([attempt(instant('11:00'), null)])).marks[0]).toMatchObject({
+    expect(workPackage(attemptedPlan([attempt(instant('11:00'), null)])).marks[0]).toMatchObject({
       x: 120 / 480,
       width: 45 / 480,
       running: true,
     });
   });
-  it('project-zone dates cross UTC midnight independently of forecast workdays', () => {
+  it('work-package-zone dates cross UTC midnight independently of forecast workdays', () => {
     const plan = attemptedPlan([attempt(instant('21:30'), instant('22:30'))]);
     plan.timezone = 'Pacific/Auckland';
-    expect(project(plan).marks[0]).toMatchObject({ x: 1 + 30 / 480, width: 60 / 480 });
+    expect(workPackage(plan).marks[0]).toMatchObject({ x: 1 + 30 / 480, width: 60 / 480 });
   });
   it('a two-minute attempt is a selectable tick', () => {
     expect(
-      project(attemptedPlan([attempt(instant('10:00'), instant('10:02'))])).marks[0],
+      workPackage(attemptedPlan([attempt(instant('10:00'), instant('10:02'))])).marks[0],
     ).toMatchObject({ tick: true, hitWidthPx: 18 });
   });
-  it('an instant is placed by its project-zone day and minute', () => {
+  it('an instant is placed by its work-package-zone day and minute', () => {
     const plan = attemptedPlan([attempt(instant('00:30'), instant('01:30'))]);
     plan.timezone = 'Pacific/Auckland';
-    expect(project(plan).marks[0]).toMatchObject({ x: 210 / 480, width: 60 / 480 });
+    expect(workPackage(plan).marks[0]).toMatchObject({ x: 210 / 480, width: 60 / 480 });
   });
   it.each([
     ['07:00', '08:00', 0],
     ['18:00', '19:00', 1],
   ])('early and late attempts clamp to selectable edge ticks: %s', (start, end, x) => {
-    expect(project(attemptedPlan([attempt(instant(start), instant(end))])).marks[0]).toMatchObject({
+    expect(
+      workPackage(attemptedPlan([attempt(instant(start), instant(end))])).marks[0],
+    ).toMatchObject({
       x,
       width: 0,
       clamped: true,
@@ -4454,14 +4456,16 @@ describe('attempt mark projection', () => {
     'overnight and multi-day attempts stop at the start day 17:00: %s',
     (end) => {
       expect(
-        project(attemptedPlan([attempt(instant('16:30'), Date.parse(end))])).marks[0],
+        workPackage(attemptedPlan([attempt(instant('16:30'), Date.parse(end))])).marks[0],
       ).toMatchObject({ x: 450 / 480, width: 30 / 480, clamped: true });
     },
   );
   it('running overnight marks retain an open capped edge', () => {
     expect(
-      project(attemptedPlan([attempt(instant('16:30'), null)]), Date.parse('2026-08-11T10:00:00Z'))
-        .marks[0],
+      workPackage(
+        attemptedPlan([attempt(instant('16:30'), null)]),
+        Date.parse('2026-08-11T10:00:00Z'),
+      ).marks[0],
     ).toMatchObject({ x: 450 / 480, width: 30 / 480, running: true, clamped: true });
   });
   it('attempt start dates extend both sides of the forecast range without changing forecast coordinates', () => {
@@ -4481,7 +4485,7 @@ describe('attempt mark projection', () => {
         blocked: false,
       },
     ];
-    const projected = projectAttemptMarks(
+    const projected = workPackageAttemptMarks(
       plan,
       forecast,
       '2026-08-10',
@@ -4499,14 +4503,14 @@ describe('attempt mark projection', () => {
   it('hidden and held attempts do not widen the axis', () => {
     const plan = attemptedPlan();
     plan.rows = [{ ...plan.rows[0], held: true }];
-    expect(project(plan).marks).toEqual([]);
+    expect(workPackage(plan).marks).toEqual([]);
     plan.rows = [];
-    expect(project(plan).rangeStart).toBe(0);
+    expect(workPackage(plan).rangeStart).toBe(0);
   });
   it.each(AXIS_RUNGS.slice(0, 3))('no mark or range change at day rung $id', (rung) => {
     const plan = attemptedPlan();
     const forecast = placeOnCalendar(layOutGantt(plan), '2026-08-10');
-    const projected = projectAttemptMarks(plan, forecast, null, rung, instant('12:00'));
+    const projected = workPackageAttemptMarks(plan, forecast, null, rung, instant('12:00'));
     expect(projected.marks).toEqual([]);
     expect(projected.forecast).toBe(forecast);
   });
@@ -4517,7 +4521,7 @@ describe('attempt mark projection', () => {
   ])('models unavailable calendar inputs: $missing', ({ startDate, timezone, missing }) => {
     const plan = attemptedPlan();
     plan.timezone = timezone;
-    const projected = projectAttemptMarks(
+    const projected = workPackageAttemptMarks(
       plan,
       placeOnCalendar(layOutGantt(plan), '2026-08-10'),
       startDate,
@@ -4530,12 +4534,12 @@ describe('attempt mark projection', () => {
   it.each(['bad-zone', ''])('rejects a malformed supplied zone %s', (timezone) => {
     const plan = attemptedPlan();
     plan.timezone = timezone;
-    expect(() => project(plan)).toThrow(GanttDataError);
+    expect(() => workPackage(plan)).toThrow(GanttDataError);
   });
   it('rejects a formatter that omits required clock parts', () => {
     const format = vi.spyOn(Intl.DateTimeFormat.prototype, 'formatToParts').mockReturnValue([]);
     try {
-      expect(() => project(attemptedPlan())).toThrow(GanttDataError);
+      expect(() => workPackage(attemptedPlan())).toThrow(GanttDataError);
     } finally {
       format.mockRestore();
     }
@@ -4544,7 +4548,7 @@ describe('attempt mark projection', () => {
     const plan = attemptedPlan();
     const forecast = placeOnWorkdays(layOutGantt(plan));
     expect(() =>
-      projectAttemptMarks(
+      workPackageAttemptMarks(
         { ...plan, timezone: null },
         forecast,
         'bad-date',
@@ -4553,7 +4557,7 @@ describe('attempt mark projection', () => {
       ),
     ).toThrow();
     expect(() =>
-      projectAttemptMarks(
+      workPackageAttemptMarks(
         { ...plan, timezone: 'bad-zone' },
         forecast,
         null,
@@ -4565,7 +4569,7 @@ describe('attempt mark projection', () => {
   it('rejects malformed supplied start, instant and reversed intervals', () => {
     const plan = attemptedPlan();
     expect(() =>
-      projectAttemptMarks(
+      workPackageAttemptMarks(
         plan,
         placeOnWorkdays(layOutGantt(plan)),
         'bad-date',
@@ -4573,8 +4577,10 @@ describe('attempt mark projection', () => {
         instant('12:00'),
       ),
     ).toThrow();
-    expect(() => project(attemptedPlan([attempt(NaN, instant('10:00'))]))).toThrow(GanttDataError);
-    expect(() => project(attemptedPlan([attempt(instant('12:00'), instant('10:00'))]))).toThrow(
+    expect(() => workPackage(attemptedPlan([attempt(NaN, instant('10:00'))]))).toThrow(
+      GanttDataError,
+    );
+    expect(() => workPackage(attemptedPlan([attempt(instant('12:00'), instant('10:00'))]))).toThrow(
       GanttDataError,
     );
   });

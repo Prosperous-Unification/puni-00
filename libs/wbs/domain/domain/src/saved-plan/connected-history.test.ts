@@ -30,7 +30,7 @@ describe('immutable connected history codec', () => {
       roundTrip.relationships.find((relationship) => relationship.id === 'fs')?.predecessor
         .stepReference,
     ).toBeNull();
-    expect(roundTrip.projects as unknown).toEqual(history.projects);
+    expect(roundTrip.workPackages as unknown).toEqual(history.workPackages);
     expect(JSON.parse(serializeSavedConnectedScheduleEvidence(placement))).toEqual(evidence);
     expect(placement.stages[0]?.stageBytes).not.toBe(placement.stages[1]?.stageBytes);
     expect(Object.isFrozen(captured)).toBe(true);
@@ -41,7 +41,7 @@ describe('immutable connected history codec', () => {
     const selected = readSavedConnectedScheduleEvidence(evidence);
     const before = serializeSavedDependencyHistory(captured);
     const selectedBefore = serializeSavedConnectedScheduleEvidence(selected);
-    history.projects[0].name = 'renamed';
+    history.workPackages[0].name = 'renamed';
     evidence.composite.slices['a\u0000design'].earliestStart = 900;
     expect(serializeSavedDependencyHistory(captured)).toBe(before);
     expect(serializeSavedConnectedScheduleEvidence(selected)).toBe(selectedBefore);
@@ -73,12 +73,13 @@ describe('immutable connected history codec', () => {
   ])('refuses malformed dependency evidence: %s', (fault) => {
     const { history } = connectedHistoryFixture();
     if (fault === 'missing-field')
-      delete (history.projects[0] as Partial<(typeof history.projects)[number]>).abbreviation;
-    if (fault === 'duplicate') history.projects.push(history.projects[0]);
+      delete (history.workPackages[0] as Partial<(typeof history.workPackages)[number]>)
+        .abbreviation;
+    if (fault === 'duplicate') history.workPackages.push(history.workPackages[0]);
     if (fault === 'unknown-owner') history.ownership[0] = ['root', 'foreign'];
     if (fault === 'unknown-endpoint') history.relationships[0].predecessor.workItemId = 'absent';
-    if (fault === 'nonfinite') history.projects[0].rank = Infinity;
-    if (fault === 'unknown-field') Object.assign(history.projects[0], { unexpected: true });
+    if (fault === 'nonfinite') history.workPackages[0].rank = Infinity;
+    if (fault === 'unknown-field') Object.assign(history.workPackages[0], { unexpected: true });
     expect(() => readSavedDependencyHistory(history)).toThrow();
   });
   test('refuses candidate question mismatching its captured stage', () => {
@@ -100,7 +101,7 @@ describe('immutable connected history codec', () => {
     Object.assign(history, {
       placementState: {
         kind: 'dependency_calendar_missing',
-        projects: [{ projectId: 'B', abbreviation: 'B', name: 'Beta' }],
+        workPackages: [{ workPackageId: 'B', abbreviation: 'B', name: 'Beta' }],
       },
     });
     const captured = readSavedDependencyHistory(history);
@@ -144,7 +145,7 @@ test('empty component has null axis and no fabricated stage', () => {
   const { history, evidence } = connectedHistoryFixture();
   const emptyHistory = readSavedDependencyHistory({
     ...history,
-    projects: history.projects.map((project) => ({ ...project, workItems: [] })),
+    workPackages: history.workPackages.map((workPackage) => ({ ...workPackage, workItems: [] })),
     relationships: [],
     ownership: [],
     readiness: [],
@@ -157,7 +158,7 @@ test('empty component has null axis and no fabricated stage', () => {
     baseline: empty,
     composite: empty,
     stages: [],
-    idleProjects: ['B', 'A'],
+    idleWorkPackages: ['B', 'A'],
   });
   expect(() => {
     validateSavedConnectedHistory(emptyHistory, captured);
@@ -252,7 +253,7 @@ test.each([
   if (fault === 'node-scope') history.relationships[0].predecessor.scope = 'descendant-step';
   if (fault === 'nonfinite-placement')
     evidence.composite.slices['a\u0000design'].earliestStart = NaN;
-  if (fault === 'target-mismatch') evidence.targetProjectId = 'B';
+  if (fault === 'target-mismatch') evidence.targetWorkPackageId = 'B';
   if (fault === 'candidate-keys') evidence.stages[0].variants!.time.candidate.starts.pop();
   if (fault === 'duplicate-map') {
     const packet = JSON.parse(evidence.stages[1].stageBytes) as { starts: [string, number][] };
@@ -282,10 +283,10 @@ test.each([
   if (fault === 'wrong-node-position') history.graph.nodes[1].at = 50;
   if (fault === 'missing-stage-member' || fault === 'forged-stage-selector') {
     const packet = JSON.parse(evidence.stages[1].stageBytes) as {
-      projects: unknown[];
+      workPackages: unknown[];
       relationships: { predecessor: string[] }[];
     };
-    if (fault === 'missing-stage-member') packet.projects.pop();
+    if (fault === 'missing-stage-member') packet.workPackages.pop();
     else packet.relationships[0].predecessor[2] = 'nonexistent-retired-row';
     evidence.stages[1].stageBytes = JSON.stringify(packet);
   }
@@ -314,10 +315,10 @@ describe('reviewed historical stage invariants', () => {
       const isFast = configuration === 'enabled Fast';
       const capturedHistory = readSavedDependencyHistory({
         ...history,
-        projects: history.projects.map((project) =>
-          project.projectId === 'A'
-            ? { ...project, engine: isFast ? 'fast' : 'optimized', enabled: isFast }
-            : project,
+        workPackages: history.workPackages.map((workPackage) =>
+          workPackage.workPackageId === 'A'
+            ? { ...workPackage, engine: isFast ? 'fast' : 'optimized', enabled: isFast }
+            : workPackage,
         ),
       });
       const captured = readSavedConnectedScheduleEvidence({
@@ -407,14 +408,14 @@ test.each(['disabled observed', 'enabled optimized unobserved'])(
     const enabled = configuration === 'enabled optimized unobserved';
     const capturedHistory = readSavedDependencyHistory({
       ...history,
-      projects: history.projects.map((project) =>
-        project.projectId === 'A' ? { ...project, enabled } : project,
+      workPackages: history.workPackages.map((workPackage) =>
+        workPackage.workPackageId === 'A' ? { ...workPackage, enabled } : workPackage,
       ),
     });
     const captured = readSavedConnectedScheduleEvidence({
       ...evidence,
       stages: evidence.stages.map((stage) =>
-        stage.projectId === 'A' && enabled
+        stage.workPackageId === 'A' && enabled
           ? { ...stage, observation: null, variants: null, selected: null }
           : stage,
       ),

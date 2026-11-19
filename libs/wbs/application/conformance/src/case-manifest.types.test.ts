@@ -4,7 +4,7 @@ import { CASE_MANIFEST, defineCaseManifest } from './case-manifest';
 import type { CertificationInput } from './certification';
 
 interface ExtendedTransactionalStores extends TransactionalStores {
-  conformanceProbe: TransactionalStores['projects'];
+  conformanceProbe: TransactionalStores['workPackages'];
 }
 
 // Proof: removing this expected-error guard failed conformance:typecheck on

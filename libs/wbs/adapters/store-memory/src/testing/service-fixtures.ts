@@ -9,9 +9,10 @@ import type {
   PersonAdded,
   PlanEventStore,
   PriorityBandStore,
-  ProjectStore,
   ResourceCapacityStore,
   StepStore,
+  Source,
+  TransactionalStores,
   WorkItemService,
   WorkItemStore,
 } from '@wbs/core';
@@ -23,16 +24,16 @@ import {
   HistoryService,
   PlanEventService,
   PriorityBandService,
-  ProjectService,
   ReplayBuffer,
   ReplayOrchestrator,
   StepService,
+  WorkPackageService,
 } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
-import { inMemoryServices } from '@wbs/core/testing/harness';
+import { createTestServices } from '@wbs/core/testing/harness';
 
 import { inMemoryCalendarMarkers } from '../calendar-marker-fixture';
 import { inMemoryCapacity } from '../capacity-fixture';
@@ -40,7 +41,6 @@ import { inMemoryDirectory } from '../directory-fixture';
 import { inMemoryPlanEvents } from '../history-fixture';
 import { inMemoryStores } from '../in-memory-source';
 import { inMemoryPriorityBands } from '../priority-band-fixture';
-import { inMemoryProjects } from '../project-fixture';
 import { inMemoryEventLog } from '../replay-fixture';
 import {
   inMemoryDemands,
@@ -48,25 +48,33 @@ import {
   memoryResourceTables,
 } from '../resource-fixture';
 import { inMemorySteps } from '../step-fixture';
+import { inMemoryWorkPackages } from '../work-package-fixture';
 
-export function testProjectService(projects: ProjectStore = inMemoryProjects()): ProjectService {
-  const stores = { ...inMemoryStores(), projects };
-  return new ProjectService({
+export function testWorkPackageService(
+  workPackages: ConstructorParameters<typeof WorkPackageService>[0]['workPackages'] = inMemoryWorkPackages(),
+): WorkPackageService {
+  const stores = { ...inMemoryStores(), workPackages };
+  return new WorkPackageService({
     clock: testClock,
-    projects,
+    workPackages,
     broadcast: recordingBroadcaster(),
     dependencyContext: createLocalDependencyContext(stores),
   });
 }
 
+/** Supplied current package values retain their actual writer; the default is an explicit legacy unit model over the same real StepStore. */
 export function testStepService(
-  projects: ProjectStore = inMemoryProjects(),
+  workPackages: ConstructorParameters<typeof StepService>[0]['workPackages'] | undefined = undefined,
   steps: StepStore = inMemorySteps(),
 ): StepService {
-  const stores = { ...inMemoryStores(), projects, steps };
+  const packageValues = workPackages ?? {
+    ...inMemoryWorkPackages(),
+    setStepUnit: (...args: Parameters<StepStore['patchUnit']>) => steps.patchUnit(...args),
+  };
+  const stores = { ...inMemoryStores(), workPackages: packageValues, steps };
   return new StepService({
     clock: testClock,
-    projects,
+    workPackages: packageValues,
     steps,
     broadcast: recordingBroadcaster(),
     dependencyContext: createLocalDependencyContext(stores),
@@ -81,18 +89,18 @@ export function testDirectoryService(
 }
 
 export function testCapacityService(
-  projects: ProjectStore = inMemoryProjects(),
+  workPackages: ConstructorParameters<typeof CapacityService>[0]['workPackages'] = inMemoryWorkPackages(),
   capacity: CapacityStore = inMemoryCapacity(),
   broadcast: Broadcaster = recordingBroadcaster(),
   resourceCapacity: ResourceCapacityStore = inMemoryResourceCapacity(
     memoryResourceTables(),
-    async (projectId) => (await projects.findById(projectId)) !== null,
+    async (workPackageId) => (await workPackages.findById(workPackageId)) !== null,
   ),
 ): CapacityService {
   return new CapacityService({
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
-    projects,
+    workPackages,
     capacity,
     resourceCapacity,
     broadcast,
@@ -100,40 +108,40 @@ export function testCapacityService(
 }
 
 export function testPriorityBandService(
-  projects: ProjectStore = inMemoryProjects(),
+  workPackages: ConstructorParameters<typeof PriorityBandService>[0]['workPackages'] = inMemoryWorkPackages(),
   bands: PriorityBandStore = inMemoryPriorityBands(),
   broadcast: Broadcaster = recordingBroadcaster(),
 ): PriorityBandService {
   return new PriorityBandService({
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
-    projects,
+    workPackages,
     bands,
     broadcast,
   });
 }
 
 export function testCalendarMarkerService(
-  projects: ProjectStore = inMemoryProjects(),
+  workPackages: ConstructorParameters<typeof CalendarMarkerService>[0]['workPackages'] = inMemoryWorkPackages(),
   markers: CalendarMarkerStore = inMemoryCalendarMarkers(),
   clock: Clock = testClock,
   broadcast?: Broadcaster,
 ): CalendarMarkerService {
-  return new CalendarMarkerService({ projects, markers, clock, broadcast });
+  return new CalendarMarkerService({ workPackages, markers, clock, broadcast });
 }
 
 export function testHistoryService(
-  projects: ProjectStore = inMemoryProjects(),
+  workPackages: ConstructorParameters<typeof WorkPackageService>[0]['workPackages'] = inMemoryWorkPackages(),
   events: PlanEventStore = inMemoryPlanEvents(),
 ): HistoryService {
   return new HistoryService({
-    projects: testProjectService(projects),
+    workPackages: testWorkPackageService(workPackages),
     events: new PlanEventService(events),
   });
 }
 
-export function testWorkItemService(): WorkItemService {
-  return inMemoryServices().service;
+export function testWorkItemService(source:Source<TransactionalStores>): WorkItemService {
+  return createTestServices(source).service;
 }
 
 export function testReplay(maxEvents?: number) {
@@ -166,7 +174,7 @@ export function testStepParallels() {
 /**
  * A demand store and a resource capacity store over one fresh table set that
  * states nothing, for a work-item service fixture whose plan reads must level
- * resources (`wbs-resources` R5) but whose cases state none. Every project is
+ * resources (`wbs-resources` R5) but whose cases state none. Every work package is
  * taken to exist, because these fixtures never write a capacity.
  */
 export function testResourceStores(workItems: WorkItemStore): {

@@ -72,13 +72,13 @@ test('reports all three findings together without dropping any probe', async () 
     "INSERT INTO tag (id, name) VALUES ('drift', 'Original')",
     'DROP TRIGGER tag_organization_name_bridge',
     "UPDATE tag SET name = 'Changed' WHERE id = 'drift'",
-    "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:gone', 1)",
+    "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work_package:gone', 1)",
   );
   expect(await inspect()).toEqual({
     marker: 'pre_activation',
     unmappedRoots: [{ kind: 'tag', id: 'unmapped' }],
     catalogNameDrift: [{ kind: 'tag', id: 'drift' }],
-    ownershipConflicts: [{ kind: 'event_stream', id: 'project:gone' }],
+    ownershipConflicts: [{ kind: 'event_stream', id: 'work-package:gone' }],
   });
 });
 
@@ -110,7 +110,7 @@ test('pins marker and every finding across a competing commit and all probes', a
   const connection = openConnection(path, {
     logQuery(query) {
       // The marker SELECT has finished when the first root query is issued.
-      if (!committed && query.includes('project_organization')) {
+      if (!committed && query.includes('work_package_organization')) {
         committed = true;
         // One competing transaction changes the marker and every probe's answer.
         // Activate before inserting so the bridge leaves the new root unmapped.
@@ -119,7 +119,7 @@ test('pins marker and every finding across a competing commit and all probes', a
           "UPDATE organization_activation SET state = 'activated', activated_at = 5",
           "INSERT INTO tag (id, name) VALUES ('later', 'Committed after marker')",
           "UPDATE tag SET name = 'Changed' WHERE id = 'drift'",
-          "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:gone', 1)",
+          "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work_package:gone', 1)",
           'COMMIT',
         );
       }
@@ -132,7 +132,7 @@ test('pins marker and every finding across a competing commit and all probes', a
       marker: 'activated',
       unmappedRoots: [{ kind: 'tag', id: 'later' }],
       catalogNameDrift: [{ kind: 'tag', id: 'drift' }],
-      ownershipConflicts: [{ kind: 'event_stream', id: 'project:gone' }],
+      ownershipConflicts: [{ kind: 'event_stream', id: 'work-package:gone' }],
     });
   } finally {
     connection.close();

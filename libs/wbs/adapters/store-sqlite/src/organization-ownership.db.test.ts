@@ -15,7 +15,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /** The step code column `address-step-nodes` adds, reversed first. */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -45,14 +45,14 @@ afterEach(() => {
 /** One root of every kind, written the way the outgoing release writes them: unmapped. */
 const ROOTS = [
   "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
-  "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
+  "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
   "INSERT INTO person (id, name) VALUES ('pe1', 'Ada')",
   "INSERT INTO service_team (id, name) VALUES ('st1', 'Platform')",
   "INSERT INTO service (id, name) VALUES ('s1', 'Billing')",
   "INSERT INTO tag (id, name) VALUES ('t1', 'urgent')",
   "INSERT INTO work_item_type (id, name) VALUES ('w1', 'Bug')",
   "INSERT INTO external_system (id, name) VALUES ('e1', 'Jira')",
-  `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+  `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
    VALUES ('sp1', 'p1', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
   "INSERT INTO organization (id, name, legacy, created_at) VALUES ('legacy', 'Legacy', 1, 1)",
   "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
@@ -135,7 +135,7 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
     // Written out rather than read from `OWNED_ROOT_KINDS`, so a kind dropped
     // from the production list is a red here and not a shorter expectation.
     const expected: UnmappedRoot[] = [
-      { kind: 'project', id: 'p1' },
+      { kind: 'work_package', id: 'p1' },
       { kind: 'person', id: 'pe1' },
       { kind: 'service_team', id: 'st1' },
       { kind: 'service', id: 's1' },
@@ -153,7 +153,7 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
     seed([
       RESOURCE_ROOT,
       ...ROOTS,
-      "INSERT INTO project_organization SELECT id, 'legacy' FROM project",
+      "INSERT INTO work_package_organization SELECT id, 'legacy' FROM work_package",
       "INSERT INTO saved_plan_organization SELECT id, 'legacy' FROM saved_plan",
       ...[
         'person',
@@ -199,7 +199,7 @@ describe('20260927130000_add_organization_ownership', () => {
   });
 
   const ROOT_IDS: readonly (readonly [string, string])[] = [
-    ['project', 'p1'],
+    ['work_package', 'p1'],
     ['person', 'pe1'],
     ['service_team', 'st1'],
     ['service', 's1'],
@@ -301,9 +301,9 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -333,13 +333,13 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -351,7 +351,7 @@ describe('20260927130000_add_organization_ownership', () => {
     ]);
     seed([
       ...ROOTS,
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('wi1', 'p1', NULL, 0, 'Root')",
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('wi1', 'p1', NULL, 0, 'Root')",
       "INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('wi1', 't1')",
     ]);
     const before = legacyRows();
@@ -359,7 +359,7 @@ describe('20260927130000_add_organization_ownership', () => {
     runMigrations(path, FOLDER);
     seed([
       "INSERT INTO tag_organization VALUES ('t1', 'legacy', 'urgent')",
-      "INSERT INTO project_organization VALUES ('p1', 'legacy')",
+      "INSERT INTO work_package_organization VALUES ('p1', 'legacy')",
       // The outgoing release keeps writing roots it cannot map.
       "INSERT INTO tag (id, name) VALUES ('t-old', 'written-by-old')",
       "DELETE FROM tag WHERE id = 't-old'",
@@ -383,9 +383,9 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -415,13 +415,13 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,

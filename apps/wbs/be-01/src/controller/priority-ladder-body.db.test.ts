@@ -1,10 +1,19 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
@@ -15,8 +24,8 @@ import { openDrizzle } from '../repository/db';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { PriorityBandRepository } from '../repository/priority-band';
-import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
@@ -40,14 +49,15 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { projectRow } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -69,13 +79,13 @@ function ladderWith(at: number, change: Partial<PriorityBand>): PriorityBand[] {
 }
 
 /**
- * `setPriorityBands`, a batch of one on `POST /api/projects/:id/commands`. The
- * retired `PUT /api/projects/:id/priority-bands` answered the stored ladder;
+ * `setPriorityBands`, a batch of one on `POST /api/work-packages/:id/commands`. The
+ * retired `PUT /api/work-packages/:id/priority-bands` answered the stored ladder;
  * the batch answers its `results`, so what was stored is read back through the
  * repository the service wrote — a fixture answering it would be a second
  * implementation of the ladder rules under test.
  */
-describe('setPriorityBands on POST /api/projects/:id/commands', () => {
+describe('setPriorityBands on POST /api/work-packages/:id/commands', () => {
   let dir: string;
   let app: ReturnType<typeof buildApp>;
   let bands: PriorityBandRepository;
@@ -89,12 +99,12 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
    * sends no token.
    */
   async function put(
-    projectId: string,
+    workPackageId: string,
     fields: object,
     as: string | null = token,
   ): Promise<{ status: number; body: unknown }> {
     const response = await app.handle(
-      new Request(`http://localhost/api/projects/${projectId}/commands`, {
+      new Request(`http://localhost/api/work-packages/${workPackageId}/commands`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -110,8 +120,9 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-band-route-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
     const db = openDrizzle(path);
-    const projectStore = new ProjectRepository(db, OPEN);
+    const workPackageStore = new WorkPackageRepository(db, OPEN);
     bands = new PriorityBandRepository(db, OPEN);
     broadcast = recordingBroadcaster();
     const auth = new AuthService({
@@ -121,28 +132,36 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       passwords: bunPasswordHasher,
     });
     const writing = {
-      projects: new ProjectService({
-        dependencyContext: sqliteDependencyContext(db, projectStore),
+      workPackages: new WorkPackageService({
+        dependencyContext: sqliteDependencyContext(db, workPackageStore),
         clock: testClock,
-        projects: projectStore,
+        workPackages: workPackageStore,
         broadcast: recordingBroadcaster(),
       }),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: new PriorityBandService({
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock: testClock,
-        projects: projectStore,
+        workPackages: workPackageStore,
         bands,
         broadcast,
       }),
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       steps: testStepService(),
-      workItems: testWorkItemService(),
+      workItems: testWorkItemService(openTestSource()),
     };
     app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: new SqliteWorkPackageObservation({
+        currentCapture: refusingSavedCurrentCapture,
+        openConnection: () => openPackageObservationConnection(path),
+        activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+        now: () => testClock.now(),
+      }),
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -152,7 +171,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
@@ -160,7 +179,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       ...writing,
       appOrigin: 'http://localhost',
       auth,
-      history: testHistoryService(projectStore),
+      history: testHistoryService(workPackageStore),
       savedPlans: testSavedPlanService(),
       replay: testReplay().replay,
       admitDependencyClient: () => null,
@@ -182,18 +201,18 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       ['roof', false],
       ['vault', true],
     ] as const) {
-      await projectStore.create(
-        projectRow({
+      await workPackageStore.create(
+        workPackageRow({
           id,
           name: `Plan ${id}`,
-          ownerId: who.id,
+          projectId: PROJECT_ID,
           restricted,
         }),
         [],
         { at: 1, by: who.id },
       );
     }
-    // The three projects were created by **this** release, so none of them is
+    // The three work packages were created by **this** release, so none of them is
     // seeded — which is the state the read's default arm answers for, and the
     // state every `toEqual([...DEFAULT_PRIORITY_BANDS])` below is asserting
     // against.
@@ -230,7 +249,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     expect(await bands.listFor('shed')).toEqual([...RECUT]);
   });
 
-  it('tells the project it names and no other', async () => {
+  it('tells the work package it names and no other', async () => {
     // A ladder write moves no date, and it still has to be announced: every face
     // draws its labels, and a plan open on a second screen would go on painting
     // `High` over a rung that now says `Urgent`.
@@ -240,13 +259,13 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     // everybody but the browser that typed it. Watched 2026-08-14.
     await put('shed', { bands: RECUT });
 
-    expect(broadcast.published.map((each) => each.projectId)).toEqual(['shed']);
+    expect(broadcast.published.map((each) => each.workPackageId)).toEqual(['shed']);
     expect(broadcast.published.at(0)?.event).toEqual({ type: 'priority_bands_changed' });
   });
 
   it('refuses a ladder whose first band does not start at 1, and writes nothing', async () => {
     // Proof: the `priorityLadderProblem` call deleted from `ladderOf`, and this
-    // failed on `status: 200` with the project's ladder coming back starting at 5
+    // failed on `status: 200` with the work package's ladder coming back starting at 5
     // — every priority from 1 to 4 resolving to a band that does not hold it.
     // Three more cases in this file went red with it. Watched 2026-08-14.
     const answered = await put('shed', { bands: ladderWith(0, { startsAt: 5, defaultValue: 10 }) });
@@ -270,7 +289,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
 
   it('refuses a sixth band and a fourth, because the count is not configurable', async () => {
     // design.md D3, as a command rather than as prose: Dany asked for the labels,
-    // the cuts and the defaults to be a project's own and did not ask to add a
+    // the cuts and the defaults to be a work package's own and did not ask to add a
     // rung, and refusing it is what keeps `rank` a number from 0 to 4 that every
     // face keys a colour off.
     expect(
@@ -314,9 +333,9 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     );
   });
 
-  it('refuses a project that is not there, and one this account may not write', async () => {
-    // 403 rather than 404 for a project this account may read but not write,
-    // which is `projectController`'s own split: pretending it is absent would
+  it('refuses a work package that is not there, and one this account may not write', async () => {
+    // 403 rather than 404 for a work package this account may read but not write,
+    // which is `workPackageController`'s own split: pretending it is absent would
     // contradict the next GET.
     expect(await put('nobody-holds-this', { bands: RECUT })).toEqual({
       status: 404,

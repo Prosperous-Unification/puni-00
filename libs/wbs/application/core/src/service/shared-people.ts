@@ -24,16 +24,16 @@ import { scheduleInputOfCaptured } from './saved-plan-schedule';
 export class SharedPeopleReader {
   constructor(private readonly snapshots: ChainSnapshotStore) {}
 
-  read(projectId: string, principal: OrganizationPrincipal) {
-    return this.snapshots.withSnapshot(principal, projectId, (snapshot) =>
-      readChain(snapshot, projectId),
+  read(workPackageId: string, principal: OrganizationPrincipal) {
+    return this.snapshots.withSnapshot(principal, workPackageId, (snapshot) =>
+      readChain(snapshot, workPackageId),
     );
   }
 
-  /** Reads for background optimizer work under current project ownership, never a synthetic user. */
-  readProject(projectId: string) {
-    return this.snapshots.withProjectSnapshot(projectId, (snapshot) =>
-      readChain(snapshot, projectId),
+  /** Reads for background optimizer work under current work package ownership, never a synthetic user. */
+  readWorkPackage(workPackageId: string) {
+    return this.snapshots.withWorkPackageSnapshot(workPackageId, (snapshot) =>
+      readChain(snapshot, workPackageId),
     );
   }
 }
@@ -41,37 +41,38 @@ export class SharedPeopleReader {
 /** Derives detached scheduling evidence using a caller-owned observation. */
 export async function readChain(
   snapshot: ChainSnapshot,
-  projectId: string,
+  workPackageId: string,
 ): Promise<SharedPeopleRead> {
-  const selected = selectInfluencers(snapshot.projects, projectId);
+  const selected = selectInfluencers(snapshot.workPackages, workPackageId);
   const plans: PlanInputReads[] = [];
-  for (const project of selected) plans.push(await snapshot.capturePlan(project.project.id));
-  return readSharedPeople(plans, projectId, snapshot.scheduler);
+  for (const workPackage of selected)
+    plans.push(await snapshot.capturePlan(workPackage.workPackage.id));
+  return readSharedPeople(plans, workPackageId, snapshot.scheduler);
 }
 
 /**
  * Schedules the influencer closure in rank order, converting displayed bookings through the
- * absolute workday axis. Undated projects stop traversal. Only engine unavailability refuses
+ * absolute workday axis. Undated work packages stop traversal. Only engine unavailability refuses
  * a required influencer; cycle/calendar range remain explicit unavailable load evidence.
  * Uses capture reads exclusively: generations, slots, queues and events are outside this read.
  */
 export function readSharedPeople(
   plans: readonly PlanInputReads[],
-  projectId: string,
+  workPackageId: string,
   scheduler: CapturedScheduler,
 ): SharedPeopleRead {
-  const selected = selectInfluencers(plans, projectId);
+  const selected = selectInfluencers(plans, workPackageId);
   const bookings = new Map<
     string,
-    { start: number; end: number; projectId: string; workItemId: string }[]
+    { start: number; end: number; workPackageId: string; workItemId: string }[]
   >();
   const influencers: InfluencerRead[] = [];
   const labels: HolderLabels = new Map();
-  const target = selected.find((each) => each.project.id === projectId);
+  const target = selected.find((each) => each.workPackage.id === workPackageId);
   if (target === undefined) return { kind: 'not_found' };
   for (const reads of selected) {
     const anchor =
-      reads.project.startDate === null ? null : workdayOrdinalOf(reads.project.startDate);
+      reads.workPackage.startDate === null ? null : workdayOrdinalOf(reads.workPackage.startDate);
     const elsewhere: Elsewhere = new Map(
       [...bookings]
         .filter(([personId]) => reads.assignments.some((each) => each.personId === personId))
@@ -90,26 +91,26 @@ export function readSharedPeople(
         anchor === null || elsewhere.size === 0 ? undefined : elsewhere,
       );
       const scheduled = scheduler.read({
-        projectId: reads.project.id,
+        workPackageId: reads.workPackage.id,
         input,
-        engine: reads.project.scheduleEngine,
-        objective: reads.project.scheduleObjective,
-        enabled: reads.project.optimizationEnabled,
+        engine: reads.workPackage.scheduleEngine,
+        objective: reads.workPackage.scheduleObjective,
+        enabled: reads.workPackage.optimizationEnabled,
         /* Proof: live mode made the cache-publication negative throw at the forbidden admission callback. */ mode: 'capture',
       });
       // Proof: bypassing this refusal failed the required-influencer identity negative.
       if (scheduled.kind === 'engine_unavailable')
         return {
           ...scheduled,
-          projectId: reads.project.id,
-          name: reads.project.name,
+          workPackageId: reads.workPackage.id,
+          name: reads.workPackage.name,
           reads: target,
         };
       // Proof: forcing Fast at this influencer boundary made the mounted
       // selected-ready rank witness book B/C at 1/3 instead of 2/4.
-      const selected = displaySchedule(reads.project, scheduled);
-      const placed = projectBookings(reads, selected.planned);
-      if (reads.project.id === projectId)
+      const selected = displaySchedule(reads.workPackage, scheduled);
+      const placed = workPackageBookings(reads, selected.planned);
+      if (reads.workPackage.id === workPackageId)
         return {
           kind: 'scheduled',
           reads,
@@ -119,15 +120,15 @@ export function readSharedPeople(
           holders: holdersOf(scheduled.fast, labels),
         };
       const numbers = deriveNumbers(reads.workItems);
-      labels.set(reads.project.id, {
-        projectName: reads.project.name,
+      labels.set(reads.workPackage.id, {
+        workPackageName: reads.workPackage.name,
         rows: new Map(
           reads.workItems.map((row) => [row.id, { number: numbers.get(row.id), name: row.name }]),
         ),
       });
       influencers.push({
-        projectId: reads.project.id,
-        name: reads.project.name,
+        workPackageId: reads.workPackage.id,
+        name: reads.workPackage.name,
         engine: selected.engine,
         unavailable: null,
       });
@@ -144,11 +145,11 @@ export function readSharedPeople(
       const reason = failure instanceof ScheduleCycleError ? 'cycle' : 'calendar_range';
       // Proof: returning unavailable for an upstream failure made both
       // mounted cycle/range Retry skip-bookings cases answer 500 instead of 200.
-      if (reads.project.id === projectId)
+      if (reads.workPackage.id === workPackageId)
         return { kind: 'unavailable', reason, reads, influencers };
       influencers.push({
-        projectId: reads.project.id,
-        name: reads.project.name,
+        workPackageId: reads.workPackage.id,
+        name: reads.workPackage.name,
         engine: 'fast',
         unavailable: reason,
       });
@@ -157,11 +158,11 @@ export function readSharedPeople(
   throw new Error('required chain did not schedule its target');
 }
 
-/** Each scheduled influencer's name and its rows' numbers and names, by project id. */
+/** Each scheduled influencer's name and its rows' numbers and names, by work package id. */
 type HolderLabels = Map<
   string,
   {
-    readonly projectName: string;
+    readonly workPackageName: string;
     readonly rows: ReadonlyMap<
       string,
       { readonly number: string | undefined; readonly name: string }
@@ -172,7 +173,7 @@ type HolderLabels = Map<
 /**
  * One label per holder a target slice names, in the order the slices name them.
  *
- * @throws when a slice names a project or row the chain read no label for: the holder and the
+ * @throws when a slice names a work package or row the chain read no label for: the holder and the
  * labels come from the one observation, so a miss is a broken chain, never a booking to leave
  * unnamed.
  */
@@ -181,20 +182,20 @@ function holdersOf(planned: Schedule, labels: HolderLabels): ElsewhereHolderLabe
   for (const slice of planned.slices.values()) {
     const holder = slice.elsewhereHolder;
     if (holder === undefined) continue;
-    const key = `${holder.projectId}\u0000${holder.workItemId}`;
+    const key = `${holder.workPackageId}\u0000${holder.workItemId}`;
     if (holders.has(key)) continue;
-    const project = labels.get(holder.projectId);
-    const row = project?.rows.get(holder.workItemId);
+    const workPackage = labels.get(holder.workPackageId);
+    const row = workPackage?.rows.get(holder.workItemId);
     // Proof: this refusal replaced by `continue` made `throws when a target slice
     // names a holder the chain read no label for` (`shared-people.test.ts`) not
     // throw; watched 2026-10-11.
-    if (project === undefined || row?.number === undefined)
+    if (workPackage === undefined || row?.number === undefined)
       throw new Error(
-        `booking elsewhere held by ${holder.projectId}/${holder.workItemId} has no label`,
+        `booking elsewhere held by ${holder.workPackageId}/${holder.workItemId} has no label`,
       );
     holders.set(key, {
-      projectId: holder.projectId,
-      projectName: project.projectName,
+      workPackageId: holder.workPackageId,
+      workPackageName: workPackage.workPackageName,
       workItemId: holder.workItemId,
       number: row.number,
       name: row.name,
@@ -203,10 +204,10 @@ function holdersOf(planned: Schedule, labels: HolderLabels): ElsewhereHolderLabe
   return [...holders.values()];
 }
 
-/** Chooses the schedule a project actually displays from one captured engine observation. */
+/** Chooses the schedule a work package actually displays from one captured engine observation. */
 export function displaySchedule(
   settings: Pick<
-    PlanInputReads['project'],
+    PlanInputReads['workPackage'],
     'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'
   >,
   scheduled: Exclude<ScheduleRead, EngineUnavailable>,
@@ -235,20 +236,20 @@ export function displaySchedule(
   return { planned: scheduled.fast, engine: 'fast' };
 }
 
-function projectBookings(reads: PlanInputReads, planned: Schedule) {
+function workPackageBookings(reads: PlanInputReads, planned: Schedule) {
   const calendar = new Map<
     string,
-    { start: number; end: number; projectId: string; workItemId: string }[]
+    { start: number; end: number; workPackageId: string; workItemId: string }[]
   >();
-  const date = reads.project.startDate;
+  const date = reads.workPackage.startDate;
   if (date === null) return calendar;
-  // A displayed project must fit the calendar even when its last work item has no person.
+  // A displayed work package must fit the calendar even when its last work item has no person.
   // Proof: omitting this preflight made all three unassigned out-of-range negatives return available schedules.
-  let projectFinish = 0;
+  let workPackageFinish = 0;
   for (const placed of planned.workItems.values()) {
-    if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
+    if (placed.earliestFinish > workPackageFinish) workPackageFinish = placed.earliestFinish;
   }
-  addWorkdays(date, lastWorkdayOf(0, projectFinish));
+  addWorkdays(date, lastWorkdayOf(0, workPackageFinish));
   const anchor = workdayOrdinalOf(date);
   for (const slice of planned.slices.values()) {
     // Proof: admitting zero-time assigned slices made the zero-duration negative throw on a booking holding no time.
@@ -257,7 +258,7 @@ function projectBookings(reads: PlanInputReads, planned: Schedule) {
     intervals.push({
       start: anchor + slice.earliestStart,
       end: anchor + slice.earliestFinish,
-      projectId: reads.project.id,
+      workPackageId: reads.workPackage.id,
       workItemId: slice.workItemId,
     });
     calendar.set(slice.personId, intervals);
@@ -265,34 +266,34 @@ function projectBookings(reads: PlanInputReads, planned: Schedule) {
   return calendar;
 }
 
-/** Follows shared-person edges only toward higher ranks; undated projects stop the closure. */
+/** Follows shared-person edges only toward higher ranks; undated work packages stop the closure. */
 export function selectInfluencers<
   T extends {
-    readonly project: Pick<PlanInputReads['project'], 'id' | 'startDate'>;
+    readonly workPackage: Pick<PlanInputReads['workPackage'], 'id' | 'startDate'>;
     readonly assignments: PlanInputReads['assignments'];
   },
->(plans: readonly T[], projectId: string): readonly T[] {
-  const targetIndex = plans.findIndex((each) => each.project.id === projectId);
+>(plans: readonly T[], workPackageId: string): readonly T[] {
+  const targetIndex = plans.findIndex((each) => each.workPackage.id === workPackageId);
   const target = plans.at(targetIndex);
   if (targetIndex < 0 || target === undefined) return [];
-  const required = new Set([projectId]);
-  if (target.project.startDate !== null) {
+  const required = new Set([workPackageId]);
+  if (target.workPackage.startDate !== null) {
     const people = new Set(target.assignments.map((each) => each.personId));
     // Reverse rank traversal computes transitive edges without recursive live reads.
     for (let index = targetIndex - 1; index >= 0; index--) {
       const candidate = plans.at(index);
       // Proof: a missing rank slot without this guard produced a property dereference instead of the trusted-state refusal.
-      if (candidate === undefined) throw new Error('rank index has no captured project');
+      if (candidate === undefined) throw new Error('rank index has no captured work package');
       // Proof: admitting undated bridges made the undated-bridge negative include A/B instead of no influencers.
       if (
-        candidate.project.startDate === null ||
+        candidate.workPackage.startDate === null ||
         !candidate.assignments.some((each) => people.has(each.personId))
       )
         continue;
-      required.add(candidate.project.id);
+      required.add(candidate.workPackage.id);
       // Proof: dropping person expansion made the transitive Ana→Ben negative place C at 2 instead of 3.
       for (const assignment of candidate.assignments) people.add(assignment.personId);
     }
   }
-  return plans.slice(0, targetIndex + 1).filter((each) => required.has(each.project.id));
+  return plans.slice(0, targetIndex + 1).filter((each) => required.has(each.workPackage.id));
 }

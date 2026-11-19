@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { unitOfWorkConformance, type UnitOfWorkFixture } from '@wbs/conformance';
-import { ProjectService } from '@wbs/core';
+import { WorkPackageService } from '@wbs/core';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
@@ -14,6 +14,7 @@ import { openDrizzle } from './db';
 import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -24,6 +25,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-uow-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const db = openDrizzle(path);
   const coordinator = new WriteCoordinator();
   // The composition the source makes: public stores over the coordinator, the
@@ -38,13 +40,13 @@ beforeEach(async () => {
     stamp,
   );
   // Through the service, so the row this writes is the row production writes —
-  // `NewProject` carries nine fields a literal here would have to keep in step.
-  const created = await new ProjectService({
+  // `NewWorkPackage` carries nine fields a literal here would have to keep in step.
+  const created = await new WorkPackageService({
     dependencyContext: createLocalDependencyContext(publicStores),
     clock: testClock,
-    projects: publicStores.projects,
+    workPackages: publicStores.workPackages,
     broadcast: recordingBroadcaster(),
-  }).create('Rewire the shed', ownerId);
+  }).create('Rewire the shed', 'fixture-project', ownerId);
   if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
 
   fixture = {
@@ -55,7 +57,7 @@ beforeEach(async () => {
     // Read through the **public** stores, on the same connection: what the kit
     // asks is what a later request would see, not what the act believes.
     reader: publicStores,
-    projectId: created.project.id,
+    workPackageId: created.workPackage.id,
     stamp,
   };
 });

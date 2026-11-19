@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { ProjectEvent } from '../ports/project-event';
+import type { WorkPackageEvent } from '../ports/work-package-event';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { OptimizerTriggerBroadcaster } from './optimizer-trigger-broadcaster';
 
@@ -8,20 +8,20 @@ describe('OptimizerTriggerBroadcaster', () => {
   it('triggers only after a scheduling-input event was published', async () => {
     const inner = recordingBroadcaster();
     const changed: string[] = [];
-    const broadcast = new OptimizerTriggerBroadcaster(inner, (projectId) => {
-      changed.push(projectId);
+    const broadcast = new OptimizerTriggerBroadcaster(inner, (workPackageId) => {
+      changed.push(workPackageId);
     });
     const step = {
       id: 's-1',
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       name: 'Dev',
       position: 10,
       code: 'dev',
       allowancePercent: 0,
       estimateUnit: 'workdays' as const,
     };
-    const schedulingEvents: ProjectEvent[] = [
-      { type: 'elsewhere_changed', projectId: 'p-1', causeProjectId: 'upstream' },
+    const schedulingEvents: WorkPackageEvent[] = [
+      { type: 'elsewhere_changed', workPackageId: 'p-1', causeWorkPackageId: 'upstream' },
       { type: 'tree_replaced', workItems: [] },
       { type: 'step_added', step },
       { type: 'step_removed', stepId: 's-1' },
@@ -29,7 +29,7 @@ describe('OptimizerTriggerBroadcaster', () => {
       { type: 'directory_changed' },
       { type: 'capacity_changed' },
       {
-        type: 'project_settings_changed',
+        type: 'work_package_settings_changed',
         optimizationEnabled: true,
         scheduleEngine: 'optimized',
         scheduleObjective: 'pri',
@@ -43,7 +43,7 @@ describe('OptimizerTriggerBroadcaster', () => {
       { type: 'step_renamed', step },
       { type: 'priority_bands_changed' },
       { type: 'saved_plans_changed' },
-    ] satisfies ProjectEvent[]) {
+    ] satisfies WorkPackageEvent[]) {
       await broadcast.publish('p-1', event);
     }
     expect(changed).toHaveLength(schedulingEvents.length);
@@ -56,11 +56,11 @@ describe('OptimizerTriggerBroadcaster', () => {
   it('schedules no optimization for claims_changed', async () => {
     const inner = recordingBroadcaster();
     const changed: string[] = [];
-    const broadcast = new OptimizerTriggerBroadcaster(inner, (projectId) => {
-      changed.push(projectId);
+    const broadcast = new OptimizerTriggerBroadcaster(inner, (workPackageId) => {
+      changed.push(workPackageId);
     });
     await broadcast.publish('p-1', { type: 'claims_changed' });
-    expect(inner.published).toEqual([{ projectId: 'p-1', event: { type: 'claims_changed' } }]);
+    expect(inner.published).toEqual([{ workPackageId: 'p-1', event: { type: 'claims_changed' } }]);
     expect(changed).toEqual([]);
   });
 
@@ -71,7 +71,7 @@ describe('OptimizerTriggerBroadcaster', () => {
         publish: () => Promise.reject(new Error('record refused')),
         latestSeq: () => Promise.resolve(-1),
       },
-      (projectId) => changed.push(projectId),
+      (workPackageId) => changed.push(workPackageId),
     );
 
     const refusal = await broadcast.publish('p-1', { type: 'capacity_changed' }).then(
@@ -86,14 +86,14 @@ describe('OptimizerTriggerBroadcaster', () => {
 describe('OptimizerTriggerBroadcaster and step allowances', () => {
   it('starts the optimizer debounce after a step allowance edit', async () => {
     const changed: string[] = [];
-    const broadcast = new OptimizerTriggerBroadcaster(recordingBroadcaster(), (projectId) => {
-      changed.push(projectId);
+    const broadcast = new OptimizerTriggerBroadcaster(recordingBroadcaster(), (workPackageId) => {
+      changed.push(workPackageId);
     });
     await broadcast.publish('p-1', {
       type: 'step_updated',
       step: {
         id: 's-1',
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         name: 'QA',
         position: 20,
         code: 'qa',

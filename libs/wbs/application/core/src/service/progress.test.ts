@@ -1,29 +1,31 @@
 import type { Days, WorkItemStatus } from '@wbs/domain';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   CommandJournalStore,
-  Project,
-  ProjectStore,
   StepProgressStore,
   StoredProgress,
+  WorkPackage,
+  WorkPackageStore,
 } from '../index';
 import { clockOf } from '../ports/clock';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
 const DEV = 'step-dev';
 const QA = 'step-qa';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let progress: StepProgressStore;
 let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 
 beforeEach(async () => {
   const store = inMemoryCommandJournal();
@@ -41,20 +43,22 @@ beforeEach(async () => {
     },
   };
   // Only the journal is this suite's own, as in `actual.test.ts`.
-  const harness = inMemoryServices({ journal });
-  ({ projects, progress } = harness.stores);
-  service = harness.service;
-  const project: Project = projectRow({
-    id: crypto.randomUUID(),
-    ownerId: OWNER,
-    restricted: true,
+  const harness = createTestServices((await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID)).source, {
+journal,
   });
-  await projects.create(
-    project,
+  ({ workPackages, progress } = harness.stores);
+  service = harness.service;
+  const workPackage: WorkPackage = workPackageRow({
+    id: crypto.randomUUID(),
+    projectId: PROJECT_ID,
+    restricted: false,
+  });
+  await workPackages.create(
+    workPackage,
     [
       {
         id: DEV,
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -63,7 +67,7 @@ beforeEach(async () => {
       },
       {
         id: QA,
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'QA',
         position: 20,
         code: 'qa',
@@ -73,7 +77,7 @@ beforeEach(async () => {
     ],
     { at: 1, by: OWNER },
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
 });
 
 const days = (optimistic: number, realistic: number, pessimistic: number): Days => ({
@@ -94,7 +98,7 @@ function stored(
 }
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -107,15 +111,15 @@ async function add(name: string, parentId: string | null = null): Promise<string
  * between a step that is absent and one that has said something.
  */
 async function shown(): Promise<Map<string, Record<string, string>>> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.progress]));
 }
 
 /** The derived item state by work item name — the field nothing stores. */
 async function states(): Promise<Map<string, WorkItemStatus>> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.status]));
 }
 
@@ -132,7 +136,7 @@ describe('stating where the work has got to', () => {
     // readable. Before this row existed the same payload could not tell "took 8
     // days, finished" from "8 days so far".
     expect((await states()).get('Strip')).toBe('done');
-    expect((await service.tree(projectId))?.workItems.at(0)?.actuals).toEqual({ [DEV]: 8 });
+    expect((await service.tree(workPackageId))?.workItems.at(0)?.actuals).toEqual({ [DEV]: 8 });
   });
 
   it('is not started while nobody has said anything, with no row anywhere', async () => {
@@ -145,7 +149,7 @@ describe('stating where the work has got to', () => {
     // a row — never by a stored `unknown`.
     expect((await shown()).get('Strip')).toEqual({});
     expect((await states()).get('Strip')).toBe('unknown');
-    expect(await progress.listByProject(projectId)).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('is in progress when one step is done and another has said nothing', async () => {
@@ -200,16 +204,16 @@ describe('stating where the work has got to', () => {
     const outcome = await service.setProgress(strip, OWNER, DEV, 'done');
 
     expect(outcome).toEqual({ ok: false, reason: 'rolled_up' });
-    expect(await progress.listByProject(projectId)).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
-  it('refuses a step this project does not hold, and writes nothing', async () => {
+  it('refuses a step this work package does not hold, and writes nothing', async () => {
     const strip = await add('Strip');
 
     const outcome = await service.setProgress(strip, OWNER, 'step-design', 'done');
 
     expect(outcome).toEqual({ ok: false, reason: 'unknown_step' });
-    expect(await progress.listByProject(projectId)).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('refuses a work item that is not there, and a plan the actor cannot edit', async () => {
@@ -219,11 +223,12 @@ describe('stating where the work has got to', () => {
       ok: false,
       reason: 'not_found',
     });
+    await workPackages.update(workPackageId, { restricted: true }, { at: 2, by: OWNER });
     expect(await service.setProgress(strip, OTHER, DEV, 'done')).toEqual({
       ok: false,
       reason: 'forbidden',
     });
-    expect(await progress.listByProject(projectId)).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('folds a parent from its children, and a mixed branch reads as in progress', async () => {
@@ -272,7 +277,7 @@ describe('stating where the work has got to', () => {
     expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
     // Back to the absence of a row, which is "nobody has said" — not "the work
     // was undone", and not a stored `unknown`.
-    expect(await progress.listByProject(projectId)).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
     expect((await states()).get('Strip')).toBe('unknown');
 
     expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
@@ -317,7 +322,7 @@ describe('stating where the work has got to', () => {
     const strip = await add('Strip');
     await service.setProgress(strip, OWNER, DEV, 'done');
 
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
     // The inverse of a first statement is `clear_progress`. A `set_progress`
@@ -327,7 +332,7 @@ describe('stating where the work has got to', () => {
     // fails with `+ { "step-dev": "in_progress" }` where an absence is owed — an
     // undo leaving the plan asserting work is under way that nobody started;
     // watched 2026-08-18.
-    expect(await progress.listByProject(projectId)).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
     expect((await states()).get('Strip')).toBe('unknown');
   });
 
@@ -336,13 +341,13 @@ describe('stating where the work has got to', () => {
     await service.setProgress(strip, OWNER, DEV, 'in_progress');
     await service.setProgress(strip, OWNER, DEV, 'done');
 
-    await service.undo(projectId, OWNER);
-    expect(stored(await progress.listByProject(projectId))).toEqual([
+    await service.undo(workPackageId, OWNER);
+    expect(stored(await progress.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, state: 'in_progress' },
     ]);
 
-    await service.redo(projectId, OWNER);
-    expect(stored(await progress.listByProject(projectId))).toEqual([
+    await service.redo(workPackageId, OWNER);
+    expect(stored(await progress.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, state: 'done' },
     ]);
   });
@@ -352,9 +357,9 @@ describe('stating where the work has got to', () => {
     await service.setProgress(strip, OWNER, DEV, 'done');
     await service.clearProgress(strip, OWNER, DEV);
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
 
-    expect(stored(await progress.listByProject(projectId))).toEqual([
+    expect(stored(await progress.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, state: 'done' },
     ]);
   });
@@ -373,14 +378,14 @@ describe('states through the structural commands', () => {
     //
     // Proof: `progress.moveAll` struck from `create`, and this fails with the
     // child empty; watched 2026-08-18.
-    expect(stored(await progress.listByProject(projectId))).toEqual([
+    expect(stored(await progress.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: child, stepId: DEV, state: 'done' },
     ]);
     expect((await states()).get('Strip')).toBe('done');
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
 
-    expect(stored(await progress.listByProject(projectId))).toEqual([
+    expect(stored(await progress.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, state: 'done' },
     ]);
   });
@@ -399,7 +404,7 @@ describe('states through the structural commands', () => {
     //
     // Proof: the hand-up loop struck from `remove`, and this fails with the
     // parent empty where `done` is owed; watched 2026-08-18.
-    expect(stored(await progress.listByProject(projectId))).toEqual([
+    expect(stored(await progress.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: branch, stepId: DEV, state: 'done' },
     ]);
     expect((await states()).get('Branch')).toBe('done');
@@ -423,7 +428,7 @@ describe('states through the structural commands', () => {
 
     await service.remove(child, OWNER, 'cascade', { kind: 'legacy' });
 
-    expect(stored(await progress.listByProject(projectId))).toEqual([
+    expect(stored(await progress.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: branch, stepId: DEV, state: 'done' },
     ]);
     expect((await states()).get('Branch')).toBe('in_progress');
@@ -444,7 +449,7 @@ describe('states through the structural commands', () => {
     const copied = await service.duplicate(strip, OWNER);
     if (!copied.ok) throw new Error('duplicate failed');
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     const copy = tree?.workItems.find((row) => row.id === copied.value.id);
     expect(copy?.estimates).toEqual({ [DEV]: days(1, 2, 3) });
     expect(copy?.progress).toEqual({});
@@ -468,12 +473,12 @@ describe('what stating progress does not do', () => {
     await service.setEstimate(first, OWNER, DEV, days(4, 5, 6));
     await service.setEstimate(second, OWNER, DEV, days(1, 2, 3));
     await service.addDependency(second, OWNER, first);
-    const before = await service.tree(projectId);
+    const before = await service.tree(workPackageId);
 
     await service.setProgress(first, OWNER, DEV, 'done');
     await service.setActual(first, OWNER, DEV, 20);
 
-    const after = await service.tree(projectId);
+    const after = await service.tree(workPackageId);
     const schedules = (
       tree: Awaited<ReturnType<WorkItemService['tree']>>,
     ): Record<string, unknown>[] =>
@@ -485,8 +490,8 @@ describe('what stating progress does not do', () => {
 describe('setting the row’s status as one act', () => {
   /** Every row's fact end by name, off the same read the table draws. */
   async function factEnds(): Promise<Map<string, string | null>> {
-    const tree = await service.tree(projectId);
-    if (tree === null) throw new Error('project vanished');
+    const tree = await service.tree(workPackageId);
+    if (tree === null) throw new Error('work package vanished');
     return new Map(tree.workItems.map((w) => [w.name, w.factEnd]));
   }
 
@@ -518,7 +523,7 @@ describe('setting the row’s status as one act', () => {
 
     expect(outcome.ok).toBe(true);
     expect((await states()).get('Branch')).toBe('done');
-    expect(stored(await progress.listByProject(projectId)).sort(byRow)).toEqual(
+    expect(stored(await progress.listByWorkPackage(workPackageId)).sort(byRow)).toEqual(
       [
         { workItemId: paint, stepId: DEV, state: 'done' },
         { workItemId: paint, stepId: QA, state: 'done' },
@@ -547,7 +552,7 @@ describe('setting the row’s status as one act', () => {
     await service.setStatus(strip, OWNER, 'done', '2026-09-12', '2026-09-08');
     await service.setStatus(sand, OWNER, 'done', '2026-09-12', '2026-09-08');
 
-    const rows = (await service.tree(projectId))?.workItems ?? [];
+    const rows = (await service.tree(workPackageId))?.workItems ?? [];
     const starts = new Map(rows.map((w) => [w.name, w.factStart]));
     // Proof: the `factStart` fill dropped from the done arm, and this fails on
     // `expected null to be '2026-09-08'`; watched 2026-09-13.
@@ -569,19 +574,23 @@ describe('setting the row’s status as one act', () => {
   });
 
   it('takes the UTC day of its own stamp when no day is given', async () => {
-    const lateEvening = inMemoryServices({
-      clock: clockOf({
+    const lateEvening = createTestServices((await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID)).source, {
+clock: clockOf({
         now: () => Date.UTC(2026, 8, 12, 23, 30),
         newId: () => crypto.randomUUID(),
       }),
     });
-    const project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER, restricted: true });
-    await lateEvening.stores.projects.create(
-      project,
+    const workPackage = workPackageRow({
+      id: crypto.randomUUID(),
+      projectId: PROJECT_ID,
+      restricted: false,
+    });
+    await lateEvening.stores.workPackages.create(
+      workPackage,
       [
         {
           id: DEV,
-          projectId: project.id,
+          workPackageId: workPackage.id,
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -591,7 +600,7 @@ describe('setting the row’s status as one act', () => {
       ],
       { at: 1, by: OWNER },
     );
-    const created = await lateEvening.service.create(project.id, OWNER, {
+    const created = await lateEvening.service.create(workPackage.id, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Strip',
@@ -600,7 +609,7 @@ describe('setting the row’s status as one act', () => {
 
     await lateEvening.service.setStatus(created.value.id, OWNER, 'done');
 
-    const tree = await lateEvening.service.tree(project.id);
+    const tree = await lateEvening.service.tree(workPackage.id);
     expect(tree?.workItems.at(0)?.factEnd).toBe('2026-09-12');
   });
 
@@ -629,7 +638,7 @@ describe('setting the row’s status as one act', () => {
 
     expect((await shown()).get('Strip')).toEqual({});
     expect((await states()).get('Strip')).toBe('unknown');
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === strip);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === strip);
     // The finish did not happen, so both its days go with the statements (Dany,
     // 2026-09-13: "when from done -> unknown clear fact start and fact end").
     // Proof: the `factStart` half of the clear dropped, and this fails on
@@ -649,7 +658,7 @@ describe('setting the row’s status as one act', () => {
     await service.setStatus(strip, OWNER, 'unknown');
 
     expect((await shown()).get('Strip')).toEqual({});
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === strip);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === strip);
     expect([row?.factStart, row?.factEnd]).toEqual(['2026-09-04', '2026-09-10']);
   });
 
@@ -679,15 +688,15 @@ describe('setting the row’s status as one act', () => {
     await add('Strip', branch);
     await add('Sand', branch);
     await service.setStatus(branch, OWNER, 'done', '2026-09-12', '2026-09-08');
-    const before = stored(await progress.listByProject(projectId)).sort(byRow);
+    const before = stored(await progress.listByWorkPackage(workPackageId)).sort(byRow);
     const entriesBefore = journal.events.length;
 
     await service.setStatus(branch, OWNER, 'unknown');
     const cleared = await factEnds();
     const clearedStarts = new Map(
-      ((await service.tree(projectId))?.workItems ?? []).map((w) => [w.name, w.factStart]),
+      ((await service.tree(workPackageId))?.workItems ?? []).map((w) => [w.name, w.factStart]),
     );
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
     expect([cleared.get('Branch'), cleared.get('Strip'), cleared.get('Sand')]).toEqual([
@@ -696,7 +705,7 @@ describe('setting the row’s status as one act', () => {
       null,
     ]);
     expect([clearedStarts.get('Branch'), clearedStarts.get('Strip')]).toEqual([null, null]);
-    expect(stored(await progress.listByProject(projectId)).sort(byRow)).toEqual(before);
+    expect(stored(await progress.listByWorkPackage(workPackageId)).sort(byRow)).toEqual(before);
     const ends = await factEnds();
     expect([ends.get('Branch'), ends.get('Strip'), ends.get('Sand')]).toEqual([
       '2026-09-12',
@@ -704,7 +713,7 @@ describe('setting the row’s status as one act', () => {
       '2026-09-12',
     ]);
     const starts = new Map(
-      ((await service.tree(projectId))?.workItems ?? []).map((w) => [w.name, w.factStart]),
+      ((await service.tree(workPackageId))?.workItems ?? []).map((w) => [w.name, w.factStart]),
     );
     expect([starts.get('Branch'), starts.get('Strip'), starts.get('Sand')]).toEqual([
       '2026-09-08',
@@ -724,10 +733,10 @@ describe('setting the row’s status as one act', () => {
     await service.setProgress(paint, OWNER, DEV, 'done');
     await service.setProgress(paint, OWNER, QA, 'done');
     expect((await service.patch(paint, OWNER, { factEnd: '2026-09-01' })).ok).toBe(true);
-    const before = stored(await progress.listByProject(projectId)).sort(byRow);
+    const before = stored(await progress.listByWorkPackage(workPackageId)).sort(byRow);
 
     await service.setStatus(branch, OWNER, 'done', '2026-09-12');
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
     // The inverse is a `batch` whose steps are reversed by convention; recording
@@ -736,7 +745,7 @@ describe('setting the row’s status as one act', () => {
     // inverses changes what they restore. What this case holds is the whole of
     // the entry: every statement back, every filled fact end emptied, a typed
     // one kept.
-    expect(stored(await progress.listByProject(projectId)).sort(byRow)).toEqual(before);
+    expect(stored(await progress.listByWorkPackage(workPackageId)).sort(byRow)).toEqual(before);
     const ends = await factEnds();
     expect([ends.get('Branch'), ends.get('Strip'), ends.get('Sand'), ends.get('Paint')]).toEqual([
       null,
@@ -755,7 +764,9 @@ describe('setting the row’s status as one act', () => {
     const copied = await service.duplicate(strip, OWNER);
     if (!copied.ok) throw new Error('duplicate failed');
 
-    const copy = (await service.tree(projectId))?.workItems.find((w) => w.id === copied.value.id);
+    const copy = (await service.tree(workPackageId))?.workItems.find(
+      (w) => w.id === copied.value.id,
+    );
     // Proof: the two nulls dropped from the copy literal, and this fails on
     // `Received: ["2026-09-08", "2026-09-12", "unknown"]` — a copy that was
     // never worked on, carrying the days the original was; watched 2026-09-12.

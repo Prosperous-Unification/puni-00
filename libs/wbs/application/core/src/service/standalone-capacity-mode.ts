@@ -1,19 +1,19 @@
 import type { CommandAccess } from '../ports/command-access';
-import { type ProjectEvent, subscriptionFor } from '../ports/project-event';
+import { type WorkPackageEvent, subscriptionFor } from '../ports/work-package-event';
 import type {
   CapacityModeSwitch,
   CapacityModeSwitched,
   SharedPeopleStore,
-} from '../ports/project-rank-store';
+} from '../ports/work-package-rank-store';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import { authorize } from './authorize';
-import type { CommittedFanoutDelivery, CommittedProjectEvent } from './committed-fanout';
+import type { CommittedFanoutDelivery, CommittedWorkPackageEvent } from './committed-fanout';
 
 /**
  * The public capacity-mode writer: one complete async write turn, as
  * {@link standaloneRankStore} is for a rank move. Authenticated evidence is
  * detached with the caller-owned stamp before queuing; current membership and manage_capacity_mode grants
- * are resolved on the writer before mutation. A switch tells every project of the organization, naming no
+ * are resolved on the writer before mutation. A switch tells every work package of the organization, naming no
  * cause, because flipping the mode may move any of them; the event rows settle
  * with the mode and its audit row, and delivery starts after release.
  */
@@ -42,10 +42,10 @@ export function standaloneCapacityModeSwitch(
       stamp = { ...stamp };
       const settled = await uow.run<{
         switched: CapacityModeSwitched;
-        events: readonly CommittedProjectEvent[];
+        events: readonly CommittedWorkPackageEvent[];
       }>(async (scope) => {
         const capture = scope.fanoutCapture;
-        const modes = scope.stores.projectRanks;
+        const modes = scope.stores.workPackageRanks;
         // Proof: mode-required-capture: omitting required borrowed capture before a no-op.
         // requires capture before a standalone mode no-op
         // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
@@ -112,22 +112,22 @@ export function standaloneCapacityModeSwitch(
             commit: false as const,
             value: { switched: { ok: true as const, changed: false }, events: [] },
           };
-        // Proof: this loop emptied made `tells every project when the
+        // Proof: this loop emptied made `tells every workPackage when the
         // organization switches, and nothing for no switch` record no row;
         // watched 2026-10-11.
-        const events: CommittedProjectEvent[] = [];
-        for (const { projectId } of await modes.orderIn(organizationId)) {
-          const event: ProjectEvent = {
+        const events: CommittedWorkPackageEvent[] = [];
+        for (const { workPackageId } of await modes.orderIn(organizationId)) {
+          const event: WorkPackageEvent = {
             type: 'elsewhere_changed',
-            projectId,
-            causeProjectId: null,
+            workPackageId,
+            causeWorkPackageId: null,
           };
           const recorded = await scope.stores.eventLog.recordEvent(
-            subscriptionFor(projectId),
+            subscriptionFor(workPackageId),
             event,
             delivery.now(),
           );
-          events.push({ projectId, event, recorded });
+          events.push({ workPackageId, event, recorded });
         }
         return {
           commit: true as const,

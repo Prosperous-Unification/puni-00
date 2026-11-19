@@ -3,7 +3,7 @@ import {
   type DependencyClientRefusal,
   type DependencyRuntimeCapability,
 } from '@wbs/contracts';
-import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-project-dependency-activation';
+import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-work-package-dependency-activation';
 import type { Drizzle } from '@wbs/store-sqlite/db';
 
 /**
@@ -16,7 +16,7 @@ export function admitDependencyClient(
   capability: DependencyRuntimeCapability,
   claim: string | null,
 ): DependencyClientRefusal | null {
-  // Proof: bypassing fresh inspection admitted ENABLED /api/projects,200 instead of409; removing the transaction changed the rival-activation snapshot request from200 to409.
+  // Proof: bypassing fresh inspection admitted ENABLED /api/work-packages,200 instead of409; removing the transaction changed the rival-activation snapshot request from200 to409.
   const activation = db.transaction((transaction) => inspectDependencyActivation(transaction));
   if (activation.state === 'DISABLED') return null;
   // Proof: independently removing exact claim or immutable support admitted an incompatible client in dependency-client.db.test.ts.

@@ -1,4 +1,4 @@
-import { expect, type Page, test, type TestInfo } from '@playwright/test';
+import { expect, type Page, test, type TestInfo } from './ordinary-test';
 
 /**
  * The organization page, drawn by a browser, for a super-admin of an activated
@@ -18,8 +18,9 @@ import { expect, type Page, test, type TestInfo } from '@playwright/test';
 
 const DAY = 86_400_000;
 const ISOLATED_WORDS =
-  'Each project schedules its people as if it had them alone. A person booked in two projects at once shows as an overlap on their load.';
-const UNAVAILABLE_WORDS = 'Sharing people across projects is not available in this release yet.';
+  'Each work package schedules its people as if it had them alone. A person booked in two work packages at once shows as an overlap on their load.';
+const UNAVAILABLE_WORDS =
+  'Sharing people across work packages is not available in this release yet.';
 const SUPER_ADMIN_WORDS = 'Only a super-admin can change whether people are shared.';
 
 type SharingReply =
@@ -203,7 +204,7 @@ for (const width of [1280, 375]) {
       await answerAsSuperAdmin(page);
       await page.goto('/organization');
       await expect(
-        page.getByRole('button', { name: 'Share people across projects' }),
+        page.getByRole('button', { name: 'Share people across work packages' }),
       ).toBeVisible();
 
       await page.getByRole('button', { name: 'Start proof for other.example' }).click();
@@ -370,7 +371,7 @@ for (const width of [1280, 375]) {
       await answerAsSuperAdmin(page);
       await page.goto('/organization');
       await expect(
-        page.getByRole('button', { name: 'Share people across projects' }),
+        page.getByRole('button', { name: 'Share people across work packages' }),
       ).toBeVisible();
 
       await page.getByRole('button', { name: 'Start proof for other.example' }).click();

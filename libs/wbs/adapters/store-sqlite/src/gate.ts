@@ -10,7 +10,7 @@
  * that retains a transaction across awaits shares the turn too.
  *
  * It is a port because the answer is the source's, not SQLite's: the key is
- * process-wide for a one-connection SQLite file, per project for a Postgres
+ * process-wide for a one-connection SQLite file, per work package for a Postgres
  * advisory lock, and nothing at all where every transaction has its own
  * connection (`docs/2026-09-05-ports-and-adapters-plan.md` §3.2, ADR 0015).
  *

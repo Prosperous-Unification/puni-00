@@ -1,13 +1,12 @@
-import { openMemorySource } from '@wbs/store-memory';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
-import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
-import { LEGACY_ACCESS } from '../../ports/organization-access';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -19,7 +18,8 @@ import { planDocumentModule } from './module';
 const EXPORTED_AT = Date.parse('2026-09-24T09:00:00.000Z');
 
 /**
- * One memory source holding a project, and the requirements that export it:
+ * Historical IO-era fixture description (retired):
+ * One memory source holding a work package, and the requirements that export it:
  * the directory store, a marker read answering one marker, and a fixed clock.
  *
  * The marker read is a stub rather than the Calendar marker resource on
@@ -27,90 +27,55 @@ const EXPORTED_AT = Date.parse('2026-09-24T09:00:00.000Z');
  * module that reaches `module/calendar-marker/calendar-marker.resource.ts`, tests included.
  */
 async function seeded() {
-  const source = openMemorySource();
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
+  await source.stores.users.create(
+    { id: 'owner', username: 'owner', passwordHash: null, createdAt: 1 },
+    { at: 1, by: 'owner' },
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: 'owner',
+  });
   let next = 0;
   const clock = clockOf({ now: () => EXPORTED_AT, newId: () => `id-${String(++next)}` });
   const services = servicesOver(source.stores, {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
   });
-  const { project } = expectCreated(await services.projects.create('Plan', 'owner'));
-  const tree = await services.workItems.tree(project.id);
-  if (tree === null || 'kind' in tree) throw new Error('the seeded project has no tree');
+  const { workPackage } = expectCreated(
+    await services.workPackages.create('Plan', 'fixture-project', 'owner'),
+  );
+  const tree = await services.workItems.tree(workPackage.id);
+  if (tree === null || 'kind' in tree) throw new Error('the seeded work package has no tree');
   const marker: CalendarMarker = {
     id: 'marker-1',
-    projectId: project.id,
+    workPackageId: workPackage.id,
     date: '2026-09-30',
     name: 'Launch',
     color: null,
     createdAt: EXPORTED_AT,
   };
-  const markers: CalendarMarkerReader = {
-    list: (projectId) =>
-      Promise.resolve(
-        projectId === project.id
-          ? { ok: true, value: [marker] }
-          : { ok: false, reason: 'not_found', about: 'project' },
-      ),
-  };
   return {
-    project,
+    workPackage,
     tree,
-    requirements: {
-      directory: source.stores.directory,
-      markers,
-      clock,
-      stepParallels: source.stores.stepParallels,
-      resourceFacts: {
-        resourceCapacitiesOf: (id: string) => source.stores.resourceCapacity.listFor(id),
-        demandsOf: (id: string) => source.stores.demands.listByProject(id),
-      },
-      measureFacts: {
-        measureDefinitionsOf: (id: string) => source.stores.measures.definitionsFor(id),
-        measuresOf: (id: string) => source.stores.measures.listByProject(id),
-        measureEstimatesOf: (id: string) => source.stores.measureEstimates.listByProject(id),
-        budgetsOf: (id: string) => source.stores.budgets.listByProject(id),
-      },
+    reads: {
+      project: { id: 'fixture-project', name: 'Fixture parent' },
+      directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+      markers: [marker],
+      stepParallels: [],
+      resources: { resources: [], capacities: [], demands: [] },
+      measures: { definitions: null, facts: [], estimates: [], budgets: [] },
     },
+    requirements: { clock },
   };
 }
 
-const hostRequirements = () => {
-  const source = openMemorySource();
-  return {
-    stepParallels: DiBag.createProvider(() => source.stores.stepParallels, {
-      factoryReturnKind: 'sync-value',
-    }),
-    resourceFacts: DiBag.createProvider(
-      () => ({
-        resourceCapacitiesOf: (id: string) => source.stores.resourceCapacity.listFor(id),
-        demandsOf: (id: string) => source.stores.demands.listByProject(id),
-      }),
-      { factoryReturnKind: 'sync-value' },
-    ),
-    measureFacts: DiBag.createProvider(
-      () => ({
-        measureDefinitionsOf: (id: string) => source.stores.measures.definitionsFor(id),
-        measuresOf: (id: string) => source.stores.measures.listByProject(id),
-        measureEstimatesOf: (id: string) => source.stores.measureEstimates.listByProject(id),
-        budgetsOf: (id: string) => source.stores.budgets.listByProject(id),
-      }),
-      { factoryReturnKind: 'sync-value' },
-    ),
-    directory: DiBag.createProvider(() => source.stores.directory, {
-      factoryReturnKind: 'sync-value',
-    }),
-    markers: DiBag.createProvider(
-      () => ({
-        list: () => Promise.resolve({ ok: true as const, value: [] }),
-      }),
-      { factoryReturnKind: 'sync-value' },
-    ),
-  };
-};
+const hostRequirements = () => ({});
 
 /**
  * A complete host graph.
@@ -130,20 +95,16 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Plan document module', () => {
-  it('exports a project with its markers over the graph installPlanDocument wires', async () => {
-    const { project, tree, requirements } = await seeded();
+  it('serializes constructed captured markers using the graph-supplied clock', async () => {
+    const { workPackage, tree, reads, requirements } = await seeded();
     const { planDocuments } = installPlanDocument(requirements);
 
-    const exported = await planDocuments.export(
-      { ...project, timezone: 'UTC' },
-      tree,
-      LEGACY_ACCESS,
-    );
+    const exported = planDocuments.exportCaptured({ ...workPackage, timezone: 'UTC' }, tree, reads);
 
     if (!exported.ok) throw new Error('export refused');
     expect(exported.value.document).toEqual({
       format: 'wbs-plan',
-      version: 11,
+      version: 15,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
     expect(exported.value.calendarMarkers).toEqual([

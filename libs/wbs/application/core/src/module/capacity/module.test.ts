@@ -1,37 +1,53 @@
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installCapacity } from './check';
 import { CAPACITY_LABEL } from './contract';
 import { capacityModule } from './module';
 
-const PROJECT = 'project-1';
+const WORK_PACKAGE = 'work-package-1';
 const OWNER = 'owner';
 const TEAM = 'team-1';
 
-/** One memory source holding one project and one team, and the requirements a capacity write needs. */
+/** One memory source holding one work package and one team, and the requirements a capacity write needs. */
 async function seeded() {
-  const source = openMemorySource();
-  await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-    at: 1,
-    by: OWNER,
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
+  await source.stores.users.create(
+    { id: OWNER, username: OWNER, passwordHash: null, createdAt: 1 },
+    { at: 1, by: OWNER },
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: OWNER,
   });
+  await source.stores.workPackages.create(
+    workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
+    [],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   await source.stores.directory.addTeam({ id: TEAM, name: 'Platform' }, { at: 1, by: OWNER });
   const broadcast = recordingBroadcaster();
   return {
     broadcast,
     requirements: {
-      projects: source.stores.projects,
+      workPackages: source.stores.workPackages,
       capacity: source.stores.capacity,
       resourceCapacity: source.stores.resourceCapacity,
       clock: clockOf({ now: () => 2, newId: () => 'unused' }),
       broadcast,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
     },
   };
 }
@@ -39,7 +55,7 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.createProvider(() => source.stores.projects, {
+    workPackageStore: DiBag.createProvider(() => source.stores.workPackages, {
       factoryReturnKind: 'sync-value',
     }),
     capacityStore: DiBag.createProvider(() => source.stores.capacity, {
@@ -52,7 +68,7 @@ const hostRequirements = () => {
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),
-    editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
+    editAdmission: DiBag.createProvider(() => LEGACY_EDIT_ADMISSION, {
       factoryReturnKind: 'sync-value',
     }),
   };
@@ -82,11 +98,11 @@ describe('the Capacity module', () => {
     const { broadcast, requirements } = await seeded();
     const { capacity } = installCapacity(requirements);
 
-    const written = await capacity.set(PROJECT, OWNER, TEAM, 3);
+    const written = await capacity.set(WORK_PACKAGE, OWNER, TEAM, 3);
 
     expect(written).toEqual({ ok: true, value: [{ serviceTeamId: TEAM, size: 3 }] });
     expect(broadcast.published).toEqual([
-      { projectId: PROJECT, event: { type: 'capacity_changed' } },
+      { workPackageId: WORK_PACKAGE, event: { type: 'capacity_changed' } },
     ]);
   });
 
@@ -97,7 +113,7 @@ describe('the Capacity module', () => {
     const { broadcast, requirements } = await seeded();
     const { capacity } = installCapacity({ ...requirements, admission: { admits: () => false } });
 
-    const written = await capacity.set(PROJECT, OWNER, TEAM, 3);
+    const written = await capacity.set(WORK_PACKAGE, OWNER, TEAM, 3);
 
     expect(written).toEqual({ ok: false, reason: 'forbidden' });
     expect(broadcast.published).toEqual([]);

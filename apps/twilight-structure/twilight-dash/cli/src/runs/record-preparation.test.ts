@@ -71,7 +71,7 @@ for (const fault of [
           : new TextEncoder().encode(
               fault === 'json'
                 ? '{'
-                : JSON.stringify(fault === 'schema' ? { ...state, schemaVersion: 2 } : state),
+                : JSON.stringify(fault === 'schema' ? { ...state, schemaVersion: 3 } : state),
             );
       const retained = await stores.artifacts.retainArtifact(content, 'application/json');
       if (retained.kind !== 'retained') throw new Error('fixture artifact refused');

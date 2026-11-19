@@ -116,7 +116,7 @@ function world(
     served += 1;
     if (options.hangFirstCall === true && served === 1)
       return await new Promise<never>(() => undefined);
-    return Response.json({ projects: [] });
+    return Response.json({ workPackages: [] });
   };
   const oauth = new McpOAuthServer(
     CONFIG,
@@ -206,7 +206,7 @@ async function callTools(
     jsonrpc: '2.0',
     id: index + 1,
     method: 'tools/call',
-    params: { name: 'getApiProjects', arguments: {} },
+    params: { name: 'getApiWorkPackages', arguments: {} },
   }));
   const response = await world.handle(
     new Request(MCP_URL, {
@@ -478,7 +478,9 @@ describe('tools/call on /mcp', () => {
     const limited = answer.texts.filter((text) => text !== 'ok');
     expect(limited).toHaveLength(10);
     for (const text of limited)
-      expect(text).toBe('getApiProjects could not be called: rate_limited (429). Retry after 1 s.');
+      expect(text).toBe(
+        'getApiWorkPackages could not be called: rate_limited (429). Retry after 1 s.',
+      );
     expect(world_.served()).toBe(20);
   });
 
@@ -513,7 +515,7 @@ describe('tools/call on /mcp', () => {
     // meets two calls in flight.
     const answer = await callTools(world_, await tokenFor(world_, held), 3);
     expect(answer.texts.toSorted()).toEqual([
-      'getApiProjects could not be called: too_many_in_flight (429). Retry after 1 s.',
+      'getApiWorkPackages could not be called: too_many_in_flight (429). Retry after 1 s.',
       'ok',
       'ok',
     ]);
@@ -535,7 +537,7 @@ describe('a be-01 call that never answers', () => {
     );
     const token = await tokenFor(world_, held);
     expect((await callTools(world_, token, 1)).texts).toEqual([
-      'getApiProjects could not be called: mcp-01 failed unexpectedly. Reference occurrence.',
+      'getApiWorkPackages could not be called: mcp-01 failed unexpectedly. Reference occurrence.',
     ]);
     // Reported as a fault of the deployment, never the caller's 401.
     expect(world_.reported).toHaveLength(1);

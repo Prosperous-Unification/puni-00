@@ -37,7 +37,7 @@ if (!Number.isSafeInteger(childDeadlineAt)) {
 const attempt = await connectSolverSupervisor({
   unix,
   callerId,
-  projectId: '11111111-1111-4111-8111-111111111111',
+  workPackageId: '11111111-1111-4111-8111-111111111111',
   objective: 'pri',
   attemptToken,
   childDeadlineAt,

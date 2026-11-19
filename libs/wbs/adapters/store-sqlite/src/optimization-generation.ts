@@ -6,7 +6,7 @@ import {
   optimizationGeneration,
   type OptimizationGenerationRow,
   optimizedScheduleCache,
-  project,
+  workPackage,
   solverQueue,
   solverSlot,
 } from './schema';
@@ -24,11 +24,11 @@ type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0
 type GenerationReader = SQLiteBunDatabase | Transaction;
 
 /**
- * The generation identity, allocated and read per `(projectId, contractVersion)`.
+ * The generation identity, allocated and read per `(workPackageId, contractVersion)`.
  *
  * **The key is why this exists.** `SCHEDULER_CONTRACT_VERSION` is bumped while
  * two releases run against one SQLite file, so a counter living on the
- * `project` row would be shared: blue computing H1 and green computing H2 would
+ * `workPackage` row would be shared: blue computing H1 and green computing H2 would
  * alternately increment it and delete each other's cache rows for ever, on a
  * plan nobody edited. Each release owns its own row instead, and
  * {@link allocateGeneration} never reads or writes another contract version's.
@@ -49,7 +49,7 @@ export type { OptimizationGenerationRow };
  */
 export function readGeneration(
   db: GenerationReader,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
 ): OptimizationGenerationRow | null {
   const row = db
@@ -57,7 +57,7 @@ export function readGeneration(
     .from(optimizationGeneration)
     .where(
       and(
-        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.workPackageId, workPackageId),
         eq(optimizationGeneration.contractVersion, contractVersion),
       ),
     )
@@ -88,7 +88,7 @@ export function readGeneration(
  */
 function allocateGenerationIn(
   tx: Transaction,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
   inputHash: string,
   now: number,
@@ -98,7 +98,7 @@ function allocateGenerationIn(
     .from(optimizationGeneration)
     .where(
       and(
-        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.workPackageId, workPackageId),
         eq(optimizationGeneration.contractVersion, contractVersion),
       ),
     )
@@ -106,7 +106,7 @@ function allocateGenerationIn(
   if (current === undefined) {
     tx.insert(optimizationGeneration)
       .values({
-        projectId,
+        workPackageId,
         contractVersion,
         generation: 1,
         inputHash,
@@ -121,7 +121,7 @@ function allocateGenerationIn(
       .from(optimizationGeneration)
       .where(
         and(
-          eq(optimizationGeneration.projectId, projectId),
+          eq(optimizationGeneration.workPackageId, workPackageId),
           eq(optimizationGeneration.contractVersion, contractVersion),
         ),
       )
@@ -136,7 +136,7 @@ function allocateGenerationIn(
     .set({ generation: next, inputHash, updatedAt: now })
     .where(
       and(
-        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.workPackageId, workPackageId),
         eq(optimizationGeneration.contractVersion, contractVersion),
         eq(optimizationGeneration.generation, current.generation),
       ),
@@ -147,7 +147,7 @@ function allocateGenerationIn(
     .set({ cancelRequestedAt: now })
     .where(
       and(
-        eq(solverSlot.projectId, projectId),
+        eq(solverSlot.workPackageId, workPackageId),
         eq(solverSlot.contractVersion, contractVersion),
         lt(solverSlot.generation, next),
         isNull(solverSlot.cancelRequestedAt),
@@ -158,7 +158,7 @@ function allocateGenerationIn(
   tx.delete(optimizedScheduleCache)
     .where(
       and(
-        eq(optimizedScheduleCache.projectId, projectId),
+        eq(optimizedScheduleCache.workPackageId, workPackageId),
         eq(optimizedScheduleCache.contractVersion, contractVersion),
         lt(optimizedScheduleCache.generation, next),
       ),
@@ -167,7 +167,7 @@ function allocateGenerationIn(
   tx.delete(solverQueue)
     .where(
       and(
-        eq(solverQueue.projectId, projectId),
+        eq(solverQueue.workPackageId, workPackageId),
         eq(solverQueue.contractVersion, contractVersion),
         lt(solverQueue.generation, next),
       ),
@@ -179,65 +179,65 @@ function allocateGenerationIn(
 
 export function allocateGeneration(
   db: SQLiteBunDatabase,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
   inputHash: string,
   now: number,
 ): number {
   return db.transaction((tx) =>
-    allocateGenerationIn(tx, projectId, contractVersion, inputHash, now),
+    allocateGenerationIn(tx, workPackageId, contractVersion, inputHash, now),
   );
 }
 
-/** Allocates only while the project remains enabled in the same writer-owned snapshot. */
+/** Allocates only while the work package remains enabled in the same writer-owned snapshot. */
 export function allocateEnabledGeneration(
   db: SQLiteBunDatabase,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
   inputHash: string,
   now: number,
 ): number | null {
   return db.transaction(
-    (tx) => allocateEnabledGenerationIn(tx, projectId, contractVersion, inputHash, now),
+    (tx) => allocateEnabledGenerationIn(tx, workPackageId, contractVersion, inputHash, now),
     { behavior: 'immediate' },
   );
 }
 
 /**
  * Whether {@link allocateEnabledGenerationIn} would answer the current generation
- * without writing: the project is enabled and this release's row already holds
+ * without writing: the work package is enabled and this release's row already holds
  * `inputHash`. Only meaningful under the caller's write lock, which keeps the
  * answer true until that caller's own allocation runs.
  */
 export function reusesEnabledGeneration(
   db: GenerationReader,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
   inputHash: string,
 ): boolean {
   const enabled = db
-    .select({ enabled: project.optimizationEnabled })
-    .from(project)
-    .where(eq(project.id, projectId))
+    .select({ enabled: workPackage.optimizationEnabled })
+    .from(workPackage)
+    .where(eq(workPackage.id, workPackageId))
     .get()?.enabled;
   if (enabled !== true) return false;
-  return readGeneration(db, projectId, contractVersion)?.inputHash === inputHash;
+  return readGeneration(db, workPackageId, contractVersion)?.inputHash === inputHash;
 }
 
 /** Reuses the caller's synchronous writer-owned transaction for one coherent admission observation. */
 export function allocateEnabledGenerationIn(
   tx: Transaction,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
   inputHash: string,
   now: number,
 ): number | null {
   const enabled = tx
-    .select({ enabled: project.optimizationEnabled })
-    .from(project)
-    .where(eq(project.id, projectId))
+    .select({ enabled: workPackage.optimizationEnabled })
+    .from(workPackage)
+    .where(eq(workPackage.id, workPackageId))
     .get()?.enabled;
   return enabled === true
-    ? allocateGenerationIn(tx, projectId, contractVersion, inputHash, now)
+    ? allocateGenerationIn(tx, workPackageId, contractVersion, inputHash, now)
     : null;
 }

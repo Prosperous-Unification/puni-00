@@ -36,7 +36,7 @@ function prepared() {
       VALUES ('u-1', 'owner', 'hash', 1)`);
     for (const id of ['p-a', 'p-b']) {
       raw.run(
-        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+        `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                               optimization_enabled, schedule_engine, schedule_objective)
          VALUES (?, ?, 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
         [id, id],
@@ -46,8 +46,8 @@ function prepared() {
     raw.close();
   }
   const db = openDrizzle(path);
-  for (const projectId of ['p-a', 'p-b']) {
-    allocateGeneration(db, projectId, BLUE, `hash-${projectId}`, 1);
+  for (const workPackageId of ['p-a', 'p-b']) {
+    allocateGeneration(db, workPackageId, BLUE, `hash-${workPackageId}`, 1);
   }
   allocateGeneration(db, 'p-a', GREEN, 'hash-p-a', 1);
   return { path, db };
@@ -56,7 +56,7 @@ function prepared() {
 function enqueue(
   db: ReturnType<typeof openDrizzle>,
   entry: {
-    projectId: string;
+    workPackageId: string;
     contractVersion: string;
     objective: 'pri' | 'time';
     budgetMs?: number;
@@ -75,16 +75,16 @@ describe('the durable solver FIFO', () => {
   it('uses every ordering term to dequeue one deterministic global order', () => {
     const { db } = prepared();
     const entries = [
-      { projectId: 'p-b', contractVersion: BLUE, objective: 'time' as const },
-      { projectId: 'p-a', contractVersion: GREEN, objective: 'pri' as const },
-      { projectId: 'p-a', contractVersion: BLUE, objective: 'time' as const },
+      { workPackageId: 'p-b', contractVersion: BLUE, objective: 'time' as const },
+      { workPackageId: 'p-a', contractVersion: GREEN, objective: 'pri' as const },
+      { workPackageId: 'p-a', contractVersion: BLUE, objective: 'time' as const },
       {
-        projectId: 'p-a',
+        workPackageId: 'p-a',
         contractVersion: BLUE,
         objective: 'pri' as const,
         budgetMs: 60_001,
       },
-      { projectId: 'p-a', contractVersion: BLUE, objective: 'pri' as const },
+      { workPackageId: 'p-a', contractVersion: BLUE, objective: 'pri' as const },
     ];
     for (const entry of entries) expect(enqueue(db, entry)).toEqual({ kind: 'queued' });
 
@@ -97,7 +97,7 @@ describe('the durable solver FIFO', () => {
       });
       if (next.kind !== 'reserved') throw new Error(`expected reservation, got ${next.kind}`);
       order.push(
-        `${next.entry.projectId}/${next.entry.contractVersion}/${next.entry.objective}/${String(next.entry.budgetMs)}`,
+        `${next.entry.workPackageId}/${next.entry.contractVersion}/${next.entry.objective}/${String(next.entry.budgetMs)}`,
       );
     }
     expect(order).toEqual([
@@ -124,7 +124,7 @@ describe('the durable solver FIFO', () => {
   it('coalesces one key and stores the generation cancel epoch at enqueue', () => {
     const { db } = prepared();
     const entry = {
-      projectId: 'p-a',
+      workPackageId: 'p-a',
       contractVersion: BLUE,
       objective: 'pri' as const,
     };
@@ -148,7 +148,7 @@ describe('the durable solver FIFO', () => {
     for (let index = 0; index < 4; index += 1) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-a',
+          workPackageId: 'p-a',
           contractVersion: BLUE,
           generation: 1,
           objective: index % 2 === 0 ? 'pri' : 'time',
@@ -161,7 +161,7 @@ describe('the durable solver FIFO', () => {
     }
     expect(
       enqueue(db, {
-        projectId: 'p-a',
+        workPackageId: 'p-a',
         contractVersion: GREEN,
         objective: 'pri',
       }),
@@ -178,7 +178,7 @@ describe('the durable solver FIFO', () => {
 
     expect(
       releaseSolverSlot(db, {
-        projectId: 'p-a',
+        workPackageId: 'p-a',
         contractVersion: BLUE,
         generation: 1,
         objective: 'pri',
@@ -194,7 +194,7 @@ describe('the durable solver FIFO', () => {
       }),
     ).toMatchObject({
       kind: 'reserved',
-      entry: { projectId: 'p-a', contractVersion: GREEN, objective: 'pri' },
+      entry: { workPackageId: 'p-a', contractVersion: GREEN, objective: 'pri' },
     });
     expect(db.select().from(solverQueue).all()).toEqual([]);
 
@@ -204,17 +204,17 @@ describe('the durable solver FIFO', () => {
 
   it('discards each stale or closed front entry without spending a slot', () => {
     const mutations = [
-      `UPDATE optimization_generation SET generation = 2 WHERE project_id = 'p-a'`,
-      `UPDATE optimization_generation SET admission_state = 'draining' WHERE project_id = 'p-a'`,
-      `UPDATE optimization_generation SET cancel_epoch = 1 WHERE project_id = 'p-a'`,
-      `UPDATE project SET optimization_enabled = 0 WHERE id = 'p-a'`,
-      `UPDATE project SET optimization_delete_pending_at = 30 WHERE id = 'p-a'`,
+      `UPDATE optimization_generation SET generation = 2 WHERE work_package_id = 'p-a'`,
+      `UPDATE optimization_generation SET admission_state = 'draining' WHERE work_package_id = 'p-a'`,
+      `UPDATE optimization_generation SET cancel_epoch = 1 WHERE work_package_id = 'p-a'`,
+      `UPDATE work_package SET optimization_enabled = 0 WHERE id = 'p-a'`,
+      `UPDATE work_package SET optimization_delete_pending_at = 30 WHERE id = 'p-a'`,
     ];
     for (const mutation of mutations) {
       const { path, db } = prepared();
       expect(
         enqueue(db, {
-          projectId: 'p-a',
+          workPackageId: 'p-a',
           contractVersion: BLUE,
           objective: 'pri',
         }),
@@ -249,17 +249,17 @@ describe('the durable solver FIFO', () => {
     // accept the old entry's hash even though generation 2 is current.
     // The epoch mutation leaves the generation current, open and ON;
     // omitting admittedCancelEpoch alone turns that case into a reservation.
-    // Removing the project-toggle condition from reserveSolverSlotIn turns the
+    // Removing the work-package-toggle condition from reserveSolverSlotIn turns the
     // direct OFF mutation into a reservation through this dequeue path.
   });
 
   it('validates a stored objective before it reaches the spawn identity', () => {
     const { path, db } = prepared();
-    enqueue(db, { projectId: 'p-a', contractVersion: BLUE, objective: 'pri' });
+    enqueue(db, { workPackageId: 'p-a', contractVersion: BLUE, objective: 'pri' });
     const raw = openDatabase(path);
     try {
       raw.run('PRAGMA ignore_check_constraints = ON');
-      raw.run(`UPDATE solver_queue SET objective = 'prio' WHERE project_id = 'p-a'`);
+      raw.run(`UPDATE solver_queue SET objective = 'prio' WHERE work_package_id = 'p-a'`);
     } finally {
       raw.close();
     }

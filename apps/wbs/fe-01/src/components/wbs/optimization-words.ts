@@ -12,7 +12,7 @@ import { shortIsoDate } from './short-date';
  * Moved out of `optimization-indicator.tsx` when the banner became the cue
  * (tasks.md 8b.6) and otherwise unchanged: the copy is what `deadline-copy.ts`'s
  * repository assertion is about — no occurrence of "deadline" here may go
- * unqualified, because a plan has a project deadline and a work item deadline
+ * unqualified, because a plan has a work package deadline and a work item deadline
  * and a bare one cannot say which moved. Two surfaces read these now (the pill's
  * own sentence and its hover card), which is the reason they are not written
  * where either of them is drawn.
@@ -59,7 +59,7 @@ export const FAST_LABEL = 'Fast';
  */
 export const ALGORITHM_WORDS = [
   'Fast places the plan in milliseconds by walking the graph once, and is never claimed optimal.',
-  'Time searches for the earliest project deadline it can find.',
+  'Time searches for the earliest work package deadline it can find.',
   'Pri searches for the schedule that starts higher-priority work sooner, which can finish later.',
   'Time and Pri are both CP-SAT searches from Google OR-Tools, given the budget below.',
 ].join('\n');
@@ -87,20 +87,22 @@ export function days(value: number): string {
  *
  * `deltaDays` is the subtraction of two figures the plan read sends — negative
  * for the earlier schedule — taken through the shared workday drift, which is
- * what collapses a difference nobody could act on into "same project deadline".
+ * what collapses a difference nobody could act on into "same work package deadline".
  * The shipped indicator took exactly this decision over exactly this tolerance;
  * only the shape of what it is handed changed (tasks.md 8b.4).
  */
 export function comparisonWords(deltaDays: number, sameOrder: boolean): string {
   // Proof: the -Number.EPSILON case in `optimization-cue-reading.test.ts` reads
-  // "Same project deadline + same order" and fails as "Earlier project deadline
+  // "Same work package deadline + same order" and fails as "Earlier work package deadline
   // · <0.01 day" when this check is replaced by exact zero, while -0.001 stays
   // Earlier.
   if (withinDrift(deltaDays, 0)) {
-    return sameOrder ? 'Same project deadline + same order' : 'Same project deadline + reordered';
+    return sameOrder
+      ? 'Same work package deadline + same order'
+      : 'Same work package deadline + reordered';
   }
-  if (deltaDays < 0) return `Earlier project deadline by ${days(deltaDays)}`;
-  return `Later project deadline by ${days(deltaDays)}`;
+  if (deltaDays < 0) return `Earlier work package deadline by ${days(deltaDays)}`;
+  return `Later work package deadline by ${days(deltaDays)}`;
 }
 
 export interface DeadlineWords {
@@ -110,19 +112,19 @@ export interface DeadlineWords {
 
 /** Render and classify the stored deadline with at most one calendar reconstruction. */
 export function deadlineWords(
-  projectStart: string | null,
+  workPackageStart: string | null,
   offset: number,
   today: Date,
 ): DeadlineWords {
   // Proof: the unmeetable-deadline case throws in render when this branch is
   // removed and -1 reaches addWorkdays.
   // The words are `DEADLINE_UNREACHABLE_CELL`'s and not this file's, for the
-  // reason that constant's own docstring gives: "before project start" is
-  // false about the case that reaches here. A project starting Saturday with a
+  // reason that constant's own docstring gives: "before work package start" is
+  // false about the case that reaches here. A work package starting Saturday with a
   // deadline on the Sunday after it is unmeetable — day zero rolls forward to
   // Monday, the deadline rolls back to Friday — and the sentence would be
   // telling the reader a *later* date came first.
-  if (projectStart === null || !isIsoDate(projectStart)) {
+  if (workPackageStart === null || !isIsoDate(workPackageStart)) {
     return { text: 'date unavailable', isEffectiveWorkday: false };
   }
   if (offset === UNMEETABLE_DEADLINE_OFFSET) {
@@ -135,7 +137,7 @@ export function deadlineWords(
     return { text: 'date unavailable', isEffectiveWorkday: false };
   }
   try {
-    const effectiveDeadline = addWorkdays(projectStart, offset);
+    const effectiveDeadline = addWorkdays(workPackageStart, offset);
     if (!isIsoDate(effectiveDeadline)) {
       return { text: 'date unavailable', isEffectiveWorkday: false };
     }
@@ -163,7 +165,7 @@ export function variantStateWords(
       switch (state.proof) {
         case 'proven':
           return connected
-            ? 'Proof applies to this project under captured fixed positions only'
+            ? 'Proof applies to this work package under captured fixed positions only'
             : null;
         case 'incomplete':
           return connected
@@ -179,12 +181,12 @@ export function variantStateWords(
       }
     }
     case 'boundary-infeasible':
-      return 'This captured optimization question cannot fit the fixed positions in other projects';
+      return 'This captured optimization question cannot fit the fixed positions in other work packages';
     case 'idle':
       // `idle` is "absent at this key with nothing in flight", which is two
       // different situations wearing one word: a variant the cold read is about
       // to admit, and a plan with no solvable work in it at all (no slices, or
-      // every slice zero days) — which is also what a **disabled** project
+      // every slice zero days) — which is also what a **disabled** work package
       // reads as. `generation` is what separates them on the wire, so the
       // waiting one says so and the other stays quiet rather than promising a
       // solve that will never be asked for.

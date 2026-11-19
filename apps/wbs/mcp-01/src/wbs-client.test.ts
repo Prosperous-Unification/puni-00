@@ -23,11 +23,11 @@ const CONFIG: McpConfig = {
 
 /** A read: two path parameters and one query parameter, no body. */
 const READ: DerivedTool = {
-  name: 'getApiProjectsByIdWorkItems',
+  name: 'getApiWorkPackagesByIdWorkItems',
   description: 'irrelevant here',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   method: 'get',
-  path: '/api/projects/{id}/work-items',
+  path: '/api/work-packages/{id}/work-items',
   locations: { id: 'path', includeClosed: 'query' },
 };
 
@@ -74,7 +74,7 @@ const textOf = (result: { content: readonly { text: string }[] }): string =>
  * out rather than `.rejects.toThrow`, which returns void here and so cannot be
  * awaited — an unawaited assertion passes whatever happens, which is exactly
  * the failure these two tests exist to rule out. Same helper as
- * `apps/wbs/be-01/src/repository/project.test.ts`.
+ * `apps/wbs/be-01/src/repository/work-package.test.ts`.
  */
 async function rejection(promise: Promise<unknown>): Promise<string> {
   try {
@@ -99,7 +99,7 @@ describe('buildRequest', () => {
     const request = buildRequest(READ, { id: 'p1', includeClosed: true }, CONFIG);
     expect(request.method).toBe('GET');
     expect(request.url).toBe(
-      'https://dev.wbs.bulletpoints.club/api/projects/p1/work-items?includeClosed=true',
+      'https://dev.wbs.bulletpoints.club/api/work-packages/p1/work-items?includeClosed=true',
     );
     expect(request.body).toBeUndefined();
   });
@@ -128,7 +128,7 @@ describe('buildRequest', () => {
   });
 
   it('escapes a path parameter rather than letting it change the path', () => {
-    expect(buildRequest(READ, { id: 'a/b' }, CONFIG).url).toContain('/api/projects/a%2Fb/');
+    expect(buildRequest(READ, { id: 'a/b' }, CONFIG).url).toContain('/api/work-packages/a%2Fb/');
   });
 
   it('treats an explicit undefined as an omitted input, but sends null', () => {
@@ -184,13 +184,13 @@ describe('buildRequest', () => {
     if (!(failure instanceof ToolInputRefused)) throw new Error('expected ToolInputRefused');
     expect(failure.details).toEqual({
       kind: 'non_scalar_url',
-      toolName: 'getApiProjectsByIdWorkItems',
+      toolName: 'getApiWorkPackagesByIdWorkItems',
       parameterName: 'includeClosed',
       location: 'query',
       receivedType: 'object',
     });
     expect(failure.message).toBe(
-      'getApiProjectsByIdWorkItems: query parameter "includeClosed" must be a string, number or boolean; received object. Every query parameter be-01 declares is scalar.',
+      'getApiWorkPackagesByIdWorkItems: query parameter "includeClosed" must be a string, number or boolean; received object. Every query parameter be-01 declares is scalar.',
     );
     expect(be01.calls).toHaveLength(0);
   });
@@ -199,14 +199,14 @@ describe('buildRequest', () => {
     expect(buildRequest(READ, { id: 'p1' }, CONFIG).headers['content-type']).toBeUndefined();
   });
 
-  // `wbs-mcp-agent-surface` M14, task 3.4: `/api/projects/{id}/claims` with `..` would
+  // `wbs-mcp-agent-surface` M14, task 3.4: `/api/work-packages/{id}/claims` with `..` would
   // normalise to `/api/claims`, another operation.
   const CLAIMS: DerivedTool = {
-    name: 'getApiProjectsByIdClaims',
+    name: 'getApiWorkPackagesByIdClaims',
     description: 'irrelevant here',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     method: 'get',
-    path: '/api/projects/{id}/claims',
+    path: '/api/work-packages/{id}/claims',
     locations: { id: 'path' },
   };
 
@@ -218,14 +218,14 @@ describe('buildRequest', () => {
       if (!(failure instanceof ToolInputRefused)) throw new Error('expected ToolInputRefused');
       expect(failure.details).toEqual({
         kind: 'dot_segment',
-        toolName: 'getApiProjectsByIdClaims',
+        toolName: 'getApiWorkPackagesByIdClaims',
         parameterName: 'id',
       });
       expect(be01.calls).toHaveLength(0);
     }
     // A value holding dots among other characters names a row and is sent, escaped.
     expect(buildRequest(CLAIMS, { id: '...' }, CONFIG).url).toBe(
-      'https://dev.wbs.bulletpoints.club/api/projects/.../claims',
+      'https://dev.wbs.bulletpoints.club/api/work-packages/.../claims',
     );
   });
 
@@ -237,15 +237,15 @@ describe('buildRequest', () => {
     const sent = be01.calls.map((call) => new URL(call.url).pathname);
     // Either it is sent to the template's own route (the encoder keeps the value one segment),
     // or it is refused before be-01 is asked (the route check); never to `/api/claims`.
-    expect(sent.every((path) => /^\/api\/projects\/[^/]+\/claims$/.test(path))).toBe(true);
+    expect(sent.every((path) => /^\/api\/work-packages\/[^/]+\/claims$/.test(path))).toBe(true);
     if (sent.length === 0) expect(outcome).toBeInstanceOf(ToolInputRefused);
-    else expect(sent).toEqual(['/api/projects/x%2F..%2F..%2Fclaims/claims']);
+    else expect(sent).toEqual(['/api/work-packages/x%2F..%2F..%2Fclaims/claims']);
   });
 
   it('keeps a path prefix of WBS_API_URL in the route it checks', () => {
     expect(
       buildRequest(CLAIMS, { id: 'p1' }, { ...CONFIG, WBS_API_URL: 'https://wbs.example/be/' }).url,
-    ).toBe('https://wbs.example/be/api/projects/p1/claims');
+    ).toBe('https://wbs.example/be/api/work-packages/p1/claims');
   });
 
   it('sends mcp-01 service headers beside the caller bearer', () => {

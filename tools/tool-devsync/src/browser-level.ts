@@ -487,7 +487,10 @@ function junitSource(
   return `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="browser.${mode}" tests="${String(cases.length)}" failures="${String(failed)}" errors="0" skipped="${String(skipped)}">\n${tests}\n</testsuite>\n`;
 }
 
-/** Collects one Browser mode in a detached committed checkout and publishes non-certifying evidence. */
+/**
+ * Collects one Browser mode in a detached committed checkout and publishes non-certifying evidence.
+ * Uses the running Bun executable for actual Playwright discovery and execution.
+ */
 async function collectBrowserLevel(
   candidateRoot: string,
   mode: Mode,
@@ -551,7 +554,7 @@ async function collectBrowserLevel(
     const argumentsBase = ['test', '--config', selected.config];
     const listFile = join(scratch, 'list.json');
     const listedRun = await run(
-      ['node', playwrightCli, ...argumentsBase, '--list', '--reporter=json'],
+      [process.execPath, playwrightCli, ...argumentsBase, '--list', '--reporter=json'],
       checkout,
       { ...environment, PLAYWRIGHT_JSON_OUTPUT_FILE: listFile },
       3 * 60_000,
@@ -579,7 +582,7 @@ async function collectBrowserLevel(
     const runFile = join(scratch, 'run.json');
     const junitFile = join(scratch, 'run.xml');
     const executedRun = await run(
-      ['node', playwrightCli, ...argumentsBase, '--reporter=json,junit'],
+      [process.execPath, playwrightCli, ...argumentsBase, '--reporter=json,junit'],
       checkout,
       {
         ...environment,

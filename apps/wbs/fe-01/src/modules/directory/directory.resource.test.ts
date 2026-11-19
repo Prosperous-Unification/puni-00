@@ -5,7 +5,7 @@ import type { DirectoryRefusal, DirectoryUsage, PersonView } from '@/lib/wbs-api
 import { createDirectory } from './directory.resource';
 import { fakeDirectoryApi, KAT, PLATFORM } from './fake-directory-api';
 
-const USED: DirectoryUsage = { projects: [], members: [{ id: 'p1', name: 'Kat' }] };
+const USED: DirectoryUsage = { workPackages: [], members: [{ id: 'p1', name: 'Kat' }] };
 
 test('a read installs all five vocabularies', async () => {
   const api = fakeDirectoryApi();

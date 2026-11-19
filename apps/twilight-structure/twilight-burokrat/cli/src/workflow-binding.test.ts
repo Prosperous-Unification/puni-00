@@ -1,5 +1,7 @@
 import {
   chmodSync,
+  closeSync,
+  openSync,
   copyFileSync,
   mkdirSync,
   mkdtempSync,
@@ -272,18 +274,37 @@ test('loads the complete illustrative parent YAML with its exact five project co
 });
 
 function spawnBinding(args: readonly string[], cwd = root) {
-  const child = Bun.spawnSync({
-    cmd: [process.execPath, join(import.meta.dir, 'cli.ts'), ...args],
-    cwd,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const capture = mkdtempSync(join(root, 'cli-capture-'));
+  const stdoutPath = join(capture, 'stdout'),
+    stderrPath = join(capture, 'stderr');
+  const stdout = openSync(stdoutPath, 'wx', 0o600);
+  let child: ReturnType<typeof Bun.spawnSync>;
+  try {
+    const stderr = openSync(stderrPath, 'wx', 0o600);
+    try {
+      child = Bun.spawnSync({
+        cmd: [process.execPath, join(import.meta.dir, 'cli.ts'), ...args],
+        cwd,
+        stdin: 'ignore',
+        stdout,
+        stderr,
+        timeout: 30000,
+      });
+    } finally {
+      closeSync(stderr);
+    }
+  } finally {
+    closeSync(stdout);
+  }
+  if (child.signalCode !== undefined && child.signalCode !== null)
+    throw Error('binding CLI terminated by signal: ' + child.signalCode);
   return {
     exitCode: child.exitCode,
-    stdout: child.stdout.toString(),
-    stderr: child.stderr.toString(),
+    stdout: readFileSync(stdoutPath, 'utf8'),
+    stderr: readFileSync(stderrPath, 'utf8'),
   };
 }
+
 function expectCliRefusal(
   invocation: { exitCode: number | null; stdout: string; stderr: string },
   code: string,

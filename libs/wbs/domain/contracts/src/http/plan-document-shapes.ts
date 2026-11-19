@@ -1,33 +1,50 @@
+export type {
+  LegacyDocumentDependency12,
+  LegacyDocumentMapping12,
+} from './legacy-document-leaves12';
+export {
+  legacyDocumentDependency12Request,
+  legacyDocumentMapping12Request,
+} from './legacy-document-leaves12';
+export type {
+  PlanDocumentV10,
+  PlanDocumentV11,
+  PlanDocumentV12,
+} from './legacy-plan-document-response';
+export {
+  createLegacyPlanDocumentV11,
+  createLegacyPlanDocumentV12,
+  createPlanDocumentV10,
+} from './legacy-plan-document-response';
 import { type } from 'arktype';
 
-import { documentConnected } from './plan-document-connected-shapes';
-import { documentProject } from './project-response';
+import {
+  createLegacyPlanDocumentV13,
+  createLegacyPlanDocumentV14,
+} from './legacy-plan-document-response14';
 import { requestSchema, responseSchema } from './schema-shape';
-import { moneyBasis, numberedWorkItem, workItemTree } from './work-item-response';
+import { moneyBasis } from './work-item-response';
+import { documentWorkPackage } from './work-package-response';
 
 /**
- * The plan document version this release writes, for every plan (design D71).
+ * Ordinary15 and connected16 carry an ownerless work package and its captured
+ * project. Published11/12 and13/14 remain historical import formats; their
+ * frozen declarations retain the original owner-bearing metadata.
  *
- * `11` carries the project's measures (`wbs-measure-budgets` D8, design D63):
+ * `11` carries the work package's measures (`wbs-measure-budgets` D8, design D63):
  * the definitions its facts, estimates and budgets name, those three, and the
  * budget factor, each list written empty when the plan holds none.
- * `10` carries resources, their per-project capacities and per-work-item demands
- * (`wbs-resources`). `9` carries direct step blockage facts separately from rows. `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
+ * `10` carries resources, their per-work-package capacities and per-work-item demands
+ * (`wbs-resources`). `9` carries direct step blockage facts separately from rows. `8` carries each step’s estimate unit. `7` carries the work package's timezone and each leaf's attempts by step code
  * (`step-node-attempts` D5); `6` each leaf's readiness and hold
  * (`add-work-item-statuses`); `5`
  * extends typed dependencies to SS/FF; `4` added FS separately from
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
  * classifier converts earlier versions explicitly; only the import reads them.
  */
-export const PLAN_DOCUMENT_VERSION = 11;
+export const PLAN_DOCUMENT_VERSION = 15;
 /** Connected exports retain dependency history in addition to the published measures contract. */
-export const PLAN_DOCUMENT_EXTERNAL_VERSION = 12;
-
-const planHeader = type({
-  format: "'wbs-plan'",
-  version: '11',
-  exportedAt: 'string',
-});
+export const PLAN_DOCUMENT_EXTERNAL_VERSION = 16;
 
 const planSettings = type({
   name: 'string',
@@ -38,7 +55,7 @@ const planSettings = type({
   estimateRounding: "'exact' | 'floor' | 'round' | 'ceil'",
   startDate: 'string | null',
   // Non-empty, as a PATCH requires: a scoped import stores the link under
-  // `project_solution`'s length checks.
+  // `work_package_solution`'s length checks.
   // Proof: accepting empty strings made `refuses an empty solution slug or url
   // as input, importing nothing` in
   // `import-export-organization.controller.db.test.ts` answer 500 instead of
@@ -47,7 +64,7 @@ const planSettings = type({
   optimizationEnabled: 'boolean',
   scheduleEngine: "'fast' | 'optimized'",
   scheduleObjective: "'pri' | 'time'",
-  /** The IANA zone the project reads instants as days in; `UTC` before version 7. */
+  /** The IANA zone the work package reads instants as days in; `UTC` before version 7. */
   timezone: 'string',
   /** What a derived budget multiplies the pessimistic point by (design D63, D71). */
   budgetFactor: 'number',
@@ -77,7 +94,7 @@ export const documentResource = type({
 });
 export type DocumentResource = (typeof documentResource)['infer'];
 
-/** One stated resource capacity of the exported project, by file-local resource id. */
+/** One stated resource capacity of the exported work package, by file-local resource id. */
 export const documentResourceCapacity = type({ resourceId: 'string', units: 'number' });
 export type DocumentResourceCapacity = (typeof documentResourceCapacity)['infer'];
 
@@ -174,7 +191,7 @@ const internalEndpoint = type({ kind: "'internal'", scope: "'whole'", workItem: 
   .or({ kind: "'internal'", scope: "'descendant-step'", workItem: 'string', step: 'string' });
 
 const externalDisplay = type({
-  projectName: 'string',
+  workPackageName: 'string',
   abbreviation: 'string',
   workItemName: 'string',
   address: 'string',
@@ -184,13 +201,13 @@ const externalDisplay = type({
 const externalEndpoint = type({
   kind: "'external'",
   scope: "'whole'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   display: externalDisplay,
 }).or({
   kind: "'external'",
   scope: "'node' | 'descendant-step'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   stepId: 'string',
   // Proof: making stepName optional admitted the missing-label classifier test
@@ -199,22 +216,22 @@ const externalEndpoint = type({
 });
 
 /** Authored v11 links belong to the imported successor; labels never bind identity. */
-export const documentV12TypedDependency = type({
+export const documentV14TypedDependency = type({
   id: 'string',
   predecessor: internalEndpoint.or(externalEndpoint),
   successor: internalEndpoint,
   type: "'FS' | 'SS' | 'FF'",
 });
-export const documentV12TypedDependencyRequest = requestSchema(documentV12TypedDependency);
-export type DocumentV12TypedDependency = (typeof documentV12TypedDependency)['infer'];
+export const documentV14TypedDependencyRequest = requestSchema(documentV14TypedDependency);
+export type DocumentV14TypedDependency = (typeof documentV14TypedDependency)['infer'];
 
 export const documentExternalIdentity = type({
   scope: "'whole'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
 }).or({
   scope: "'node' | 'descendant-step'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   stepId: 'string',
 });
@@ -236,11 +253,11 @@ export const documentV4TypedDependencyRequest = requestSchema(
  *
  * A step's `code` is optional and nullable on the work-item read (an older
  * be-01, an uncoded step); here it is a required string, because the export
- * refuses an uncoded project rather than write a file without its codes.
+ * refuses an uncoded work package rather than write a file without its codes.
  * `stepNodes` spells each leaf's step node beside the structured work-item and
  * step IDs the estimates, facts and assignments are keyed by — `010.s1-dev` for
  * `sn1.<work item>.<step>` — for a reader of the file. It is derived, so import
- * drops it and the new project's nodes follow its own IDs.
+ * drops it and the new work package's nodes follow its own IDs.
  */
 /**
  * One attempt as the document writes it (`step-node-attempts` D5): instants as
@@ -262,99 +279,33 @@ export const documentAttempt = type({
 });
 export type DocumentAttempt = (typeof documentAttempt)['infer'];
 
-/**
- * A work item as the document writes it: the read's row without its derived
- * spans, and with its attempts keyed by step code rather than step id —
- * present only on a leaf that holds any.
- */
-const documentWorkItem = numberedWorkItem
-  .omit(
-    'attempts',
-    'spans',
-    'span',
-    'blockages',
-    'blockageCauses',
-    'nodeResources',
-    'measureEstimates',
-    'budgets',
-    'mixedRateCards',
-    'moneyBases',
-  )
-  .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
+export const planDocumentV13 = createLegacyPlanDocumentV13();
 
-export const planDocumentV11 = workItemTree
-  .omit('typedDependencies', 'workItems', 'demands', 'demandedResources')
-  .and({
-    workItems: documentWorkItem.array(),
-    stepBlockages: type({
-      workItemId: 'string',
-      stepId: 'string',
-      blockedAt: 'number.integer',
-    }).array(),
-    typedDependencies: documentTypedDependency.array(),
-    steps: type({ code: 'string', estimateUnit: "'workdays' | 'minutes'" }).array(),
-    stepNodes: type({
-      id: 'string',
-      workItemId: 'string',
-      stepId: 'string',
-      reference: 'string',
-    }).array(),
-    project: documentProject,
-    document: planHeader,
-    settings: planSettings,
-    capacity: type({ teamId: 'string', size: 'number' }).array(),
-    resourceCapacities: documentResourceCapacity.array(),
-    demands: documentDemand.array(),
-    calendarMarkers: authoredMarker.array(),
-    directory: directory.and({ resources: documentResource.array() }),
-    // Always written, empty when the plan holds none (design D63, D71).
-    measureDefinitions: documentMeasureDefinition.array(),
-    measureFacts: documentMeasureFact.array(),
-    measureEstimates: documentMeasureEstimate.array(),
-    budgets: documentBudget.array(),
-  });
-
-export type PlanDocumentV11 = (typeof planDocumentV11)['infer'];
-
-/**
- * Frozen local resource document, before measures and budget factors existed.
- * Historical-only consumers construct it explicitly; process boot needs only
- * ordinary11 and connected12 and must not compile an unused third document.
- */
-export function createPlanDocumentV10() {
-  return planDocumentV11
-    .omit(
-      'project',
-      'document',
-      'settings',
-      'measureDefinitions',
-      'measureFacts',
-      'measureEstimates',
-      'budgets',
-    )
-    .and({
-      // Proof: without this historical project shape, the strict v10 consumer
-      // accepted the embedded budgetFactor added in v11 (2026-10-24).
-      project: documentProject.omit('budgetFactor'),
-      document: planHeader.omit('version').and({ version: '10' }),
-      settings: planSettings.omit('budgetFactor'),
-    });
-}
-export type PlanDocumentV10 = ReturnType<typeof createPlanDocumentV10>['infer'];
+export type PlanDocumentV13 = (typeof planDocumentV13)['infer'];
 
 /** Explicit external predecessor identities; import mappings are never exported. */
-export const planDocumentV12 = planDocumentV11.omit('document', 'typedDependencies').and({
-  // Proof: replacing the connected version with the ordinary version failed the versioned-response test (2026-10-22).
-  document: planHeader.omit('version').and({ version: '12' }),
-  typedDependencies: documentV12TypedDependency.array(),
-  // Proof: optional-evidence.txt: making this optional made mounted absent-history return 200 instead of 500.
-  connected: documentConnected,
-});
-export type PlanDocumentV12 = (typeof planDocumentV12)['infer'];
+export const planDocumentV14 = createLegacyPlanDocumentV14(planDocumentV13);
+export type PlanDocumentV14 = (typeof planDocumentV14)['infer'];
 
-/** Version discrimination keeps ordinary local endpoints separate from connected v12 endpoints. */
-export const planDocument = planDocumentV11.or(planDocumentV12);
-export type PlanDocument = PlanDocumentV11 | PlanDocumentV12;
+/** Current ordinary export; project metadata belongs to the same captured observation. */
+export const planDocumentV15 = planDocumentV13.omit('document', 'workPackage').and({
+  document: type({ format: "'wbs-plan'", version: '15', exportedAt: 'string' }),
+  workPackage: documentWorkPackage,
+  project: type({ id: 'string > 0', name: 'string' }),
+});
+export type PlanDocumentV15 = (typeof planDocumentV15)['infer'];
+
+/** Current connected export preserves the established dependency evidence. */
+export const planDocumentV16 = planDocumentV14.omit('document', 'workPackage').and({
+  document: type({ format: "'wbs-plan'", version: '16', exportedAt: 'string' }),
+  workPackage: documentWorkPackage,
+  project: type({ id: 'string > 0', name: 'string' }),
+});
+export type PlanDocumentV16 = (typeof planDocumentV16)['infer'];
+
+/** Version discrimination keeps ordinary local endpoints separate from connected endpoints. */
+export const planDocument = planDocumentV15.or(planDocumentV16);
+export type PlanDocument = PlanDocumentV15 | PlanDocumentV16;
 
 /**
  * One compiled current response union. Standalone versioned validators belong
@@ -507,7 +458,7 @@ export type PlanDocumentImport = Omit<
     timezone: string;
     budgetFactor: number;
   };
-  typedDependencies: (DocumentTypedDependency | DocumentV12TypedDependency)[];
+  typedDependencies: (DocumentTypedDependency | DocumentV14TypedDependency)[];
   externalMappings: DocumentExternalMapping[];
   stepBlockages: { workItemId: string; stepId: string; blockedAt: number }[];
   /**

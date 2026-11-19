@@ -1,13 +1,14 @@
 import type {
   HistoryStores,
   SavedPlanStore,
-  StoredSavedPlan,
+  StoredSavedPlanBytes,
   Stores,
   TransactionalStores,
   WriteStamp,
 } from '@wbs/core';
 
 import type { CaseId, HistoryAdmission, PortName } from './case-manifest';
+import type { StepCatalogueFixture } from './step-catalogue-fixture';
 
 export interface Gap {
   readonly caseId: CaseId;
@@ -19,16 +20,20 @@ export interface Gap {
   };
 }
 
-export type Capability<P> =
+type FixtureCapability<Fixture> =
   | {
       readonly kind: 'offered';
-      open(caseId: CaseId): Promise<CaseFixture<P>>;
+      open(caseId: CaseId): Promise<Fixture>;
       readonly gaps: readonly Gap[];
     }
   | { readonly kind: 'absent'; readonly reason: string };
 
+export type Capability<P> = FixtureCapability<CaseFixture<P>>;
+
 export type Capabilities = {
-  readonly [P in PortName]: Capability<Stores[P]>;
+  readonly [P in PortName]: FixtureCapability<
+    P extends 'stepCatalogue' ? StepCatalogueFixture : CaseFixture<Stores[P]>
+  >;
 };
 
 export interface SourceDeclaration {
@@ -49,7 +54,7 @@ export interface CaseFixture<P> {
 }
 
 export interface SeededPlan {
-  readonly projectIds: readonly [string, string];
+  readonly workPackageIds: readonly [string, string];
   readonly ownerIds: readonly [string, string];
   readonly stepIds: readonly [readonly [string, string], readonly [string, string]];
   readonly workItemIds: readonly [readonly [string, string], readonly [string, string]];
@@ -64,7 +69,7 @@ export interface SeededPlan {
 
 /** Stable cross-source identities used by every independently opened case. */
 export const DETERMINISTIC_SEED: SeededPlan = {
-  projectIds: ['project-a', 'project-b'],
+  workPackageIds: ['work-package-a', 'work-package-b'],
   ownerIds: ['owner-a', 'owner-b'],
   stepIds: [
     ['step-a-dev', 'step-a-qa'],
@@ -95,7 +100,7 @@ export interface PhaseBarrier {
 }
 
 export interface LateWriteEvidence {
-  readonly savedPlan?: StoredSavedPlan;
+  readonly savedPlan?: StoredSavedPlanBytes;
 }
 
 export interface CaptureDirectoryChange {
@@ -144,17 +149,17 @@ export type ScenarioControl =
     };
 
 export interface SourceReaders {
-  readonly projects: Pick<Stores['projects'], 'findById' | 'stepsOf' | 'listFor'>;
-  readonly workItems: Pick<Stores['workItems'], 'listByProject'>;
-  readonly steps: Pick<Stores['steps'], 'listByProject'>;
-  readonly estimates: Pick<Stores['estimates'], 'listByProject'>;
-  readonly actuals: Pick<Stores['actuals'], 'listByProject'>;
-  readonly measures: Pick<Stores['measures'], 'listByProject'>;
-  readonly measureEstimates: Pick<Stores['measureEstimates'], 'listByProject'>;
-  readonly budgets: Pick<Stores['budgets'], 'listByProject'>;
-  readonly progress: Pick<Stores['progress'], 'listByProject'>;
-  readonly dependencies: Pick<Stores['dependencies'], 'listByProject'>;
-  readonly typedDependencies: Pick<Stores['typedDependencies'], 'listByProject'>;
+  readonly workPackages: Pick<Stores['workPackages'], 'findById' | 'stepsOf' | 'listFor'>;
+  readonly workItems: Pick<Stores['workItems'], 'listByWorkPackage'>;
+  readonly steps: Pick<Stores['steps'], 'listByWorkPackage'>;
+  readonly estimates: Pick<Stores['estimates'], 'listByWorkPackage'>;
+  readonly actuals: Pick<Stores['actuals'], 'listByWorkPackage'>;
+  readonly measures: Pick<Stores['measures'], 'listByWorkPackage'>;
+  readonly measureEstimates: Pick<Stores['measureEstimates'], 'listByWorkPackage'>;
+  readonly budgets: Pick<Stores['budgets'], 'listByWorkPackage'>;
+  readonly progress: Pick<Stores['progress'], 'listByWorkPackage'>;
+  readonly dependencies: Pick<Stores['dependencies'], 'listByWorkPackage'>;
+  readonly typedDependencies: Pick<Stores['typedDependencies'], 'listByWorkPackage'>;
   readonly directory: Pick<
     Stores['directory'],
     | 'listTags'
@@ -162,7 +167,7 @@ export interface SourceReaders {
     | 'listPeople'
     | 'assignmentsFor'
     | 'assignmentsOf'
-    | 'assignmentsInProject'
+    | 'assignmentsInWorkPackage'
   >;
   readonly journal: Pick<Stores['journal'], 'entriesFor' | 'stateOf'>;
   readonly planEvents: Pick<Stores['planEvents'], 'listFor'>;

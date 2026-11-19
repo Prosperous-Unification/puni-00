@@ -30,7 +30,7 @@ import {
 it('rejects retained memory history loss before reporting receipt or scope absence', async () => {
   const table = memoryRuntimeTable();
   const store = inMemoryRuntimeCommands(table);
-  const scope = { organizationId: 'org', projectId: 'project', personId: 'person' };
+  const scope = { organizationId: 'org', workPackageId: 'work_package', personId: 'person' };
   await store.compareAuthority(scope, null, 'owner');
   table.authorities.clear();
   await assertRuntimeRejection(store.readAuthority(scope), 'runtime retained history');
@@ -61,8 +61,8 @@ const corruptions: readonly {
   },
   ...[
     ['scope tuple is an object', '{}'],
-    ['scope tuple has missing positions', '["org","project"]'],
-    ['scope tuple has extra positions', '["org","project","person","extra"]'],
+    ['scope tuple has missing positions', '["org","workPackage"]'],
+    ['scope tuple has extra positions', '["org","workPackage","person","extra"]'],
   ].map(([name, key]) => ({
     name: `authority ${name}`,
     message: 'invalid runtime scope key',
@@ -77,7 +77,7 @@ const corruptions: readonly {
     corrupt(table) {
       const [key, held] = readOnlyEntry(table.authorities);
       table.authorities.delete(key);
-      table.authorities.set('[42,"project","person"]', held);
+      table.authorities.set('[42,"workPackage","person"]', held);
     },
   },
   {
@@ -86,7 +86,7 @@ const corruptions: readonly {
     corrupt(table) {
       const [key, held] = readOnlyEntry(table.authorities);
       table.authorities.delete(key);
-      table.authorities.set('[ "org", "project", "person" ]', held);
+      table.authorities.set('[ "org", "work package", "person" ]', held);
     },
   },
   {
@@ -102,7 +102,7 @@ const corruptions: readonly {
     ['binding tuple has missing positions', '["[]"]'],
     [
       'binding tuple has extra positions',
-      JSON.stringify([JSON.stringify(['org', 'project', 'person']), 'claim', 'extra']),
+      JSON.stringify([JSON.stringify(['org', 'work_package', 'person']), 'claim', 'extra']),
     ],
     ['binding scope key is not a string', '[42,"claim"]'],
   ].map(([name, key]) => ({
@@ -147,7 +147,7 @@ const corruptions: readonly {
       const [key, bound] = readOnlyEntry(table.bindings);
       table.bindings.delete(key);
       table.bindings.set(
-        JSON.stringify([JSON.stringify(['org', 'project', 'person']), 'wrong-claim']),
+        JSON.stringify([JSON.stringify(['org', 'work_package', 'person']), 'wrong-claim']),
         bound,
       );
     },
@@ -166,6 +166,8 @@ const corruptions: readonly {
     message: 'runtime acceptance lookup identity mismatch',
     corrupt(table) {
       const [key, accepted] = readOnlyEntry(table.acceptances);
+      if (accepted.schemaVersion !== 2)
+        throw new Error('corruption fixture requires current acceptance2');
       table.acceptances.set(key, {
         ...accepted,
         commandId: 'other-command',
@@ -173,11 +175,13 @@ const corruptions: readonly {
       });
     },
   },
-  ...(['organizationId', 'projectId', 'personId'] as const).map((field) => ({
+  ...(['organizationId', 'workPackageId', 'personId'] as const).map((field) => ({
     name: `acceptance ${field} differs from its retained lookup`,
     message: 'runtime acceptance lookup identity mismatch',
     corrupt(table: MemoryRuntimeTable) {
       const [key, accepted] = readOnlyEntry(table.acceptances);
+      if (accepted.schemaVersion !== 2)
+        throw new Error('corruption fixture requires current acceptance2');
       const scope = { ...accepted.scope, [field]: 'other' };
       table.acceptances.set(key, { ...accepted, scope, receipt: { ...accepted.receipt, scope } });
     },
@@ -187,6 +191,8 @@ const corruptions: readonly {
     message: 'runtime acceptance ledger mismatch',
     corrupt(table) {
       const [key, accepted] = readOnlyEntry(table.acceptances);
+      if (accepted.schemaVersion !== 2)
+        throw new Error('corruption fixture requires current acceptance2');
       table.acceptances.set(key, {
         ...accepted,
         receipt: { ...accepted.receipt, ledgerId: 'different-ledger' },

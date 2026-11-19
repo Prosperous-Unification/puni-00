@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createPresence, type Presence, type PresenceStore } from './presence-store';
 
-/** One report the project's stream makes: a presence frame, by pool index, or a connection change. */
+/** One report the work package's stream makes: a presence frame, by pool index, or a connection change. */
 type Report =
   | { readonly kind: 'users'; readonly list: number }
   | { readonly kind: 'connection'; readonly connected: boolean };
@@ -245,12 +245,12 @@ const commandsArb = fc.commands<PresenceModel, PresenceWorld, false>(
 );
 
 /**
- * One project's presence, run against a reference model.
+ * One work package's presence, run against a reference model.
  *
  * The record this executes is section 3.4 of
- * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-project-prerequisites.md`.
+ * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-work-package-prerequisites.md`.
  */
-describe('a project’s presence, against a reference model', () => {
+describe('a work package’s presence, against a reference model', () => {
   it('shows exactly the last frame and connection, and changes only when they do', async () => {
     expect(fc.__version, 'the pinned counterexamples were recorded under 4.9.0').toBe('4.9.0');
 
@@ -266,7 +266,7 @@ describe('a project’s presence, against a reference model', () => {
           subscribed: new Set(),
           nextListener: 0,
         };
-        expect(initial, 'a new project’s presence').toEqual({ users: [], connected: false });
+        expect(initial, 'a new work package’s presence').toEqual({ users: [], connected: false });
         const world: PresenceWorld = {
           store,
           scheduler,

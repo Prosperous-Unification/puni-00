@@ -13,31 +13,37 @@ test('every retained placement constraint family changes the canonical stage ide
   const captured = stage();
   const original = inputHash(captured);
   const variants: readonly [string, ConnectedOptimizationStage][] = [
-    ['projectId', { ...captured, projectId: 'A' }],
+    ['workPackageId', { ...captured, workPackageId: 'A' }],
     ['mode', { ...captured, mode: 'shared' }],
     ['origin', { ...captured, originOrdinal: 20001 }],
     [
       'anchor',
       {
         ...captured,
-        projects: captured.projects.map((project) => ({ ...project, anchorOrdinal: 20001 })),
+        workPackages: captured.workPackages.map((workPackage) => ({
+          ...workPackage,
+          anchorOrdinal: 20001,
+        })),
       },
     ],
     [
       'rank',
       {
         ...captured,
-        projects: captured.projects.map((project) => ({ ...project, rank: project.rank + 1 })),
+        workPackages: captured.workPackages.map((workPackage) => ({
+          ...workPackage,
+          rank: workPackage.rank + 1,
+        })),
         input: {
           ...captured.input,
           order: {
             kind: 'connected',
-            projectIdByWorkItem: new Map([
+            workPackageIdByWorkItem: new Map([
               ['a', 'A'],
               ['b', 'B'],
               ['c', 'C'],
             ]),
-            rankByProject: new Map([
+            rankByWorkPackage: new Map([
               ['A', 1],
               ['B', 2],
               ['C', 3],
@@ -135,7 +141,9 @@ test('every retained placement constraint family changes the canonical stage ide
         ...captured,
         input: {
           ...captured.input,
-          elsewhere: new Map([['person', [{ start: 0, end: 1, projectId: 'A', workItemId: 'a' }]]]),
+          elsewhere: new Map([
+            ['person', [{ start: 0, end: 1, workPackageId: 'A', workItemId: 'a' }]],
+          ]),
         },
       },
     ],
@@ -215,8 +223,8 @@ test('every retained placement constraint family changes the canonical stage ide
           {
             id: 'extra',
             type: 'SS',
-            predecessor: { scope: 'whole', projectId: 'A', workItemId: 'a' },
-            successor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+            predecessor: { scope: 'whole', workPackageId: 'A', workItemId: 'a' },
+            successor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
           },
         ],
       },
@@ -255,13 +263,13 @@ test('ownership of a retained parent contributes independently of relationship e
     ],
     order: {
       kind: 'connected' as const,
-      projectIdByWorkItem: new Map([
+      workPackageIdByWorkItem: new Map([
         ['parent', 'A'],
         ['a', 'A'],
         ['b', 'B'],
         ['c', 'C'],
       ]),
-      rankByProject: new Map([
+      rankByWorkPackage: new Map([
         ['A', 0],
         ['B', 1],
         ['C', 2],
@@ -275,7 +283,7 @@ test('ownership of a retained parent contributes independently of relationship e
       ...input,
       order: {
         ...input.order,
-        projectIdByWorkItem: new Map([...input.order.projectIdByWorkItem, ['parent', 'B']]),
+        workPackageIdByWorkItem: new Map([...input.order.workPackageIdByWorkItem, ['parent', 'B']]),
       },
     },
   };
@@ -306,7 +314,7 @@ test('nested demand and booking facts contribute independently of collection pre
     };
     expect(inputHash(changed)).not.toBe(inputHash(withDemands));
   }
-  const booking = { start: 0, end: 1, projectId: 'A', workItemId: 'a' };
+  const booking = { start: 0, end: 1, workPackageId: 'A', workItemId: 'a' };
   const withBooking = {
     ...captured,
     input: { ...captured.input, elsewhere: new Map([['person', [booking]]]) },
@@ -314,7 +322,7 @@ test('nested demand and booking facts contribute independently of collection pre
   for (const changed of [
     { ...booking, start: 0.1 },
     { ...booking, end: 2 },
-    { ...booking, projectId: 'other' },
+    { ...booking, workPackageId: 'other' },
     { ...booking, workItemId: 'other' },
   ]) {
     expect(
@@ -424,12 +432,12 @@ function stage(fractional = false): ConnectedOptimizationStage {
     },
     order: {
       kind: 'connected' as const,
-      projectIdByWorkItem: new Map([
+      workPackageIdByWorkItem: new Map([
         ['a', 'A'],
         ['b', 'B'],
         ['c', 'C'],
       ]),
-      rankByProject: new Map([
+      rankByWorkPackage: new Map([
         ['A', 0],
         ['B', 1],
         ['C', 2],
@@ -439,23 +447,27 @@ function stage(fractional = false): ConnectedOptimizationStage {
   const placement = scheduleResolved(input);
   return {
     kind: 'connected-stage',
-    projectId: 'B',
+    workPackageId: 'B',
     mode: 'isolated',
     originOrdinal: 20000,
-    projects: ['A', 'B', 'C'].map((projectId, rank) => ({ projectId, rank, anchorOrdinal: 20000 })),
+    workPackages: ['A', 'B', 'C'].map((workPackageId, rank) => ({
+      workPackageId,
+      rank,
+      anchorOrdinal: 20000,
+    })),
     input,
     relationships: [
       {
         id: 'ab',
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: 'A', workItemId: 'a' },
-        successor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+        predecessor: { scope: 'whole', workPackageId: 'A', workItemId: 'a' },
+        successor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
       },
       {
         id: 'bc',
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
-        successor: { scope: 'whole', projectId: 'C', workItemId: 'c' },
+        predecessor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
+        successor: { scope: 'whole', workPackageId: 'C', workItemId: 'c' },
       },
     ],
     starts: new Map([...placement.slices].map(([slice, placed]) => [slice, placed.earliestStart])),

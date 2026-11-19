@@ -1,10 +1,10 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi } from '@/lib/wbs-api';
-import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import type { WorkPackageApi } from '@/lib/wbs-api';
+import { fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
@@ -91,7 +91,7 @@ const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -141,7 +141,9 @@ const rowFor = (number: string): HTMLElement => {
 describe('step columns fold away', () => {
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -163,7 +165,9 @@ describe('step columns fold away', () => {
   itDom('shows a nonzero allowance in the step heading', async () => {
     const api = fakeApi();
     await api.setStepAllowance('p1', 'step-qa', 30);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('button', { name: 'Unfold QA estimates' });
     expect(headerTexts()).toContain('▸ QA +30%');
   });
@@ -325,7 +329,9 @@ describe('assigning from a folded step’s cell with @', () => {
   /** One row and two steps, both folded — where a person starts. */
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -342,7 +348,7 @@ describe('assigning from a folded step’s cell with @', () => {
   };
 
   /** Records every estimate written, and still performs it. */
-  const watchEstimates = (api: ProjectApi) => recordCalls(api, 'setEstimate');
+  const watchEstimates = (api: WorkPackageApi) => recordCalls(api, 'setEstimate');
 
   /** What a folded step's cell says about who is doing the work, or null. */
   const assigneeShown = (step = 'step-dev'): string | null =>
@@ -544,12 +550,14 @@ describe('assigning from a folded step’s cell with @', () => {
     return found as HTMLElement;
   };
 
-  itDom('audits the charged QA figure from the project rule and stored trio', async () => {
+  itDom('audits the charged QA figure from the work package rule and stored trio', async () => {
     const api = fakeApi();
     const made = await api.createWorkItem('p1', { parentId: null, afterId: null });
     await api.setEstimate(made.id, 'step-qa', { optimistic: 2, realistic: 2, pessimistic: 2 });
     await api.setStepAllowance('p1', 'step-qa', 30);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     fireEvent.mouseEnter(foldedWrapper('step-qa'));
     const card = screen.getByRole('tooltip');
@@ -881,12 +889,14 @@ describe('one cell for the whole trio', () => {
   };
 
   /** Records every estimate written, and still performs it. */
-  const watchWrites = (api: ProjectApi) => recordCalls(api, 'setEstimate');
+  const watchWrites = (api: WorkPackageApi) => recordCalls(api, 'setEstimate');
 
   /** One row, steps left folded — which is where a person starts. */
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -941,7 +951,7 @@ describe('one cell for the whole trio', () => {
 
   itDom('stands the derived figure beside the trio it came from', async () => {
     // The other half of the same sentence — *"and let 2.3 estimate be added to
-    // total days"*. The figure the project's estimate method makes of the trio
+    // total days"*. The figure the work package's estimate method makes of the trio
     // is still on screen, and still the number the row's total days is made of.
     await oneRow();
 
@@ -1612,7 +1622,9 @@ describe('estimates are never edited for you', () => {
 
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     unfoldStep('Dev');
@@ -1704,7 +1716,7 @@ describe('estimates are never edited for you', () => {
   });
 
   /** Records every clear the table asks for, and still performs it. */
-  const watchClears = (api: ProjectApi) => recordCalls(api, 'clearEstimate');
+  const watchClears = (api: WorkPackageApi) => recordCalls(api, 'clearEstimate');
 
   /** Types a stored `2 / 3 / 10` for Dev on `010` and waits for be-01 to hold it. */
   async function estimated() {
@@ -1789,7 +1801,7 @@ describe('estimates are never edited for you', () => {
     expect(api.rows[0]?.estimates['step-dev']?.realistic).toBe(3);
   });
 
-  itDom('follows the project’s chosen method', async () => {
+  itDom('follows the work package’s chosen method', async () => {
     await oneRow();
     typeEstimate('010', 'optimistic', '2');
     typeEstimate('010', 'realistic', '3');
@@ -1822,7 +1834,9 @@ describe('what the plan is still missing', () => {
   /** Rows with nothing typed into them yet, steps left folded — where a person starts. */
   async function rows(count: number) {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     for (const number of ['010', '020', '030'].slice(0, count)) {
       click('Add work item');
       await screen.findByLabelText(`Name of ${number}`);
@@ -1871,9 +1885,11 @@ describe('what the plan is still missing', () => {
     expect(badge()).toBeNull();
   });
 
-  itDom('says nothing about a project with no work items in it', async () => {
+  itDom('says nothing about a work package with no work items in it', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Add work item' })).toBeDefined();
     });

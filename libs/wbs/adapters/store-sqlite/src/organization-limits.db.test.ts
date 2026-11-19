@@ -40,8 +40,8 @@ beforeEach(() => {
     "INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1), ('bea', 'bea', 1), ('mo', 'mo', 1), ('vi', 'vi', 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1), ('org-b', 'B', 1)",
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'super_admin', 1), ('org-a', 'bea', 'admin', 1), ('org-a', 'mo', 'member', 1), ('org-a', 'vi', 'viewer', 1), ('org-b', 'dany', 'member', 1)",
-    "INSERT INTO project (id, name, owner_id, created_at) VALUES ('pa1', 'A one', 'dany', 1), ('pa2', 'A two', 'dany', 1), ('pb', 'B one', 'dany', 1)",
-    "INSERT INTO project_organization (resource_id, organization_id) VALUES ('pa1', 'org-a'), ('pa2', 'org-a'), ('pb', 'org-b')",
+    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('pa1', 'A one', 'dany', 1), ('pa2', 'A two', 'dany', 1), ('pb', 'B one', 'dany', 1)",
+    "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('pa1', 'org-a'), ('pa2', 'org-a'), ('pb', 'org-b')",
   ])
     sqlite.run(statement);
 });
@@ -70,18 +70,18 @@ function personIn(organizationId: string, id: string, kind: 'person' | 'agent'):
   );
 }
 
-/** A leaf of `steps` steps in `projectId`, its steps named `<id>-s<n>`. */
-function leaf(projectId: string, id: string, steps = 1): string[] {
+/** A leaf of `steps` steps in `workPackageId`, its steps named `<id>-s<n>`. */
+function leaf(workPackageId: string, id: string, steps = 1): string[] {
   sqlite.run(
-    'INSERT INTO work_item (id, project_id, name, position, revision) VALUES (?, ?, ?, 1, 0)',
-    [id, projectId, id],
+    'INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES (?, ?, ?, 1, 0)',
+    [id, workPackageId, id],
   );
   const stepIds: string[] = [];
   for (let n = 1; n <= steps; n++) {
     const stepId = `${id}-s${String(n)}`;
-    sqlite.run('INSERT INTO step (id, project_id, name) VALUES (?, ?, ?)', [
+    sqlite.run('INSERT INTO step (id, work_package_id, name) VALUES (?, ?, ?)', [
       stepId,
-      projectId,
+      workPackageId,
       stepId,
     ]);
     stepIds.push(stepId);
@@ -115,10 +115,10 @@ function resourceIn(organizationId: string, id: string, unitLabel: string): void
   );
 }
 
-function state(projectId: string, resourceId: string, units: number): void {
+function state(workPackageId: string, resourceId: string, units: number): void {
   sqlite.run(
-    'INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, ?)',
-    [projectId, resourceId, units],
+    'INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES (?, ?, ?)',
+    [workPackageId, resourceId, units],
   );
 }
 
@@ -212,7 +212,7 @@ describe('usage', () => {
     expect(countBoundClaims(open(), 'org-b')).toBe(2);
   });
 
-  it('sums stated capacity per resource over A’s projects only, in resource-id order', () => {
+  it('sums stated capacity per resource over A’s work packages only, in resource-id order', () => {
     resourceIn('org-a', 'ram', 'GB');
     resourceIn('org-a', 'disk', 'GB');
     resourceIn('org-a', 'unstated', 'slots');
@@ -221,7 +221,7 @@ describe('usage', () => {
     state('pa2', 'ram', 16);
     state('pa1', 'disk', 0);
     state('pb', 'b-ram', 64);
-    // A foreign project stating A's resource is not A's statement (L16).
+    // A foreign work package stating A's resource is not A's statement (L16).
     state('pb', 'ram', 100);
     expect(readCapacityUsage(open(), 'org-a')).toEqual([
       { resourceId: 'disk', name: 'disk local', unitLabel: 'GB', units: 0 },
@@ -232,7 +232,7 @@ describe('usage', () => {
     ]);
   });
 
-  it('sums another project’s units, never the one being written', () => {
+  it('sums another work package’s units, never the one being written', () => {
     resourceIn('org-a', 'ram', 'GB');
     resourceIn('org-a', 'worktrees', 'worktrees');
     state('pa1', 'ram', 48);
@@ -248,7 +248,7 @@ describe('usage', () => {
 describe('sumStatedCapacity and readCapacityUsage', () => {
   it('never sums a resource the organization does not own', () => {
     resourceIn('org-b', 'b-ram', 'GB');
-    // A's projects stating B's resource: not A's statement, by either reader.
+    // A's work packages stating B's resource: not A's statement, by either reader.
     state('pa1', 'b-ram', 40);
     state('pa2', 'b-ram', 8);
     expect(sumStatedCapacity(open(), 'org-a', 'b-ram', 'pa1')).toBe(0);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fakeProjectApi } from './fake-project-api';
+import { fakeWorkPackageApi } from './fake-work-package-api';
 import { recordCalls } from './record-calls';
 
 /**
@@ -18,7 +18,7 @@ describe('recording what a fake client was asked to write', () => {
     // Proof: `return perform(...args)` replaced with `return undefined as
     // never`, this failed on `expected '' to be 'Strip'` — the row still
     // unnamed, its patch recorded and never written. Watched 2026-09-02.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const created = await api.createWorkItem('p1', { parentId: null });
     const patches = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
@@ -30,7 +30,7 @@ describe('recording what a fake client was asked to write', () => {
   });
 
   it('remembers the whole argument tuple when nothing says otherwise', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const created = await api.createWorkItem('p1', { parentId: null });
     const calls = recordCalls(api, 'patchWorkItem');
 
@@ -42,7 +42,7 @@ describe('recording what a fake client was asked to write', () => {
   it('records in call order, and the array the caller holds grows', async () => {
     // The array is the live one, not a copy taken at wrap time: every call site
     // reads it after the gesture it is about.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const created = await api.createWorkItem('p1', { parentId: null });
     const names = recordCalls(api, 'patchWorkItem', (_id, patch) => patch.name);
     expect(names).toEqual([]);

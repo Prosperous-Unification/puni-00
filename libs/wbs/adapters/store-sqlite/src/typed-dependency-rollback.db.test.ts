@@ -32,16 +32,16 @@ beforeEach(() => {
       "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
     );
     sqlite.run(
-      "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1),('q','Other','u',0,'pert',0,1)",
+      "INSERT INTO work_package (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1),('q','Other','u',0,'pert',0,1)",
     );
     sqlite.run(
-      "INSERT INTO step (id,project_id,name,code) VALUES ('s','p','Dev','dev'),('t','q','Dev','dev')",
+      "INSERT INTO step (id,work_package_id,name,code) VALUES ('s','p','Dev','dev'),('t','q','Dev','dev')",
     );
     sqlite.run(
-      "INSERT INTO work_item (id,project_id,position,name,revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0),('c','p',3,'C',0),('foreign','q',1,'Foreign',0)",
+      "INSERT INTO work_item (id,work_package_id,position,name,revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0),('c','p',3,'C',0),('foreign','q',1,'Foreign',0)",
     );
     sqlite.run(
-      "INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type,created_at,updated_at,created_by) VALUES ('first','p','a','node','s','b','whole','FS',10,11,'u'),('second','p','b','whole',NULL,'c','whole','FS',20,NULL,NULL)",
+      "INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type,created_at,updated_at,created_by) VALUES ('first','p','a','node','s','b','whole','FS',10,11,'u'),('second','p','b','whole',NULL,'c','whole','FS',20,NULL,NULL)",
     );
   } finally {
     sqlite.close();
@@ -77,7 +77,7 @@ describe('typed dependency rollback', () => {
       rows: [
         {
           id: 'first',
-          projectId: 'p',
+          workPackageId: 'p',
           predecessorWorkItemId: 'a',
           predecessorScope: 'node',
           predecessorStepId: 's',
@@ -91,7 +91,7 @@ describe('typed dependency rollback', () => {
         },
         {
           id: 'second',
-          projectId: 'p',
+          workPackageId: 'p',
           predecessorWorkItemId: 'b',
           predecessorScope: 'whole',
           predecessorStepId: null,
@@ -116,19 +116,21 @@ describe('typed dependency rollback', () => {
     expect(withConnection((db) => restoreTypedDependencies(db, snapshot))).toBe(2);
     const connection = openConnection(path);
     try {
-      expect(await new TypedDependencyRepository(connection.db, OPEN).listByProject('p')).toEqual([
+      expect(
+        await new TypedDependencyRepository(connection.db, OPEN).listByWorkPackage('p'),
+      ).toEqual([
         {
           id: 'first',
-          projectId: 'p',
-          predecessor: { projectId: 'p', scope: 'node', workItemId: 'a', stepId: 's' },
-          successor: { projectId: 'p', scope: 'whole', workItemId: 'b' },
+          workPackageId: 'p',
+          predecessor: { workPackageId: 'p', scope: 'node', workItemId: 'a', stepId: 's' },
+          successor: { workPackageId: 'p', scope: 'whole', workItemId: 'b' },
           type: 'FS',
         },
         {
           id: 'second',
-          projectId: 'p',
-          predecessor: { projectId: 'p', scope: 'whole', workItemId: 'b' },
-          successor: { projectId: 'p', scope: 'whole', workItemId: 'c' },
+          workPackageId: 'p',
+          predecessor: { workPackageId: 'p', scope: 'whole', workItemId: 'b' },
+          successor: { workPackageId: 'p', scope: 'whole', workItemId: 'c' },
           type: 'FS',
         },
       ]);
@@ -149,7 +151,7 @@ describe('typed dependency rollback', () => {
     const connection = openConnection(path);
     try {
       expect(
-        (await new TypedDependencyRepository(connection.db, OPEN).listByProject('p')).map(
+        (await new TypedDependencyRepository(connection.db, OPEN).listByWorkPackage('p')).map(
           ({ type }) => type,
         ),
       ).toEqual(['SS', 'FF']);
@@ -252,7 +254,7 @@ describe('typed dependency rollback', () => {
     const sqlite = openDatabase(path);
     try {
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,parent_id,position,name,revision) VALUES ('child','p','a',1,'Child',0)",
+        "INSERT INTO work_item (id,work_package_id,parent_id,position,name,revision) VALUES ('child','p','a',1,'Child',0)",
       );
     } finally {
       sqlite.close();
@@ -263,13 +265,13 @@ describe('typed dependency rollback', () => {
     expect(rowCount()).toBe(0);
   });
 
-  it('refuses the whole restore when a row names another project', () => {
+  it('refuses the whole restore when a row names another work package', () => {
     const snapshot = saved();
     withConnection((db) => removeSavedTypedDependencies(db, snapshot));
     const rows = [{ ...snapshot.rows[0], predecessorWorkItemId: 'foreign' }, snapshot.rows[1]];
     expect(() =>
       withConnection((db) => restoreTypedDependencies(db, { ...snapshot, rows })),
-    ).toThrow('outside project');
+    ).toThrow('outside work package');
     expect(rowCount()).toBe(0);
   });
 

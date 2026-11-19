@@ -104,6 +104,80 @@ Deployment clarification: outgoing binaries still interpret the compatibility vi
 - **WHEN** rollback is requested
 - **THEN** rollback refuses with the named representability error before changing offer history, schema, trigger or migration ledger
 
+### Requirement: Initial-access recovery follows the admitted transition kind
+
+Recovery SHALL use the supported transition kind selected before migration, maintain authenticated read continuity and live-store writer exclusion within the prepared deadline, and validate the bound store, complete baseline ledger and compatible code before reopening writes. Ordinary reversible additions SHALL retain exact capture/down/full-ledger comparison and nonrepresentable-history refusal. Only an explicitly reviewed snapshot-only entity window SHALL use its verified pre-window snapshot and pinned pre-window schema. Snapshot restoration SHALL NOT be selected as fallback after failed additive down. Possible or unknown upgraded-writer exposure, unknown participant ownership/retirement, failed validation or an expired prepared read window SHALL prevent automatic old-role-authorizer restoration and retain recovery-required state with its manual completion command. This contract SHALL NOT itself supply a transition permit.
+
+#### Scenario: Ordinary additive recovery retains exact reversal
+
+- **GIVEN** an admitted ordinary reversible transition with a complete captured baseline and no upgraded-writer exposure
+- **WHEN** recovery reverses exactly the additions recorded by that capture
+- **THEN** the complete baseline name/hash ledger is compared before compatible owners reopen writes
+- **AND** nonrepresentable offer history retains its existing rollback refusal
+
+#### Scenario: A preselected snapshot-only entity window restores its pinned baseline
+
+- **GIVEN** an explicitly reviewed snapshot-only entity window selected before migration, with no upgraded-writer exposure and known participant retirement
+- **WHEN** its supported recovery owner stops candidate live-store owners and restores the verified pre-window snapshot to the bound store family
+- **THEN** the pinned pre-window schema, complete ledger and exact compatible code validate before writes reopen
+- **AND** authenticated reads and live-store exclusion remain within the prepared deadline
+
+#### Scenario: Failed additive reversal cannot switch recovery kinds
+
+- **GIVEN** the selected ordinary additive down fails or refuses
+- **WHEN** recovery settles that failure
+- **THEN** recovery-required state and its manual completion command remain, and snapshot restoration is not invoked as fallback
+
+#### Scenario: Unknown exposure or retirement forbids automatic legacy restoration
+
+- **GIVEN** upgraded-writer exposure is possible or unknown, or participant ownership/retirement is unknown
+- **WHEN** recovery is requested
+- **THEN** it does not automatically restore an old-role-authorizing owner, and retains explicit recovery-required state
+
+### Requirement: Initial-access source admission precedes target effects
+
+Source-only admission SHALL inspect immutable current and target revisions, and any recovery revision selected by that entrypoint, in the actual source repository. It SHALL refuse either protected migration identity, changed or malformed protected SQL, and missing, unreadable or ambiguous required evidence before preflight, solver-preparation state reads, preparation or reset. It SHALL accept no positive cutover permit and SHALL NOT certify store provenance or complete live cutover.
+
+#### Scenario: Unsupported target reaches solver preparation
+
+- **GIVEN** a target contains either protected migration and changes solver compatibility inputs
+- **WHEN** the actual target operation is invoked directly or through synchronization
+- **THEN** it refuses before preparation, state read, preflight or reset
+
+#### Scenario: Protected SQL changes cannot become absence
+
+- **GIVEN** either protected migration folder contains changed, missing or malformed forward SQL
+- **WHEN** the immutable source inventory is selected
+- **THEN** admission refuses rather than treating the protected migration as absent
+
+### Requirement: Installed poller admission precedes recovery and status effects
+
+The installed poller SHALL establish admission before initializing last-synced, returning an already-proven target or resetting an incomplete sync. It SHALL use a delivered, pinned Bun entrypoint outside the watched checkout; a later target-loaded helper SHALL NOT substitute. Supported pre-transition recovery SHALL continue. Unsupported lanes SHALL refuse until their own pre-effect boundary is implemented.
+
+#### Scenario: Incomplete-sync recovery would restore protected source
+
+- **GIVEN** current HEAD or last-synced contains either protected migration, while the selected target removes both folders
+- **WHEN** the installed poller attempts recovery or synchronization
+- **THEN** it refuses before reset, preserving HEAD and existing last-synced bytes
+
+#### Scenario: A protected target is already marked proven
+
+- **GIVEN** HEAD and target match a protected revision and the poller records it as proven
+- **WHEN** the installed poller runs
+- **THEN** it refuses through source admission before its ordinary already-proven return
+
+#### Scenario: Ordinary pre-transition recovery remains supported
+
+- **GIVEN** complete supported current, recovery and target inventories contain neither protected migration and the installed entrypoint is valid
+- **WHEN** an incomplete sync is recovered
+- **THEN** ordinary recovery may proceed only after source admission succeeds
+
+#### Scenario: Required installed admission is unavailable
+
+- **GIVEN** the required installed Bun entrypoint is missing, unreadable or unsupported
+- **WHEN** the poller attempts synchronization with an absent last-synced marker
+- **THEN** it refuses without creating that marker or resetting watched source
+
 ### Requirement: Direct built-in super-admin survives every authority removal
 
 After each affected write, the same owner SHALL require at least one current member with a direct user built-in org-super-admin grant at organization scope. Custom roles, groups and credentials SHALL NOT count. Zero SHALL cause a modeled rollback refusal, including member removal, self-leave, active SCIM removal, group delete/member removal and credential revocation, preserving their audits and lifecycle effects. Bootstrap SHALL establish the creator grant before this invariant. Fresh actor membership refusal SHALL precede target processing when reciprocal removal has already removed the actor.

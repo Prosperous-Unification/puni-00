@@ -20,7 +20,6 @@ import {
   PERSON_KINDS,
   READINESSES,
   RESOURCE_KINDS,
-  type ResourceUse,
   type ResourceUseEvent,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
@@ -74,10 +73,10 @@ const auditColumns = () => ({
 /**
  * {@link auditColumns} for the two tables that already dated themselves.
  *
- * `users` and `project` have carried a `NOT NULL` `created_at` since they were
+ * `users` and `workPackage` have carried a `NOT NULL` `created_at` since they were
  * written, and it stays theirs: letting {@link auditColumns} supply a nullable
  * one in its place would weaken a column the database enforces, and make every
- * reader of a project's age handle a null that cannot occur.
+ * reader of a work package's age handle a null that cannot occur.
  */
 const auditColumnsBesidesCreatedAt = () => ({
   updatedAt: integer('updated_at'),
@@ -171,56 +170,52 @@ export type EventLogRow = typeof eventLog.$inferSelect;
 /**
  * One work breakdown structure and the scope of everything below it.
  *
- * `restricted` gates writes only: every authenticated account may read every
- * project, and only the owner may edit a restricted one. `ownerId` is the
- * account that created it and never changes, so a restricted project whose
- * owner is gone can be read by all and edited by none.
+ * The required project is its engagement parent. The creation actor is audit
+ * metadata; current grants and restriction policy decide access.
  */
-export const project = sqliteTable(
-  'project',
+export const workPackage = sqliteTable(
+  'work_package',
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    ownerId: text('owner_id')
+    projectId: text('project_id')
       .notNull()
-      .references(() => users.id),
+      .references((): AnySQLiteColumn => project.id),
     restricted: integer('restricted', { mode: 'boolean' }).notNull().default(false),
     solutionSlug: text('solution_slug'),
     solutionUrl: text('solution_url'),
     /**
-     * Which of the four {@link EstimateMethod}s this project plans with. Text
+     * Which of the four {@link EstimateMethod}s this work package plans with. Text
      * rather than an integer so a database anyone opens says `pessimistic`
-     * instead of `3`, and defaulted so every existing project keeps the PERT
+     * instead of `3`, and defaulted so every existing work package keeps the PERT
      * behaviour it already had.
      */
     estimateMethod: text('estimate_method').notNull().default('pert'),
     /**
-     * Which of the two `DependencyReach`es this project's dependencies use —
+     * Which of the two `DependencyReach`es this work package's dependencies use —
      * how far into a predecessor a dependency reaches.
      *
      * Text for {@link estimateMethod}'s reason, and defaulted to `whole-item`
-     * so **every project that already exists** takes the rule Dany chose on
+     * so **every work package that already exists** takes the rule Dany chose on
      * 2026-08-29 rather than keeping the August `anchor-slice` one. That is a
      * real change to every plan with a multi-step predecessor, and it is the
      * point of the column: see
-     * `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+     * `docs/adr/0010-a-dependencys-reach-is-a-work-packages-choice.md`.
      */
     depReach: text('dep_reach').notNull().default('whole-item'),
+    // Historical column narratives below predate the setting_value lift; no scalar setting is stored here.
     /**
-     * The three coefficients this project's PERT figure weighs optimistic,
+     * The three coefficients this work package's PERT figure weighs optimistic,
      * realistic and pessimistic by — see `PertWeights` in `@wbs/domain`, which
      * is also the boundary that reads them back.
      *
      * Three `real` columns rather than one JSON blob, for {@link estimateMethod}'s
      * reason: a database anyone opens says `4` under a column called
      * `pert_weight_realistic`, and no reader has to parse a string to answer
-     * "what does this project weigh the realistic figure by". Defaulted to the
-     * textbook 1/4/1, which is the arithmetic every project already had, so this
+     * "what does this work package weigh the realistic figure by". Defaulted to the
+     * textbook 1/4/1, which is the arithmetic every work package already had, so this
      * trio alone moves no plan.
      */
-    pertWeightOptimistic: real('pert_weight_optimistic').notNull().default(1),
-    pertWeightRealistic: real('pert_weight_realistic').notNull().default(4),
-    pertWeightPessimistic: real('pert_weight_pessimistic').notNull().default(1),
     /**
      * Which of the three `EstimateRounding`s one step's combined figure is
      * charged at — `floor`, `round` or `ceil`.
@@ -234,10 +229,10 @@ export const project = sqliteTable(
      */
     estimateRounding: text('estimate_rounding').notNull().default('ceil'),
     /**
-     * The calendar day the plan begins, as `YYYY-MM-DD`, or null for a project
+     * The calendar day the plan begins, as `YYYY-MM-DD`, or null for a work package
      * that has not been placed on a calendar.
      *
-     * Nullable rather than defaulted to the day the project was made: a plan
+     * Nullable rather than defaulted to the day the work package was made: a plan
      * with no start date is an ordinary state — an estimate nobody has committed
      * to a date yet — and inventing one would put dates on screen that nobody
      * chose. Without it the schedule still answers in day offsets, as it always
@@ -245,32 +240,32 @@ export const project = sqliteTable(
      */
     startDate: text('start_date'),
     /**
-     * How many times this project has been written to — see {@link workItem}'s
+     * How many times this work package has been written to — see {@link workItem}'s
      * `revision` for what a revision is and the rule that decides when one moves.
      *
-     * The project's own stored fields (name, restriction, estimate method, start
+     * The work package's own stored fields (name, restriction, estimate method, start
      * date) and its **satellites** move it. Its steps are a satellite: adding,
-     * renaming or removing one changes what every estimate in the project means,
+     * renaming or removing one changes what every estimate in the work package means,
      * and each of the three moves this column inside the transaction that makes
      * the change — see `StepRepository`, asserted in `repository/step.test.ts`.
      *
-     * A project's work items are **not** satellites of it. They are entities with
+     * A work package's work items are **not** satellites of it. They are entities with
      * revisions of their own, and folding them in here would make this counter
      * move on every keystroke anybody types anywhere in the plan — a precondition
      * on it would then fail for two people editing unrelated branches.
      *
-     * `project_access.last_opened_at` does not move it either: whose screen a
-     * project is on is navigation history, not a change to the plan.
+     * `work_package_access.last_opened_at` does not move it either: whose screen a
+     * work package is on is navigation history, not a change to the plan.
      */
     revision: integer('revision').notNull().default(0),
     /**
-     * When a delete of this project began draining its optimizer work, and null
+     * When a delete of this work package began draining its optimizer work, and null
      * whenever no delete is pending — the durable cross-process fence the drain
      * protocol reads (tasks.md 3.1b, 3.9b).
      *
      * **Internal, and never a read-payload field.** It is not a user setting and
      * no boundary returns it; it exists so a coordinator in one process and a
-     * delete in another agree on whether admission is closed for this project
+     * delete in another agree on whether admission is closed for this work package
      * without either holding a lock the other can see. It lands in slice 3's own
      * additive migration rather than 3b's, because slices 3 and 3b ship as
      * separate reviewed PRs and the drain code in 3b would otherwise be written
@@ -278,57 +273,57 @@ export const project = sqliteTable(
      */
     optimizationDeletePendingAt: integer('optimization_delete_pending_at'),
     /**
-     * Whether this project may spend solver time at all — the master switch
+     * Whether this work package may spend solver time at all — the master switch
      * every optimizer admission predicate reads, and the reason the optimizer
      * costs nothing on a database that has merely been migrated.
      *
      * **Defaulted to false, and that default is the whole safety property.**
-     * Every project that already exists takes `false` at migration time, so
+     * Every work package that already exists takes `false` at migration time, so
      * deploying the optimizer starts no solver anywhere until somebody turns it
-     * on for one named project. A column added ON, or added nullable and
+     * on for one named work package. A column added ON, or added nullable and
      * backfilled afterwards, would start solvers for the entire database on the
      * deploy — see the watched red in tasks.md 3b.5, which flips this default
      * and watches the unmigrated-row case fail.
      *
      * **The `CHECK`s for this column and the two below it live in
-     * `20260904140000_add_project_settings/migration.sql` and not in this
-     * table's extras.** `project` already exists, so each constraint is a column
+     * `20260904140000_add_work_package_settings/migration.sql` and not in this
+     * table's extras.** `workPackage` already exists, so each constraint is a column
      * constraint on an `ALTER TABLE … ADD COLUMN`; declaring them here as
      * table-level {@link check}s would describe a `CREATE TABLE` no migration
      * writes. The database holds them either way, which is the point — a
      * constraint the database does not hold is a convention the next writer can
-     * break — and `project-settings.db.test.ts` reads them back off
+     * break — and `work-package-settings.db.test.ts` reads them back off
      * `sqlite_master` rather than trusting this file.
      */
     optimizationEnabled: integer('optimization_enabled', { mode: 'boolean' })
       .notNull()
       .default(false),
     /**
-     * Which of the two engines this project's schedule is produced by: `fast`,
+     * Which of the two engines this work package's schedule is produced by: `fast`,
      * the heuristic that has always run, or `optimized`, the CP-SAT solver.
      *
      * Text rather than an integer for {@link estimateMethod}'s reason — a
      * database anyone opens says `optimized` instead of `1` — and refused on
      * read the same way (`isScheduleEngine`, tasks.md 3b.8). Defaulted to
-     * `fast`, which is the behaviour every existing project already had, so
+     * `fast`, which is the behaviour every existing work package already had, so
      * this column alone moves no plan.
      *
      * Separate from {@link optimizationEnabled} because the two answer different
-     * questions: this one is which engine the project *wants*, and that one is
-     * whether it is allowed to spend solver time at all. A project may be
+     * questions: this one is which engine the work package *wants*, and that one is
+     * whether it is allowed to spend solver time at all. A work package may be
      * switched off with `optimized` still recorded, and it must come back to
      * `optimized` rather than to a default when it is switched on again.
      */
     scheduleEngine: text('schedule_engine').notNull().default('fast'),
     /**
-     * Which of the two objectives the optimizer minimises for this project:
+     * Which of the two objectives the optimizer minimises for this work package:
      * `pri`, priority order, or `time`, makespan.
      *
      * Text and refused-on-read for {@link scheduleEngine}'s reason, and the same
      * two-member vocabulary the cache, the slot table and the queue store under
-     * `objective` — one project setting selects which of the cached pair is the
+     * `objective` — one work package setting selects which of the cached pair is the
      * published one. Defaulted to `pri`, the order the Fast engine already
-     * produces, so an existing project switched to `optimized` gets an optimised
+     * produces, so an existing work package switched to `optimized` gets an optimised
      * version of the plan it had rather than a different plan.
      */
     scheduleObjective: text('schedule_objective').notNull().default('pri'),
@@ -339,10 +334,9 @@ export const project = sqliteTable(
      * Defaulted to `UTC`, the day every reading had before, which is also what
      * makes `20261012120000_add_step_node_attempts` additive: the outgoing
      * colour's insert names no zone. Validated at the PATCH boundary with
-     * `isTimezone`; `ProjectRepository.timezoneOf` refuses a stored value that
+     * `isTimezone`; `WorkPackageRepository.timezoneOf` refuses a stored value that
      * is not one.
      */
-    timezone: text('timezone').notNull().default('UTC'),
     /**
      * What a derived budget multiplies the pessimistic point by
      * (`wbs-measure-budgets` design D38), created by
@@ -350,22 +344,24 @@ export const project = sqliteTable(
      * above 0 and at most 1000. Defaulted to 1, which the outgoing release's
      * insert relies on.
      */
-    budgetFactor: real('budget_factor').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
   },
-  (t) => [uniqueIndex('project_solution_slug').on(t.solutionSlug)],
+  (t) => [uniqueIndex('work_package_solution_slug').on(t.solutionSlug)],
 );
 
-export type ProjectRow = typeof project.$inferSelect;
+export type WorkPackageRow = typeof workPackage.$inferSelect;
 
 /**
- * The two engines {@link project.scheduleEngine} may name (tasks.md 3b.8).
+ * The two engines {@link workPackage.scheduleEngine} may name (tasks.md 3b.8).
  *
  * Declared here rather than beside {@link SOLVER_OBJECTIVES} because it is a
- * project vocabulary and not an optimizer-table one: no row in the four
+ * work package vocabulary and not an optimizer-table one: no row in the four
  * optimizer tables stores an engine. The objective deliberately has no twin —
- * `project.schedule_objective` stores the same `'pri' | 'time'`
+ * `workPackage.schedule_objective` stores the same `'pri' | 'time'`
  * {@link SOLVER_OBJECTIVES} already names, so it is a fourth validated column
  * rather than a second vocabulary, and {@link isSolverObjective} reads it.
  *
@@ -377,33 +373,33 @@ export type ProjectRow = typeof project.$inferSelect;
 export { SCHEDULE_ENGINES, type ScheduleEngine } from '@wbs/domain';
 
 /**
- * When one account last opened one project, and nothing else.
+ * When one account last opened one work package, and nothing else.
  *
- * The picker sorts by it, which is the whole reason it exists: "the project I
+ * The picker sorts by it, which is the whole reason it exists: "the work package I
  * was in yesterday" is how people find their way back, and creation order
  * answers a question nobody asks. One row per pair, overwritten on each open —
  * a log would answer "how often" and "when before that", which nothing asks.
  *
  * Its own table rather than a column anywhere: the fact belongs to the pair,
- * not to the project (every account has a different answer) and not to the
- * account (it has one per project).
+ * not to the work package (every account has a different answer) and not to the
+ * account (it has one per work package).
  */
-export const projectAccess = sqliteTable(
-  'project_access',
+export const workPackageAccess = sqliteTable(
+  'work_package_access',
   {
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id),
+      .references(() => workPackage.id),
     lastOpenedAt: integer('last_opened_at').notNull(),
     ...auditColumns(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.projectId] })],
+  (t) => [primaryKey({ columns: [t.userId, t.workPackageId] })],
 );
 
-export type ProjectAccessRow = typeof projectAccess.$inferSelect;
+export type WorkPackageAccessRow = typeof workPackageAccess.$inferSelect;
 
 /**
  * One unit of work, placed in a tree by `parentId` and among its siblings by
@@ -427,9 +423,9 @@ export const workItem = sqliteTable(
   'work_item',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id),
+      .references(() => workPackage.id),
     parentId: text('parent_id').references((): AnySQLiteColumn => workItem.id),
     position: integer('position').notNull(),
     name: text('name').notNull().default(''),
@@ -505,7 +501,7 @@ export const workItem = sqliteTable(
      * **This column reaches the schedule as of slice 3.4/4.2.**
      * `WORK_ITEM_COLUMNS` names it, so every row selected carries it and the
      * patch `SET` writes it (slice 6); the plan read resolves each stored date
-     * against the project's start with `deadlineOffsetsOf` and hands the
+     * against the work package's start with `deadlineOffsetsOf` and hands the
      * offsets to `schedule()` as its seventh argument. So the ordering and the
      * fold described above are behaviour at this head rather than intent.
      *
@@ -534,12 +530,12 @@ export const workItem = sqliteTable(
      * `ALTER TABLE ADD COLUMN` appends.
      *
      * **Stored as authored, and no later edit rewrites it.** The writes exist
-     * as of slice 6 and this is the rule they keep. A project start moved past
-     * a stored deadline resolves `before-project-start` at **read** time and
+     * as of slice 6 and this is the rule they keep. A work package start moved past
+     * a stored deadline resolves `before-work-package-start` at **read** time and
      * the row is reported late by the whole span; the value is left alone and
-     * the request that moved the project is not rejected. Implemented as of
+     * the request that moved the work package is not rejected. Implemented as of
      * 3.4/4.2 and proved by `deadline-plan-read.test.ts`, which moves a
-     * project's start under a stored date and asserts both halves. It is
+     * work package's start under a stored date and asserts both halves. It is
      * written down here,
      * on the column, because rewriting the value would delete what somebody
      * typed on an unrelated edit, and the place that argument has to survive
@@ -599,8 +595,8 @@ export const workItem = sqliteTable(
      * it was before this column existed, and a work item with no priority is placed
      * after every work item that has one rather than among them.
      *
-     * What the number is **called** is the project's own — see
-     * {@link projectPriorityBand}. The ladder is read on every face and by no
+     * What the number is **called** is the work package's own — see
+     * {@link workPackagePriorityBand}. The ladder is read on every face and by no
      * scheduling code: picking `Critical` writes this column's `10` and nothing
      * else happens, and re-cutting the ladder changes what this number is called
      * without touching it.
@@ -627,7 +623,7 @@ export const workItem = sqliteTable(
      * beneath it whose own set is empty — most-specific wins, `effectiveTeamsOf`
      * in `libs/wbs/domain/domain/src/effective-team.ts` — and each of those leaves' slices
      * draws a slot from that team's pool. The number of slots in that pool is
-     * {@link projectTeamCapacity.size}, stated by **this project** and no other.
+     * {@link workPackageTeamCapacity.size}, stated by **this work package** and no other.
      * Labelling is still not assigning: who does the work is a second and
      * independent fact.
      *
@@ -734,18 +730,18 @@ export const workItem = sqliteTable(
     ...auditColumns(),
   },
   (t) => [
-    index('work_item_siblings').on(t.projectId, t.parentId, t.position),
+    index('work_item_siblings').on(t.workPackageId, t.parentId, t.position),
     /**
      * Serves an `ORDER BY`, not a `WHERE` — the only index here that does.
      *
-     * `listByProject` filters on `project_id` and orders by `id`, and its order
+     * `listByWorkPackage` filters on `work_package_id` and orders by `id`, and its order
      * is a stated contract (see that method's JSDoc and ADR 0016). Without this,
-     * SQLite resolves the filter and then sorts every row of the project in a
+     * SQLite resolves the filter and then sorts every row of the work package in a
      * temp B-tree; with it, the filter and the order are one index read, because
      * `id` is the second column of the same key the `WHERE` opens.
      */
-    uniqueIndex('work_item_id_project').on(t.id, t.projectId),
-    index('work_item_project_id_id').on(t.projectId, t.id),
+    uniqueIndex('work_item_id_work_package').on(t.id, t.workPackageId),
+    index('work_item_work_package_id_id').on(t.workPackageId, t.id),
   ],
 );
 
@@ -771,7 +767,7 @@ const allowanceHundredths = customType<{ data: AllowancePercent; driverData: num
 });
 
 /**
- * A kind of work a project estimates separately. Every project starts with `Dev`
+ * A kind of work a work package estimates separately. Every work package starts with `Dev`
  * and `QA`, which is a seed rather than the set it may hold: they can be
  * renamed, removed, and joined by others through `StepRepository`.
  *
@@ -786,17 +782,17 @@ export const step = sqliteTable(
   'step',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id),
+      .references(() => workPackage.id),
     name: text('name').notNull(),
     /**
-     * Where this step sits in the project's step order, spaced in tens like
+     * Where this step sits in the work package's step order, spaced in tens like
      * {@link workItem}'s.
      *
      * The order is a contract now that the schedule runs a work item's slices
-     * in it, and it cannot be inferred: `WHERE project_id = ?` is answered from
-     * `step_project_name`, so a project's steps come back in **name** order
+     * in it, and it cannot be inferred: `WHERE work_package_id = ?` is answered from
+     * `step_work_package_name`, so a work package's steps come back in **name** order
      * unless a query says otherwise. `Dev, QA` only looks like the order they
      * were seeded in.
      *
@@ -819,8 +815,8 @@ export const step = sqliteTable(
      * file mid-swap, and the outgoing release's `INSERT` does not name this
      * column, so a step it adds lands uncoded until the post-swap backfill codes
      * it. Codes are derived in TypeScript rather than SQL so that creation,
-     * import and the backfill share one derivation. Unique per project among
-     * coded steps through `step_project_code`, a partial index that leaves any
+     * import and the backfill share one derivation. Unique per work package among
+     * coded steps through `step_work_package_code`, a partial index that leaves any
      * number of uncoded steps beside each other. Immutable once written:
      * renaming or reordering a step keeps it.
      */
@@ -849,20 +845,103 @@ export const step = sqliteTable(
   },
   (t) => [
     check('step_estimate_unit', sql`${t.estimateUnit} IN ('workdays', 'minutes')`),
-    uniqueIndex('step_id_project').on(t.id, t.projectId),
-    uniqueIndex('step_project_name').on(t.projectId, t.name),
-    uniqueIndex('step_project_code')
-      .on(t.projectId, t.code)
+    uniqueIndex('step_id_work_package').on(t.id, t.workPackageId),
+    uniqueIndex('step_work_package_name').on(t.workPackageId, t.name),
+    uniqueIndex('step_work_package_code')
+      .on(t.workPackageId, t.code)
       .where(sql`${t.code} IS NOT NULL`),
   ],
 );
 
 export type StepRow = typeof step.$inferSelect;
 
+/** Organization-wide definitions installed by catalogue117; live package values belong to workPackageStep. */
+export const stepDefinition = sqliteTable(
+  'step_definition',
+  {
+    id: text('id').primaryKey().notNull(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references((): AnySQLiteColumn => organization.id),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    estimateUnit: text('estimate_unit').$type<EstimateUnit>().notNull(),
+    defaultAllowancePercent: allowanceHundredths('default_allowance_bps').notNull(),
+    position: integer('position').notNull(),
+    ...auditColumns(),
+    definedAtScopeKind: text('defined_at_scope_kind', {
+      enum: ['organization', 'space', 'project'],
+    }).notNull(),
+    definedAtScopeId: text('defined_at_scope_id').notNull(),
+    origin: text('origin', { enum: ['migration', 'authored'] }).notNull(),
+    legacyWorkPackageId: text('legacy_work_package_id').references(() => workPackage.id, {
+      onDelete: 'set null',
+    }),
+    legacyCode: text('legacy_code'),
+    legacyCodeCaptured: integer('legacy_code_captured').notNull().default(0),
+  },
+  (t) => [
+    unique().on(t.organizationId, t.code),
+    unique().on(t.organizationId, t.name),
+    unique().on(t.id, t.organizationId),
+  ],
+);
+
+/** Retirement is additive identity state; retained definitions and WPS are never deleted. Native119 triggers enforce unbound and immutable markers. */
+export const stepRetirement=sqliteTable('step_retirement',{
+  stepId:text('step_id').primaryKey().notNull(),
+  organizationId:text('organization_id').notNull().references(()=>organization.id),
+  retiredAt:integer('retired_at').notNull(),
+  retiredBy:text('retired_by').notNull().references(()=>users.id),
+},t=>[foreignKey({columns:[t.stepId,t.organizationId],foreignColumns:[stepDefinition.id,stepDefinition.organizationId]}).onDelete('restrict')]);
+
+/** Additive scope/type applicability; the generated key makes the NULL every-type tuple unique. */
+export const stepBinding = sqliteTable(
+  'step_binding',
+  {
+    id: text('id').primaryKey().notNull(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references((): AnySQLiteColumn => organization.id),
+    scopeKind: text('scope_kind', { enum: ['organization', 'space', 'project'] }).notNull(),
+    scopeId: text('scope_id').notNull(),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => stepDefinition.id),
+    workItemTypeId: text('work_item_type_id').references((): AnySQLiteColumn => workItemType.id),
+    typeKey: text('type_key').generatedAlwaysAs(sql`ifnull(work_item_type_id,'')`, {
+      mode: 'stored',
+    }),
+    position: integer('position').notNull(),
+    origin: text('origin', { enum: ['migration', 'authored'] }).notNull(),
+  },
+  (t) => [unique().on(t.scopeKind, t.scopeId, t.stepId, t.typeKey)],
+);
+
+/** Explicit package-specific values survive unbinding and later definition-default edits; reads never substitute defaults. */
+export const workPackageStep = sqliteTable(
+  'work_package_step',
+  {
+    workPackageId: text('work_package_id')
+      .notNull()
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => stepDefinition.id),
+    estimateUnit: text('estimate_unit').$type<EstimateUnit>().notNull(),
+    allowancePercent: allowanceHundredths('allowance_bps').notNull(),
+    allowanceRevision: integer('allowance_revision').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workPackageId, t.stepId] }),
+    unique().on(t.stepId, t.workPackageId),
+  ],
+);
+
 /**
  * Three durations in days for one work item and one step.
  *
- * Its own table rather than columns on `work_item` because a project chooses
+ * Its own table rather than columns on `work_item` because a work package chooses
  * how many steps it estimates: columns would cap that number and make adding
  * `Design` a migration.
  *
@@ -909,7 +988,7 @@ export type EstimateRow = typeof estimate.$inferSelect;
  * read-modify-write of the other's numbers.
  *
  * **The absence of a row is what "nobody has said" looks like, never a zero.**
- * The same rule {@link projectTeamCapacity} follows, and the same one the export
+ * The same rule {@link workPackageTeamCapacity} follows, and the same one the export
  * has carried since it was written: an empty cell means nobody typed it. A zero
  * here is a person saying the work took no days, which is a different sentence
  * and a rarer one. Clearing an actual deletes the row rather than writing 0.
@@ -984,7 +1063,7 @@ export type ActualRow = typeof actual.$inferSelect;
  *
  * **Three states, two of them stored.** `in_progress` and `done` are rows;
  * **"not started" is the absence of one**, never a stored value — the rule
- * {@link projectTeamCapacity} and {@link actual} both follow. A stored
+ * {@link workPackageTeamCapacity} and {@link actual} both follow. A stored
  * `unknown` would be a second spelling of "nobody has said" and every reader
  * would then have to handle both. There is no `blocked` and no `cancelled`:
  * each is a question the engine must answer the day it reads this, and it does
@@ -1098,7 +1177,7 @@ export { MEASURE_METRICS, type MeasureMetric } from '@wbs/domain';
  * still absent from every token figure.
  *
  * **Absence of a row is what "nobody has said" looks like, never a zero** — the
- * rule {@link actual} and {@link projectTeamCapacity} follow. Clearing deletes
+ * rule {@link actual} and {@link workPackageTeamCapacity} follow. Clearing deletes
  * the row. A stored `0` survives, because "this cost nothing" is a statement
  * somebody made and a rarer one.
  *
@@ -1155,8 +1234,8 @@ export const stepMeasure = sqliteTable(
     /**
      * The definition a fact is in (`wbs-measure-budgets` D4): set by the store
      * for a defined measure, and by the `step_measure_keys_legacy_fact` trigger
-     * for a `token_actual` or `hours_actual` row of a project an organization
-     * owns. NULL on a `token_estimate` row and on an unowned project's facts.
+     * for a `token_actual` or `hours_actual` row of a work package an organization
+     * owns. NULL on a `token_estimate` row and on an unowned work package's facts.
      */
     measureId: text('measure_id').references(() => measure.id),
     value: real('value').notNull(),
@@ -1200,7 +1279,7 @@ export type StepMeasureRow = typeof stepMeasure.$inferSelect;
  * (`wbs-measure-budgets` D3), created by `20261023160000_add_measure_estimate`.
  *
  * `measureKey` is the identity and `measureId` the reference, NULL while no
- * organization owns the project (design D19). A `tokens` row with
+ * organization owns the work package (design D19). A `tokens` row with
  * `singlePoint` stands for the legacy `token_estimate` row of
  * {@link stepMeasure}, which the `step_measure_mirrors_token_estimate_*`
  * triggers keep it in step with (design D28). `work_item_id` cascades and
@@ -1246,7 +1325,7 @@ export const measureEstimate = sqliteTable(
  * design D36), created by `20261023170000_add_work_item_budget`.
  *
  * `measureKey` is the identity and `measureId` the reference, NULL while no
- * organization owns the project (design D30). Derived budgets are computed on
+ * organization owns the work package (design D30). Derived budgets are computed on
  * read and never stored here. `work_item_id` cascades: a deleted work item's
  * budgets go with it and an undo writes them back.
  */
@@ -1364,12 +1443,12 @@ export const stepNodeAttemptIssued = sqliteTable(
 export type StepProgressRow = typeof stepProgress.$inferSelect;
 
 /**
- * A service or team that work can be labelled with — global, not per project.
+ * A service or team that work can be labelled with — global, not per work package.
  *
  * Dany's ask, 2026-08-06: it behaves like a Jira label. Anyone may add one by
- * typing a name the list does not have, and every project draws from the same
- * list, because the same teams do work across projects and one list per
- * project would be the same names typed again and again with typos between
+ * typing a name the list does not have, and every work package draws from the same
+ * list, because the same teams do work across work packages and one list per
+ * work package would be the same names typed again and again with typos between
  * them.
  *
  * The name is unique at the database rather than only in the service: two
@@ -1382,25 +1461,25 @@ export const serviceTeam = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     /**
-     * **Retired by `capacity-per-project` (2026-08-13) and read by nothing.**
+     * **Retired by `capacity-per-work-package` (2026-08-13) and read by nothing.**
      * Kept in the table and not dropped, and the two halves are separate facts.
      *
-     * Read by nothing: capacity is a fact about one project now, held in
-     * {@link projectTeamCapacity}, and there is deliberately **no fallback** to
+     * Read by nothing: capacity is a fact about one work package now, held in
+     * {@link workPackageTeamCapacity}, and there is deliberately **no fallback** to
      * this number — Dany's call, quoted in that change's `design.md` D1. Every
-     * project that existed at the migration was seeded with whatever stood here,
+     * work package that existed at the migration was seeded with whatever stood here,
      * so no plan moved; what stands here now is the last global number anybody
      * typed and it decides nothing.
      *
      * Not dropped: blue and green share one SQLite file mid-swap and the
      * outgoing release still selects this column. The drop is a later change,
-     * once no running release reads it — `capacity-per-project`'s D4.
+     * once no running release reads it — `capacity-per-work-package`'s D4.
      *
      * The rule it used to carry, for the reader who finds a number in here and
      * wonders what it meant: null was _unstated_ and constrained nothing, and a
      * sized team of N bounded how many of its work items' slices ran at once
-     * across the whole of one project's plan. That rule now lives on
-     * {@link projectTeamCapacity.size}, per project.
+     * across the whole of one work package's plan. That rule now lives on
+     * {@link workPackageTeamCapacity.size}, per work package.
      */
     size: integer('size'),
     ...auditColumns(),
@@ -1422,18 +1501,18 @@ export type ServiceTeamRow = typeof serviceTeam.$inferSelect;
  *
  * The pair is the primary key because the pair is the fact: "this work item's
  * work is Platform's" is either stated or not, and a second row saying it again
- * would be a second answer to one question. `project_team_capacity`'s shape, one
+ * would be a second answer to one question. `work_package_team_capacity`'s shape, one
  * table along.
  *
  * Both columns cascade, and the cascade is the **only** mechanism that removes
  * these rows — nothing in be-01 deletes them on the way to deleting a team or a
  * work item. That is deliberate and it is the same argument
- * {@link projectTeamCapacity} makes: blue and green share one SQLite file during
+ * {@link workPackageTeamCapacity} makes: blue and green share one SQLite file during
  * a swap, the outgoing release knows nothing about this table, and its plain
  * `DELETE FROM service_team` must not hit a constraint it cannot see.
  *
  * Indexed by team, because the directory asks "what would removing this team
- * touch" of every project at once and the primary key answers only the other
+ * touch" of every work package at once and the primary key answers only the other
  * direction.
  */
 export const workItemTeam = sqliteTable(
@@ -1464,7 +1543,7 @@ export type WorkItemTeamRow = typeof workItemTeam.$inferSelect;
  * `tag` and nothing else about it changed.
  *
  * **What this table is not, and the absences are the design.** Not a pool: there
- * is no `size` here and no per-project table beside it, so nothing anywhere can
+ * is no `size` here and no per-work-package table beside it, so nothing anywhere can
  * ask how many of a tag may be at work at once. Not a size. **Not anything a
  * date reads** — {@link serviceTeam} answers _who does the work_ and the
  * scheduler spends its capacity; a tag answers _what kind of thing this is_ and
@@ -1474,9 +1553,9 @@ export type WorkItemTeamRow = typeof workItemTeam.$inferSelect;
  * membership chips for the same reason: a reader who sees no capacity column
  * learns the model rule without being told it.
  *
- * **Global — no project column**, mirroring {@link serviceTeam} exactly. A label
+ * **Global — no work package column**, mirroring {@link serviceTeam} exactly. A label
  * that meant one thing on one plan and another on the next would make the
- * directory a per-project screen and the filter a per-project vocabulary, and
+ * directory a per-work-package screen and the filter a per-work-package vocabulary, and
  * neither is what a tag is for.
  *
  * `name` is `NOT NULL` with a unique index on it, and the index is what lets a
@@ -1532,7 +1611,7 @@ export type TagRow = typeof tag.$inferSelect;
  * an ancestor said, it can only be edited where it was said.
  *
  * Indexed by tag, because the directory asks "what would removing this tag
- * touch" of every project at once and the primary key answers only the other
+ * touch" of every work package at once and the primary key answers only the other
  * direction — {@link workItemTeam}'s `work_item_team_by_team`.
  */
 export const workItemTag = sqliteTable(
@@ -1568,12 +1647,12 @@ export type WorkItemTagRow = typeof workItemTag.$inferSelect;
  * `regulatory` and `Bug` are not the same kind of statement, and one row answers
  * both. That separation is why this is a table and not three more tags.
  *
- * **Not anything the scheduler may read.** No size, no pool, no per-project
+ * **Not anything the scheduler may read.** No size, no pool, no per-work-package
  * capacity table beside this one, so nothing can ask how many Bugs may run at
  * once — asserted by `service-untouched.test.ts`, not claimed here. A type is a
  * label; it decides nothing.
  *
- * **Global — no project column**, mirroring {@link tag} and {@link serviceTeam}.
+ * **Global — no work package column**, mirroring {@link tag} and {@link serviceTeam}.
  *
  * `name` is `NOT NULL` and carries a unique index, which is what lets a rename
  * answer `taken` with the surviving name instead of writing a second row that
@@ -1638,7 +1717,7 @@ export type ExternalSystemRow = typeof externalSystem.$inferSelect;
  * see while blue and green share one SQLite file.
  *
  * Indexed by type, because the directory asks "what would removing this type
- * touch" of every project at once and the primary key answers only the other
+ * touch" of every work package at once and the primary key answers only the other
  * direction — {@link workItemTag}'s `work_item_tag_by_tag`.
  */
 export const workItemWorkItemType = sqliteTable(
@@ -1746,7 +1825,7 @@ export type WorkItemExternalRefRow = typeof workItemExternalRef.$inferSelect;
  * name (`service-split`'s design.md D9).
  *
  * **What this table is not, and the absences are the design.** Not a pool: no
- * `size` column here and no per-project table beside it, so nothing anywhere can
+ * `size` column here and no per-work-package table beside it, so nothing anywhere can
  * ask how many of a service may be at work at once — {@link serviceTeam} is
  * where capacity lives, because capacity is spent by the people doing the work
  * and not by the thing the work is for. **Not anything a date reads**:
@@ -1755,7 +1834,7 @@ export type WorkItemExternalRefRow = typeof workItemExternalRef.$inferSelect;
  * date move. Not a tag either — {@link tag} stayed general-purpose, and what
  * makes a service more than a label is {@link teamService} below.
  *
- * **Global — no project column**, mirroring {@link serviceTeam} and {@link tag}
+ * **Global — no work package column**, mirroring {@link serviceTeam} and {@link tag}
  * exactly. `Payments` means `Payments` in every plan, which is what lets an
  * export column mean the same thing across plans.
  *
@@ -1876,7 +1955,7 @@ export type TeamServiceRow = typeof teamService.$inferSelect;
  * state.
  *
  * Indexed by `service_id`, because the directory asks "what would removing this
- * service touch" of every project at once and the primary key answers only the
+ * service touch" of every work package at once and the primary key answers only the
  * other direction — {@link workItemTag}'s `work_item_tag_by_tag`, one dimension
  * over.
  */
@@ -1900,17 +1979,17 @@ export const workItemService = sqliteTable(
 export type WorkItemServiceRow = typeof workItemService.$inferSelect;
 
 /**
- * How many of one team may be at work at once **on one project's plan**.
+ * How many of one team may be at work at once **on one work package's plan**.
  *
  * Dany, 2026-08-13, and the second sentence is the one that shapes this table:
- * _"the capacity must be configurable per project"_, and _"The global number
- * should not matter, only per project capacity configuration matters."_ So this
+ * _"the capacity must be configurable per work package"_, and _"The global number
+ * should not matter, only per work package capacity configuration matters."_ So this
  * is not an override in front of {@link serviceTeam.size} — that column is read
  * by nothing, and a pair with no row here is **unstated**, constraining that
  * team's work on that plan not at all.
  *
  * The primary key is the pair, because the pair is the identity of the fact: one
- * project states one number about one team, and a second row for the same pair
+ * work package states one number about one team, and a second row for the same pair
  * would be a second answer to one question.
  *
  * `size` is `NOT NULL` and _unstated_ is the **absence of a row**, deliberately
@@ -1920,7 +1999,7 @@ export type WorkItemServiceRow = typeof workItemService.$inferSelect;
  * `null` deletes rather than updates.
  *
  * Both columns cascade, and the cascade is the **only** mechanism that removes
- * these rows: nothing in be-01 deletes them before a project or a team goes —
+ * these rows: nothing in be-01 deletes them before a work package or a team goes —
  * {@link CapacityStore.set}'s clear-to-unstated is the single `DELETE` against
  * this table. That is not an oversight. Blue and green share one SQLite file
  * during a swap, the outgoing release knows nothing about this table, and its
@@ -1929,21 +2008,21 @@ export type WorkItemServiceRow = typeof workItemService.$inferSelect;
  * release. `dependency`'s own argument, one table along.
  *
  * The scheduler reads it through `CapacityStore.slotsFor`, which is C1's
- * `slotsOf` seam with the per-project lookup behind it at last. Why the map that
+ * `slotsOf` seam with the per-work-package lookup behind it at last. Why the map that
  * seam hands the engine stays keyed on the team alone, and not on the pair:
- * `openspec/changes/capacity-per-project/design.md` D3.
+ * `openspec/changes/capacity-per-work-package/design.md` D3.
  */
-export const projectTeamCapacity = sqliteTable(
-  'project_team_capacity',
+export const workPackageTeamCapacity = sqliteTable(
+  'work_package_team_capacity',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     serviceTeamId: text('service_team_id')
       .notNull()
       .references(() => serviceTeam.id, { onDelete: 'cascade' }),
     /**
-     * How many of the team may be at work at once on this project's plan — at
+     * How many of the team may be at work at once on this work package's plan — at
      * least 1, and the floor is a correctness bound rather than a preference: a
      * slice's duration is its effort divided by its width, so a pool of 0 slots
      * is a plan of `Infinity` dates. The bound is enforced at be-01's boundary,
@@ -1952,10 +2031,10 @@ export const projectTeamCapacity = sqliteTable(
     size: integer('size').notNull(),
     ...auditColumns(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.serviceTeamId] })],
+  (t) => [primaryKey({ columns: [t.workPackageId, t.serviceTeamId] })],
 );
 
-export type ProjectTeamCapacityRow = typeof projectTeamCapacity.$inferSelect;
+export type WorkPackageTeamCapacityRow = typeof workPackageTeamCapacity.$inferSelect;
 
 /**
  * A claimable thing work can state a demand on (`wbs-resources` R1): a host's
@@ -1990,18 +2069,18 @@ export const resource = sqliteTable(
 export type ResourceRow = typeof resource.$inferSelect;
 
 /**
- * How many units of one resource one project's plan may use:
- * {@link projectTeamCapacity}'s shape and its three states. A row is stated, its
+ * How many units of one resource one work package's plan may use:
+ * {@link workPackageTeamCapacity}'s shape and its three states. A row is stated, its
  * absence is unstated, and a row whose resource no leaf demands any more is
  * remembered. 0 is a legal statement (the plan may use none) where a team's
  * floor is 1, because a demand divides no duration.
  */
-export const projectResourceCapacity = sqliteTable(
-  'project_resource_capacity',
+export const workPackageResourceCapacity = sqliteTable(
+  'work_package_resource_capacity',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     resourceId: text('resource_id')
       .notNull()
       .references(() => resource.id, { onDelete: 'cascade' }),
@@ -2009,24 +2088,24 @@ export const projectResourceCapacity = sqliteTable(
     ...auditColumns(),
   },
   (t) => [
-    primaryKey({ columns: [t.projectId, t.resourceId] }),
-    index('project_resource_capacity_by_resource').on(t.resourceId),
+    primaryKey({ columns: [t.workPackageId, t.resourceId] }),
+    index('work_package_resource_capacity_by_resource').on(t.resourceId),
     check(
-      'project_resource_capacity_units',
+      'work_package_resource_capacity_units',
       sql`typeof(${t.units}) = 'integer' AND ${t.units} >= 0`,
     ),
   ],
 );
 
-export type ProjectResourceCapacityRow = typeof projectResourceCapacity.$inferSelect;
+export type WorkPackageResourceCapacityRow = typeof workPackageResourceCapacity.$inferSelect;
 
 /**
  * A resource's **Directory capacity** (`wbs-shared-occupancy` S1,
  * `20261101100100_add_resource_directory_capacity`): the units of it that exist
- * for every project of its organization. A row is stated, its absence
+ * for every work package of its organization. A row is stated, its absence
  * unstated; nothing is remembered, since it is a fact about the resource, not
  * about any plan's use of it. Cascades from the resource; 0 is a legal
- * statement, as a project capacity's is.
+ * statement, as a work package capacity's is.
  */
 export const resourceDirectoryCapacity = sqliteTable(
   'resource_directory_capacity',
@@ -2076,7 +2155,7 @@ export const workItemResourceDemand = sqliteTable(
 export type WorkItemResourceDemandRow = typeof workItemResourceDemand.$inferSelect;
 
 /**
- * What one project calls its priority numbers — five rungs, keyed on the rung.
+ * What one work package calls its priority numbers — five rungs, keyed on the rung.
  *
  * A band is a **start value**; the band above it is what ends it, and the top
  * band ends nowhere. That is what makes the ladder contiguous and exhaustive by
@@ -2090,22 +2169,22 @@ export type WorkItemResourceDemandRow = typeof workItemResourceDemand.$inferSele
  * one date — asserted, not asserted-about, in
  * `service/priority-band-identity.test.ts`.
  *
- * A project holding **no** rows here reads as {@link DEFAULT_PRIORITY_BANDS},
+ * A work package holding **no** rows here reads as {@link DEFAULT_PRIORITY_BANDS},
  * which is a code constant and not a global anybody can type into. That is the
- * difference from {@link projectTeamCapacity}, whose D1 refused exactly this
+ * difference from {@link workPackageTeamCapacity}, whose D1 refused exactly this
  * shape: a capacity fallback meant one plan silently bounded by a number
  * somebody set for another, and there is no such number here. design.md D2.
  */
-export const projectPriorityBand = sqliteTable(
-  'project_priority_band',
+export const workPackagePriorityBand = sqliteTable(
+  'work_package_priority_band',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     /**
      * The rung, 0 (most important) to 4.
      *
-     * The key rather than {@link projectPriorityBand.startsAt}, so a project
+     * The key rather than {@link workPackagePriorityBand.startsAt}, so a work package
      * moving a cut is an update to a row rather than a delete and an insert of a
      * new key. It is also what every face keys a colour off: a label is
      * renameable, and a colour following the word `Critical` would follow it out
@@ -2119,10 +2198,10 @@ export const projectPriorityBand = sqliteTable(
     defaultValue: integer('default_value').notNull(),
     ...auditColumns(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.rank] })],
+  (t) => [primaryKey({ columns: [t.workPackageId, t.rank] })],
 );
 
-export type ProjectPriorityBandRow = typeof projectPriorityBand.$inferSelect;
+export type WorkPackagePriorityBandRow = typeof workPackagePriorityBand.$inferSelect;
 
 /**
  * The closed set of things a {@link person} row can be.
@@ -2354,11 +2433,11 @@ export type ClaimOccupancyRow = typeof claimOccupancy.$inferSelect;
 
 /**
  * A finish-to-start dependency: `successor` cannot start until the
- * `predecessor` slice the project's {@link project.depReach} names has
+ * `predecessor` slice the work package's {@link workPackage.depReach} names has
  * finished — its **last** step under `whole-item`, its **anchor slice** under
  * `anchor-slice`, where the steps behind that anchor then run in parallel with
  * the successor (`libs/wbs/domain/domain/src/schedule.ts`'s `reachedSliceOf`). The reach is stored
- * on the project and nothing about it is stored here: an edge is the same edge
+ * on the work package and nothing about it is stored here: an edge is the same edge
  * either way, and which slice it leaves is decided when the schedule is
  * computed.
  *
@@ -2368,11 +2447,11 @@ export type ClaimOccupancyRow = typeof claimOccupancy.$inferSelect;
  * The expansion to leaves happens when the schedule is computed, not here;
  * storing it would be a second copy to fall out of date with the tree.
  *
- * `projectId` is denormalised from the two work items so a project's edges are
- * one indexed read rather than a join. It does **not** make a cross-project edge
+ * `workPackageId` is denormalised from the two work items so a work package's edges are
+ * one indexed read rather than a join. It does **not** make a cross-work-package edge
  * unrepresentable — the three foreign keys are independent, and nothing ties
- * either endpoint's project to this one. `canDepend` refuses it, and the read
- * drops an edge whose predecessor is not in the project; enforcing it in the
+ * either endpoint's work package to this one. `canDepend` refuses it, and the read
+ * drops an edge whose predecessor is not in the work package; enforcing it in the
  * schema would need composite keys. An earlier version of this comment claimed
  * the stronger thing, which a reviewer was right to call out.
  *
@@ -2389,9 +2468,9 @@ export const dependency = sqliteTable(
   'dependency',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id),
+      .references(() => workPackage.id),
     predecessorId: text('predecessor_id')
       .notNull()
       .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
@@ -2401,7 +2480,7 @@ export const dependency = sqliteTable(
     ...auditColumns(),
   },
   (t) => [
-    index('dependency_project').on(t.projectId),
+    index('dependency_work_package').on(t.workPackageId),
     uniqueIndex('dependency_pair').on(t.predecessorId, t.successorId),
     // `dependency_pair` covers a read by predecessor, because it is that index's
     // first column, and does nothing for a read by successor.
@@ -2413,14 +2492,14 @@ export const dependency = sqliteTable(
 
 export type DependencyRow = typeof dependency.$inferSelect;
 
-/** Typed endpoint links coexist with legacy project-reach dependencies. */
+/** Typed endpoint links coexist with legacy work-package-reach dependencies. */
 export const typedDependency = sqliteTable(
   'typed_dependency',
   {
     id: text('id').primaryKey().notNull(),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id),
+      .references(() => workPackage.id),
     predecessorWorkItemId: text('predecessor_work_item_id')
       .notNull()
       .references(() => workItem.id, { onDelete: 'cascade' }),
@@ -2461,7 +2540,7 @@ export const typedDependency = sqliteTable(
       sql`ifnull(${t.successorStepId},'')`,
       t.type,
     ),
-    index('typed_dependency_project').on(t.projectId),
+    index('typed_dependency_work_package').on(t.workPackageId),
     index('typed_dependency_by_successor').on(t.successorWorkItemId),
     index('typed_dependency_by_predecessor_step').on(t.predecessorStepId),
     index('typed_dependency_by_successor_step').on(t.successorStepId),
@@ -2470,14 +2549,14 @@ export const typedDependency = sqliteTable(
 
 export type TypedDependencyRow = typeof typedDependency.$inferSelect;
 
-/** External typed relationships are owned by their successor project. */
+/** External typed relationships are owned by their successor work package. */
 export const externalDependency = sqliteTable(
   'external_dependency',
   {
     id: text('id').primaryKey().notNull(),
     organizationId: text('organization_id').notNull(),
-    predecessorProjectId: text('predecessor_project_id').notNull(),
-    successorProjectId: text('successor_project_id').notNull(),
+    predecessorWorkPackageId: text('predecessor_work_package_id').notNull(),
+    successorWorkPackageId: text('successor_work_package_id').notNull(),
     predecessorWorkItemId: text('predecessor_work_item_id').notNull(),
     predecessorScope: text('predecessor_scope').notNull(),
     predecessorStepId: text('predecessor_step_id'),
@@ -2489,8 +2568,8 @@ export const externalDependency = sqliteTable(
   },
   (t) => [
     check(
-      'external_dependency_projects',
-      sql`${t.predecessorProjectId} <> ${t.successorProjectId}`,
+      'external_dependency_work_packages',
+      sql`${t.predecessorWorkPackageId} <> ${t.successorWorkPackageId}`,
     ),
     check('external_dependency_type', sql`${t.type} IN ('FS','SS','FF')`),
     check(
@@ -2502,18 +2581,18 @@ export const externalDependency = sqliteTable(
       sql`(${t.predecessorScope} = 'whole') = (${t.predecessorStepId} IS NULL)`,
     ),
     foreignKey({
-      columns: [t.predecessorProjectId, t.organizationId],
-      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+      columns: [t.predecessorWorkPackageId, t.organizationId],
+      foreignColumns: [workPackageOrganization.resourceId, workPackageOrganization.organizationId],
     }).onDelete('restrict'),
     foreignKey({
-      columns: [t.predecessorWorkItemId, t.predecessorProjectId],
-      foreignColumns: [workItem.id, workItem.projectId],
+      columns: [t.predecessorWorkItemId, t.predecessorWorkPackageId],
+      foreignColumns: [workItem.id, workItem.workPackageId],
     }).onDelete('restrict'),
     foreignKey({
-      columns: [t.predecessorStepId, t.predecessorProjectId],
-      foreignColumns: [step.id, step.projectId],
+      columns: [t.predecessorStepId, t.predecessorWorkPackageId],
+      foreignColumns: [step.id, step.workPackageId],
     }).onDelete('restrict'),
-    index('external_dependency_by_predecessor_project').on(t.predecessorProjectId),
+    index('external_dependency_by_predecessor_work_package').on(t.predecessorWorkPackageId),
     index('external_dependency_by_predecessor_work_item').on(t.predecessorWorkItemId),
     index('external_dependency_by_predecessor_step').on(t.predecessorStepId),
     check(
@@ -2525,18 +2604,18 @@ export const externalDependency = sqliteTable(
       sql`(${t.successorScope} = 'whole') = (${t.successorStepId} IS NULL)`,
     ),
     foreignKey({
-      columns: [t.successorProjectId, t.organizationId],
-      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+      columns: [t.successorWorkPackageId, t.organizationId],
+      foreignColumns: [workPackageOrganization.resourceId, workPackageOrganization.organizationId],
     }).onDelete('restrict'),
     foreignKey({
-      columns: [t.successorWorkItemId, t.successorProjectId],
-      foreignColumns: [workItem.id, workItem.projectId],
+      columns: [t.successorWorkItemId, t.successorWorkPackageId],
+      foreignColumns: [workItem.id, workItem.workPackageId],
     }).onDelete('restrict'),
     foreignKey({
-      columns: [t.successorStepId, t.successorProjectId],
-      foreignColumns: [step.id, step.projectId],
+      columns: [t.successorStepId, t.successorWorkPackageId],
+      foreignColumns: [step.id, step.workPackageId],
     }).onDelete('restrict'),
-    index('external_dependency_by_successor_project').on(t.successorProjectId),
+    index('external_dependency_by_successor_work_package').on(t.successorWorkPackageId),
     index('external_dependency_by_successor_work_item').on(t.successorWorkItemId),
     index('external_dependency_by_successor_step').on(t.successorStepId),
     uniqueIndex('external_dependency_endpoints').on(
@@ -2557,7 +2636,7 @@ export type ExternalDependencyRow = typeof externalDependency.$inferSelect;
  * One command somebody ran, and everything needed to reverse it — the undo
  * stack, held on the server so it survives a reload.
  *
- * **One stack per (project, account, acting person).** Undo is personal:
+ * **One stack per (work package, account, acting person).** Undo is personal:
  * reversing somebody else's last edit because it happened to be the newest is
  * how a shared plan loses work nobody meant to lose. Two browser tabs of one
  * account share one stack, which is accepted and stated in
@@ -2570,7 +2649,7 @@ export type ExternalDependencyRow = typeof externalDependency.$inferSelect;
  * the pair's current maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
  * and for the same reason. Two processes sharing the file mid-swap would
  * otherwise both read the same maximum and both write it, and the unique index
- * on `(project_id, user_id, seq)` would then refuse the second insert, failing
+ * on `(work_package_id, user_id, seq)` would then refuse the second insert, failing
  * an edit that had already been applied.
  *
  * `payload` holds what the command did, as `{label, forward}`: the sentence
@@ -2595,9 +2674,9 @@ export const commandJournal = sqliteTable(
   'command_journal',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -2616,8 +2695,8 @@ export const commandJournal = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq),
-    index('command_journal_person_stack').on(t.projectId, t.userId, t.personId, t.seq),
+    uniqueIndex('command_journal_stack').on(t.workPackageId, t.userId, t.seq),
+    index('command_journal_person_stack').on(t.workPackageId, t.userId, t.personId, t.seq),
     index('command_journal_person').on(t.personId),
   ],
 );
@@ -2625,11 +2704,11 @@ export const commandJournal = sqliteTable(
 export type CommandJournalRow = typeof commandJournal.$inferSelect;
 
 /**
- * One command somebody ran on one project, kept — the plan's history.
+ * One command somebody ran on one work package, kept — the plan's history.
  *
  * **This is the third log in this file and it is not either of the other two.**
  * `event_log` is the websocket resume buffer, keyed by subscription and pruned
- * by count. `command_journal` is an undo stack: one per (project, **account**,
+ * by count. `command_journal` is an undo stack: one per (work package, **account**,
  * acting person), fifty deep, and its `append` deletes that stack's redo branch
  * every time it writes. Neither can answer "how did this estimate move" — the first never
  * held it, and the second is per-person, evicted after an afternoon's editing,
@@ -2637,7 +2716,7 @@ export type CommandJournalRow = typeof commandJournal.$inferSelect;
  * the history of estimates changes"*. `notes/wbs-brief-2026-08-14-r5-r6-history.md`
  * §1.1 lists all five properties that rule the journal out.
  *
- * **Per project, not per account.** Two people editing one plan produce two
+ * **Per work package, not per account.** Two people editing one plan produce two
  * disjoint undo stacks and one history, because the history is the plan's and
  * not anybody's. `user_id` is who did it, which the sentence in `label` names.
  *
@@ -2664,10 +2743,10 @@ export type CommandJournalRow = typeof commandJournal.$inferSelect;
  * `NOT NULL`: every row comes from `record`, which always holds both, so a
  * nullable column would be a state nothing can write.
  *
- * The project reference cascades, and it has to. Blue and green share one SQLite
+ * The work package reference cascades, and it has to. Blue and green share one SQLite
  * file during a swap and the outgoing release knows nothing about this table, so
- * its plain `DELETE FROM project` would hit a constraint it cannot see and answer
- * 500 — the argument `dependency` and `project_priority_band` both make.
+ * its plain `DELETE FROM workPackage` would hit a constraint it cannot see and answer
+ * 500 — the argument `dependency` and `work_package_priority_band` both make.
  * `user_id` cascades for the same reason and no other: nothing in the product
  * deletes an account today, and a history row outliving its `users` row would be
  * a foreign key nothing could satisfy.
@@ -2676,9 +2755,9 @@ export const planEvent = sqliteTable(
   'plan_event',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -2694,7 +2773,7 @@ export const planEvent = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
-    index('plan_event_project_time').on(t.projectId, t.createdAt),
+    index('plan_event_work_package_time').on(t.workPackageId, t.createdAt),
     index('plan_event_item').on(t.workItemId, t.createdAt),
   ],
 );
@@ -2761,7 +2840,7 @@ export type SolverSlotLifecycle = (typeof SOLVER_SLOT_LIFECYCLES)[number];
  * One stored outcome of one solve, keyed by everything that decides whether it
  * still answers the question that was asked.
  *
- * The key is `(projectId, inputHash, objective, contractVersion, budgetMs)`.
+ * The key is `(workPackageId, inputHash, objective, contractVersion, budgetMs)`.
  * `inputHash` covers the whole canonical argument tuple of `schedule()`, so a
  * deadline edit or a re-parented item is a different row rather than a stale
  * one; the four columns beside it are the dimensions the hash deliberately does
@@ -2790,9 +2869,9 @@ export type SolverSlotLifecycle = (typeof SOLVER_SLOT_LIFECYCLES)[number];
 export const optimizedScheduleCache = sqliteTable(
   'optimized_schedule_cache',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     inputHash: text('input_hash').notNull(),
     objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
     contractVersion: text('contract_version').notNull(),
@@ -2807,7 +2886,7 @@ export const optimizedScheduleCache = sqliteTable(
   },
   (t) => [
     primaryKey({
-      columns: [t.projectId, t.inputHash, t.objective, t.contractVersion, t.budgetMs],
+      columns: [t.workPackageId, t.inputHash, t.objective, t.contractVersion, t.budgetMs],
     }),
     check(
       'optimized_schedule_cache_status',
@@ -2831,9 +2910,9 @@ export const optimizedScheduleCache = sqliteTable(
 export const optimizationBoundaryCertificate = sqliteTable(
   'optimization_boundary_certificate',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     inputHash: text('input_hash').notNull(),
     objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
     contractVersion: text('contract_version').notNull(),
@@ -2844,21 +2923,23 @@ export const optimizationBoundaryCertificate = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.projectId, t.inputHash, t.objective, t.contractVersion, t.budgetMs] }),
+    primaryKey({
+      columns: [t.workPackageId, t.inputHash, t.objective, t.contractVersion, t.budgetMs],
+    }),
     check('optimization_boundary_certificate_objective', sql`${t.objective} IN ('pri', 'time')`),
   ],
 );
 
 /**
- * One project's whole plan, copied by value at one instant — the header.
+ * One work package's whole plan, copied by value at one instant — the header.
  *
  * A **Saved plan** (CONTEXT.md), not a snapshot and not a Plan document: it never
- * leaves the database, is never imported, and is never applied to any project.
+ * leaves the database, is never imported, and is never applied to any work package.
  *
  * It is a **materialised document** rather than a pointer, and the design says
  * why in one line each: `plan_event` is a log of commands and is pruned at 365
  * days, dates are derived and never stored, and no whole-plan version counter
- * exists — `project.revision` deliberately excludes work items (`:207-215`).
+ * exists — `workPackage.revision` deliberately excludes work items (`:207-215`).
  * There is nothing to point at, and re-deriving later restates history.
  * `openspec/changes/saved-plans/design.md`, "The shape of the problem".
  *
@@ -2874,9 +2955,9 @@ export const optimizationBoundaryCertificate = sqliteTable(
  * people on 2026-09-03, which is why assignments and people are captured by
  * value too and a departed person still owns what they owned.
  *
- * **`project_id` cascades**, for `plan_event`'s stated reason (`:1759-1765`):
+ * **`work_package_id` cascades**, for `plan_event`'s stated reason (`:1759-1765`):
  * blue and green share one SQLite file during a swap, and an outgoing release
- * that knows nothing of this table must not have its plain `DELETE FROM project`
+ * that knows nothing of this table must not have its plain `DELETE FROM workPackage`
  * blocked by a reference it cannot see.
  *
  * **Nothing here may be `UPDATE`d except `name`.** The hashes are the integrity
@@ -2891,9 +2972,9 @@ export const savedPlan = sqliteTable(
   'saved_plan',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     /** Defaulted to the server timestamp at save and renameable afterwards. */
     name: text('name').notNull(),
     /**
@@ -2913,9 +2994,9 @@ export const savedPlan = sqliteTable(
      *
      * `NULL` means **no live account claims this plan** — the creator's account
      * was deleted, or the plan predates this column, which are the same fact for
-     * permission purposes. Both fall back to the project owner, who exists
-     * whenever the project does. `on delete set null` rather than `cascade` is
-     * what makes deletion keep the record and drop only the right.
+     * permission purposes. Null grants no legacy author right; current scoped
+     * managers use effective permissions. `on delete set null` keeps the record
+     * and drops only the identity right.
      */
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     /**
@@ -2955,9 +3036,9 @@ export const savedPlan = sqliteTable(
     scheduleAbsentReason: text('schedule_absent_reason'),
   },
   (t) => [
-    // The list surface: one project's saved plans, newest first, which is the
+    // The list surface: one work package's saved plans, newest first, which is the
     // only order they are ever read in.
-    index('saved_plan_project_time').on(t.projectId, t.createdAt),
+    index('saved_plan_work_package_time').on(t.workPackageId, t.createdAt),
     // The schedule side is present as a whole or absent as a whole. Five columns
     // that can disagree are five ways to store "half a schedule", and the reader
     // would have to pick which of them to believe.
@@ -2981,12 +3062,12 @@ export type OptimizedScheduleCacheRow = typeof optimizedScheduleCache.$inferSele
 /**
  * The generation identity, and the sole home of it.
  *
- * Deliberately **not** a pair of columns on {@link project}, and the reason is
+ * Deliberately **not** a pair of columns on {@link workPackage}, and the reason is
  * blue/green rather than tidiness: `SCHEDULER_CONTRACT_VERSION` is bumped while
- * two releases run against one SQLite file, so a single project-row pair would
+ * two releases run against one SQLite file, so a single work-package-row pair would
  * let the release computing H1 and the release computing H2 alternately
  * increment one counter and delete each other's rows for ever. Keyed by
- * `(projectId, contractVersion)`, each release owns its own row.
+ * `(workPackageId, contractVersion)`, each release owns its own row.
  *
  * `cancelEpoch` is cancellation's own counter and not the generation's:
  * cancelling in-flight work must not invalidate a cache the input still
@@ -2995,9 +3076,9 @@ export type OptimizedScheduleCacheRow = typeof optimizedScheduleCache.$inferSele
 export const optimizationGeneration = sqliteTable(
   'optimization_generation',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     contractVersion: text('contract_version').notNull(),
     generation: integer('generation').notNull(),
     /** The hash this generation was allocated for; NULL before the first solve. */
@@ -3009,7 +3090,7 @@ export const optimizationGeneration = sqliteTable(
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.projectId, t.contractVersion] }),
+    primaryKey({ columns: [t.workPackageId, t.contractVersion] }),
     check(
       'optimization_generation_admission_state',
       sql`${t.admissionState} IN ('open', 'draining')`,
@@ -3022,7 +3103,7 @@ export type OptimizationGenerationRow = typeof optimizationGeneration.$inferSele
 /**
  * One reserved solver process, held in SQLite rather than in coordinator memory.
  *
- * The ceilings — 4 processes per project, 16 globally — are enforced against
+ * The ceilings — 4 processes per work package, 16 globally — are enforced against
  * these rows because blue and green coexist against one database file and two
  * in-memory coordinators would each admit their own sixteen.
  *
@@ -3044,9 +3125,9 @@ export type OptimizationGenerationRow = typeof optimizationGeneration.$inferSele
 export const solverSlot = sqliteTable(
   'solver_slot',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     contractVersion: text('contract_version').notNull(),
     generation: integer('generation').notNull(),
     objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
@@ -3064,7 +3145,7 @@ export const solverSlot = sqliteTable(
   },
   (t) => [
     primaryKey({
-      columns: [t.projectId, t.contractVersion, t.generation, t.objective, t.budgetMs],
+      columns: [t.workPackageId, t.contractVersion, t.generation, t.objective, t.budgetMs],
     }),
     check('solver_slot_lifecycle', sql`${t.lifecycle} IN ('starting', 'running')`),
     check('solver_slot_objective', sql`${t.objective} IN ('pri', 'time')`),
@@ -3076,24 +3157,24 @@ export type SolverSlotRow = typeof solverSlot.$inferSelect;
 /**
  * One waiting solve, keyed **without** generation.
  *
- * A project therefore holds at most one queued entry per objective per budget
+ * A work package therefore holds at most one queued entry per objective per budget
  * per contract version, and a new generation replaces rather than accumulates —
  * that is the primary key's own bound, not a rule the dequeue enforces.
  * `budgetMs` is in the key because an entry that did not name its budget could
  * not tell the dequeue which budget to launch.
  *
- * The dequeue order is `ORDER BY enqueued_at, project_id, contract_version,
+ * The dequeue order is `ORDER BY enqueued_at, work_package_id, contract_version,
  * objective, budget_ms`, which is total: `objective` breaks the tie between a
- * project's two runs enqueued in the same millisecond, and `contract_version`
- * breaks the tie between blue and green enqueuing the same project and objective
+ * work package's two runs enqueued in the same millisecond, and `contract_version`
+ * breaks the tie between blue and green enqueuing the same work package and objective
  * in that same millisecond. The index below is that order.
  */
 export const solverQueue = sqliteTable(
   'solver_queue',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     contractVersion: text('contract_version').notNull(),
     objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
     budgetMs: integer('budget_ms').notNull(),
@@ -3103,10 +3184,10 @@ export const solverQueue = sqliteTable(
     enqueuedAt: integer('enqueued_at').notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.projectId, t.contractVersion, t.objective, t.budgetMs] }),
+    primaryKey({ columns: [t.workPackageId, t.contractVersion, t.objective, t.budgetMs] }),
     index('solver_queue_dequeue_order').on(
       t.enqueuedAt,
-      t.projectId,
+      t.workPackageId,
       t.contractVersion,
       t.objective,
       t.budgetMs,
@@ -3130,7 +3211,7 @@ export type SavedPlanRow = typeof savedPlan.$inferSelect;
  * `keep` decision for people bought: nothing rewrites a written body, ever.
  *
  * The header reference cascades for the same blue/green reason the header's own
- * project reference does, one hop further along.
+ * work package reference does, one hop further along.
  */
 export const savedPlanBody = sqliteTable(
   'saved_plan_body',
@@ -3152,7 +3233,7 @@ export const savedPlanBody = sqliteTable(
 export type SavedPlanBodyRow = typeof savedPlanBody.$inferSelect;
 
 /**
- * A named annotation on an absolute calendar date, scoped to one project.
+ * A named annotation on an absolute calendar date, scoped to one work package.
  *
  * **Not work, and not visible to the scheduler.** The alternative today is a
  * zero-duration work item, which enters the dependency graph, the critical
@@ -3162,12 +3243,12 @@ export type SavedPlanBodyRow = typeof savedPlanBody.$inferSelect;
  * `openspec/changes/gantt-calendar-markers/tasks.md` is the structural proof
  * rather than the promise.
  *
- * **`project_id` cascades**, for {@link savedPlan}'s stated reason: blue and
+ * **`work_package_id` cascades**, for {@link savedPlan}'s stated reason: blue and
  * green share one SQLite file through a swap, and the outgoing release's plain
- * `DELETE FROM project` must not be blocked by a reference it cannot see. A
+ * `DELETE FROM workPackage` must not be blocked by a reference it cannot see. A
  * missing cascade here is a 500 for the length of the swap, not untidiness.
  *
- * **The `(project_id, date)` index is deliberately not unique.** More than one
+ * **The `(work_package_id, date)` index is deliberately not unique.** More than one
  * marker on a day is a real plan — a demo and a deadline can land together —
  * and design.md §5 makes the stacked-chip render carry that case. Uniqueness is
  * the one property of this table nothing else in the change can observe, which
@@ -3183,8 +3264,8 @@ export type SavedPlanBodyRow = typeof savedPlanBody.$inferSelect;
  * so no client has to know the palette.
  *
  * `date` is `text` holding an `IsoDate` with no time component, matching how the
- * rest of the schema stores one, and is indexed with `project_id` because "this
- * project's markers, by date" is the only read.
+ * rest of the schema stores one, and is indexed with `work_package_id` because "this
+ * work package's markers, by date" is the only read.
  */
 export const calendarMarker = sqliteTable(
   'calendar_marker',
@@ -3195,9 +3276,10 @@ export const calendarMarker = sqliteTable(
      * the composer can show which colour it is about to save.
      */
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+    scopeKind: text('scope_kind', {
+      enum: ['organization', 'space', 'project', 'work_package'],
+    }).notNull(),
+    scopeId: text('scope_id').notNull(),
     /** An `IsoDate`, stored as the exact text given. No time component, ever. */
     date: text('date').notNull(),
     name: text('name').notNull(),
@@ -3206,9 +3288,9 @@ export const calendarMarker = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
-    // The only read: one project's markers, by date. Not unique — see the type
+    // The only read: one work package's markers, by date. Not unique — see the type
     // doc for why a second marker on one date is a supported plan.
-    index('calendar_marker_project_date').on(t.projectId, t.date),
+    index('calendar_marker_scope_date').on(t.scopeKind, t.scopeId, t.date),
   ],
 );
 
@@ -3288,6 +3370,32 @@ export const organization = sqliteTable(
 );
 
 export type OrganizationRow = typeof organization.$inferSelect;
+
+/** Engagement projects own a name within one organization; migration-created projects may have no actor. */
+export const project = sqliteTable(
+  'project',
+  {
+    id: text('id').primaryKey().notNull(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+    revision: integer('revision').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+    spaceId: text('space_id').references((): AnySQLiteColumn => space.id),
+    spacePosition: integer('space_position'),
+  },
+  (t) => [
+    check(
+      'project_space_position',
+      sql`(${t.spaceId} IS NULL AND ${t.spacePosition} IS NULL) OR (${t.spaceId} IS NOT NULL AND typeof(${t.spacePosition}) = 'integer')`,
+    ),
+    check('project_name', sql`length(${t.name}) > 0`),
+    unique().on(t.organizationId, t.name),
+    unique().on(t.id, t.organizationId),
+  ],
+);
 
 /** Current membership, the only organization authority; removal deletes the row. */
 export const organizationMembership = sqliteTable(
@@ -3548,85 +3656,88 @@ export const externalSystemOrganization = sqliteTable(
 );
 
 /** Persisted address code; migration triggers allocate legacy writes and synchronize ownership. */
-export const projectAbbreviation = sqliteTable(
-  'project_abbreviation',
+export const workPackageAbbreviation = sqliteTable(
+  'work_package_abbreviation',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .primaryKey()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     namespace: text('namespace').notNull(),
     abbreviation: text('abbreviation').notNull(),
   },
   (t) => [
-    uniqueIndex('project_abbreviation_namespace_code').on(t.namespace, t.abbreviation),
-    index('project_abbreviation_code').on(t.abbreviation),
+    uniqueIndex('work_package_abbreviation_namespace_code').on(t.namespace, t.abbreviation),
+    index('work_package_abbreviation_code').on(t.abbreviation),
     check(
-      'project_abbreviation_grammar',
+      'work_package_abbreviation_grammar',
       sql`length(${t.abbreviation}) BETWEEN 1 AND 20 AND ${t.abbreviation} GLOB '[A-Z]*' AND ${t.abbreviation} NOT GLOB '*[^A-Z0-9_-]*' AND instr(${t.abbreviation}, char(0)) = 0`,
     ),
   ],
 );
 
 /** Global monotonic legacy allocation ordinal; 26^5 is the exhausted sentinel. */
-export const projectAbbreviationCounter = sqliteTable(
-  'project_abbreviation_counter',
+export const workPackageAbbreviationCounter = sqliteTable(
+  'work_package_abbreviation_counter',
   {
     singleton: integer('singleton').primaryKey().notNull(),
     next: integer('next').notNull(),
   },
   (t) => [
-    check('project_abbreviation_counter_singleton', sql`${t.singleton} = 1`),
+    check('work_package_abbreviation_counter_singleton', sql`${t.singleton} = 1`),
     check(
-      'project_abbreviation_counter_range',
+      'work_package_abbreviation_counter_range',
       sql`typeof(${t.next}) = 'integer' AND ${t.next} BETWEEN 0 AND 11881376`,
     ),
   ],
 );
 
-export const projectOrganization = sqliteTable(
-  'project_organization',
+export const workPackageOrganization = sqliteTable(
+  'work_package_organization',
   {
     resourceId: text('resource_id')
       .primaryKey()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     organizationId: text('organization_id')
       .notNull()
       .references(() => organization.id),
   },
   (t) => [
-    index('project_organization_organization').on(t.organizationId),
-    // The parent of `project_solution`'s composite reference; see
-    // `20260928010000_add_project_solution`.
-    uniqueIndex('project_organization_resource_organization').on(t.resourceId, t.organizationId),
+    index('work_package_organization_organization').on(t.organizationId),
+    // The parent of `work_package_solution`'s composite reference; see
+    // `20260928010000_add_work_package_solution`.
+    uniqueIndex('work_package_organization_resource_organization').on(
+      t.resourceId,
+      t.organizationId,
+    ),
   ],
 );
 
 /**
  * A solution reference written after activation, unique within its
  * organization rather than across the deployment; see
- * `20260928010000_add_project_solution`. The composite reference holds
- * `organization_id` equal to the project's owner. A project holds this row or
- * the legacy `project.solution_slug` pair, never both.
+ * `20260928010000_add_work_package_solution`. The composite reference holds
+ * `organization_id` equal to the work package's owner. A work package holds this row or
+ * the legacy `workPackage.solution_slug` pair, never both.
  */
-export const projectSolution = sqliteTable(
-  'project_solution',
+export const workPackageSolution = sqliteTable(
+  'work_package_solution',
   {
-    projectId: text('project_id')
+    workPackageId: text('work_package_id')
       .primaryKey()
       .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+      .references(() => workPackage.id, { onDelete: 'cascade' }),
     organizationId: text('organization_id').notNull(),
     slug: text('slug').notNull(),
     url: text('url').notNull(),
   },
   (t) => [
     foreignKey({
-      columns: [t.projectId, t.organizationId],
-      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+      columns: [t.workPackageId, t.organizationId],
+      foreignColumns: [workPackageOrganization.resourceId, workPackageOrganization.organizationId],
     }).onDelete('cascade'),
-    uniqueIndex('project_solution_organization_slug').on(t.organizationId, t.slug),
-    check('project_solution_slug', sql`length(${t.slug}) > 0`),
-    check('project_solution_url', sql`length(${t.url}) > 0`),
+    uniqueIndex('work_package_solution_organization_slug').on(t.organizationId, t.slug),
+    check('work_package_solution_slug', sql`length(${t.slug}) > 0`),
+    check('work_package_solution_url', sql`length(${t.url}) > 0`),
   ],
 );
 
@@ -3689,7 +3800,8 @@ export const savedPlanOrganization = sqliteTable(
  * `20261101100000_widen_organization_audit_directory_capacity` the
  * directory capacity changes, recreating the same two indexes;
  * `20261102130000_widen_organization_audit_access` adds access grants/groups and
- * aggregate membership removals while preserving current project vocabulary and all indexes.
+ * aggregate membership removals while preserving current work package vocabulary and all indexes.
+ * `20261110110100_widen_organization_audit_projects` adds engagement project acts and kind.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3708,11 +3820,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed', 'directory_capacity_changed', 'access_granted', 'access_revoked', 'access_group_created', 'access_group_renamed', 'access_group_deleted', 'access_group_member_added', 'access_group_member_removed', 'organization_member_removed')`,
+      sql`${t.action} IN ('restricted_work_package_recovery', 'project_created', 'project_renamed', 'project_deleted', 'work_package_moved', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed', 'directory_capacity_changed', 'access_granted', 'access_revoked', 'access_group_created', 'access_group_renamed', 'access_group_deleted', 'access_group_member_added', 'access_group_member_removed', 'organization_member_removed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool', 'resource', 'access_grant', 'access_group', 'organization_member')`,
+      sql`${t.subjectKind} IN ('work_package', 'project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool', 'resource', 'access_grant', 'access_group', 'organization_member')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
     uniqueIndex('organization_audit_machine_token_issued_run')
@@ -4058,7 +4170,7 @@ export const sharedPeopleAudit = sqliteTable(
 );
 
 /**
- * An organization's named, ordered lens over its projects; see
+ * An organization's named, ordered lens over its work packages; see
  * `20260929100000_add_spaces` and ADR 0033. `(id, organization_id)` is unique
  * so membership can reference the pair.
  */
@@ -4085,48 +4197,15 @@ export const space = sqliteTable(
 );
 
 /**
- * One project's place in one space. Both composite references carry
- * `organization_id`, so a pair across organizations has no parent; see
- * `20260929100000_add_spaces`. Positions tie legally (ADR 0016).
- */
-export const spaceProject = sqliteTable(
-  'space_project',
-  {
-    spaceId: text('space_id').notNull(),
-    projectId: text('project_id').notNull(),
-    organizationId: text('organization_id').notNull(),
-    position: integer('position').notNull(),
-    createdAt: integer('created_at').notNull(),
-    updatedAt: integer('updated_at'),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => users.id),
-  },
-  (t) => [
-    primaryKey({ columns: [t.spaceId, t.projectId] }),
-    foreignKey({
-      columns: [t.spaceId, t.organizationId],
-      foreignColumns: [space.id, space.organizationId],
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [t.projectId, t.organizationId],
-      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
-    }).onDelete('cascade'),
-    index('space_project_order').on(t.spaceId, t.position),
-    index('space_project_project').on(t.projectId, t.organizationId),
-  ],
-);
-
-/**
- * One ranked project's place in its organization's project rank. The
+ * One ranked work package's place in its organization's work package rank. The
  * composite reference carries `organization_id`, so a rank across
- * organizations has no parent; see `20260929180000_add_project_rank`.
- * Positions tie legally (ADR 0016); ties order by project id.
+ * organizations has no parent; see `20260929180000_add_work_package_rank`.
+ * Positions tie legally (ADR 0016); ties order by work package id.
  */
-export const projectRank = sqliteTable(
-  'project_rank',
+export const workPackageRank = sqliteTable(
+  'work_package_rank',
   {
-    projectId: text('project_id').primaryKey(),
+    workPackageId: text('work_package_id').primaryKey(),
     organizationId: text('organization_id').notNull(),
     position: integer('position').notNull(),
     createdAt: integer('created_at').notNull(),
@@ -4137,16 +4216,16 @@ export const projectRank = sqliteTable(
   },
   (t) => [
     foreignKey({
-      columns: [t.projectId, t.organizationId],
-      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+      columns: [t.workPackageId, t.organizationId],
+      foreignColumns: [workPackageOrganization.resourceId, workPackageOrganization.organizationId],
     }).onDelete('cascade'),
-    index('project_rank_order').on(t.organizationId, t.position, t.projectId),
+    index('work_package_rank_order').on(t.organizationId, t.position, t.workPackageId),
   ],
 );
 
 /**
  * Direct step blockage (ADR 0053), keyed like progress but stored independently.
- * The additive migration's insert/update triggers enforce shared project and
+ * The additive migration's insert/update triggers enforce shared work package and
  * leaf ownership. Work-item deletion cascades for old-writer compatibility;
  * step deletion is restrictive until the command accounts for these facts.
  */
@@ -4276,7 +4355,7 @@ export const sharedPeopleRestoreConsumption = sqliteTable(
   ],
 );
 
-/** Sparse authored node maximum parallelism; SQL triggers enforce leaf and project ownership. */
+/** Sparse authored node maximum parallelism; SQL triggers enforce leaf and work package ownership. */
 export const stepParallel = sqliteTable(
   'step_parallel',
   {
@@ -4333,12 +4412,12 @@ export const runtimeLedger = sqliteTable(
 function runtimeScopeColumns() {
   return {
     organizationId: text('organization_id').notNull(),
-    projectId: text('project_id').notNull(),
+    workPackageId: text('work_package_id').notNull(),
     personId: text('person_id').notNull(),
   };
 }
 
-/** One monotonic owner grant for each retained organization/project/person scope. */
+/** One monotonic owner grant for each retained organization/work-package/person scope. */
 export const runtimeAuthority = sqliteTable(
   'runtime_authority',
   {
@@ -4347,10 +4426,10 @@ export const runtimeAuthority = sqliteTable(
     generation: integer('generation').notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.organizationId, table.projectId, table.personId] }),
+    primaryKey({ columns: [table.organizationId, table.workPackageId, table.personId] }),
     check(
       'runtime_authority_scope',
-      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+      sql`length(${table.organizationId}) > 0 AND length(${table.workPackageId}) > 0 AND length(${table.personId}) > 0`,
     ),
     check('runtime_authority_owner', sql`length(${table.ownerId}) > 0`),
     check(
@@ -4371,17 +4450,19 @@ export const runtimeClaimBinding = sqliteTable(
     binding: text('binding').notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.organizationId, table.projectId, table.personId, table.claimId] }),
+    primaryKey({
+      columns: [table.organizationId, table.workPackageId, table.personId, table.claimId],
+    }),
     unique('runtime_scope_attempt').on(
       table.organizationId,
-      table.projectId,
+      table.workPackageId,
       table.personId,
       table.storeId,
       table.attemptId,
     ),
     check(
       'runtime_binding_scope',
-      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+      sql`length(${table.organizationId}) > 0 AND length(${table.workPackageId}) > 0 AND length(${table.personId}) > 0`,
     ),
     check(
       'runtime_binding_identity',
@@ -4401,11 +4482,11 @@ export const runtimeCommandReceipt = sqliteTable(
   },
   (table) => [
     primaryKey({
-      columns: [table.organizationId, table.projectId, table.personId, table.commandId],
+      columns: [table.organizationId, table.workPackageId, table.personId, table.commandId],
     }),
     check(
       'runtime_receipt_scope',
-      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+      sql`length(${table.organizationId}) > 0 AND length(${table.workPackageId}) > 0 AND length(${table.personId}) > 0`,
     ),
     check('runtime_receipt_identity', sql`length(${table.commandId}) > 0`),
     check('runtime_receipt_json', sql`json_valid(${table.accepted})`),
@@ -4530,13 +4611,13 @@ export const measure = sqliteTable(
   ],
 );
 
-/** Durable operational snapshots; source deletions never cascade into reported responsibility. */
+/** Durable observed projections; {@link readStoredResourceUse} validates old/current unknown bytes before use. Source deletion never cascades into responsibility. */
 export const resourceUseRecord = sqliteTable(
   'resource_use',
   {
     id: text('id').primaryKey(),
     organizationId: text('organization_id'),
-    projectId: text('project_id').notNull(),
+    workPackageId: text('work_package_id').notNull(),
     workItemId: text('work_item_id').notNull(),
     responsiblePersonId: text('responsible_person_id').notNull(),
     agentRun: text('agent_run').notNull(),
@@ -4544,15 +4625,15 @@ export const resourceUseRecord = sqliteTable(
     attemptNumber: integer('attempt_number'),
     state: text('state').notNull(),
     revision: integer('revision').notNull(),
-    snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUse>().notNull(),
+    snapshot: text('snapshot', { mode: 'json' }).$type<unknown>().notNull(),
     requestId: text('request_id').notNull(),
     requestFingerprint: text('request_fingerprint').notNull(),
     registrationResponse: text('registration_response', { mode: 'json' })
-      .$type<ResourceUse>()
+      .$type<unknown>()
       .notNull(),
   },
   (t) => [
-    index('resource_use_project').on(t.projectId, t.id),
+    index('resource_use_work_package').on(t.workPackageId, t.id),
     index('resource_use_lifecycle').on(t.workItemId, t.responsiblePersonId, t.agentRun),
   ],
 );
@@ -4560,11 +4641,11 @@ export const resourceUseRecord = sqliteTable(
 export const resourceUseEventRecord = sqliteTable('resource_use_event', {
   id: text('id').notNull(),
   useId: text('use_id').notNull(),
-  projectId: text('project_id').notNull(),
+  workPackageId: text('work_package_id').notNull(),
   revision: integer('revision').notNull(),
   snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUseEvent>().notNull(),
   fingerprint: text('fingerprint').notNull(),
-  response: text('response', { mode: 'json' }).$type<ResourceUse>().notNull(),
+  response: text('response', { mode: 'json' }).$type<unknown>().notNull(),
 });
 
 /** Immutable authority binding; its sequence advances atomically with accepted runtime events. */
@@ -4795,3 +4876,106 @@ export const accessGrant = sqliteTable(
 );
 
 export type AccessGrantRow = typeof accessGrant.$inferSelect;
+
+/** Nearest scalar overrides; actual chain capture and the domain catalogue validate stored values. */
+export const settingValue = sqliteTable(
+  'setting_value',
+  {
+    scopeKind: text('scope_kind', {
+      enum: ['organization', 'space', 'project', 'work_package'],
+    }).notNull(),
+    scopeId: text('scope_id').notNull(),
+    key: text('key').notNull(),
+    valueJson: text('value_json').notNull(),
+    revision: integer('revision').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by').references(() => users.id),
+  },
+  (t) => [primaryKey({ columns: [t.scopeKind, t.scopeId, t.key] })],
+);
+
+/** Historical lift evidence, deliberately independent of live override/entity deletion. */
+export const settingValueLiftSource = sqliteTable(
+  'setting_value_lift_source',
+  {
+    migrationName: text('migration_name').notNull(),
+    scopeKind: text('scope_kind').notNull(),
+    scopeId: text('scope_id').notNull(),
+    key: text('key').notNull(),
+    sourceWorkPackageId: text('source_work_package_id').notNull(),
+    sourceProjectId: text('source_project_id').notNull(),
+    sourceValueJson: text('source_value_json').notNull(),
+    sourceCreatedAt: integer('source_created_at').notNull(),
+    sourceUpdatedAt: integer('source_updated_at'),
+    sourceCreatedBy: text('source_created_by'),
+    sourceRevision: integer('source_revision').notNull(),
+    recordedAt: integer('recorded_at').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.migrationName, t.scopeKind, t.scopeId, t.key, t.sourceWorkPackageId],
+    }),
+  ],
+);
+
+/** The E46 report retains each discarded project/space candidate at its original minimum position. */
+export const spaceProjectDropped = sqliteTable(
+  'space_project_dropped',
+  {
+    projectId: text('project_id').notNull(),
+    spaceId: text('space_id').notNull(),
+    keptSpaceId: text('kept_space_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.spaceId] })],
+);
+
+/** Organization-owned links describe belonging and confer no grant, capacity or scheduling effect. */
+export const spacePerson = sqliteTable(
+  'space_person',
+  {
+    spaceId: text('space_id').notNull(),
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.spaceId, t.personId] }),
+    foreignKey({
+      columns: [t.spaceId, t.organizationId],
+      foreignColumns: [space.id, space.organizationId],
+    }).onDelete('cascade'),
+  ],
+);
+
+/** Team belonging is separate from work-package team capacity. */
+export const spaceTeam = sqliteTable(
+  'space_team',
+  {
+    spaceId: text('space_id').notNull(),
+    serviceTeamId: text('service_team_id')
+      .notNull()
+      .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.spaceId, t.serviceTeamId] }),
+    foreignKey({
+      columns: [t.spaceId, t.organizationId],
+      foreignColumns: [space.id, space.organizationId],
+    }).onDelete('cascade'),
+  ],
+);

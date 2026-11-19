@@ -26,7 +26,7 @@ import { requireStepBlockageActivation } from './step-blockage-activation';
  */
 function stackOf(stack: UndoStack): SQL {
   const mine = and(
-    eq(commandJournal.projectId, stack.projectId),
+    eq(commandJournal.workPackageId, stack.workPackageId),
     eq(commandJournal.userId, stack.userId),
     sql`${commandJournal.personId} IS ${stack.personId}`,
   );
@@ -44,7 +44,7 @@ function stackOf(stack: UndoStack): SQL {
  * revision counters follow and it is here for the same reason: two be-01
  * processes share one file during a blue/green swap, and a maximum read into
  * this process and written back would let both pick the same number. The
- * unique index on `(project_id, user_id, seq)` would then refuse the second
+ * unique index on `(work_package_id, user_id, seq)` would then refuse the second
  * insert — failing an edit that had already been applied to the plan.
  *
  * A subquery over the table being inserted into is evaluated against the table
@@ -53,7 +53,7 @@ function stackOf(stack: UndoStack): SQL {
  * inserts are both choosing a number.
  *
  * The number is the **pair's**, shared by every stack of the account, so the
- * unique index stays `(project_id, user_id, seq)` and the outgoing colour,
+ * unique index stays `(work_package_id, user_id, seq)` and the outgoing colour,
  * which numbers by the pair, can never collide with this one mid-swap. One
  * stack's numbers therefore have gaps, and the prune counts rows, not numbers.
  *
@@ -108,11 +108,11 @@ export class CommandJournalRepository implements CommandJournalStore {
         tx.insert(commandJournal)
           .values({
             id: entry.id,
-            projectId: entry.projectId,
+            workPackageId: entry.workPackageId,
             userId: entry.userId,
             personId: entry.personId,
             // Never a number this process read and wrote back. See the class note.
-            seq: sql`(select coalesce(max(${commandJournal.seq}), 0) + 1 from ${commandJournal} where ${commandJournal.projectId} = ${entry.projectId} and ${commandJournal.userId} = ${entry.userId})`,
+            seq: sql`(select coalesce(max(${commandJournal.seq}), 0) + 1 from ${commandJournal} where ${commandJournal.workPackageId} = ${entry.workPackageId} and ${commandJournal.userId} = ${entry.userId})`,
             kind: entry.kind,
             payload: JSON.stringify(entry.payload),
             inverse: JSON.stringify(entry.inverse),
@@ -246,7 +246,7 @@ export class CommandJournalRepository implements CommandJournalStore {
 function asEntry(row: CommandJournalRow): JournalEntry {
   return {
     id: row.id,
-    projectId: row.projectId,
+    workPackageId: row.workPackageId,
     userId: row.userId,
     personId: row.personId,
     seq: row.seq,
@@ -263,7 +263,7 @@ function asEntry(row: CommandJournalRow): JournalEntry {
 function planEventRow(event: PlanEvent) {
   return {
     id: event.id,
-    projectId: event.projectId,
+    workPackageId: event.workPackageId,
     userId: event.userId,
     kind: event.kind,
     label: event.label,

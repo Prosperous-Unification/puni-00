@@ -39,10 +39,6 @@ export * from './http/person-load-shapes';
 export * from './http/person-work-shapes';
 export * from './http/plan-document-connected-shapes';
 export * from './http/plan-document-shapes';
-export * from './http/project-address-shapes';
-export * from './http/project-claims-shapes';
-export * from './http/project-rank-shapes';
-export * from './http/project-response';
 export * from './http/project-shapes';
 export * from './http/provisioning-token-shapes';
 export * from './http/refusal';
@@ -61,10 +57,16 @@ export * from './http/space-shapes';
 export * from './http/sso-connection-shapes';
 export * from './http/startable-shapes';
 export * from './http/step-shapes';
+export * from './http/step-catalogue-shapes';
 export * from './http/timezone-shapes';
 export * from './http/work-item-fields';
 export * from './http/work-item-response';
 export * from './http/work-item-shapes';
+export * from './http/work-package-address-shapes';
+export * from './http/work-package-claims-shapes';
+export * from './http/work-package-rank-shapes';
+export * from './http/work-package-response';
+export * from './http/work-package-shapes';
 export * from './internal';
 export * from './logger';
 export * from './mcp-authorization-server';
@@ -72,9 +74,15 @@ export * from './oidc-identity';
 export * from './plan-command-values';
 export * from './principal';
 export * from './runtime-command-values';
-export { matchesRuntimeClaim, matchesRuntimeReceipt, matchesRuntimeScope } from './runtime-receipt';
+export {
+  matchesRuntimeClaim,
+  matchesRuntimeReceipt,
+  matchesRuntimeScope,
+  readRuntimeReceiptScope,
+} from './runtime-receipt';
 export {
   canonicalRuntimeRequest,
+  encodeRuntimeRequestAtVersion,
   parseCanonicalRuntimeRequest,
   parseRuntimeAuthorityRequest,
   parseRuntimeClaimRequest,
@@ -82,4 +90,5 @@ export {
   parseRuntimeStateRequest,
   parseRuntimeWriteRequest,
 } from './runtime-request';
+export * from './runtime-state-history';
 export * from './ws';

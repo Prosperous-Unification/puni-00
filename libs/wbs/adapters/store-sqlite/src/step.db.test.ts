@@ -2,10 +2,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
+import type { Step, WorkItem, WorkPackage, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from './actual';
@@ -16,13 +16,14 @@ import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepProgressRepository } from './step-progress';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 /**
  * The step table's write path, against real SQLite.
@@ -37,7 +38,7 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 let dir: string;
 let ownerId: string;
 let steps: StepRepository;
-let projects: ProjectRepository;
+let workPackages: WorkPackageRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
 let progress: StepProgressRepository;
@@ -47,38 +48,38 @@ let attempts: StepNodeAttemptRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
 let claims: ClaimRepository;
-let projectId: string;
-let otherProjectId: string;
+let workPackageId: string;
+let otherWorkPackageId: string;
 let devId: string;
 let qaId: string;
 /** A raw connection, for writing rows the way an older release writes them. */
 let rawDb: ReturnType<typeof openDatabase>;
 
 /**
- * The stamp every write here carries. The account is the projects' owner, which
+ * The stamp every write here carries. The account is the work packages' owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row.
  */
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
-const newProject = (ownerId: string, name: string): Project =>
-  projectRow({
+const newWorkPackage = (ownerId: string, name: string): WorkPackage =>
+  workPackageRow({
     id: crypto.randomUUID(),
     name,
-    ownerId,
+    projectId: 'fixture-project',
   });
 
 const newItem = (id: string, position: number, name: string): WorkItem =>
   workItemRow({
     id,
-    projectId,
+    workPackageId,
     position,
     name,
   });
 
 const revisionOf = async (id: string): Promise<number> => {
-  const found = await projects.findById(id);
-  if (found === null) throw new Error(`no project ${id}`);
+  const found = await workPackages.findById(id);
+  if (found === null) throw new Error(`no work package ${id}`);
   return found.revision;
 };
 
@@ -94,10 +95,11 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const db = openDrizzle(path);
   rawDb = openDatabase(path);
   steps = new StepRepository(db, OPEN);
-  projects = new ProjectRepository(db, OPEN);
+  workPackages = new WorkPackageRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
   actuals = new ActualRepository(db, OPEN);
   progress = new StepProgressRepository(db, OPEN);
@@ -114,14 +116,14 @@ beforeEach(async () => {
     wrote(),
   );
 
-  const project = newProject(ownerId, 'Rewire the shed');
-  projectId = project.id;
+  const workPackage = newWorkPackage(ownerId, 'Rewire the shed');
+  workPackageId = workPackage.id;
   devId = crypto.randomUUID();
   qaId = crypto.randomUUID();
   const starting: Step[] = [
     {
       id: devId,
-      projectId,
+      workPackageId,
       name: 'Dev',
       position: 10,
       code: 'dev',
@@ -130,7 +132,7 @@ beforeEach(async () => {
     },
     {
       id: qaId,
-      projectId,
+      workPackageId,
       name: 'QA',
       position: 20,
       code: 'qa',
@@ -138,16 +140,16 @@ beforeEach(async () => {
       estimateUnit: 'workdays' as const,
     },
   ];
-  await projects.create(project, starting, wrote());
+  await workPackages.create(workPackage, starting, wrote());
 
-  const other = newProject(ownerId, 'Re-tile the roof');
-  otherProjectId = other.id;
-  await projects.create(
+  const other = newWorkPackage(ownerId, 'Re-tile the roof');
+  otherWorkPackageId = other.id;
+  await workPackages.create(
     other,
     [
       {
         id: crypto.randomUUID(),
-        projectId: other.id,
+        workPackageId: other.id,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -205,7 +207,7 @@ describe('the names the schema uses', () => {
    *
    * Removing the **table** rename instead was tried first and is not the fault
    * to inject: the migration's own
-   * `CREATE UNIQUE INDEX step_project_name ON step` then fails inside
+   * `CREATE UNIQUE INDEX step_work_package_name ON step` then fails inside
    * `runMigrations`, so the run dies in `beforeEach` and this assertion is
    * never reached.
    */
@@ -225,7 +227,7 @@ describe('the names the schema uses', () => {
         expect(objectsNamed('table', table)).toBe(1);
       for (const table of ['role', 'role_progress', 'role_measure'])
         expect(objectsNamed('table', table)).toBe(0);
-      expect(objectsNamed('index', 'step_project_name')).toBe(1);
+      expect(objectsNamed('index', 'step_work_package_name')).toBe(1);
 
       // The column every join in this repository is written against.
       const columnsOf = (table: string): string[] =>
@@ -299,13 +301,13 @@ describe('the names the schema uses', () => {
 });
 
 describe('StepRepository', () => {
-  it('adds a step and moves the project’s revision', async () => {
-    const before = await revisionOf(projectId);
+  it('adds a step and moves the work package’s revision', async () => {
+    const before = await revisionOf(workPackageId);
 
     const written = await steps.add(
       {
         id: 'design',
-        projectId,
+        workPackageId,
         name: 'Design',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -317,7 +319,7 @@ describe('StepRepository', () => {
       ok: true,
       step: {
         id: 'design',
-        projectId,
+        workPackageId,
         name: 'Design',
         position: 30,
         code: 'design',
@@ -325,16 +327,16 @@ describe('StepRepository', () => {
         estimateUnit: 'workdays' as const,
       },
     });
-    const names = (await steps.listByProject(projectId)).map((each) => each.name);
+    const names = (await steps.listByWorkPackage(workPackageId)).map((each) => each.name);
     expect(names).toEqual(['Dev', 'QA', 'Design']);
-    expect(await revisionOf(projectId)).toBe(before + 1);
+    expect(await revisionOf(workPackageId)).toBe(before + 1);
   });
 
   it('writes the code its creator chose', async () => {
     const written = await steps.add(
       {
         id: 'impl',
-        projectId,
+        workPackageId,
         name: 'Build',
         code: 'impl',
         allowancePercent: 0,
@@ -347,7 +349,7 @@ describe('StepRepository', () => {
       ok: true,
       step: {
         id: 'impl',
-        projectId,
+        workPackageId,
         name: 'Build',
         position: 30,
         code: 'impl',
@@ -357,11 +359,11 @@ describe('StepRepository', () => {
     });
   });
 
-  it('suggests a code against the codes the project holds', async () => {
+  it('suggests a code against the codes the work package holds', async () => {
     const written = await steps.add(
       {
         id: 'qa-again',
-        projectId,
+        workPackageId,
         name: 'Q/A',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -373,7 +375,7 @@ describe('StepRepository', () => {
       ok: true,
       step: {
         id: 'qa-again',
-        projectId,
+        workPackageId,
         name: 'Q/A',
         position: 30,
         code: 'q-a',
@@ -384,7 +386,7 @@ describe('StepRepository', () => {
     const clash = await steps.add(
       {
         id: 'dev-again',
-        projectId,
+        workPackageId,
         name: 'DEV!',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -395,7 +397,7 @@ describe('StepRepository', () => {
       ok: true,
       step: {
         id: 'dev-again',
-        projectId,
+        workPackageId,
         name: 'DEV!',
         position: 40,
         code: 'dev-2',
@@ -406,17 +408,17 @@ describe('StepRepository', () => {
   });
 
   /**
-   * Proof: with the `stepCodeInProject` branch removed, this case failed on
-   * `SQLiteError: UNIQUE constraint failed: step.project_id, step.code`
+   * Proof: with the `stepCodeInWorkPackage` branch removed, this case failed on
+   * `SQLiteError: UNIQUE constraint failed: step.work_package_id, step.code`
    * escaping the repository instead of a `code_taken`; watched 2026-09-27.
    */
-  it('refuses a chosen code the project already holds, writing nothing', async () => {
-    const before = await revisionOf(projectId);
+  it('refuses a chosen code the work package already holds, writing nothing', async () => {
+    const before = await revisionOf(workPackageId);
 
     const written = await steps.add(
       {
         id: 'dup',
-        projectId,
+        workPackageId,
         name: 'Develop',
         code: 'dev',
         allowancePercent: 0,
@@ -426,18 +428,18 @@ describe('StepRepository', () => {
     );
 
     expect(written).toEqual({ ok: false, reason: 'code_taken' });
-    expect(await steps.listByProject(projectId)).toHaveLength(2);
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await steps.listByWorkPackage(workPackageId)).toHaveLength(2);
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
   it('reads a step an older release inserted without a code as uncoded', async () => {
     rawDb.run(
-      `INSERT INTO step (id, project_id, name, position) VALUES ('legacy', '${projectId}', 'Legacy', 30)`,
+      `INSERT INTO step (id, work_package_id, name, position) VALUES ('legacy', '${workPackageId}', 'Legacy', 30)`,
     );
 
     expect(await steps.findById('legacy')).toEqual({
       id: 'legacy',
-      projectId,
+      workPackageId,
       name: 'Legacy',
       position: 30,
       code: null,
@@ -448,7 +450,7 @@ describe('StepRepository', () => {
     const written = await steps.add(
       {
         id: 'next',
-        projectId,
+        workPackageId,
         name: 'Legacy 2',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -460,13 +462,13 @@ describe('StepRepository', () => {
 
   it('reads a step added later last, however its name sorts', async () => {
     // The order cannot be inferred from the rows: SQLite answers
-    // `WHERE project_id = ?` from `step_project_name`, so without an ORDER BY
+    // `WHERE work_package_id = ?` from `step_work_package_name`, so without an ORDER BY
     // these come back `Analysis, Dev, QA` — and step order is what a work
     // item's slices run in.
     await steps.add(
       {
         id: 'analysis',
-        projectId,
+        workPackageId,
         name: 'Analysis',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -474,16 +476,16 @@ describe('StepRepository', () => {
       wrote(),
     );
 
-    const names = (await steps.listByProject(projectId)).map((each) => each.name);
+    const names = (await steps.listByWorkPackage(workPackageId)).map((each) => each.name);
 
     expect(names).toEqual(['Dev', 'QA', 'Analysis']);
   });
 
-  it('reads the same order through the project, which is where the schedule asks', async () => {
+  it('reads the same order through the work package, which is where the schedule asks', async () => {
     await steps.add(
       {
         id: 'analysis-2',
-        projectId,
+        workPackageId,
         name: 'Analysis',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -491,16 +493,16 @@ describe('StepRepository', () => {
       wrote(),
     );
 
-    const names = (await projects.stepsOf(projectId)).map((each) => each.name);
+    const names = (await workPackages.stepsOf(workPackageId)).map((each) => each.name);
 
     expect(names).toEqual(['Dev', 'QA', 'Analysis']);
   });
 
-  it('refuses a name the project already holds, and leaves the steps as they were', async () => {
+  it('refuses a name the work package already holds, and leaves the steps as they were', async () => {
     const written = await steps.add(
       {
         id: 'second-qa',
-        projectId,
+        workPackageId,
         name: 'QA',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -509,14 +511,14 @@ describe('StepRepository', () => {
     );
 
     expect(written).toEqual({ ok: false, reason: 'taken' });
-    expect(await steps.listByProject(projectId)).toHaveLength(2);
+    expect(await steps.listByWorkPackage(workPackageId)).toHaveLength(2);
   });
 
-  it('accepts in one project a name another project holds', async () => {
+  it('accepts in one work package a name another work package holds', async () => {
     const written = await steps.add(
       {
         id: 'other-qa',
-        projectId: otherProjectId,
+        workPackageId: otherWorkPackageId,
         name: 'QA',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -525,15 +527,15 @@ describe('StepRepository', () => {
     );
 
     expect(written.ok).toBe(true);
-    const names = (await steps.listByProject(otherProjectId)).map((each) => each.name);
+    const names = (await steps.listByWorkPackage(otherWorkPackageId)).map((each) => each.name);
     expect(names).toHaveLength(2);
     expect(names).toContain('QA');
   });
 
-  it('renames a step and moves the project’s revision', async () => {
-    const before = await revisionOf(projectId);
+  it('renames a step and moves the work package’s revision', async () => {
+    const before = await revisionOf(workPackageId);
 
-    const written = await steps.rename(projectId, qaId, 'Review', wrote());
+    const written = await steps.rename(workPackageId, qaId, 'Review', wrote());
 
     expect(written).toEqual({
       ok: true,
@@ -541,7 +543,7 @@ describe('StepRepository', () => {
       // naming this step after the rename.
       step: {
         id: qaId,
-        projectId,
+        workPackageId,
         name: 'Review',
         position: 20,
         code: 'qa',
@@ -549,45 +551,45 @@ describe('StepRepository', () => {
         estimateUnit: 'workdays' as const,
       },
     });
-    expect(await revisionOf(projectId)).toBe(before + 1);
+    expect(await revisionOf(workPackageId)).toBe(before + 1);
   });
 
   it('refuses a rename onto a name already in use, leaving both alone', async () => {
-    const before = await revisionOf(projectId);
+    const before = await revisionOf(workPackageId);
 
-    const written = await steps.rename(projectId, qaId, 'Dev', wrote());
+    const written = await steps.rename(workPackageId, qaId, 'Dev', wrote());
 
     expect(written).toEqual({ ok: false, reason: 'taken' });
-    const names = (await steps.listByProject(projectId)).map((each) => each.name).sort();
+    const names = (await steps.listByWorkPackage(workPackageId)).map((each) => each.name).sort();
     expect(names).toEqual(['Dev', 'QA']);
     // The refused write moved nothing, so nobody's precondition is defeated by
     // a request that changed nothing.
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
-  it('renames nothing of another project, whatever it is called by', async () => {
-    const before = await revisionOf(projectId);
+  it('renames nothing of another work package, whatever it is called by', async () => {
+    const before = await revisionOf(workPackageId);
 
-    expect(await steps.rename(otherProjectId, qaId, 'Taken', wrote())).toEqual({
+    expect(await steps.rename(otherWorkPackageId, qaId, 'Taken', wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
     expect((await steps.findById(qaId))?.name).toBe('QA');
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
   it('reports a step that is gone rather than pretending to rename it', async () => {
-    expect(await steps.rename(projectId, 'never-existed', 'Design', wrote())).toEqual({
+    expect(await steps.rename(workPackageId, 'never-existed', 'Design', wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
     expect(await steps.findById('never-existed')).toBeNull();
   });
 
-  it('finds a step by id, carrying the project it belongs to', async () => {
+  it('finds a step by id, carrying the work package it belongs to', async () => {
     expect(await steps.findById(qaId)).toEqual({
       id: qaId,
-      projectId,
+      workPackageId,
       name: 'QA',
       position: 20,
       code: 'qa',
@@ -596,7 +598,7 @@ describe('StepRepository', () => {
     });
   });
 
-  it('counts the step’s estimates and hands back every assignment in the project', async () => {
+  it('counts the step’s estimates and hands back every assignment in the work package', async () => {
     await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
     await estimates.set({ workItemId: 'sand', stepId: qaId, ...DAYS }, wrote());
     await estimates.set({ workItemId: 'sand', stepId: devId, ...DAYS }, wrote());
@@ -606,7 +608,7 @@ describe('StepRepository', () => {
     await directory.assign('strip', devId, ada.id, wrote());
     await directory.assign('strip', qaId, ada.id, wrote());
 
-    const usage = await steps.usageOf(projectId, qaId);
+    const usage = await steps.usageOf(workPackageId, qaId);
 
     expect(usage.estimates).toBe(2);
     // Both of the work item's assignments, not only the QA one: what `strip`
@@ -629,7 +631,7 @@ describe('StepRepository', () => {
     await directory.assign('strip', qaId, ada.id, wrote());
     await directory.assign('strip', devId, ada.id, wrote());
 
-    const removed = await steps.remove(projectId, qaId, true, wrote());
+    const removed = await steps.remove(workPackageId, qaId, true, wrote());
 
     if (!removed.ok) throw new Error(`removal refused: ${removed.reason}`);
     expect(removed.removal.estimates).toBe(2);
@@ -638,30 +640,30 @@ describe('StepRepository', () => {
     expect(await steps.findById(qaId)).toBeNull();
     // The other step's rows are the survivors that make the delete's WHERE
     // clause provable: narrowed to the work item alone it would take these too.
-    expect(await estimates.listByProject(projectId)).toEqual([
+    expect(await estimates.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'strip', stepId: devId, ...DAYS },
     ]);
     expect(await directory.assignmentsOf(['strip', 'sand'])).toEqual([
       { workItemId: 'strip', stepId: devId, personId: ada.id },
     ]);
-    // A step of the same name in another project is not this project's business.
-    expect(await steps.listByProject(otherProjectId)).toHaveLength(1);
+    // A step of the same name in another work package is not this work package's business.
+    expect(await steps.listByWorkPackage(otherWorkPackageId)).toHaveLength(1);
   });
 
-  it('moves the project and every work item that lost something, and nothing else', async () => {
+  it('moves the work package and every work item that lost something, and nothing else', async () => {
     await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
     await directory.assign('sand', qaId, ada.id, wrote());
-    const projectBefore = await revisionOf(projectId);
+    const workPackageBefore = await revisionOf(workPackageId);
     const stripBefore = await workItemRevisionOf('strip');
     const sandBefore = await workItemRevisionOf('sand');
     const paintBefore = await workItemRevisionOf('paint');
 
-    await steps.remove(projectId, qaId, true, wrote());
+    await steps.remove(workPackageId, qaId, true, wrote());
 
-    expect(await revisionOf(projectId)).toBe(projectBefore + 1);
+    expect(await revisionOf(workPackageId)).toBe(workPackageBefore + 1);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
     expect(await workItemRevisionOf('sand')).toBe(sandBefore + 1);
     // Held nothing of that step's, so nobody's read of it differs and a
@@ -675,14 +677,14 @@ describe('StepRepository', () => {
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
     await directory.assign('strip', qaId, ada.id, wrote());
-    const before = await revisionOf(projectId);
+    const before = await revisionOf(workPackageId);
 
-    const refused = await steps.remove(projectId, qaId, false, wrote());
+    const refused = await steps.remove(workPackageId, qaId, false, wrote());
 
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      // The whole project's assignments, so the caller can work out whose
+      // The whole work package's assignments, so the caller can work out whose
       // assumed assignee moves — the `Dev` row is not there because nobody
       // holds it, and this is what the reading is made from.
       usage: {
@@ -700,53 +702,53 @@ describe('StepRepository', () => {
       },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
-    expect(await estimates.listByProject(projectId)).toHaveLength(1);
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await estimates.listByWorkPackage(workPackageId)).toHaveLength(1);
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
   it('reports a step that is already gone, moving nothing', async () => {
-    await steps.remove(projectId, qaId, true, wrote());
-    const after = await revisionOf(projectId);
+    await steps.remove(workPackageId, qaId, true, wrote());
+    const after = await revisionOf(workPackageId);
 
-    const second = await steps.remove(projectId, qaId, true, wrote());
+    const second = await steps.remove(workPackageId, qaId, true, wrote());
 
     expect(second).toEqual({ ok: false, reason: 'not_found' });
-    // The loser of two removals writes nothing at all, the project's revision
-    // included: it removed nothing, so nobody's read of the project differs.
-    expect(await revisionOf(projectId)).toBe(after);
+    // The loser of two removals writes nothing at all, the work package's revision
+    // included: it removed nothing, so nobody's read of the work package differs.
+    expect(await revisionOf(workPackageId)).toBe(after);
   });
 
-  it('reports another project’s step as not there, and leaves it alone', async () => {
-    const theirs = (await steps.listByProject(otherProjectId)).at(0);
-    if (theirs === undefined) throw new Error('the other project was created without steps');
-    const before = await revisionOf(projectId);
+  it('reports another work package’s step as not there, and leaves it alone', async () => {
+    const theirs = (await steps.listByWorkPackage(otherWorkPackageId)).at(0);
+    if (theirs === undefined) throw new Error('the other work package was created without steps');
+    const before = await revisionOf(workPackageId);
 
-    const refused = await steps.remove(projectId, theirs.id, true, wrote());
+    const refused = await steps.remove(workPackageId, theirs.id, true, wrote());
 
     expect(refused).toEqual({ ok: false, reason: 'not_found' });
     expect(await steps.findById(theirs.id)).toEqual(theirs);
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
   it('deletes an estimate written between the count and the confirmed removal', async () => {
     await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
-    const counted = await steps.usageOf(projectId, qaId);
+    const counted = await steps.usageOf(workPackageId, qaId);
     expect(counted.estimates).toBe(1);
 
     // The race the confirmation opens: somebody estimates the doomed step on a
     // work item the counts never mentioned, between the refusal and the
     // confirmed delete. The transaction chooses what it deletes for itself, so
     // this is deleted with the rest rather than left pointing at a step that
-    // has gone — which is a foreign key error, a 500, and a project nobody can
+    // has gone — which is a foreign key error, a 500, and a work package nobody can
     // read afterwards.
     await estimates.set({ workItemId: 'paint', stepId: qaId, ...DAYS }, wrote());
     const paintBefore = await workItemRevisionOf('paint');
 
-    const removed = await steps.remove(projectId, qaId, true, wrote());
+    const removed = await steps.remove(workPackageId, qaId, true, wrote());
 
     if (!removed.ok) throw new Error(`removal refused: ${removed.reason}`);
     expect(removed.removal.estimates).toBe(2);
-    expect(await estimates.listByProject(projectId)).toEqual([]);
+    expect(await estimates.listByWorkPackage(workPackageId)).toEqual([]);
     expect(await workItemRevisionOf('paint')).toBe(paintBefore + 1);
     expect(await steps.findById(qaId)).toBeNull();
   });
@@ -758,10 +760,10 @@ describe('StepRepository', () => {
     // it. `actual.step_id` has no cascade precisely so this cannot happen
     // quietly.
     await actuals.set({ workItemId: 'strip', stepId: qaId, days: 8, recordedAt: 1000 }, wrote());
-    const before = await revisionOf(projectId);
+    const before = await revisionOf(workPackageId);
 
-    const counted = await steps.usageOf(projectId, qaId);
-    const refused = await steps.remove(projectId, qaId, false, wrote());
+    const counted = await steps.usageOf(workPackageId, qaId);
+    const refused = await steps.remove(workPackageId, qaId, false, wrote());
 
     expect(counted).toEqual({
       estimates: 0,
@@ -788,9 +790,9 @@ describe('StepRepository', () => {
       },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
-    expect(await actuals.listByProject(projectId)).toHaveLength(1);
-    // A refusal writes nothing at all, the project's revision included.
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await actuals.listByWorkPackage(workPackageId)).toHaveLength(1);
+    // A refusal writes nothing at all, the work package's revision included.
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
   it('counts the stated progress, and refuses an unconfirmed removal of a step that holds only that', async () => {
@@ -808,10 +810,10 @@ describe('StepRepository', () => {
       { workItemId: 'strip', stepId: qaId, state: 'done', statedAt: 1000 },
       wrote(),
     );
-    const before = await revisionOf(projectId);
+    const before = await revisionOf(workPackageId);
 
-    const counted = await steps.usageOf(projectId, qaId);
-    const refused = await steps.remove(projectId, qaId, false, wrote());
+    const counted = await steps.usageOf(workPackageId, qaId);
+    const refused = await steps.remove(workPackageId, qaId, false, wrote());
 
     expect(counted).toEqual({
       estimates: 0,
@@ -838,9 +840,9 @@ describe('StepRepository', () => {
       },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
-    expect(await progress.listByProject(projectId)).toHaveLength(1);
-    // A refusal writes nothing at all, the project's revision included.
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await progress.listByWorkPackage(workPackageId)).toHaveLength(1);
+    // A refusal writes nothing at all, the work package's revision included.
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
   it('deletes the stated progress with the step it confirmed, moving the work items that lost one', async () => {
@@ -861,7 +863,7 @@ describe('StepRepository', () => {
     );
     const stripBefore = await workItemRevisionOf('strip');
 
-    const removed = await steps.remove(projectId, qaId, true, wrote());
+    const removed = await steps.remove(workPackageId, qaId, true, wrote());
 
     expect(removed).toEqual({
       ok: true,
@@ -880,7 +882,7 @@ describe('StepRepository', () => {
     expect(await steps.findById(qaId)).toBeNull();
     // The other step's row on another work item survives, which is what makes
     // the delete's `WHERE` provable.
-    expect(await progress.listByProject(projectId)).toEqual([
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'sand', stepId: devId, state: 'in_progress', statedAt: 1000 },
     ]);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
@@ -900,10 +902,10 @@ describe('StepRepository', () => {
       wrote(),
     );
     await attempts.start({ ...node, startedAt: 120, reference: null }, wrote());
-    const before = await revisionOf(projectId);
+    const before = await revisionOf(workPackageId);
 
-    const counted = await steps.usageOf(projectId, qaId);
-    const refused = await steps.remove(projectId, qaId, false, wrote());
+    const counted = await steps.usageOf(workPackageId, qaId);
+    const refused = await steps.remove(workPackageId, qaId, false, wrote());
 
     const usage = {
       estimates: 0,
@@ -917,17 +919,17 @@ describe('StepRepository', () => {
     expect(counted).toEqual({ ...usage, assignments: [] });
     expect(refused).toEqual({ ok: false, reason: 'in_use', usage: { ...usage, assignments: [] } });
     expect(await steps.findById(qaId)).not.toBeNull();
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await revisionOf(workPackageId)).toBe(before);
 
     const stripBefore = await workItemRevisionOf('strip');
-    const removed = await steps.remove(projectId, qaId, true, wrote());
+    const removed = await steps.remove(workPackageId, qaId, true, wrote());
 
     expect(removed).toEqual({
       ok: true,
       removal: { ...usage, assignments: 0, workItemIds: ['strip'] },
     });
     expect(await steps.findById(qaId)).toBeNull();
-    expect(await attempts.listByProject(projectId)).toEqual([]);
+    expect(await attempts.listByWorkPackage(workPackageId)).toEqual([]);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
   });
 
@@ -952,18 +954,18 @@ describe('StepRepository', () => {
       attempts: 0,
       claims: 1,
     };
-    expect(await steps.usageOf(projectId, qaId)).toEqual({ ...usage, assignments: [] });
-    expect(await steps.remove(projectId, qaId, false, wrote())).toEqual({
+    expect(await steps.usageOf(workPackageId, qaId)).toEqual({ ...usage, assignments: [] });
+    expect(await steps.remove(workPackageId, qaId, false, wrote())).toEqual({
       ok: false,
       reason: 'in_use',
       usage: { ...usage, assignments: [] },
     });
-    expect(await claims.listByProject(projectId)).toEqual([held]);
-    expect(await steps.remove(projectId, qaId, true, wrote())).toEqual({
+    expect(await claims.listByWorkPackage(workPackageId)).toEqual([held]);
+    expect(await steps.remove(workPackageId, qaId, true, wrote())).toEqual({
       ok: true,
       removal: { ...usage, assignments: 0, workItemIds: ['strip'] },
     });
-    expect(await claims.listByProject(projectId)).toEqual([]);
+    expect(await claims.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('counts the figures that are not days, and refuses an unconfirmed removal of a step that holds only those', async () => {
@@ -997,10 +999,10 @@ describe('StepRepository', () => {
       },
       wrote(),
     );
-    const before = await revisionOf(projectId);
+    const before = await revisionOf(workPackageId);
 
-    const counted = await steps.usageOf(projectId, qaId);
-    const refused = await steps.remove(projectId, qaId, false, wrote());
+    const counted = await steps.usageOf(workPackageId, qaId);
+    const refused = await steps.remove(workPackageId, qaId, false, wrote());
 
     expect(counted).toEqual({
       estimates: 0,
@@ -1027,9 +1029,9 @@ describe('StepRepository', () => {
       },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
-    expect(await measures.listByProject(projectId)).toHaveLength(2);
-    // A refusal writes nothing at all, the project's revision included.
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(await measures.listByWorkPackage(workPackageId)).toHaveLength(2);
+    // A refusal writes nothing at all, the work package's revision included.
+    expect(await revisionOf(workPackageId)).toBe(before);
   });
 
   it('deletes the figures that are not days with the step it confirmed, moving the work items that lost one', async () => {
@@ -1072,7 +1074,7 @@ describe('StepRepository', () => {
     );
     const stripBefore = await workItemRevisionOf('strip');
 
-    const removed = await steps.remove(projectId, qaId, true, wrote());
+    const removed = await steps.remove(workPackageId, qaId, true, wrote());
 
     expect(removed).toEqual({
       ok: true,
@@ -1091,7 +1093,7 @@ describe('StepRepository', () => {
     expect(await steps.findById(qaId)).toBeNull();
     // The other step's figure on another work item survives, which is what
     // makes the delete's `WHERE` provable.
-    expect(await measures.listByProject(projectId)).toEqual([
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'sand', stepId: devId, metric: 'hours_actual', value: 2, recordedAt: 1000 },
     ]);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
@@ -1117,8 +1119,8 @@ describe('StepRepository', () => {
       claims: 0,
       assignments: [],
     };
-    expect(await steps.usageOf(projectId, qaId)).toEqual(usage);
-    expect(await steps.remove(projectId, qaId, false, wrote())).toEqual({
+    expect(await steps.usageOf(workPackageId, qaId)).toEqual(usage);
+    expect(await steps.remove(workPackageId, qaId, false, wrote())).toEqual({
       ok: false,
       reason: 'in_use',
       usage,
@@ -1135,8 +1137,8 @@ describe('StepRepository', () => {
       },
       wrote(),
     );
-    expect((await steps.usageOf(projectId, qaId)).measures).toBe(2);
-    expect(await steps.remove(projectId, qaId, true, wrote())).toEqual({
+    expect((await steps.usageOf(workPackageId, qaId)).measures).toBe(2);
+    expect(await steps.remove(workPackageId, qaId, true, wrote())).toEqual({
       ok: true,
       removal: {
         estimates: 0,
@@ -1150,8 +1152,8 @@ describe('StepRepository', () => {
         workItemIds: ['sand', 'strip'],
       },
     });
-    expect(await measureEstimates.listByProject(projectId)).toEqual([]);
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measureEstimates.listByWorkPackage(workPackageId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('deletes the recorded days with the step it confirmed, moving the work items that lost one', async () => {
@@ -1162,7 +1164,7 @@ describe('StepRepository', () => {
     await actuals.set({ workItemId: 'sand', stepId: devId, days: 2, recordedAt: 1000 }, wrote());
     const stripBefore = await workItemRevisionOf('strip');
 
-    const removed = await steps.remove(projectId, qaId, true, wrote());
+    const removed = await steps.remove(workPackageId, qaId, true, wrote());
 
     expect(removed).toEqual({
       ok: true,
@@ -1181,7 +1183,7 @@ describe('StepRepository', () => {
     expect(await steps.findById(qaId)).toBeNull();
     // The other step's row on another work item survives, which is what makes
     // the delete's `WHERE` provable.
-    expect(await actuals.listByProject(projectId)).toEqual([
+    expect(await actuals.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'sand', stepId: devId, days: 2, recordedAt: 1000 },
     ]);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
@@ -1192,8 +1194,8 @@ describe('what a step read publishes', () => {
   /**
    * The audit columns are recorded and not published (ADR 0012), and
    * `STEP_COLUMNS` is what keeps them off the wire for **five** reads and
-   * writes: `listByProject`, `findById`, `rename`'s `returning`, and
-   * `ProjectRepository.stepsOf`, which is the list `GET /api/projects/{id}`
+   * writes: `listByWorkPackage`, `findById`, `rename`'s `returning`, and
+   * `WorkPackageRepository.stepsOf`, which is the list `GET /api/work-packages/{id}`
    * answers with.
    *
    * The comment those reads carried until 2026-09-02 said the declared return
@@ -1203,17 +1205,17 @@ describe('what a step read publishes', () => {
    * type catches a **missing** column and nothing else, which is why this is a
    * test and not a comment.
    *
-   * Proof: `.select(STEP_COLUMNS)` in `listByProject` replaced by `.select()`,
+   * Proof: `.select(STEP_COLUMNS)` in `listByWorkPackage` replaced by `.select()`,
    * watched failing on `expect(received).toEqual(expected) · - Expected - 0 ·
    * + Received + 3` at the `listed` assertion — the three audit columns — and
-   * taking `reports another project's step as not there, and leaves it alone`
+   * taking `reports another workPackage's step as not there, and leaves it alone`
    * down with it (2026-09-02).
    */
   it('carries the columns the Step type declares and no others', async () => {
     const written = await steps.add(
       {
         id: 'design',
-        projectId,
+        workPackageId,
         name: 'Design',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -1222,33 +1224,37 @@ describe('what a step read publishes', () => {
     );
     if (!written.ok) throw new Error(`add refused: ${written.reason}`);
 
-    const listed = (await steps.listByProject(projectId)).find((each) => each.id === 'design');
+    const listed = (await steps.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === 'design',
+    );
     const found = await steps.findById('design');
-    const throughProject = (await projects.stepsOf(projectId)).find((each) => each.id === 'design');
-    const renamed = await steps.rename(projectId, 'design', 'Drafting', wrote());
+    const throughWorkPackage = (await workPackages.stepsOf(workPackageId)).find(
+      (each) => each.id === 'design',
+    );
+    const renamed = await steps.rename(workPackageId, 'design', 'Drafting', wrote());
     if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
 
     const declared = Object.keys(written.step).sort();
     expect(Object.keys(listed ?? {}).sort()).toEqual(declared);
     expect(Object.keys(found ?? {}).sort()).toEqual(declared);
-    expect(Object.keys(throughProject ?? {}).sort()).toEqual(declared);
+    expect(Object.keys(throughWorkPackage ?? {}).sort()).toEqual(declared);
     expect(Object.keys(renamed.step).sort()).toEqual(declared);
     expect(declared).not.toContain('createdBy');
     expect(declared).not.toContain('updatedAt');
   });
 });
 
-describe('ProjectRepository.setStepAllowance', () => {
-  it('writes the allowance, answers the one it replaced and moves the project', async () => {
-    const before = await revisionOf(projectId);
+describe('WorkPackageRepository.setStepAllowance', () => {
+  it('writes the allowance, answers the one it replaced and moves the work package', async () => {
+    const before = await revisionOf(workPackageId);
 
-    const written = await projects.setStepAllowance(projectId, qaId, 12.34, wrote());
+    const written = await workPackages.setStepAllowance(workPackageId, qaId, 12.34, wrote());
 
     expect(written).toEqual({
       ok: true,
       step: {
         id: qaId,
-        projectId,
+        workPackageId,
         name: 'QA',
         position: 20,
         code: 'qa',
@@ -1259,11 +1265,11 @@ describe('ProjectRepository.setStepAllowance', () => {
       revision: 1,
     });
     expect((await steps.findById(qaId))?.allowancePercent).toBe(12.34);
-    expect(await revisionOf(projectId)).toBe(before + 1);
+    expect(await revisionOf(workPackageId)).toBe(before + 1);
   });
 
   it('stores whole hundredths of a percent', async () => {
-    await projects.setStepAllowance(projectId, qaId, 12.34, wrote());
+    await workPackages.setStepAllowance(workPackageId, qaId, 12.34, wrote());
     const sqlite = openDatabase(join(dir, 'test.db'));
     try {
       const stored = sqlite
@@ -1275,24 +1281,24 @@ describe('ProjectRepository.setStepAllowance', () => {
     }
   });
 
-  /** Proof: see `ProjectRepository.setStepAllowance`. */
+  /** Proof: see `WorkPackageRepository.setStepAllowance`. */
   it('moves the step’s allowance revision on every write, even back to a value it held', async () => {
-    expect((await projects.stepAllowanceRevisions(projectId)).get(qaId)).toBe(0);
+    expect((await workPackages.stepAllowanceRevisions(workPackageId)).get(qaId)).toBe(0);
 
-    await projects.setStepAllowance(projectId, qaId, 50, wrote());
-    const back = await projects.setStepAllowance(projectId, qaId, 0, wrote());
+    await workPackages.setStepAllowance(workPackageId, qaId, 50, wrote());
+    const back = await workPackages.setStepAllowance(workPackageId, qaId, 0, wrote());
 
     expect(back).toMatchObject({ ok: true, previousPercent: 50, revision: 2 });
-    expect((await projects.stepAllowanceRevisions(projectId)).get(qaId)).toBe(2);
-    expect((await projects.stepAllowanceRevisions(projectId)).get(devId)).toBe(0);
+    expect((await workPackages.stepAllowanceRevisions(workPackageId)).get(qaId)).toBe(2);
+    expect((await workPackages.stepAllowanceRevisions(workPackageId)).get(devId)).toBe(0);
   });
 
-  it('refuses a step of another project, and a step that is gone', async () => {
-    expect(await projects.setStepAllowance(otherProjectId, qaId, 30, wrote())).toEqual({
+  it('refuses a step of another work package, and a step that is gone', async () => {
+    expect(await workPackages.setStepAllowance(otherWorkPackageId, qaId, 30, wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
-    expect(await projects.setStepAllowance(projectId, 'gone', 30, wrote())).toEqual({
+    expect(await workPackages.setStepAllowance(workPackageId, 'gone', 30, wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -1301,7 +1307,7 @@ describe('ProjectRepository.setStepAllowance', () => {
   it('refuses to store an allowance no boundary would have admitted', async () => {
     let refused: unknown = null;
     try {
-      await projects.setStepAllowance(projectId, qaId, 12.345, wrote());
+      await workPackages.setStepAllowance(workPackageId, qaId, 12.345, wrote());
     } catch (cause) {
       refused = cause;
     }
@@ -1320,7 +1326,13 @@ describe('ProjectRepository.setStepAllowance', () => {
 
 it('reads and writes a step estimate unit', async () => {
   const added = await steps.add(
-    { id: 'minute-step', projectId, name: 'Agent', allowancePercent: 0, estimateUnit: 'minutes' },
+    {
+      id: 'minute-step',
+      workPackageId,
+      name: 'Agent',
+      allowancePercent: 0,
+      estimateUnit: 'minutes',
+    },
     wrote(),
   );
   expect(added).toMatchObject({ ok: true, step: { estimateUnit: 'minutes' } });
@@ -1334,7 +1346,7 @@ it('names an absent estimate-count row before changing a unit', () => {
       from: () => ({
         where: () => ({
           get: () =>
-            reads++ === 0 ? { id: devId, projectId, estimateUnit: 'workdays' } : undefined,
+            reads++ === 0 ? { id: devId, workPackageId, estimateUnit: 'workdays' } : undefined,
         }),
       }),
     }),
@@ -1344,7 +1356,7 @@ it('names an absent estimate-count row before changing a unit', () => {
     broken as unknown as ConstructorParameters<typeof StepRepository>[0],
     OPEN,
   );
-  expect(repository.patchUnit(projectId, devId, 'minutes', wrote())).rejects.toThrow(
+  expect(repository.patchUnit(workPackageId, devId, 'minutes', wrote())).rejects.toThrow(
     'estimate count returned no row',
   );
 });

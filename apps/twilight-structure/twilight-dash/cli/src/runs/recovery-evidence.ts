@@ -4,8 +4,8 @@ import {
   type AuthorityReceipt,
   type ClaimReceipt,
   lookupRuntimeReceipt,
-  readRuntimeState,
-  type RuntimeState,
+  type RetainedRuntimeState,
+  retainedRuntimeStateSchema,
   validateSchema,
   type WriteReceipt,
 } from '@wbs/contracts';
@@ -30,6 +30,7 @@ import {
   equalRuntimeScopes,
   intentCodec,
   readRuntimeRequest,
+  readStateScope,
 } from './runtime-codecs';
 import { verifyRuntimeReceipt } from './runtime-receipt';
 import type { RuntimeIntent } from './runtime-records';
@@ -44,7 +45,7 @@ export type RecoveryEvidenceSubject =
   | { readonly kind: 'absent' }
   | { readonly kind: 'generation_conflict' };
 export type VerifiedRecoveryExchange =
-  | { readonly kind: 'state'; readonly exchange: RecoveryExchangeValue<RuntimeState> }
+  | { readonly kind: 'state'; readonly exchange: RecoveryExchangeValue<RetainedRuntimeState> }
   | { readonly kind: 'authority'; readonly exchange: RecoveryExchangeValue<AuthorityReceipt> }
   | { readonly kind: 'claim'; readonly exchange: RecoveryExchangeValue<ClaimReceipt> }
   | { readonly kind: 'write'; readonly exchange: RecoveryExchangeValue<WriteReceipt> }
@@ -141,15 +142,21 @@ export async function readRecoveryExchange(
     body: { artifact: captured.body, value: structuredClone(value) },
   });
   if (snapshot.kind === 'state') {
-    // Proof: E7 bypassed this public-schema dependency; an otherwise complete version2 state was accepted.
-    const checked = await validateSchema(readRuntimeState.responses[0].schema, wire);
+    // Historical Proof: E7 observed state2 rejected by the then state1-only reader. Retained state2 is now valid; that archived control does not prove this union guard.
+    // Proof: dash-recovery-retained-schema-consumer: bypassing the grouped recovery schema call and issues refusal.
+    // 'recovery retained state1 rejects invalid revision before raw pair publication' failed; exact restoration passed.
+    // 'recovery retained state2 rejects invalid revision before raw pair publication' failed; exact restoration passed.
+    // One grouped consumer fault; invalid revisions1/2 resolve through unchanged scope/ledger checks.
+    const checked = await validateSchema(retainedRuntimeStateSchema, wire);
     if (checked.issues !== undefined) throw new Error('recovery state schema differs');
     // Proof: E8 removed correspondence; state scope and ledger negatives lost rejection.
     if (
-      !equalRuntimeScopes(checked.value.scope, captured.scope) ||
+      !equalRuntimeScopes(readStateScope(checked.value), captured.scope) ||
       checked.value.ledgerId !== captured.ledgerId
     )
       throw new Error('recovery state capture differs');
+    // Proof: dash-recovery-raw-state-pair: rewriting the original raw recovery-state tag.
+    // 'Dash recovery state1 keeps original raw body through embedded decoding' failed; exact restoration passed.
     return { kind: 'state', exchange: pair(checked.value) };
   }
   if (snapshot.kind === 'absent' || snapshot.kind === 'generation_conflict') {

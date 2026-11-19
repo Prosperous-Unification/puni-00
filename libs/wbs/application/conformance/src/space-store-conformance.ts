@@ -59,9 +59,9 @@ export function spaceStoreConformance(open: () => SpaceStoreFixture): void {
       ok: true,
       space: { ...q3, name: 'Q4', revision: 1 },
     });
-    expect(await fixture.store.remove(a, 's-2')).toBe(true);
+    expect(await fixture.store.remove(a, 's-2', fixture.stamp)).toBe(true);
     expect(await fixture.store.findIn(a, 's-2')).toBeNull();
-    expect(await fixture.store.remove(a, 's-2')).toBe(false);
+    expect(await fixture.store.remove(a, 's-2', fixture.stamp)).toBe(false);
   });
 
   it('refuses a name twice in one organization and allows it in another', async () => {
@@ -105,11 +105,11 @@ export function spaceStoreConformance(open: () => SpaceStoreFixture): void {
       reason: 'not_found',
     });
     expect(await fixture.store.removeProject(b, 's-1', a1, fixture.stamp)).toBe(false);
-    expect(await fixture.store.remove(b, 's-1')).toBe(false);
+    expect(await fixture.store.remove(b, 's-1', fixture.stamp)).toBe(false);
     expect(await order(fixture, 's-1')).toEqual([a1]);
   });
 
-  it('refuses a project another organization owns, storing nothing', async () => {
+  it('refuses a work package another organization owns, storing nothing', async () => {
     const fixture = open();
     await created(fixture, 's-1', 'Q3');
     expect(
@@ -228,16 +228,24 @@ export function spaceStoreConformance(open: () => SpaceStoreFixture): void {
     });
   });
 
-  it('keeps one project in many spaces, and removing a space changes no other', async () => {
+  it('keeps a project in at most one space and detaches it when its space is removed', async () => {
     const fixture = open();
     const { a } = fixture.organizations;
     const [a1] = fixture.projects.a;
     await created(fixture, 's-1', 'Q3');
     await created(fixture, 's-2', 'Launch');
     await fixture.store.addProject(a, 's-1', a1, null, fixture.stamp);
-    await fixture.store.addProject(a, 's-2', a1, null, fixture.stamp);
-    expect(await fixture.store.remove(a, 's-1')).toBe(true);
+    expect(await fixture.store.addProject(a, 's-2', a1, null, fixture.stamp)).toEqual({
+      ok: false,
+      reason: 'project_in_other_space',
+      spaceId: 's-1',
+    });
+    expect(await fixture.store.remove(a, 's-1', fixture.stamp)).toBe(true);
     expect(await fixture.store.membersOf(a, 's-1')).toBeNull();
-    expect(await fixture.store.membersOf(a, 's-2')).toEqual([{ projectId: a1, position: 10 }]);
+    expect(await fixture.store.membersOf(a, 's-2')).toEqual([]);
+    expect(await fixture.store.addProject(a, 's-2', a1, null, fixture.stamp)).toEqual({
+      ok: true,
+      position: 10,
+    });
   });
 }

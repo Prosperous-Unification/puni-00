@@ -1,6 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 /**
  * The Steps surface, in a browser.
@@ -23,7 +23,7 @@ import { createProject } from './create-project';
  *    `window` and reach the dialog's own handler. That split was corrected on
  *    review with a jsdom test behind it; this is the browser saying so.
  * 4. **The three-step table.** `layout.spec.ts` has been measuring two steps
- *    since it was written, because two is all a project could ever have. C3-4
+ *    since it was written, because two is all a work package could ever have. C3-4
  *    in `openspec/changes/table-geometry-and-tab-order/verify.md` is the open
  *    item this closes: a third step, added through the UI, and the columns it
  *    brings with it.
@@ -32,11 +32,11 @@ import { createProject } from './create-project';
 /** The chord, spelled for both platforms: `commandChord` takes Ctrl or Meta on Enter. */
 const SUBMIT_CHORD = 'Control+Enter';
 
-/** Registers a throwaway account and opens an empty project. */
+/** Registers a throwaway account and opens an empty work package. */
 async function signInWithAProject(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 }
 
@@ -55,17 +55,17 @@ function focusIsOnTheSurface(page: Page): Promise<boolean> {
 }
 
 /**
- * Opens the Steps section: the `Project settings` control, then its tab.
+ * Opens the Steps section: the `WorkPackage settings` control, then its tab.
  *
- * Two gestures since `project-config-modal` (2026-08-30), where this was one
- * button on the bar. The dialog it opens is the project's whole settings
+ * Two gestures since `work-package-config-modal` (2026-08-30), where this was one
+ * button on the bar. The dialog it opens is the work package's whole settings
  * surface, and every assertion below about the modal — the trap, Escape, the
  * click away, the focus restore — is now an assertion about that one modal
  * rather than about a steps dialog of its own.
  */
 async function openSteps(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Project settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+  await page.getByRole('button', { name: 'Work package settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Work package settings' })).toBeVisible();
   await page.getByRole('tab', { name: 'Steps' }).click();
   await expect(page.getByRole('textbox', { name: 'New step', exact: true })).toBeVisible();
 }
@@ -80,7 +80,7 @@ test.beforeEach(() => {
  * Not `e2e-steps-…`: the account menu's button is named after the account, and
  * `getByRole('button', { name: 'Steps' })` matched an accessible name by
  * substring — so a username with "steps" in it resolved that locator to two
- * elements. The button is `Project settings` now and the tab is what carries
+ * elements. The button is `WorkPackage settings` now and the tab is what carries
  * `Steps`; this stays as the belt beside that.
  */
 const throwaway = (): string => `e2e-ph-${String(Date.now())}-${String(account)}`;
@@ -107,7 +107,7 @@ test.describe('the steps surface, in a browser', () => {
     page,
   }) => {
     await signInWithAProject(page, throwaway());
-    const opener = page.getByRole('button', { name: 'Project settings' });
+    const opener = page.getByRole('button', { name: 'Work package settings' });
     await openSteps(page);
 
     await page.keyboard.press('Escape');
@@ -177,7 +177,7 @@ test.describe('the steps surface, in a browser', () => {
   });
 
   test('a third step gives the table a third set of columns', async ({ page }) => {
-    // C3-4, closed. The fixture the layout gate could never build: a project
+    // C3-4, closed. The fixture the layout gate could never build: a work package
     // with three steps, made the way somebody really makes one.
     await signInWithAProject(page, throwaway());
     await page.getByRole('button', { name: 'Add work item' }).click();

@@ -777,7 +777,7 @@ export function machinePrincipalOf(
     username,
     scopes: actor.scopes,
     // Proof: without this context, `admits a live key to its organization's
-    // projects only` in `machine-credential.controller.db.test.ts` answered
+    // work packages only` in `machine-credential.controller.db.test.ts` answered
     // 403 no_active_organization; watched 2026-10-22.
     // The same fault failed it, the batch write and the administration
     // refusal of `an API key on the MCP path` there; watched 2026-10-29.

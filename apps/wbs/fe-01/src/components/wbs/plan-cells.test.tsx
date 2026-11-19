@@ -2,14 +2,14 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Component, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { NodeReadingView, ProjectApi } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
+import type { NodeReadingView, WorkPackageApi } from '@/lib/wbs-api';
+import { DEV, fakeWorkPackageApi as fakeApi, QA } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
-import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { WorkPackagePageOverOwner } from '@/testing/work-package-page-over-owner';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { isoToday } from './gantt-panel';
 import { refusedDraftFor } from './live-editing';
@@ -78,7 +78,7 @@ const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -115,8 +115,8 @@ describe('step node details', () => {
     });
     if (reference !== undefined) {
       const readTree = api.tree.bind(api);
-      api.tree = async (projectId) => ({
-        ...(await readTree(projectId)),
+      api.tree = async (workPackageId) => ({
+        ...(await readTree(workPackageId)),
         stepNodes: [
           { id: 'sn1.w1.step-dev', workItemId: row.id, stepId: DEV.id, reference },
           { id: 'sn1.w1.step-qa', workItemId: row.id, stepId: QA.id, reference: null },
@@ -124,13 +124,15 @@ describe('step node details', () => {
       });
     } else {
       const readTree = api.tree.bind(api);
-      api.tree = async (projectId) => {
-        const olderRead = { ...(await readTree(projectId)) };
+      api.tree = async (workPackageId) => {
+        const olderRead = { ...(await readTree(workPackageId)) };
         delete olderRead.stepNodes;
         return olderRead;
       };
     }
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     const estimate = await screen.findByLabelText('Dev estimate for 010');
     fireEvent.focus(estimate);
     return estimate;
@@ -206,7 +208,9 @@ describe('step node details', () => {
       expect(new URL(writeText.mock.calls[0]?.[0] ?? '').searchParams.get('stepNode')).toBe(
         'sn1.w1.step-dev',
       );
-      expect(new URL(writeText.mock.calls[0]?.[0] ?? '').searchParams.get('project')).toBe('p1');
+      expect(new URL(writeText.mock.calls[0]?.[0] ?? '').searchParams.get('workPackage')).toBe(
+        'p1',
+      );
       expect(toastTexts()).toContain('Copied step link.');
     } finally {
       Reflect.deleteProperty(navigator, 'clipboard');
@@ -226,13 +230,13 @@ describe('step node details', () => {
     if (storedRow === undefined) throw new Error('Missing step link fixture');
     storedRow.id = workItemId;
     const readSteps = api.steps.bind(api);
-    api.steps = async (projectId) =>
-      (await readSteps(projectId)).map((step) =>
+    api.steps = async (workPackageId) =>
+      (await readSteps(workPackageId)).map((step) =>
         step.id === DEV.id ? { ...step, id: stepId } : step,
       );
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => {
-      const plan = await readTree(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readTree(workPackageId);
       return {
         ...plan,
         steps: plan.steps.map((step) => (step.id === DEV.id ? { ...step, id: stepId } : step)),
@@ -246,7 +250,7 @@ describe('step node details', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     try {
       const first = render(
-        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
       );
       fireEvent.focus(await screen.findByLabelText('Dev estimate for 010'));
       fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
@@ -256,7 +260,9 @@ describe('step node details', () => {
       const copiedUrl = writeText.mock.calls[0][0];
       first.unmount();
       window.history.replaceState(null, '', copiedUrl);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await waitFor(() => {
         expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
       });
@@ -267,7 +273,7 @@ describe('step node details', () => {
   });
 
   itDom(
-    'selects the linked project before resolving its step when another project was remembered',
+    'selects the linked work package before resolving its step when another work package was remembered',
     async () => {
       const api = fakeApi();
       const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
@@ -277,8 +283,8 @@ describe('step node details', () => {
       if (storedRow === undefined) throw new Error('Missing linked row');
       storedRow.id = workItemId;
       const readTree = api.tree.bind(api);
-      api.tree = async (projectId) => {
-        const plan = await readTree(projectId);
+      api.tree = async (workPackageId) => {
+        const plan = await readTree(workPackageId);
         return {
           ...plan,
           stepNodes: [
@@ -290,54 +296,64 @@ describe('step node details', () => {
         };
       };
       const readSteps = api.steps.bind(api);
-      api.steps = async (projectId) =>
-        (await readSteps(projectId))
+      api.steps = async (workPackageId) =>
+        (await readSteps(workPackageId))
           .filter((step) => step.id === DEV.id)
           .map((step) => ({ ...step, id: stepId }));
-      const listProjects = api.listProjects.bind(api);
-      api.listProjects = async () => [
-        ...(await listProjects()),
+      const listWorkPackages = api.listWorkPackages.bind(api);
+      api.listWorkPackages = async () => [
+        ...(await listWorkPackages()),
         {
+          projectId: 'fixture-project',
           id: 'p2',
-          name: 'Other project',
+          name: 'Other work package',
           restricted: false,
           abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: null,
-          ownerName: 'kat',
+          createdByName: 'kat',
           createdAt: 1_780_000_000_000,
         },
       ];
-      localStorage.setItem('wbs.project', 'p2');
-      window.history.replaceState(null, '', `/?project=p1&stepNode=sn1.${workItemId}.${stepId}`);
-      render(<ProjectPageOverOwner api={api} savedPlanRoutes={NO_SAVED_PLANS} />);
+      localStorage.setItem('wbs.workPackage', 'p2');
+      window.history.replaceState(
+        null,
+        '',
+        `/?workPackage=p1&stepNode=sn1.${workItemId}.${stepId}`,
+      );
+      render(<WorkPackagePageOverOwner api={api} savedPlanRoutes={NO_SAVED_PLANS} />);
       await waitFor(() => {
-        expect(screen.getByLabelText('Project')).toHaveValue('Rewire the shed');
+        expect(screen.getByLabelText('Work package')).toHaveValue('Rewire the shed');
         expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
       });
-      expect(localStorage.getItem('wbs.project')).toBe('p1');
+      expect(localStorage.getItem('wbs.workPackage')).toBe('p1');
       expect(window.location.search).toBe('');
     },
   );
 
-  itDom('refuses a step link whose project is absent from the project list', async () => {
+  itDom('refuses a step link whose work package is absent from the work package list', async () => {
     const api = fakeApi();
-    localStorage.setItem('wbs.project', 'p1');
-    window.history.replaceState(null, '', '/?project=missing&stepNode=sn1.bad');
-    render(<ProjectPageOverOwner api={api} savedPlanRoutes={NO_SAVED_PLANS} />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('project you cannot open');
+    localStorage.setItem('wbs.workPackage', 'p1');
+    window.history.replaceState(null, '', '/?workPackage=missing&stepNode=sn1.bad');
+    render(<WorkPackagePageOverOwner api={api} savedPlanRoutes={NO_SAVED_PLANS} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('work package you cannot open');
     expect(window.location.search).toBe('');
   });
 
-  itDom('leaves a different project’s pending step link for that project to open', async () => {
-    const api = fakeApi();
-    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
-    window.history.replaceState(null, '', '/?project=p2&stepNode=sn1.bad');
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-    await screen.findByLabelText('Dev estimate for 010');
-    expect(window.location.search).toBe('?project=p2&stepNode=sn1.bad');
-    expect(screen.queryByText('Step link is invalid.')).toBeNull();
-  });
+  itDom(
+    'leaves a different work package’s pending step link for that work package to open',
+    async () => {
+      const api = fakeApi();
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+      window.history.replaceState(null, '', '/?workPackage=p2&stepNode=sn1.bad');
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
+      await screen.findByLabelText('Dev estimate for 010');
+      expect(window.location.search).toBe('?workPackage=p2&stepNode=sn1.bad');
+      expect(screen.queryByText('Step link is invalid.')).toBeNull();
+    },
+  );
 
   itDom(
     'keeps a hover-opened step card available across the pointer trip to its copy action',
@@ -352,14 +368,19 @@ describe('step node details', () => {
           name: 'Strip',
         });
         const readTree = api.tree.bind(api);
-        api.tree = async (projectId) => ({
-          ...(await readTree(projectId)),
+        api.tree = async (workPackageId) => ({
+          ...(await readTree(workPackageId)),
           stepNodes: [
             { id: 'sn1.w1.step-dev', workItemId: row.id, stepId: DEV.id, reference: '010.dev' },
             { id: 'sn1.w1.step-qa', workItemId: row.id, stepId: QA.id, reference: null },
           ],
         });
-        render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+        render(
+          <WbsTableOverClient
+            workPackageId="p1"
+            workPackageServices={workPackageServicesOf(api)}
+          />,
+        );
         const estimate = await screen.findByLabelText('Dev estimate for 010');
         const trigger = estimate.closest('[data-final]');
         if (trigger === null) throw new Error('Missing step trigger');
@@ -395,12 +416,12 @@ describe('step node details', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => ({ ...(await readTree(projectId)), stepNodes: [] });
+    api.tree = async (workPackageId) => ({ ...(await readTree(workPackageId)), stepNodes: [] });
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
       render(
         <PlanFaultBoundary>
-          <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+          <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />
         </PlanFaultBoundary>,
       );
       expect(await screen.findByRole('alert')).toHaveTextContent('Plan could not be rendered.');
@@ -420,10 +441,10 @@ describe('step node details', () => {
       releaseTree = resolve;
     });
     let treeReads = 0;
-    api.tree = async (projectId) => {
+    api.tree = async (workPackageId) => {
       treeReads += 1;
       if (treeReads === 2) return heldTree;
-      const plan = await readTree(projectId);
+      const plan = await readTree(workPackageId);
       return {
         ...plan,
         stepNodes: plan.steps.map((step) => ({
@@ -440,9 +461,9 @@ describe('step node details', () => {
     render(
       <PlanFaultBoundary>
         <WbsTableOverClient
-          projectId="p1"
-          projectServices={projectServicesOf(api)}
-          subscribe={(_projectId, handlers) => {
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(api)}
+          subscribe={(_work_packageId, handlers) => {
             notify = handlers.onChange;
             return { seen: () => undefined, unsubscribe: () => undefined };
           }}
@@ -479,8 +500,8 @@ describe('step node details', () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => {
-      const plan = await readTree(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readTree(workPackageId);
       return {
         ...plan,
         stepNodes: plan.steps.map((step) => ({
@@ -497,9 +518,9 @@ describe('step node details', () => {
     render(
       <PlanFaultBoundary>
         <WbsTableOverClient
-          projectId="p1"
-          projectServices={projectServicesOf(api)}
-          subscribe={(_projectId, handlers) => {
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(api)}
+          subscribe={(_work_packageId, handlers) => {
             notify = handlers.onChange;
             return { seen: () => undefined, unsubscribe: () => undefined };
           }}
@@ -544,13 +565,13 @@ describe('step node details', () => {
       const workItemId = '11111111-1111-4111-8111-111111111111';
       const stepId = '22222222-2222-4222-8222-222222222222';
       const readSteps = api.steps.bind(api);
-      api.steps = async (projectId) =>
-        (await readSteps(projectId)).map((step) =>
+      api.steps = async (workPackageId) =>
+        (await readSteps(workPackageId)).map((step) =>
           step.id === DEV.id ? { ...step, id: stepId } : step,
         );
       const readTree = api.tree.bind(api);
-      api.tree = async (projectId) => {
-        const plan = await readTree(projectId);
+      api.tree = async (workPackageId) => {
+        const plan = await readTree(workPackageId);
         const workItems = plan.workItems.map((row) =>
           row.id === child.id ? { ...row, id: workItemId } : row,
         );
@@ -570,7 +591,9 @@ describe('step node details', () => {
       if (number === undefined) throw new Error('Missing child fixture');
       localStorage.setItem('wbs.expanded.p1', JSON.stringify({ [parent.id]: false }));
       window.history.replaceState(null, '', `/?stepNode=sn1.${workItemId}.${stepId}`);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await waitFor(() => {
         expect(document.activeElement).toBe(screen.getByLabelText(`Dev estimate for ${number}`));
       });
@@ -618,7 +641,9 @@ describe('step node details', () => {
       '',
       `/?stepNode=sn1.${parentRow.id}.22222222-2222-4222-8222-222222222222`,
     );
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     expect(await screen.findByRole('alert')).toHaveTextContent('does not name a leaf step');
   });
 
@@ -648,12 +673,12 @@ describe('step node details', () => {
  * Every column on screen, for a describe whose tests read the Teams or
  * Services cells: both are hidden by default since `configurable-columns`, and
  * those tests are about the cells, not about the default column set. Stored as
- * the reader would have stored it — an empty hide-list — under both project ids
+ * the reader would have stored it — an empty hide-list — under both work package ids
  * the file renders. The tests that ARE about the default never call this.
  */
 const showEveryColumn = (): void => {
-  for (const projectId of ['p1', 'p2']) {
-    localStorage.setItem(`wbs.hiddenColumns.${projectId}`, '[]');
+  for (const workPackageId of ['p1', 'p2']) {
+    localStorage.setItem(`wbs.hiddenColumns.${workPackageId}`, '[]');
   }
 };
 
@@ -678,7 +703,7 @@ const openNotBefore = (number: string): HTMLInputElement => {
 };
 
 /**
- * The one mark whose **project fact** matches `words`.
+ * The one mark whose **work package fact** matches `words`.
  *
  * `getByTitle`'s replacement, and it has one: this app draws its own cards and
  * carries their words in an attribute rather than in a `title` — see
@@ -725,8 +750,8 @@ describe('step node readings (step-node-readings D4)', () => {
       leaves.push(row.id);
     }
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => {
-      const plan = await readTree(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readTree(workPackageId);
       return {
         ...plan,
         workItems: plan.workItems.map((item) => {
@@ -740,7 +765,7 @@ describe('step node readings (step-node-readings D4)', () => {
     };
     render(
       <PlanFaultBoundary>
-        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />
       </PlanFaultBoundary>,
     );
     await screen.findByLabelText('Dev estimate for 010');
@@ -855,8 +880,8 @@ describe('step node readings (step-node-readings D4)', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => {
-      const plan = await readTree(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readTree(workPackageId);
       return {
         ...plan,
         workItems: plan.workItems.map((item) => ({
@@ -868,7 +893,7 @@ describe('step node readings (step-node-readings D4)', () => {
     };
     render(
       <PlanFaultBoundary>
-        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />
       </PlanFaultBoundary>,
     );
     await waitFor(() => {
@@ -888,7 +913,9 @@ describe('teams and assignees', () => {
   async function oneRow(teamNames: readonly string[] = []) {
     const api = fakeApi();
     for (const teamName of teamNames) await api.addTeam(teamName);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     // Dev only, and QA deliberately left folded: the folded cell is where the
@@ -984,7 +1011,7 @@ describe('teams and assignees', () => {
    * `claire qa billing`.
    *
    * The shared directory is not the fault — `service_team`'s own comment says
-   * every project draws from one list on purpose, so a team somebody else made
+   * every work package draws from one list on purpose, so a team somebody else made
    * belongs on offer. The fault is that Enter took it: a name typed in full
    * lost to a name it merely sits inside, with nothing on screen distinguishing
    * "made the team I named" from "joined one that is already carrying four
@@ -1141,7 +1168,9 @@ describe('the priority cell', () => {
   /** Two empty root rows, and the api the table is driving. */
   async function twoRows() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     click('Add work item');
@@ -1150,7 +1179,7 @@ describe('the priority cell', () => {
   }
 
   /** Every PATCH the table sends, still performed. */
-  const watchPatches = (api: ProjectApi): unknown[] =>
+  const watchPatches = (api: WorkPackageApi): unknown[] =>
     recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
   const priorityCell = (number: string): HTMLInputElement =>
@@ -1509,7 +1538,9 @@ describe('the In-parallel cell', () => {
   /** Two empty root rows, and the api the table is driving. */
   async function twoRows() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     click('Add work item');
@@ -1518,7 +1549,7 @@ describe('the In-parallel cell', () => {
   }
 
   /** Every PATCH the table sends, still performed. */
-  const watchPatches = (api: ProjectApi): unknown[] =>
+  const watchPatches = (api: WorkPackageApi): unknown[] =>
     recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
   const parallelCell = (number: string): HTMLInputElement =>
@@ -1613,7 +1644,9 @@ describe('the In-parallel cell', () => {
     const perform = api.patchWorkItem.bind(api);
     api.patchWorkItem = (id: string, patch: Record<string, unknown>) =>
       'maxParallel' in patch ? Promise.reject(new Error(code)) : perform(id, patch);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
   }
@@ -1774,7 +1807,7 @@ describe('the In-parallel cell', () => {
       // be-01's `widthFor` collapses **per slice**: a step with its own named
       // assignee runs at width 1 on that slice alone. Two steps, two different
       // people, is two slices each individually collapsed — `doesEveryStep`
-      // is `null` here (it only fires for exactly one named step project-wide
+      // is `null` here (it only fires for exactly one named step work-package-wide
       // on the row), so the row-level reading this cell used to lean on cannot
       // see it, and a `3` sits there doing nothing while looking editable.
       const api = await twoRows();
@@ -1826,12 +1859,14 @@ describe('the earliest-start cell', () => {
   /** One empty root row on a plan that is on a calendar, so the cell will open. */
   async function datedPlan() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     click('Add work item');
     await screen.findByLabelText('Name of 020');
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1893,17 +1928,19 @@ describe('the earliest-start cell', () => {
   });
 
   itDom('offers no editor at all while the plan has no start date', async () => {
-    // Without a project start date there is no day zero to count from and
+    // Without a work package start date there is no day zero to count from and
     // be-01 ignores the constraint entirely, so the cell is a rendered
     // disabled state that says why — not an editor that opens onto nothing.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
 
     const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
     expect(cell.disabled).toBe(true);
-    expect(cell.getAttribute('data-fact') ?? '').toContain('project start date');
+    expect(cell.getAttribute('data-fact') ?? '').toContain('work package start date');
 
     fireEvent.keyDown(cell, { key: 'Enter' });
     fireEvent.mouseDown(cell);
@@ -1966,20 +2003,20 @@ describe('the earliest-start cell', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -2016,10 +2053,12 @@ describe('the work item deadline cell', () => {
   async function datedPlanWithDeadlineColumn() {
     showEveryColumn();
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').disabled).toBe(
         false,
@@ -2032,7 +2071,8 @@ describe('the work item deadline cell', () => {
    * The accessible name of the impossible-deadline mark on row 010 — named once
    * so a reworded affordance cannot leave a stale string asserting nothing.
    */
-  const IMPOSSIBLE_MARK = "Work item deadline for 010 falls before the project's first working day";
+  const IMPOSSIBLE_MARK =
+    "Work item deadline for 010 falls before the work package's first working day";
 
   /** Opens one row's deadline editor the way a reader does — Enter on the cell. */
   const openDeadline = (number: string): HTMLInputElement => {
@@ -2136,14 +2176,14 @@ describe('the work item deadline cell', () => {
     expect(row.startNoEarlierThanReason).toBe('the parts arrive then');
   });
 
-  itDom('says so when the project start has moved past a stored deadline', async () => {
-    // `work-item-deadline` §2.3: a project whose start date is edited past a
+  itDom('says so when the work package start has moved past a stored deadline', async () => {
+    // `work-item-deadline` §2.3: a work package whose start date is edited past a
     // stored deadline is **not** retro-rejected — the date the reader typed
     // stays, and be-01 keeps reporting the row late by the whole span. What was
     // missing is that the cell they typed it into said nothing: 9.2's
     // `Late by N workdays` is on the bar and answers "how late", while the
     // question here is "why is this date impossible", and the answer — the
-    // project now starts after it — is only visible on the cell.
+    // work package now starts after it — is only visible on the cell.
     //
     // The predicate is `deadlineOffsetOf`, the same function be-01's write
     // boundary calls. That is the opposite of 9.2's guarded mistake: `lateBy`
@@ -2164,7 +2204,7 @@ describe('the work item deadline cell', () => {
     // cell marks nothing.
     expect(screen.queryByLabelText(IMPOSSIBLE_MARK)).toBeNull();
 
-    typeIntoDate('Project start date', '2026-09-01');
+    typeIntoDate('Work package start date', '2026-09-01');
 
     await screen.findByLabelText(IMPOSSIBLE_MARK);
     // Not silently dropped: the stored date is still the cell's reading, which
@@ -2174,18 +2214,18 @@ describe('the work item deadline cell', () => {
     );
     expect(
       screen.getByLabelText('Work item deadline for 010').getAttribute('data-fact') ?? '',
-    ).toContain("falls before the project's first working day");
+    ).toContain("falls before the work package's first working day");
   });
 
   itDom('says the true thing when the two dates a reader can see are equal', async () => {
     // **The trap this case exists for**, found by round 1's OpenAI seat: the
     // predicate is about workdays, not about raw calendar order, and the two
-    // part company exactly here. A project starting Saturday 2026-08-08 with a
+    // part company exactly here. A work package starting Saturday 2026-08-08 with a
     // deadline of that same Saturday is impossible — day zero rolls forward to
     // Monday the 10th, the deadline rolls back to Friday the 7th — while the
-    // dates on screen are the *same day*. Any wording about "before the project
+    // dates on screen are the *same day*. Any wording about "before the work package
     // starts" would be a cell contradicting what it is showing, so the sentence
-    // and the mark both name the project's **first working day** instead.
+    // and the mark both name the work package's **first working day** instead.
     const api = await datedPlanWithDeadlineColumn();
     const row = api.rows.at(0);
     if (row === undefined) throw new Error('the plan has no row');
@@ -2197,18 +2237,18 @@ describe('the work item deadline cell', () => {
       );
     });
 
-    typeIntoDate('Project start date', '2026-08-08');
+    typeIntoDate('Work package start date', '2026-08-08');
 
     await screen.findByLabelText(IMPOSSIBLE_MARK);
     // Both dates read 8 Aug, and nothing the cell says claims otherwise.
     const fact =
       screen.getByLabelText('Work item deadline for 010').getAttribute('data-fact') ?? '';
-    expect(fact).toContain("falls before the project's first working day");
-    expect(fact).not.toContain('before the project starts');
+    expect(fact).toContain("falls before the work package's first working day");
+    expect(fact).not.toContain('before the work package starts');
   });
 
   /**
-   * Puts row 010's deadline at 2026-08-10 and then moves the project start past
+   * Puts row 010's deadline at 2026-08-10 and then moves the work package start past
    * it, which is the one state the three cases below are about. Returns the
    * grid cell — the `<input>` carrying `data-cell`, the thing keyboard focus
    * actually lands on — rather than the mark beside it.
@@ -2224,7 +2264,7 @@ describe('the work item deadline cell', () => {
         '10 Aug',
       );
     });
-    typeIntoDate('Project start date', '2026-09-01');
+    typeIntoDate('Work package start date', '2026-09-01');
     await screen.findByLabelText(IMPOSSIBLE_MARK);
     return screen.getByLabelText<HTMLInputElement>('Work item deadline for 010');
   }
@@ -2335,7 +2375,7 @@ describe('the work item deadline cell', () => {
     expect(document.getElementById(describedBy)).toBe(screen.getByLabelText(IMPOSSIBLE_MARK));
     // And it resolves to the *reason*, not to a bare invalid state: the
     // description a reader hears is the mark's accessible name, which is the
-    // whole sentence about the project's first working day.
+    // whole sentence about the work package's first working day.
     expect(document.getElementById(describedBy)?.getAttribute('aria-label')).toBe(IMPOSSIBLE_MARK);
     expect(editor.getAttribute('aria-invalid')).toBe('true');
   });
@@ -2371,13 +2411,15 @@ describe('the work item deadline cell', () => {
     expect(screen.queryByLabelText(IMPOSSIBLE_MARK)).toBeNull();
   });
 
-  itDom('marks nothing on a project with no start date', async () => {
+  itDom('marks nothing on a work package with no start date', async () => {
     // With no day zero there is nothing for a date to fall before — the same
     // reasoning be-01's service applies, and the reason the disabled cell below
     // is the whole of this state rather than a disabled cell wearing a warning.
     showEveryColumn();
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     const row = api.rows.at(0);
@@ -2393,13 +2435,15 @@ describe('the work item deadline cell', () => {
     expect(screen.queryByLabelText(IMPOSSIBLE_MARK)).toBeNull();
   });
 
-  itDom('will not open on a project with no start date', async () => {
+  itDom('will not open on a work package with no start date', async () => {
     // No day zero to resolve a deadline against, so be-01 applies none of them —
     // the same state the floor renders disabled rather than opening an editor
     // onto nothing.
     showEveryColumn();
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
@@ -2436,7 +2480,9 @@ describe('names wrap and notes carry markdown', () => {
   /** One row, named `typed` and saved. */
   async function oneRowNamed(typed: string): Promise<HTMLTextAreaElement> {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const cell = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
     fireEvent.change(cell, { target: { value: typed } });
@@ -2460,7 +2506,9 @@ describe('names wrap and notes carry markdown', () => {
    */
   async function oneRowWithNotes(notes: string) {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const cell = await screen.findByLabelText('Name of 010');
     fireEvent.change(cell, { target: { value: `Strip\n${notes}` } });
@@ -2534,7 +2582,9 @@ describe('names wrap and notes carry markdown', () => {
     // one-row textarea wraps and then hides everything past the first line,
     // which is the same crop with extra steps.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
@@ -2563,7 +2613,9 @@ describe('names wrap and notes carry markdown', () => {
     // 'auto' to be 'hidden'`; and the cap left on with it — `expected '5.6em'
     // to be 'none'`. Watched, 2026-08-09.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
@@ -2585,7 +2637,9 @@ describe('names wrap and notes carry markdown', () => {
 
   itDom('gives the name a box that wraps rather than one that scrolls', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010').catch(() => undefined);
     click('Add work item');
 
@@ -2602,7 +2656,9 @@ describe('names wrap and notes carry markdown', () => {
     // now. In the cell the box follows the text; the clamp is the other half
     // of this and only a browser can measure it.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
@@ -2632,7 +2688,9 @@ describe('names wrap and notes carry markdown', () => {
     // sets this test up read the truncated box and deleted the note on the
     // way past. Watched, 2026-08-09.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
@@ -2707,7 +2765,7 @@ describe('names wrap and notes carry markdown', () => {
 
   itDom('renders a script in a note as the text somebody typed', async () => {
     // Notes are written by one person and read by everyone else on the
-    // project. react-markdown is used without rehype-raw precisely so this
+    // work package. react-markdown is used without rehype-raw precisely so this
     // cannot become markup — watched here rather than asserted in a comment.
     await oneRowWithNotes('<img src=x onerror="alert(1)"> and <script>alert(2)</script>');
 
@@ -2754,7 +2812,9 @@ describe('names wrap and notes carry markdown', () => {
 
   itDom('shows no popover over a row with no notes', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const name = await screen.findByLabelText('Name of 010');
     // A named row with no note: the hover has a cell and a name to find, and
@@ -2938,9 +2998,9 @@ describe('names wrap and notes carry markdown', () => {
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        subscribe={(_projectId, handlers) => {
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        subscribe={(_work_packageId, handlers) => {
           notify = handlers.onChange;
           return { seen: () => undefined, unsubscribe: () => undefined };
         }}
@@ -3000,9 +3060,9 @@ describe('names wrap and notes carry markdown', () => {
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        subscribe={(_projectId, handlers) => {
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        subscribe={(_work_packageId, handlers) => {
           notify = handlers.onChange;
           return { seen: () => undefined, unsubscribe: () => undefined };
         }}
@@ -3112,7 +3172,9 @@ describe('a name and its notes in one box', () => {
    */
   async function noted(name: string, notes: string) {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const cell = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
     fireEvent.change(cell, { target: { value: notes === '' ? name : `${name}\n${notes}` } });
@@ -3136,7 +3198,9 @@ describe('a name and its notes in one box', () => {
 
   itDom('writes the first line as the name and the rest as the notes', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const cell = await screen.findByLabelText('Name of 010');
 
@@ -3193,14 +3257,14 @@ describe('a name and its notes in one box', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -3397,7 +3461,9 @@ describe('the tag cell', () => {
     const ready = await api.addTag('Ready');
     api.labelWithTag(strip.id, [risk.id, review.id]);
     api.labelWithTag(sockets.id, [ready.id]);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1']);
     });
@@ -3474,8 +3540,10 @@ describe('the service cell', () => {
     return Object.assign(api, { checkout: checkout.id });
   }
 
-  const drawn = async (api: ProjectApi): Promise<void> => {
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  const drawn = async (api: WorkPackageApi): Promise<void> => {
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1']);
     });
@@ -3551,7 +3619,7 @@ describe('the service cell', () => {
     api.labelWithService(strip.id, [checkout.id, ledger.id]);
 
     const patches: unknown[] = [];
-    const watched: ProjectApi = {
+    const watched: WorkPackageApi = {
       ...api,
       patchWorkItem: async (id, patch) => {
         patches.push({ id, patch });
@@ -3582,7 +3650,7 @@ describe('the service cell', () => {
     async () => {
       const api = await aServicedPlan();
       const patches: unknown[] = [];
-      const watched: ProjectApi = {
+      const watched: WorkPackageApi = {
         ...api,
         patchWorkItem: async (id, patch) => {
           patches.push({ id, patch });
@@ -3646,8 +3714,10 @@ describe('the links column', () => {
     return Object.assign(api, { first: first.id });
   }
 
-  const drawn = async (api: ProjectApi): Promise<void> => {
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  const drawn = async (api: WorkPackageApi): Promise<void> => {
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -3797,7 +3867,7 @@ describe('the links column', () => {
       'https://github.com/o/r/pull/2',
       'https://acme.atlassian.net/browse/AB-1',
     ]);
-    // A new context, and no referrer: this plan's URL names a project, and
+    // A new context, and no referrer: this plan's URL names a work package, and
     // `window.opener` is a handle on the page that opened it.
     for (const link of links) {
       expect(link.getAttribute('target')).toBe('_blank');
@@ -4072,7 +4142,7 @@ describe('the links column', () => {
   itDom('adds a ref from a pasted URL, typed by the URL and overridable', async () => {
     const api = await twoRows();
     const patches: unknown[] = [];
-    const watched: ProjectApi = {
+    const watched: WorkPackageApi = {
       ...api,
       patchWorkItem: async (id, patch) => {
         patches.push({ id, patch });
@@ -4122,7 +4192,7 @@ describe('the links column', () => {
       { systemId: GH_PR, url: 'https://github.com/o/r/pull/1' },
     ]);
     const patches: { patch: unknown }[] = [];
-    const watched: ProjectApi = {
+    const watched: WorkPackageApi = {
       ...api,
       patchWorkItem: async (id, patch) => {
         patches.push({ patch });
@@ -4152,7 +4222,7 @@ describe('the links column', () => {
     const api = await twoRows();
     api.linkTo(api.first, [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' }]);
     const patches: { patch: unknown }[] = [];
-    const watched: ProjectApi = {
+    const watched: WorkPackageApi = {
       ...api,
       patchWorkItem: async (id, patch) => {
         patches.push({ patch });
@@ -4194,7 +4264,9 @@ describe('the status cell and the two fact cells', () => {
   async function planWithStatusColumns() {
     showEveryColumn();
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -4383,7 +4455,9 @@ describe('the status cell and the two fact cells', () => {
     const api = fakeApi();
     const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.patchWorkItem(strip.id, { factEnd: '2026-09-10' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     const order: string[] = [];
     recordCalls(api, 'setStatus', (_id, status, on) => order.push(`setStatus ${status} ${on}`));
@@ -4412,7 +4486,9 @@ describe('the status cell and the two fact cells', () => {
     const api = fakeApi();
     await api.setStartDate('p1', '2026-09-01');
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     const sent = recordCalls(api, 'setStatus', (_id, status, on, factStart) => ({
       status,
@@ -4422,13 +4498,13 @@ describe('the status cell and the two fact cells', () => {
 
     chooseDone('010');
     const prompt = completionPrompt('010');
-    // The fake forecasts the row over the project's first day, so the start
+    // The fake forecasts the row over the work package's first day, so the start
     // field opens on it and says so.
     expect(within(prompt).getByLabelText<HTMLInputElement>('Started on').value).toBe('2026-09-01');
     expect(prompt.querySelector('[data-day-note="started"]')?.textContent).toBe(
       'Same as the forecast start.',
     );
-    // The fake forecasts the row over the project's first day alone, so today
+    // The fake forecasts the row over the work package's first day alone, so today
     // is past the forecast end and the finish defaults to it — the prompt's
     // second rule, seen through the table.
     expect(within(prompt).getByLabelText<HTMLInputElement>('Finished on').value).toBe('2026-09-01');
@@ -4448,7 +4524,9 @@ describe('the status cell and the two fact cells', () => {
     const api = fakeApi();
     const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.patchWorkItem(strip.id, { factEnd: '2026-09-10' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     const order: string[] = [];
     recordCalls(api, 'setStatus', (_id, status, on) => order.push(`setStatus ${status} ${on}`));
@@ -4487,7 +4565,9 @@ describe('the status cell and the two fact cells', () => {
     const api = fakeApi();
     const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
     const sent = recordCalls(api, 'setStatus', (id, status, on) => ({ id, status, on }));
 
@@ -4596,7 +4676,9 @@ itDom.each([
       pessimistic: minutes,
     });
     const writes = recordCalls(api, 'setEstimate');
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     const cell = await screen.findByLabelText('Dev estimate for 010');
     expect(document.querySelector('[data-folded-final]')).toHaveTextContent(words);
     fireEvent.focus(cell);
@@ -4619,7 +4701,9 @@ itDom.each([
   const row = await api.createWorkItem('p1', { parentId: null, afterId: null });
   await api.setEstimate(row.id, DEV.id, { optimistic: 40, realistic: 40, pessimistic: 40 });
   const writes = recordCalls(api, 'setEstimate');
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   await screen.findByLabelText('Dev estimate for 010');
   unfoldStep('Dev');
   const cell = screen.getByLabelText(`Dev ${point} for 010`);
@@ -4635,8 +4719,8 @@ itDom('routes a missing trusted native minute charge to the Error Boundary', asy
   const row = await api.createWorkItem('p1', { parentId: null, afterId: null });
   await api.setEstimate(row.id, DEV.id, { optimistic: 40, realistic: 40, pessimistic: 40 });
   const readTree = api.tree.bind(api);
-  api.tree = async (projectId) => {
-    const tree = await readTree(projectId);
+  api.tree = async (workPackageId) => {
+    const tree = await readTree(workPackageId);
     return {
       ...tree,
       workItems: tree.workItems.map(({ charged: _charge, ...workItem }) => workItem),
@@ -4644,7 +4728,7 @@ itDom('routes a missing trusted native minute charge to the Error Boundary', asy
   };
   render(
     <PlanFaultBoundary>
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />
     </PlanFaultBoundary>,
   );
   expect(await screen.findByRole('alert')).toHaveTextContent('Plan could not be rendered.');

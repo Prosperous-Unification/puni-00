@@ -1,19 +1,18 @@
+import { readFileSync } from 'node:fs';
+
 import {
-  canonicalisePlanInputV10,
   diffPlans,
   planDiffIsEmpty,
   type PlanScheduleValue,
   type PlanSide,
+  projectSavedPlanInput,
   readSavedConnectedScheduleBody,
   readSavedConnectedScheduleEvidence,
   readSavedDependencyHistory,
   type SavedConnectedScheduleBody,
   validateSavedConnectedHistory,
 } from '@wbs/domain';
-import {
-  connectedHistoryFixture,
-  connectedPlanFixtureRows,
-} from '@wbs/domain/connected-history-fixture';
+import { connectedHistoryFixture } from '@wbs/domain/connected-history-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { summarizeSavedComparisonSide } from './saved-plan-comparison';
@@ -26,10 +25,34 @@ function readBody(side: PlanSide): Mutable<SavedConnectedScheduleBody> {
   if (!side.schedule.present) throw new Error('present fixture required');
   return clone(readSavedConnectedScheduleBody(side.schedule.body));
 }
-function readInput(side: PlanSide) {
-  if (side.input.schemaVersion !== 10 || side.input.dependencyHistory.kind !== 'connected')
+function readHistory(side: PlanSide) {
+  const dependencies = side.inputEvidence.dependencies;
+  if (dependencies.kind !== 'recorded' || dependencies.history.kind !== 'connected')
     throw new Error('connected fixture required');
-  return { ...clone(side.input), dependencyHistory: clone(side.input.dependencyHistory) };
+  return clone(dependencies.history);
+}
+
+function readFixture(name: string): unknown {
+  return JSON.parse(
+    readFileSync(
+      new URL('../../../../../domain/domain/src/saved-plan/fixtures/' + name, import.meta.url),
+      'utf8',
+    ),
+  );
+}
+
+function withHistory(side: PlanSide, history: ReturnType<typeof readHistory>): PlanSide {
+  return {
+    ...side,
+    inputEvidence: { ...side.inputEvidence, dependencies: { kind: 'recorded', history } },
+  };
+}
+
+function readHistoricalConnectedFixture() {
+  const projected = readFixture('constructed-input11-connected.txt');
+  if (typeof projected !== 'object' || projected === null || Array.isArray(projected))
+    throw Error('historical fixture object required');
+  return projected;
 }
 
 function connectedSide(): PlanSide {
@@ -61,7 +84,7 @@ function connectedSide(): PlanSide {
         candidate: {
           question: {
             ...ready.candidate.question,
-            projectId: 'B',
+            workPackageId: 'B',
             objective: 'pri',
             stageBytes: second.stageBytes,
           },
@@ -69,7 +92,7 @@ function connectedSide(): PlanSide {
         },
         decision: {
           ...ready.decision,
-          scope: { kind: 'connected-stage', projectId: 'B' },
+          scope: { kind: 'connected-stage', workPackageId: 'B' },
           baseline,
           schedule: later,
         },
@@ -77,19 +100,27 @@ function connectedSide(): PlanSide {
       time: { state: 'idle' },
     },
   };
-  fixture.history.projects[1].engine = 'optimized';
-  fixture.history.projects[1].enabled = true;
+  fixture.history.workPackages[1].engine = 'optimized';
+  fixture.history.workPackages[1].enabled = true;
   const history = readSavedDependencyHistory(fixture.history);
   if (history.kind !== 'connected') throw new Error('connected fixture required');
   const connection = readSavedConnectedScheduleEvidence(evidence);
   validateSavedConnectedHistory(history, connection);
   return {
-    input: canonicalisePlanInputV10(connectedPlanFixtureRows(history), history),
+    comparison: { kind: 'captured' as const },
+    ...projectSavedPlanInput(
+      {
+        // Constructed historical control retains its original11 owner-bearing grammar.
+        ...readHistoricalConnectedFixture(),
+        dependencyHistory: history,
+      },
+      11,
+    ),
     schedule: {
       present: true,
       algorithmId: 'retired-connected-algorithm',
       body: {
-        version: 2,
+        version: 4,
         algorithmId: 'retired-connected-algorithm',
         workItems: {},
         slices: {},
@@ -114,17 +145,17 @@ describe('historical comparison side projection', () => {
     const captured = provenance(side);
     expect(captured).toMatchObject({
       kind: 'connected',
-      targetProjectId: 'A',
+      targetWorkPackageId: 'A',
       mode: 'isolated',
       placementState: { kind: 'scheduled' },
-      idleProjects: [],
+      idleWorkPackages: [],
     });
-    expect(captured.projects).toEqual([
-      { projectId: 'A', name: 'Alpha', abbreviation: 'A' },
-      { projectId: 'B', name: 'Beta', abbreviation: 'B' },
+    expect(captured.workPackages).toEqual([
+      { workPackageId: 'A', name: 'Alpha', abbreviation: 'A' },
+      { workPackageId: 'B', name: 'Beta', abbreviation: 'B' },
     ]);
     expect(captured.stages[0]).toMatchObject({
-      projectId: 'A',
+      workPackageId: 'A',
       name: 'Alpha',
       abbreviation: 'A',
       engine: 'optimized',
@@ -138,11 +169,11 @@ describe('historical comparison side projection', () => {
     });
     expect(captured.stages[0]?.boundary.fixed).toEqual([
       {
-        projectId: 'B',
+        workPackageId: 'B',
         workItemId: 'b',
         stepId: 'build',
-        projectName: 'Beta',
-        projectAbbreviation: 'B',
+        workPackageName: 'Beta',
+        workPackageAbbreviation: 'B',
         workItemName: 'b',
         stepName: 'Build',
         start: 1,
@@ -152,22 +183,22 @@ describe('historical comparison side projection', () => {
     // B observed A after A's selection; A's original boundary and B's later one are distinct.
     expect(captured.stages[1]?.boundary.fixed).toEqual([
       {
-        projectId: 'A',
+        workPackageId: 'A',
         workItemId: 'a',
         stepId: 'design',
-        projectName: 'Alpha',
-        projectAbbreviation: 'A',
+        workPackageName: 'Alpha',
+        workPackageAbbreviation: 'A',
         workItemName: 'a',
         stepName: 'Design',
         start: 1,
         finish: 2,
       },
       {
-        projectId: 'A',
+        workPackageId: 'A',
         workItemId: 'a',
         stepId: 'test',
-        projectName: 'Alpha',
-        projectAbbreviation: 'A',
+        workPackageName: 'Alpha',
+        workPackageAbbreviation: 'A',
         workItemName: 'a',
         stepName: 'Test',
         start: 4,
@@ -177,8 +208,8 @@ describe('historical comparison side projection', () => {
     if (!side.schedule.present) throw new Error('present fixture required');
     expect(captured.stages[0]?.boundary).toMatchObject({
       kind: 'connected-stage',
-      projectId: 'A',
-      format: 'connected-stage-v1',
+      workPackageId: 'A',
+      format: 'connected-stage-v2',
       originOrdinal: 20727,
     });
     expect(captured.stages[0]?.boundary.canonical).toBe(
@@ -186,42 +217,43 @@ describe('historical comparison side projection', () => {
     );
   });
 
-  it('marks legacy input unknown while explicit input9 local stays local', () => {
-    const side = connectedSide();
-    const { dependencyHistory: omitted, ...local } = side.input as Extract<
-      PlanSide['input'],
-      { schemaVersion: 10 }
-    >;
-    expect(omitted.kind).toBe('connected');
+  it('marks pre10 input unknown while explicit input11 local stays local', () => {
+    const body: unknown = JSON.parse(
+      readFileSync(
+        new URL(
+          '../../../../../../../openspec/changes/wbs-work-packages/fixtures/legacy-input9-local.txt',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    );
     const legacy: PlanSide = {
-      input: { ...local, schemaVersion: 9 },
+      comparison: { kind: 'captured' as const },
+      ...projectSavedPlanInput(body, 9),
       schedule: { present: false, absentReason: 'pending' },
     };
     expect(summarizeSavedComparisonSide(legacy, { kind: 'current' })).toEqual({
       source: { kind: 'current' },
+      parent: { kind: 'unrecorded' },
       schedule: { present: false, absentReason: 'pending' },
       provenance: { kind: 'legacy-unknown' },
     });
+    const local: PlanSide = {
+      comparison: { kind: 'captured' as const },
+      ...projectSavedPlanInput(readFixture('constructed-input11-local.txt'), 11),
+      schedule: legacy.schedule,
+    };
     expect(
-      summarizeSavedComparisonSide(
-        { ...legacy, input: { ...local, schemaVersion: 10, dependencyHistory: { kind: 'local' } } },
-        { kind: 'saved', savedPlanId: 'local' },
-      ).provenance,
+      summarizeSavedComparisonSide(local, { kind: 'saved', savedPlanId: 'local' }).provenance,
     ).toEqual({ kind: 'local' });
   });
 
   it('retains unavailable scope and absence without manufacturing stages', () => {
     const side = connectedSide();
-    if (side.input.schemaVersion !== 10 || side.input.dependencyHistory.kind !== 'connected')
-      throw new Error('connected fixture required');
+    const history = readHistory(side);
+    history.placementState = { kind: 'unavailable', reason: 'cycle' };
     const unavailable: PlanSide = {
-      input: {
-        ...side.input,
-        dependencyHistory: {
-          ...side.input.dependencyHistory,
-          placementState: { kind: 'unavailable', reason: 'cycle' },
-        },
-      },
+      ...withHistory(side, history),
       schedule: { present: false, absentReason: 'infeasible' },
     };
     const summary = summarizeSavedComparisonSide(unavailable, { kind: 'current' });
@@ -230,7 +262,7 @@ describe('historical comparison side projection', () => {
       kind: 'connected',
       placementState: { kind: 'unavailable', reason: 'cycle' },
       stages: [],
-      idleProjects: [],
+      idleWorkPackages: [],
     });
   });
 
@@ -279,17 +311,17 @@ describe('historical comparison side projection', () => {
 
   it('detaches summaries from caller changes and never needs live capabilities', () => {
     const original = connectedSide();
-    const mutable = readInput(original);
-    const side: PlanSide = { ...original, input: mutable };
+    const mutable = readHistory(original);
+    const side = withHistory(original, mutable);
     const source = { kind: 'saved', savedPlanId: 'snapshot' } as const;
     const summary = summarizeSavedComparisonSide(side, source);
     expect(Object.isFrozen(summary)).toBe(true);
     expect(Object.isFrozen(summary.provenance)).toBe(true);
     expect(summarizeSavedComparisonSide(side, source)).toEqual(summary);
-    mutable.dependencyHistory.projects[1].name = 'Live rename';
-    mutable.dependencyHistory.placementState = { kind: 'unavailable', reason: 'cycle' };
+    mutable.workPackages[1].name = 'Live rename';
+    mutable.placementState = { kind: 'unavailable', reason: 'cycle' };
     expect(summary.provenance).toMatchObject({
-      projects: [{ name: 'Alpha' }, { name: 'Beta' }],
+      workPackages: [{ name: 'Alpha' }, { name: 'Beta' }],
       placementState: { kind: 'scheduled' },
     });
     // The pure signature has no store, scheduler, settings or directory capability to call.
@@ -339,44 +371,44 @@ describe('historical comparison side projection', () => {
     );
   });
 
-  it('retains captured idle project labels without manufacturing an idle stage', () => {
+  it('retains captured idle work package labels without manufacturing an idle stage', () => {
     const side = connectedSide();
     if (!side.schedule.present) throw new Error('present fixture required');
     const body = readBody(side);
-    const input = readInput(side);
-    input.dependencyHistory.projects.push({
-      ...input.dependencyHistory.projects[1],
-      projectId: 'idle',
+    const history = readHistory(side);
+    history.workPackages.push({
+      ...history.workPackages[1],
+      workPackageId: 'idle',
       name: 'Empty member',
       abbreviation: 'IDLE',
       steps: [],
       workItems: [],
     });
-    body.connection.idleProjects = ['idle'];
+    body.connection.idleWorkPackages = ['idle'];
     const captured = provenance({
-      input,
+      ...withHistory(side, history),
       schedule: { ...side.schedule, body: body as unknown as PlanScheduleValue },
     });
-    expect(captured.idleProjects).toEqual([
-      { projectId: 'idle', name: 'Empty member', abbreviation: 'IDLE' },
+    expect(captured.idleWorkPackages).toEqual([
+      { workPackageId: 'idle', name: 'Empty member', abbreviation: 'IDLE' },
     ]);
     expect(captured.stages).toHaveLength(2);
   });
 
-  it.each(['project', 'row', 'step'] as const)(
+  it.each(['work_package', 'row', 'step'] as const)(
     'refuses missing captured %s labels rather than inventing them',
     (missing) => {
       const side = connectedSide();
-      const input = readInput(side);
-      if (missing === 'project')
-        input.dependencyHistory.projects = input.dependencyHistory.projects.filter(
-          (project) => project.projectId !== 'B',
+      const history = readHistory(side);
+      if (missing === 'work_package')
+        history.workPackages = history.workPackages.filter(
+          (workPackage) => workPackage.workPackageId !== 'B',
         );
-      if (missing === 'row') input.dependencyHistory.projects[1].workItems = [];
-      if (missing === 'step') input.dependencyHistory.projects[1].steps = [];
-      expect(() => summarizeSavedComparisonSide({ ...side, input }, { kind: 'current' })).toThrow(
-        /captured .* label/,
-      );
+      if (missing === 'row') history.workPackages[1].workItems = [];
+      if (missing === 'step') history.workPackages[1].steps = [];
+      expect(() =>
+        summarizeSavedComparisonSide(withHistory(side, history), { kind: 'current' }),
+      ).toThrow(/captured .* label/);
     },
   );
 });

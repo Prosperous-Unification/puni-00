@@ -26,7 +26,7 @@ const rolledUp = {
   waitingForPerson: 0,
   waitingForCapacity: 0,
   displayed: null,
-  projectRevision: 3,
+  workPackageRevision: 3,
   seq: 7,
 };
 
@@ -34,18 +34,18 @@ test('space roll-up boundary preserves exact connected reasons and nullable disp
   for (const scheduleError of [
     {
       kind: 'dependency_calendar_missing' as const,
-      projects: [{ projectId: 'remote', abbreviation: 'REM', name: 'Remote' }],
+      workPackages: [{ workPackageId: 'remote', abbreviation: 'REM', name: 'Remote' }],
     },
     {
       kind: 'engine_unavailable' as const,
       engine: 'optimized' as const,
-      projects: ['remote'],
+      workPackages: ['remote'],
       reason: 'adapter_missing' as const,
     },
     {
       kind: 'engine_unavailable' as const,
       engine: 'optimized' as const,
-      projects: ['remote'],
+      workPackages: ['remote'],
       reason: 'connected_optimization_not_supported' as const,
     },
   ]) {
@@ -60,11 +60,29 @@ test('space roll-up boundary rejects incomplete or invented connected evidence',
   for (const scheduleError of [
     'dependency_calendar_missing',
     { kind: 'dependency_calendar_missing' },
-    { kind: 'dependency_calendar_missing', projects: [] },
-    { kind: 'dependency_calendar_missing', projects: [{ projectId: 'remote', name: 'Remote' }] },
-    { kind: 'engine_unavailable', engine: 'optimized', projects: [], reason: 'adapter_missing' },
-    { kind: 'engine_unavailable', engine: 'fast', projects: ['remote'], reason: 'adapter_missing' },
-    { kind: 'engine_unavailable', engine: 'optimized', projects: ['remote'], reason: 'invented' },
+    { kind: 'dependency_calendar_missing', workPackages: [] },
+    {
+      kind: 'dependency_calendar_missing',
+      workPackages: [{ workPackageId: 'remote', name: 'Remote' }],
+    },
+    {
+      kind: 'engine_unavailable',
+      engine: 'optimized',
+      workPackages: [],
+      reason: 'adapter_missing',
+    },
+    {
+      kind: 'engine_unavailable',
+      engine: 'fast',
+      workPackages: ['remote'],
+      reason: 'adapter_missing',
+    },
+    {
+      kind: 'engine_unavailable',
+      engine: 'optimized',
+      workPackages: ['remote'],
+      reason: 'invented',
+    },
   ]) {
     expect(
       (
@@ -79,11 +97,11 @@ test('space roll-up boundary rejects incomplete or invented connected evidence',
 test('person load boundary admits the coarse missing-calendar reason without arbitrary reasons', async () => {
   const reply = {
     person: { id: 'ana', name: 'Ana' },
-    projects: [],
+    workPackages: [],
     overlaps: [],
     undated: [],
     unavailable: [
-      { projectId: 'target', name: 'Target', reason: 'dependency_calendar_missing' as const },
+      { workPackageId: 'target', name: 'Target', reason: 'dependency_calendar_missing' as const },
     ],
   };
   expect(await validateSchema(readPersonLoad.responses[0].schema, reply)).toEqual({ value: reply });
@@ -91,7 +109,7 @@ test('person load boundary admits the coarse missing-calendar reason without arb
     (
       await validateSchema(readPersonLoad.responses[0].schema, {
         ...reply,
-        unavailable: [{ projectId: 'target', name: 'Target', reason: 'invented' }],
+        unavailable: [{ workPackageId: 'target', name: 'Target', reason: 'invented' }],
       })
     ).issues,
   ).toBeDefined();

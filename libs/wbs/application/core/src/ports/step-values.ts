@@ -2,11 +2,12 @@ import type { AllowancePercent, EstimateUnit } from '@wbs/domain';
 
 export interface Step {
   id: string;
-  projectId: string;
+  workPackageId: string;
   name: string;
   /**
-   * Where this step sits in the project's step order — see `schema.ts` for why
-   * the order has to be stored rather than read off the rows as they arrive.
+   * The controlling binding's position within its scope for a current catalogue read.
+   * The returned step array also orders by scope rank, so this scalar alone is not the resolved order.
+   * Pre-catalogue captured rows retain their original work-package position.
    */
   position: number;
   /**

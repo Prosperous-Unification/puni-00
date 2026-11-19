@@ -59,8 +59,8 @@ describe('working plan global directory barrier', () => {
           calls.push('usageOfTeam');
           return source.stores.directory.usageOfTeam('team');
         },
-        assignmentsInProject: async () => {
-          calls.push('assignmentsInProject');
+        assignmentsInWorkPackage: async () => {
+          calls.push('assignmentsInWorkPackage');
           return { assignments: [], people: [] };
         },
         assignmentsFor: async () => {
@@ -90,7 +90,7 @@ describe('working plan global directory barrier', () => {
       await directory.listPeople();
       await directory.usageOfPerson('person');
       await directory.usageOfTeam('team');
-      await directory.assignmentsInProject('project');
+      await directory.assignmentsInWorkPackage('work_package');
       await directory.assignmentsFor('row');
       await directory.assignmentsOf(['row']);
       await directory.listTags();
@@ -107,7 +107,7 @@ describe('working plan global directory barrier', () => {
         'listPeople',
         'usageOfPerson',
         'usageOfTeam',
-        'assignmentsInProject',
+        'assignmentsInWorkPackage',
         'assignmentsFor',
         'assignmentsOf',
         'listTags',
@@ -124,31 +124,31 @@ describe('working plan global directory barrier', () => {
       const successful: DirectoryStore = {
         ...source.stores.directory,
         addTag: async (tag) => tag,
-        renameTag: async (id, name) => ({ ok: true, tag: { id, name }, projectIds: [] }),
-        removeTag: async () => ({ ok: true, removal: { workItemIds: [], projectIds: [] } }),
+        renameTag: async (id, name) => ({ ok: true, tag: { id, name }, workPackageIds: [] }),
+        removeTag: async () => ({ ok: true, removal: { workItemIds: [], workPackageIds: [] } }),
         addWorkItemType: async (workItemType) => workItemType,
         renameWorkItemType: async (id, name) => ({
           ok: true,
           workItemType: { id, name },
-          projectIds: [],
+          workPackageIds: [],
         }),
         removeWorkItemType: async () => ({
           ok: true,
-          removal: { workItemIds: [], projectIds: [] },
+          removal: { workItemIds: [], workPackageIds: [] },
         }),
         addExternalSystem: async (system) => system,
         addService: async (service) => service,
         renameService: async (id, name) => ({
           ok: true,
           service: { id, name },
-          projectIds: [],
+          workPackageIds: [],
         }),
-        removeService: async () => ({ ok: true, removal: { workItemIds: [], projectIds: [] } }),
+        removeService: async () => ({ ok: true, removal: { workItemIds: [], workPackageIds: [] } }),
         addTeam: async (team) => team,
         patchTeam: async (id) => ({
           ok: true,
           team: { id, name: 'Patched team', serviceIds: [] },
-          projectIds: [],
+          workPackageIds: [],
         }),
         addPerson: async (person) => ({
           ok: true,
@@ -157,10 +157,10 @@ describe('working plan global directory barrier', () => {
         patchPerson: async (id) => ({
           ok: true,
           person: { id, name: 'Patched person', kind: 'person', teamIds: [], accountId: null },
-          projectIds: [],
+          workPackageIds: [],
         }),
-        removePerson: async () => ({ ok: true, removal: { workItemIds: [], projectIds: [] } }),
-        removeTeam: async () => ({ ok: true, removal: { workItemIds: [], projectIds: [] } }),
+        removePerson: async () => ({ ok: true, removal: { workItemIds: [], workPackageIds: [] } }),
+        removeTeam: async () => ({ ok: true, removal: { workItemIds: [], workPackageIds: [] } }),
       };
       const directory = createWorkingPlanDirectory(
         () => successful,

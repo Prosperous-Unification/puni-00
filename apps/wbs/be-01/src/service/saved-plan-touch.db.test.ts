@@ -9,13 +9,14 @@ import { openConnection, openDatabase } from '../repository/db';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
-import { projectRow } from '../testing/project-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -27,17 +28,19 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
  * nothing else.
  *
  * Three accounts, because two cannot tell the rule apart from its wrong
- * versions: `owner` owns the project, `ada` created the plans, and `mallory` is
+ * versions: `owner` owns the work package, `ada` created the plans, and `mallory` is
  * the third party. A creator who is *not* the owner is what separates "creator
  * or owner" from "owner only"; an owner who is not the creator is what separates
  * it from a fallback ternary that would compare the actor against `created_by_id`
- * whenever one is set and leave the owner unable to tidy up their own project.
+ * whenever one is set and leave the owner unable to tidy up their own work package.
  *
  * Every refusal is asserted by **observation as well as by outcome** — the
  * stored name is re-read, the row is re-counted — because a wrapper that
  * returned `forbidden` after issuing the write would pass an outcome-only test
  * while being the exact defect the wrapper exists to prevent.
  */
+// Historical owner-fallback rationale below is retained as the original Task6.1/6.3 record.
+// Current legacy header touches require the saved plan's nonnull author; package audit actors grant no fallback.
 describe('renaming and deleting a saved plan', () => {
   let dir: string;
   let path: string;
@@ -51,7 +54,7 @@ describe('renaming and deleting a saved plan', () => {
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -75,18 +78,19 @@ describe('renaming and deleting a saved plan', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-touch-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     const users = new UserRepository(db, OPEN);
     for (const id of ['owner', 'ada', 'mallory']) {
       await users.create({ id, username: id, passwordHash: 'x', createdAt: 1 }, wrote);
     }
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'saved-plan-parent' }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -123,7 +127,7 @@ describe('renaming and deleting a saved plan', () => {
    */
   const save = (id: string, createdById: string | null) =>
     service(id, 1_756_000_000).save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'before the rewire',
       createdBy: 'Ada Lovelace',
       createdById,
@@ -156,39 +160,67 @@ describe('renaming and deleting a saved plan', () => {
   it('lets the creator rename their own plan', async () => {
     await save('sp-1', 'ada');
 
-    expect(await service().rename('sp-1', 'ada', 'after the rewire')).toEqual({
+    expect(
+      await service().rename('sp-1', 'ada', 'after the rewire', {
+        kind: 'legacy',
+        actorId: 'ada',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
       outcome: 'touched',
-      projectId: 'p1',
+      workPackageId: 'p1',
     });
     expect(nameOf('sp-1')).toBe('after the rewire');
   });
 
   /**
-   * The project owner, on a plan somebody else created. This is the case the
-   * "fall back to the project owner" sentence in A-8 does **not** mean: the
+   * The work package owner, on a plan somebody else created. This is the case the
+   * "fall back to the work package owner" sentence in A-8 does **not** mean: the
    * fallback is what `null` leaves, not a choice between the two ids, and an
-   * owner who could not touch a plan saved on their own project would be unable
+   * owner who could not touch a plan saved on their own work package would be unable
    * to reclaim its quota.
    */
-  it('lets the project owner rename a plan somebody else created', async () => {
+  it('refuses the package audit actor when a different saved author is recorded', async () => {
     await save('sp-1', 'ada');
 
-    expect(await service().rename('sp-1', 'owner', 'after the rewire')).toEqual({
-      outcome: 'touched',
-      projectId: 'p1',
+    expect(
+      await service().rename('sp-1', 'owner', 'after the rewire', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
+      outcome: 'forbidden',
     });
-    expect(nameOf('sp-1')).toBe('after the rewire');
+    expect(nameOf('sp-1')).toBe('before the rewire');
+    expect(bodyCount('sp-1')).toBe(2);
   });
 
   it('refuses a third party, and writes nothing', async () => {
     await save('sp-1', 'ada');
 
-    expect(await service().rename('sp-1', 'mallory', 'mine now')).toEqual({
+    expect(
+      await service().rename('sp-1', 'mallory', 'mine now', {
+        kind: 'legacy',
+        actorId: 'mallory',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
       outcome: 'forbidden',
     });
     expect(nameOf('sp-1')).toBe('before the rewire');
 
-    expect(await service().delete('sp-1', 'mallory')).toEqual({ outcome: 'forbidden' });
+    expect(
+      await service().delete('sp-1', 'mallory', {
+        kind: 'legacy',
+        actorId: 'mallory',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toEqual({ outcome: 'forbidden' });
     expect(nameOf('sp-1')).toBe('before the rewire');
     expect(bodyCount('sp-1')).toBe(2);
   });
@@ -196,22 +228,45 @@ describe('renaming and deleting a saved plan', () => {
   /**
    * The `null` creator — a plan whose creator's account is gone, or one written
    * before the column existed. The owner is then the only account left that may
-   * touch it, which is the whole of what "falls back to the project owner"
+   * touch it, which is the whole of what "falls back to the work package owner"
    * means, and the third party is still refused.
    */
-  it('falls back to the project owner when no account claims the plan', async () => {
+  it('refuses every actor when no saved author account is recorded', async () => {
     await save('sp-1', null);
 
-    expect(await service().rename('sp-1', 'mallory', 'mine now')).toEqual({
+    expect(
+      await service().rename('sp-1', 'mallory', 'mine now', {
+        kind: 'legacy',
+        actorId: 'mallory',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
       outcome: 'forbidden',
     });
     expect(nameOf('sp-1')).toBe('before the rewire');
 
-    expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({
-      outcome: 'touched',
-      projectId: 'p1',
+    expect(
+      await service().rename('sp-1', 'owner', 'tidied up', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
+      outcome: 'forbidden',
     });
-    expect(nameOf('sp-1')).toBe('tidied up');
+    expect(nameOf('sp-1')).toBe('before the rewire');
+    expect(bodyCount('sp-1')).toBe(2);
+    expect(
+      await service().delete('sp-1', 'owner', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toEqual({ outcome: 'forbidden' });
+    expect(bodyCount('sp-1')).toBe(2);
   });
 
   /**
@@ -230,9 +285,16 @@ describe('renaming and deleting a saved plan', () => {
    */
   it('keeps the creator’s name and drops their right when the account is deleted', async () => {
     await save('sp-1', 'ada');
-    expect(await service().rename('sp-1', 'ada', 'still hers')).toEqual({
+    expect(
+      await service().rename('sp-1', 'ada', 'still hers', {
+        kind: 'legacy',
+        actorId: 'ada',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
       outcome: 'touched',
-      projectId: 'p1',
+      workPackageId: 'p1',
     });
 
     reader.run(`DELETE FROM users WHERE id = 'ada'`);
@@ -245,33 +307,66 @@ describe('renaming and deleting a saved plan', () => {
     // the deleted id because a fallback that widened to "anyone, once the
     // creator is gone" would answer `touched` here and pass a test that only
     // re-tried `ada`.
-    expect(await service().rename('sp-1', 'ada', 'mine again')).toEqual({ outcome: 'forbidden' });
-    expect(await service().rename('sp-1', 'mallory', 'mine now')).toEqual({ outcome: 'forbidden' });
+    expect(
+      await service().rename('sp-1', 'ada', 'mine again', {
+        kind: 'legacy',
+        actorId: 'ada',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({ outcome: 'forbidden' });
+    expect(
+      await service().rename('sp-1', 'mallory', 'mine now', {
+        kind: 'legacy',
+        actorId: 'mallory',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({ outcome: 'forbidden' });
     expect(nameOf('sp-1')).toBe('still hers');
 
     // And the owner can still tidy up, which is the reason the constraint is
     // `SET NULL` and not `RESTRICT`: a plan nobody could reach would hold its
-    // project's quota forever.
-    expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({
-      outcome: 'touched',
-      projectId: 'p1',
+    // work package's quota forever.
+    expect(
+      await service().rename('sp-1', 'owner', 'tidied up', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
+      outcome: 'forbidden',
     });
-    expect(nameOf('sp-1')).toBe('tidied up');
-    expect(await service().delete('sp-1', 'owner')).toEqual({
-      outcome: 'touched',
-      projectId: 'p1',
+    expect(nameOf('sp-1')).toBe('still hers');
+    expect(
+      await service().delete('sp-1', 'owner', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toEqual({
+      outcome: 'forbidden',
     });
-    expect(nameOf('sp-1')).toBeNull();
-    expect(bodyCount('sp-1')).toBe(0);
+    expect(nameOf('sp-1')).toBe('still hers');
+    expect(bodyCount('sp-1')).toBe(2);
   });
 
   it('deletes the header and its bodies', async () => {
     await save('sp-1', 'ada');
     expect(bodyCount('sp-1')).toBe(2);
 
-    expect(await service().delete('sp-1', 'ada')).toEqual({
+    expect(
+      await service().delete('sp-1', 'ada', {
+        kind: 'legacy',
+        actorId: 'ada',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toEqual({
       outcome: 'touched',
-      projectId: 'p1',
+      workPackageId: 'p1',
     });
 
     expect(nameOf('sp-1')).toBeNull();
@@ -282,22 +377,36 @@ describe('renaming and deleting a saved plan', () => {
    * The reason the rule is built on `principalsOf` and not on `read`. `read`
    * verifies every stored byte and answers `corrupt` for this plan; if
    * authorisation went through it, a damaged plan would be undeletable and would
-   * hold its project's quota forever with nothing able to reach it.
+   * hold its work package's quota forever with nothing able to reach it.
    */
   it('renames and deletes a plan whose stored bytes are damaged', async () => {
     await save('sp-1', 'ada');
     reader.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE saved_plan_id = 'sp-1'`);
     expect((await service().read('sp-1')).outcome).toBe('corrupt');
 
-    expect(await service().rename('sp-1', 'ada', 'damaged, and still mine')).toEqual({
+    expect(
+      await service().rename('sp-1', 'ada', 'damaged, and still mine', {
+        kind: 'legacy',
+        actorId: 'ada',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
       outcome: 'touched',
-      projectId: 'p1',
+      workPackageId: 'p1',
     });
     expect(nameOf('sp-1')).toBe('damaged, and still mine');
 
-    expect(await service().delete('sp-1', 'ada')).toEqual({
+    expect(
+      await service().delete('sp-1', 'ada', {
+        kind: 'legacy',
+        actorId: 'ada',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toEqual({
       outcome: 'touched',
-      projectId: 'p1',
+      workPackageId: 'p1',
     });
     expect(nameOf('sp-1')).toBeNull();
   });
@@ -308,9 +417,23 @@ describe('renaming and deleting a saved plan', () => {
    * caller that a plan they may not touch exists.
    */
   it('answers not_found for a plan that is not there', async () => {
-    expect(await service().rename('sp-missing', 'owner', 'anything')).toEqual({
+    expect(
+      await service().rename('sp-missing', 'owner', 'anything', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toEqual({
       outcome: 'not_found',
     });
-    expect(await service().delete('sp-missing', 'owner')).toEqual({ outcome: 'not_found' });
+    expect(
+      await service().delete('sp-missing', 'owner', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toEqual({ outcome: 'not_found' });
   });
 });

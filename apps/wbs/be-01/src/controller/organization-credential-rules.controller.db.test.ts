@@ -190,9 +190,9 @@ describe('enforced SSO', () => {
     const token = await upstream(SSO);
     const selected = await select(token, 'org-a');
     expect(selected.status).toBe(200);
-    expect((await send(token, 'GET', '/api/projects', { selection: selected.pair })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(token, 'GET', '/api/work-packages', { selection: selected.pair })).status,
+    ).toBe(200);
   });
 
   // Proof: skipping the admission in `organizationSelection.select`, and
@@ -230,25 +230,28 @@ describe('enforced SSO', () => {
     const token = await upstream(SOCIAL);
     const selected = await select(token, 'org-a');
     expect(selected.status).toBe(200);
-    const created = await send(token, 'POST', '/api/projects', {
+    const created = await send(token, 'POST', '/api/work-packages', {
       selection: selected.pair,
       body: { name: 'Plan' },
     });
     expect(created.status).toBe(200);
-    const projectId = (created.body as { project: { id: string } }).project.id;
+    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
     const gateway = () =>
       h.app.handle(
-        new Request(`http://localhost/internal/gateway/projects/${projectId}/browser-access`, {
-          method: 'POST',
-          headers: {
-            'x-internal-auth': SECRET,
-            cookie: `__Host-wbs_access=${token}; ${selected.pair ?? ''}`,
+        new Request(
+          `http://localhost/internal/gateway/work-packages/${workPackageId}/browser-access`,
+          {
+            method: 'POST',
+            headers: {
+              'x-internal-auth': SECRET,
+              cookie: `__Host-wbs_access=${token}; ${selected.pair ?? ''}`,
+            },
           },
-        }),
+        ),
       );
     expect((await gateway()).status).toBe(204);
     enforce();
-    const next = await send(token, 'GET', '/api/projects', { selection: selected.pair });
+    const next = await send(token, 'GET', '/api/work-packages', { selection: selected.pair });
     expect(next).toMatchObject({ status: 403, body: SSO_REQUIRED });
     const refusedGateway = await gateway();
     expect(refusedGateway.status).toBe(403);
@@ -257,11 +260,11 @@ describe('enforced SSO', () => {
 
   it('refuses an MCP delegation whose upstream subject lacks the prefix', async () => {
     enforce();
-    expect(await h.callWith(await delegation('github|9'), 'GET', '/api/projects')).toEqual({
+    expect(await h.callWith(await delegation('github|9'), 'GET', '/api/work-packages')).toEqual({
       status: 403,
       body: SSO_REQUIRED,
     });
-    expect((await h.callWith(await delegation(SSO), 'GET', '/api/projects')).status).toBe(200);
+    expect((await h.callWith(await delegation(SSO), 'GET', '/api/work-packages')).status).toBe(200);
   });
 
   // Proof: dropping the lockout guard in `EnterpriseConnectionRepository.setEnforced`
@@ -356,9 +359,11 @@ describe('session policy', () => {
     const b = await select(token, 'org-b');
     policy(28_800, null);
     clock = opened + 28_800_000;
-    expect((await send(token, 'GET', '/api/projects', { selection: a.pair })).status).toBe(200);
+    expect((await send(token, 'GET', '/api/work-packages', { selection: a.pair })).status).toBe(
+      200,
+    );
     clock += 1;
-    expect(await send(token, 'GET', '/api/projects', { selection: a.pair })).toMatchObject({
+    expect(await send(token, 'GET', '/api/work-packages', { selection: a.pair })).toMatchObject({
       status: 403,
       body: {
         error: 'reauthentication_required',
@@ -367,7 +372,9 @@ describe('session policy', () => {
         login: '/api/auth/login?reauthenticate=org-a',
       },
     });
-    expect((await send(token, 'GET', '/api/projects', { selection: b.pair })).status).toBe(200);
+    expect((await send(token, 'GET', '/api/work-packages', { selection: b.pair })).status).toBe(
+      200,
+    );
   });
 
   it('admits the exact reauthentication bound and refuses one millisecond more', async () => {
@@ -393,7 +400,7 @@ describe('session policy', () => {
     expect((await select(token, 'org-a')).body).toMatchObject({
       error: 'reauthentication_required',
     });
-    expect(await h.callWith(await delegation(SSO), 'GET', '/api/projects')).toMatchObject({
+    expect(await h.callWith(await delegation(SSO), 'GET', '/api/work-packages')).toMatchObject({
       status: 403,
       body: { error: 'reauthentication_required' },
     });
@@ -436,11 +443,11 @@ describe('session policy', () => {
 const MACHINE_TRANSPORTS = [
   [
     'through mcp-01',
-    (key: string) => callForwarded(h, key, 'GET', '/api/projects', undefined, { now: clock }),
+    (key: string) => callForwarded(h, key, 'GET', '/api/work-packages', undefined, { now: clock }),
   ],
 ] as const;
 
-describe.each(MACHINE_TRANSPORTS)('machine credentials, %s', (_, projects) => {
+describe.each(MACHINE_TRANSPORTS)('machine credentials, %s', (_, workPackages) => {
   beforeEach(async () => {
     h.close();
     h = OrganizationHarness.openComposedWith({
@@ -466,7 +473,7 @@ describe.each(MACHINE_TRANSPORTS)('machine credentials, %s', (_, projects) => {
     enforce();
     const key = await miaKey();
     expect((await select(await upstream(SOCIAL), 'org-a')).status).toBe(403);
-    expect((await projects(key)).status).toBe(200);
+    expect((await workPackages(key)).status).toBe(200);
   });
 
   it('admits a machine key under a session policy', async () => {
@@ -476,7 +483,7 @@ describe.each(MACHINE_TRANSPORTS)('machine credentials, %s', (_, projects) => {
       ['org-a', 300, 300],
     );
     clock += 3_600_000;
-    expect((await projects(key)).status).toBe(200);
+    expect((await workPackages(key)).status).toBe(200);
   });
 });
 
@@ -487,8 +494,8 @@ it('applies expected organization to verified OIDC cookie and Bearer writes', as
   if (selected.pair === undefined) throw new Error('OIDC selection cookie is absent');
   for (const bearer of [false, true]) {
     for (const expectation of [undefined, '', 'org-a', 'org-b, org-b', 'org-b']) {
-      const before = h.sqlite.query('SELECT * FROM project').all();
-      const response = await h.request('/api/projects', {
+      const before = h.sqlite.query('SELECT * FROM work_package').all();
+      const response = await h.request('/api/work-packages', {
         method: 'POST',
         headers: {
           origin: 'http://localhost',
@@ -497,12 +504,12 @@ it('applies expected organization to verified OIDC cookie and Bearer writes', as
           ...(bearer ? { authorization: `Bearer ${token}` } : {}),
           ...(expectation === undefined ? {} : { 'X-WBS-Expected-Organization': expectation }),
         },
-        body: JSON.stringify({ name: 'OIDC scoped project' }),
+        body: JSON.stringify({ name: 'OIDC scoped work package' }),
       });
       expect(response.status).toBe(expectation === 'org-b' ? 200 : 409);
       if (expectation !== 'org-b') {
         expect(await response.json()).toEqual({ error: 'organization_context_changed' });
-        expect(h.sqlite.query('SELECT * FROM project').all()).toEqual(before);
+        expect(h.sqlite.query('SELECT * FROM work_package').all()).toEqual(before);
       }
     }
   }
@@ -512,7 +519,10 @@ it('a matching expectation cannot bypass SSO, membership, viewer or session poli
   const token = await upstream(SOCIAL);
   const selected = await select(token, 'org-a');
   const attempt = () =>
-    send(token, 'POST', '/api/projects', { selection: selected.pair, body: { name: 'refused' } });
+    send(token, 'POST', '/api/work-packages', {
+      selection: selected.pair,
+      body: { name: 'refused' },
+    });
   enforce();
   expect((await attempt()).body).toEqual(SSO_REQUIRED);
   const active = await send(token, 'GET', '/api/organization/active', { selection: selected.pair });

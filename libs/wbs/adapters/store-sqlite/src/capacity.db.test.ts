@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import type { WorkPackage, WriteStamp } from '@wbs/core';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -12,8 +12,9 @@ import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -21,33 +22,34 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /**
- * The one thing this file exists to pin: `slotsFor` answers **one project's own
+ * The one thing this file exists to pin: `slotsFor` answers **one work package's own
  * numbers**, and the global column it replaced is read nowhere.
  *
  * That sounds like it needs no test until you notice the one wrong answer most
  * likely to be written by accident — `serviceTeam.size`, the fallback
- * `capacity-per-project` refuses — passes every other test in the suite. The
- * migration seeds every project from that column, so a `slotsFor` reading it
+ * `capacity-per-work-package` refuses — passes every other test in the suite. The
+ * migration seeds every work package from that column, so a `slotsFor` reading it
  * back agrees with the seeding on the day the migration runs and disagrees with
  * every write afterwards. See `design.md` D7's last paragraph.
  */
-describe('a project’s capacity for a team', () => {
+describe('a work package’s capacity for a team', () => {
   let dir: string;
   /** The raw handle, for the two claims that are about rows rather than about the store. */
   let sqlite: Database;
   let capacity: CapacityRepository;
 
-  const project = (id: string, name: string): Project =>
-    projectRow({
+  const workPackage = (id: string, name: string): WorkPackage =>
+    workPackageRow({
       id,
       name,
-      ownerId: 'owner',
+      projectId: 'fixture-project',
     });
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-capacity-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
     capacity = new CapacityRepository(db, OPEN);
@@ -55,9 +57,9 @@ describe('a project’s capacity for a team', () => {
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    const projects = new ProjectRepository(db, OPEN);
-    await projects.create(project('p1', 'Rewire the shed'), [], wrote);
-    await projects.create(project('p2', 'Reroof the barn'), [], wrote);
+    const workPackages = new WorkPackageRepository(db, OPEN);
+    await workPackages.create(workPackage('p1', 'Rewire the shed'), [], wrote);
+    await workPackages.create(workPackage('p2', 'Reroof the barn'), [], wrote);
     const directory = new DirectoryRepository(db, OPEN);
     // Both created unsized, because a global size is read by nothing now — and a
     // fixture that seeded one would be handing the fallback a way to look right.
@@ -72,13 +74,13 @@ describe('a project’s capacity for a team', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('answers one project’s own numbers, and never another’s', async () => {
+  it('answers one work package’s own numbers, and never another’s', async () => {
     // Proof: `slotsFor` pointed at `service_team.size` instead — the fallback
     // this change refuses, and the one wrong answer the seeding makes look right
     // — with the fixture's two teams globally sized 2 and 9 to match `p1`. Three
     // tests went red, this one on `p2`'s map: `"t-platform" => 5` became
-    // `"t-platform" => 2, "t-backend" => 9`, so the project that asked for five
-    // was handed the *other* project's two numbers. Watched 2026-08-13.
+    // `"t-platform" => 2, "t-backend" => 9`, so the work package that asked for five
+    // was handed the *other* work package's two numbers. Watched 2026-08-13.
     await capacity.set('p1', 't-platform', 2, wrote);
     await capacity.set('p1', 't-backend', 9, wrote);
     await capacity.set('p2', 't-platform', 5, wrote);
@@ -92,14 +94,14 @@ describe('a project’s capacity for a team', () => {
     expect(await capacity.slotsFor('p2')).toEqual(new Map([['t-platform', 5]]));
   });
 
-  it('never falls back to a globally sized team nobody stated per project', async () => {
+  it('never falls back to a globally sized team nobody stated per work package', async () => {
     // **Dany's second sentence, and the one fault the rest of this file cannot
     // see.** The test above refuses the *replacement* — `slotsFor` reading
-    // `service_team.size` instead of the per-project row. The fault a maintainer
-    // actually writes is the *addition*: keep the per-project read and fall back
+    // `service_team.size` instead of the per-work-package row. The fault a maintainer
+    // actually writes is the *addition*: keep the per-work-package read and fall back
     // to the global number for a pair with no row, which is the design D1
     // rejects by name and the first thing anybody proposes the day a new
-    // project schedules unconstrained.
+    // work package schedules unconstrained.
     //
     // Every other fixture in this suite creates its teams unsized on purpose, so
     // a fallback to a `NULL` adds nothing to the map and the whole suite stays
@@ -108,7 +110,7 @@ describe('a project’s capacity for a team', () => {
     // reach for, and this is the only test that writes one.
     //
     // Proof, and the reason this test exists: the fallback put back in
-    // `slotsFor` — the per-project rows, then `serviceTeam.size` for every pair
+    // `slotsFor` — the per-work-package rows, then `serviceTeam.size` for every pair
     // without one — left **693 pass, 0 fail** across the whole of be-01 while
     // this test was missing. With it the same injection is **695 pass, 1 fail**
     // and the one is this: `expect(received).toBe(expected) / Expected: false /
@@ -122,7 +124,7 @@ describe('a project’s capacity for a team', () => {
     // `null` either.
     expect(slots.has('t-platform')).toBe(false);
     expect(slots).toEqual(new Map([['t-backend', 3]]));
-    // And a project that has stated nothing at all is bounded by nothing at all,
+    // And a work package that has stated nothing at all is bounded by nothing at all,
     // which is D1 case 2 said as a map: a plan created after the migration is
     // unconstrained rather than quietly inheriting numbers nobody typed for it.
     expect(await capacity.slotsFor('p2')).toEqual(new Map());
@@ -141,7 +143,7 @@ describe('a project’s capacity for a team', () => {
     expect([...slots.keys()]).toEqual(['t-platform']);
   });
 
-  it('has nothing to say about a project nobody has stated anything for', async () => {
+  it('has nothing to say about a work package nobody has stated anything for', async () => {
     expect(await capacity.slotsFor('p2')).toEqual(new Map());
     expect(await capacity.listFor('p2')).toEqual([]);
   });
@@ -165,7 +167,7 @@ describe('a project’s capacity for a team', () => {
     // Read off the table itself: the claim is about the absence of a row, and a
     // stored null would satisfy every assertion above it.
     const rows = sqlite
-      .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM project_team_capacity')
+      .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_package_team_capacity')
       .get();
     expect(rows?.n).toBe(0);
   });
@@ -177,7 +179,7 @@ describe('a project’s capacity for a team', () => {
     expect(await capacity.listFor('p1')).toEqual([]);
   });
 
-  it('refuses a project or a team that is not there, and writes nothing', async () => {
+  it('refuses a work package or a team that is not there, and writes nothing', async () => {
     // Both ids are checked inside the write's own transaction. The foreign keys
     // would refuse this anyway — with a `SQLiteError` out of a `run`, which is
     // an unknown at the service boundary rather than a modeled 404.
@@ -204,14 +206,14 @@ describe('a project’s capacity for a team', () => {
     ]);
   });
 
-  it('goes with the project it belongs to, and with the team it names', async () => {
+  it('goes with the work package it belongs to, and with the team it names', async () => {
     // The cascades, asserted by using them rather than by reading the schema —
     // and they are the ones that keep the outgoing release's own `DELETE`s
     // working mid-swap against a table it knows nothing about.
     await capacity.set('p1', 't-platform', 2, wrote);
     await capacity.set('p2', 't-platform', 2, wrote);
 
-    sqlite.run("DELETE FROM project WHERE id = 'p1'");
+    sqlite.run("DELETE FROM work_package WHERE id = 'p1'");
     expect(await capacity.listFor('p1')).toEqual([]);
     expect(await capacity.listFor('p2')).toEqual([{ serviceTeamId: 't-platform', size: 2 }]);
 

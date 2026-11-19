@@ -1,3 +1,4 @@
+import type {StepNodesInUse} from '../../ports/step-catalogue';
 import type { PlanCommandKind } from '@wbs/contracts';
 import {
   actingPersonOf,
@@ -31,19 +32,19 @@ import type {
   TeamWithServices,
 } from '../../ports/directory-values';
 import {
-  CREATOR_ADMISSION,
   type EditAdmission,
   grantAdmission,
   type GrantedAdmission,
+  LEGACY_EDIT_ADMISSION,
   NO_ADMISSION,
 } from '../../ports/edit-admission';
 import {
   type RefusedOrganizationAccess,
   type ResourceAccess,
 } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
 import type { Digest } from '../../ports/runtime';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { normalizeCommand } from '../../service/command-normalizers';
 import type { DirectoryUsage, ResourceUsageCounts } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
@@ -157,11 +158,12 @@ export type AppliedCommand =
     }[EntityKind];
 
 export type Refusal =
+  | {reason:'step_nodes_in_use';detail:StepNodesInUse}
   | { reason: 'forbidden'; permission: Permission; detail?: never }
   | { reason: PlainReason; detail?: never }
   | {
-      reason: 'deadline_before_project_start';
-      detail: { workItemId: string; projectDayZero: string };
+      reason: 'deadline_before_work_package_start';
+      detail: { workItemId: string; workPackageDayZero: string };
     }
   | {
       reason: 'descendant_step_on_leaf' | 'node_on_parent' | 'referenced_by_external_dependency';
@@ -230,6 +232,7 @@ export type Refusal =
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
+  | ({ok:false;reason:'step_nodes_in_use'} & StepNodesInUse)
   | {
       ok: false;
       reason: 'referenced_by_step_parallel';
@@ -245,9 +248,9 @@ export type ServiceRefusal =
   | { ok: false; reason: PlainReason }
   | {
       ok: false;
-      reason: 'deadline_before_project_start';
+      reason: 'deadline_before_work_package_start';
       workItemId?: string;
-      projectDayZero?: string;
+      workPackageDayZero?: string;
     }
   | Extract<
       | DirectoryOutcome<never>
@@ -262,7 +265,7 @@ export type BatchOutcome =
 
 /**
  * A batch refused whole under scoped access, before any command ran: the
- * organization does not own the project (answered exactly as for an absent
+ * organization does not own the work package (answered exactly as for an absent
  * one), or the caller's role or the restricted-creator rule forbids writing.
  */
 export type WholeBatchRefusal =
@@ -403,15 +406,15 @@ export class PlanCommandRunner {
    * credential admits a request, so none is pinned.
    */
   run(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     commands: readonly PlanCommand[],
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(projectId, { kind: 'legacy', actorId }, commands);
+    return this.execute(workPackageId, { kind: 'legacy', actorId }, commands);
   }
 
   /**
-   * {@link run} through the caller's access. Under scoped access the project
+   * {@link run} through the caller's access. Under scoped access the work package
    * and the role are checked inside the batch's own unit of work, and every
    * command is held to the organization: see {@link applyAll}.
    *
@@ -420,12 +423,16 @@ export class PlanCommandRunner {
    * journal stack for the entry and its undoable/redoable answer.
    */
   runWithin(
-    projectId: string,
+    workPackageId: string,
     actor: AuthenticatedUser,
     commands: readonly PlanCommand[],
     expectedAccess: ResourceAccess,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(projectId, { kind: 'human', principal: actor, expectedAccess }, commands);
+    return this.execute(
+      workPackageId,
+      { kind: 'human', principal: actor, expectedAccess },
+      commands,
+    );
   }
 
   /** Claims one exact target atomically with its immutable binding and acceptance receipt. */
@@ -490,7 +497,7 @@ export class PlanCommandRunner {
     if (!context.actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
     // Proof (diagnostic): P4-11/P5-39 omission changed the legacy typed-refusal test to a scope.organizationId TypeError.
     if (context.access.kind === 'legacy') return { ok: false, reason: 'runtime_scope_unavailable' };
-    const { projectId, personId } = context;
+    const { workPackageId, personId } = context;
     // Proof: P5-37 read the caller's actor again inside admission; the queued request lost its original authorized identity.
     const actorId = context.actor.id;
     const organizationId = context.access.scope.organizationId;
@@ -503,7 +510,7 @@ export class PlanCommandRunner {
     const credential = credentialPinOf(authentication);
 
     const outcome = await this.execute(
-      projectId,
+      workPackageId,
       {
         kind: 'runtime',
         actorId,
@@ -511,7 +518,7 @@ export class PlanCommandRunner {
         prepare: async (scope) => {
           const admitted = await scope.authorizeRuntime({
             organizationId,
-            projectId,
+            workPackageId,
             personId,
             actorId,
             authentication,
@@ -543,14 +550,14 @@ export class PlanCommandRunner {
    * the batch and the prelude's write settle together or not at all.
    */
   runAfterWithin<R>(
-    projectId: string,
+    workPackageId: string,
     actor: AuthenticatedUser,
     prelude: BatchPrelude<R>,
     commands: readonly PlanCommand[],
     expectedAccess: ResourceAccess,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     return this.execute(
-      projectId,
+      workPackageId,
       { kind: 'human', principal: actor, expectedAccess },
       commands,
       prelude,
@@ -572,11 +579,11 @@ export class PlanCommandRunner {
   }
 
   /**
-   * A batch with no project: directory commands only, for the directory page
+   * A batch with no work package: directory commands only, for the directory page
    * and for a model editing the directory on its own. Same turn, same unit of
    * work, and nothing is journalled — the directory has no undo. A plan
-   * command in it has no project to land in and refuses the batch as
-   * `project_required` at its index.
+   * command in it has no work package to land in and refuses the batch as
+   * `work_package_required` at its index.
    */
   runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<ScopedBatchOutcome> {
     return this.execute(null, { kind: 'legacy', actorId }, commands);
@@ -610,23 +617,23 @@ export class PlanCommandRunner {
    * what it collects is exactly the writes that decision is about.
    */
   private execute(
-    projectId: string | null,
+    workPackageId: string | null,
     caller: CommandCaller,
     commands: readonly PlanCommand[],
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
-    projectId: string | null,
+    workPackageId: string | null,
     caller: CommandCaller,
     commands: readonly PlanCommand[],
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private execute(
-    projectId: string | null,
+    workPackageId: string | null,
     caller: RuntimeCommandCaller,
     commands: readonly PlanCommand[],
   ): Promise<BatchOutcome | WholeBatchRefusal | RuntimeExecutionReply>;
   private async execute<R>(
-    projectId: string | null,
+    workPackageId: string | null,
     caller: CommandCaller | RuntimeCommandCaller,
     commands: readonly PlanCommand[],
     prelude?: BatchPrelude<R>,
@@ -661,7 +668,7 @@ export class PlanCommandRunner {
       | RuntimeApplied
       | Collected<AppliedCommand[]>;
     // Scoped writes are admitted only through this act's own grant; a
-    // directory batch names no project and is granted none.
+    // directory batch names no work package and is granted none.
     let grant: GrantedAdmission | null = null;
     const done = await this.opts.transaction
       .run<Applied>(
@@ -680,10 +687,10 @@ export class PlanCommandRunner {
           const commandCredential = prepared === null ? credential : prepared.admitted.credential;
           if (commandAccess.kind === 'scoped') {
             // Proof: skipping this admission made `answers 404 alike for a foreign
-            // and an absent project` in `command-organization.controller.db.test.ts`
+            // and an absent work package` in `command-organization.controller.db.test.ts`
             // answer 200 instead of 404; watched 2026-09-27.
             const refusal = await scope.refuseOutsideScope(
-              projectId,
+              workPackageId,
               actorId,
               commandAccess,
               {
@@ -698,10 +705,10 @@ export class PlanCommandRunner {
                     commit: false,
                     value: { ok: false, refusal: 'forbidden', permission: refusal.permission },
                   };
-            if (projectId !== null) grant = grantAdmission(projectId, actorId);
+            if (workPackageId !== null) grant = grantAdmission(workPackageId, actorId);
           }
-          const workingPlan = scope.openCommandGraph(projectId, collector, {
-            projectId,
+          const workingPlan = scope.openCommandGraph(workPackageId, collector, {
+            workPackageId,
             actorId,
             access: commandAccess,
             admission: admissionOf(commandAccess, grant),
@@ -746,7 +753,7 @@ export class PlanCommandRunner {
               this.applyAll(
                 graph,
                 scope,
-                projectId,
+                workPackageId,
                 actorId,
                 commands,
                 commandAccess,
@@ -754,7 +761,7 @@ export class PlanCommandRunner {
                 actingPersonId,
               ),
             );
-            if (projectId !== null) {
+            if (workPackageId !== null) {
               // A claim that also assigns changes assignments as setAssignee
               // does; one that does not leaves the calendar alone.
               // Proof: with the claim arm replaced by `false`, `refuses a claim
@@ -765,9 +772,13 @@ export class PlanCommandRunner {
                   CALENDAR_AFFECTING_KINDS.has(command.kind) ||
                   (command.kind === 'claimWorkItem' && command.assign === true),
               );
-              const tree = needsCalendarPreflight ? await graph.workItems.tree(projectId) : null;
+              const tree = needsCalendarPreflight
+                ? await graph.workItems.tree(workPackageId)
+                : null;
               if (needsCalendarPreflight && tree === null)
-                throw new Error(`Project ${projectId} disappeared inside its command batch`);
+                throw new Error(
+                  `Work package ${workPackageId} disappeared inside its command batch`,
+                );
               if (tree !== null && !('kind' in tree) && tree.scheduleError === 'calendar_range') {
                 const last = commands.at(-1);
                 if (last === undefined)
@@ -785,7 +796,7 @@ export class PlanCommandRunner {
                 // `undo-acting-person.controller.db.test.ts` failed (0 pass,
                 // 5 fail); watched 2026-10-26.
                 await graph.workItems.recordCollected(
-                  { projectId, userId: actorId, personId: actingPersonId },
+                  { workPackageId, userId: actorId, personId: actingPersonId },
                   collected.recordings,
                 );
                 applied = collected;
@@ -820,21 +831,21 @@ export class PlanCommandRunner {
                 commandCredential.personId,
                 commandCredential.runId ?? null,
               );
-              // The renewal moves the agent's leases in every project. Each
-              // moved project hears `claims_changed` through the collector, so
+              // The renewal moves the agent's leases in every work package. Each
+              // moved work package hears `claims_changed` through the collector, so
               // only after the commit and never for a rolled-back batch
-              // (`wbs-claim-display` C19), except the batch's own project when
+              // (`wbs-claim-display` C19), except the batch's own work package when
               // the batch is dirty: its `tree_replaced` refreshes the claims.
               // A batch that changed no row (empty, directory-only) announces
-              // no tree, so its own project hears `claims_changed` too.
+              // no tree, so its own work package hears `claims_changed` too.
               // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23):
               // with this loop removed, three announcing cases recorded none
-              // (8 pass, 3 fail); with the own-project filter removed, `announces
-              // once to each other project, none extra to its own` recorded the
-              // batch's project too (9/2); with the dirty test removed,
-              // `announces its own project for a batch that changed no row`
+              // (8 pass, 3 fail); with the own-work-package filter removed, `announces
+              // once to each other work package, none extra to its own` recorded the
+              // batch's work package too (9/2); with the dirty test removed,
+              // `announces its own workPackage for a batch that changed no row`
               // recorded none (10/1); with the SQLite store answering its due
-              // projects before its write, `announces nothing when the batch
+              // work packages before its write, `announces nothing when the batch
               // rolls back` recorded one. Publishing through the outer
               // broadcaster in place of the collector left every case green:
               // the ordinary-only runner then had no receipt hook after renewal.
@@ -843,9 +854,9 @@ export class PlanCommandRunner {
               // leases and announcements after a late runtime receipt failure` (runtime-write.db.test.ts)
               // reached the intended receipt INSERT cause and SQL rollback equality, then saw
               // one escaped a2 claims_changed (0 pass, 1 fail); watched 2026-10-25.
-              for (const renewedProjectId of renewal.renewedProjectIds)
-                if (renewedProjectId !== projectId || !applied.dirty)
-                  await collector.publish(renewedProjectId, { type: 'claims_changed' });
+              for (const renewedWorkPackageId of renewal.renewedWorkPackageIds)
+                if (renewedWorkPackageId !== workPackageId || !applied.dirty)
+                  await collector.publish(renewedWorkPackageId, { type: 'claims_changed' });
             }
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
@@ -880,19 +891,19 @@ export class PlanCommandRunner {
     // After the commit and after the turn is let go, which is what the whole
     // collector is for.
     await collector.send();
-    if (projectId === null)
+    if (workPackageId === null)
       return { ok: true, results: collected.result, undoable: false, redoable: false };
     // Through the public graph, because this runs after the collector has been
     // drained and the unit of work has settled. A staged graph may now name
     // discarded stores; its collector will never be drained again.
     const afterCommit = this.opts.publicServices;
-    if (collected.dirty) await afterCommit.workItems.announceTreeNow(projectId);
+    if (collected.dirty) await afterCommit.workItems.announceTreeNow(workPackageId);
     if ('runtimeApplied' in done) return { runtime: { ok: true, value: done.runtimeApplied } };
     // Proof: with `null` for the person, `agent B's edit keeps agent A's redo,
     // and the human's` (undo-acting-person.controller.db.test.ts) read the
     // account's redoable stack (4 pass, 1 fail); watched 2026-10-26.
     const state = await afterCommit.workItems.undoState({
-      projectId,
+      workPackageId,
       userId: actorId,
       personId: actingPersonId,
     });
@@ -900,18 +911,18 @@ export class PlanCommandRunner {
   }
 
   /**
-   * Releases the project's claims whose lease has run out, as one unit of
+   * Releases the work package's claims whose lease has run out, as one unit of
    * work of its own (`wbs-claim-leases` L7): expiry is read inside the turn,
    * so a renewal admitted before it has moved the lease and one admitted after
    * finds the claim gone. It admits no user's write (`NO_ADMISSION`): what it
    * writes is the coordinator's, recorded in history alone. Its announcement
    * leaves after the commit, as a batch's does. Answers the claims released.
    */
-  async releaseExpiredLeases(projectId: string): Promise<number> {
+  async releaseExpiredLeases(workPackageId: string): Promise<number> {
     const collector = new AnnouncementCollector(this.opts.announcements);
     const released = await this.opts.transaction.run<number>(
       async (scope): Promise<CommandDecision<number>> => {
-        const count = await scope.releaseExpiredLeases(projectId, collector);
+        const count = await scope.releaseExpiredLeases(workPackageId, collector);
         return { commit: true, value: count };
       },
     );
@@ -925,53 +936,53 @@ export class PlanCommandRunner {
    * write, through the public graph, which reads first and takes the write
    * turn only when a lease is due (L4). Once the renewal has committed and let
    * go of the turn, it announces one type-only `claims_changed` to each
-   * project in which it moved a lease (`wbs-claim-display` C4); a renewal
+   * work package in which it moved a lease (`wbs-claim-display` C4); a renewal
    * that moved nothing, or threw, announces nothing. A batch's own renewal
    * is announced by the batch (C19). Each announcement is transient (C21).
    *
-   * The projects are announced in turn: a publish that throws answers 500
-   * although the renewal committed, and leaves the later projects
+   * The work packages are announced in turn: a publish that throws answers 500
+   * although the renewal committed, and leaves the later work packages
    * unannounced until their next heartbeat. In production it does not throw:
    * the gateway broadcaster reports and swallows a failed transient push.
    */
   async renewLeases(personId: string, runId: string | null): Promise<LeaseStanding> {
     const renewal = await this.opts.publicServices.workItems.renewLeases(personId, runId);
     // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23): with the
-    // SQLite store answering its due projects before its turn and not awaiting
+    // SQLite store answering its due work packages before its turn and not awaiting
     // the write (announced before the commit), `announces nothing when the
     // renewal rolls back` recorded one (7 pass, 4 fail); answering every
-    // project the person holds a lease in, moved or not (announced
+    // work package the person holds a lease in, moved or not (announced
     // unconditionally), `announces nothing for a heartbeat within the minute,
     // nor a refused one` recorded a second (4 pass, 7 fail).
-    for (const projectId of renewal.renewedProjectIds)
-      await this.opts.announcements.publish(projectId, { type: 'claims_changed' });
+    for (const workPackageId of renewal.renewedWorkPackageIds)
+      await this.opts.announcements.publish(workPackageId, { type: 'claims_changed' });
     return renewal.standing;
   }
 
-  undo(projectId: string, actorId: string): Promise<ScopedUndoOutcome> {
-    return this.walk(projectId, { kind: 'legacy', actorId }, 'undo');
+  undo(workPackageId: string, actorId: string): Promise<ScopedUndoOutcome> {
+    return this.walk(workPackageId, { kind: 'legacy', actorId }, 'undo');
   }
 
-  redo(projectId: string, actorId: string): Promise<ScopedUndoOutcome> {
-    return this.walk(projectId, { kind: 'legacy', actorId }, 'redo');
+  redo(workPackageId: string, actorId: string): Promise<ScopedUndoOutcome> {
+    return this.walk(workPackageId, { kind: 'legacy', actorId }, 'redo');
   }
 
   /** Replays only under the principal's current authority in the writer's turn. */
   undoWithin(
-    projectId: string,
+    workPackageId: string,
     actor: AuthenticatedUser,
     expectedAccess: ResourceAccess,
   ): Promise<ScopedUndoOutcome> {
-    return this.walk(projectId, { kind: 'human', principal: actor, expectedAccess }, 'undo');
+    return this.walk(workPackageId, { kind: 'human', principal: actor, expectedAccess }, 'undo');
   }
 
   /** Reapplies only under the principal's current authority in the writer's turn. */
   redoWithin(
-    projectId: string,
+    workPackageId: string,
     actor: AuthenticatedUser,
     expectedAccess: ResourceAccess,
   ): Promise<ScopedUndoOutcome> {
-    return this.walk(projectId, { kind: 'human', principal: actor, expectedAccess }, 'redo');
+    return this.walk(workPackageId, { kind: 'human', principal: actor, expectedAccess }, 'redo');
   }
 
   /**
@@ -981,7 +992,7 @@ export class PlanCommandRunner {
    * because the service's own discard went with the rollback.
    */
   private async walk(
-    projectId: string,
+    workPackageId: string,
     caller: CommandCaller,
     journal: 'undo' | 'redo',
   ): Promise<ScopedUndoOutcome> {
@@ -1019,17 +1030,17 @@ export class PlanCommandRunner {
           });
           if (access.kind === 'scoped') {
             // Proof: skipping this admission made `refuses undo and redo of a
-            // foreign project as of an absent one` in
+            // foreign work package as of an absent one` in
             // `command-organization.controller.db.test.ts` answer the foreign
             // undo with 409 instead of 404; watched 2026-09-27.
-            const refusal = await scope.refuseOutsideScope(projectId, actorId, access, {
+            const refusal = await scope.refuseOutsideScope(workPackageId, actorId, access, {
               journal,
             });
             if (refusal !== null) return refuse(refusal);
-            grant = grantAdmission(projectId, actorId);
+            grant = grantAdmission(workPackageId, actorId);
           }
           const graph = scope.openCommandGraph(null, collector, {
-            projectId,
+            workPackageId,
             actorId,
             access,
             admission: admissionOf(access, grant),
@@ -1039,15 +1050,15 @@ export class PlanCommandRunner {
             const collected = await workItems.collect(() =>
               caller.kind === 'legacy'
                 ? journal === 'undo'
-                  ? workItems.undo(projectId, actorId)
-                  : workItems.redo(projectId, actorId)
+                  ? workItems.undo(workPackageId, actorId)
+                  : workItems.redo(workPackageId, actorId)
                 : journal === 'undo'
                   ? workItems.undoWithin(
-                      { projectId, userId: actorId, personId: actingPersonId },
+                      { workPackageId, userId: actorId, personId: actingPersonId },
                       access,
                     )
                   : workItems.redoWithin(
-                      { projectId, userId: actorId, personId: actingPersonId },
+                      { workPackageId, userId: actorId, personId: actingPersonId },
                       access,
                     ),
             );
@@ -1059,7 +1070,7 @@ export class PlanCommandRunner {
               // in `command-organization.controller.db.test.ts` answer 200 instead
               // of 404; watched 2026-09-27.
               const crossing = await scope.listCrossReferenceKinds(
-                projectId,
+                workPackageId,
                 access.scope.organizationId,
               );
               if (crossing.length > 0) return refuse({ reason: 'not_found' });
@@ -1083,7 +1094,7 @@ export class PlanCommandRunner {
                       // Proof: discarding through the rolled-back graph made the
                       // memory composition throw `no journal entry id-5` instead
                       // of consuming the committed stale entry (compose.test.ts).
-                      // The repair writes no project, so it is granted nothing.
+                      // The repair writes no work package, so it is granted nothing.
                       // Proof: skipping this repair retained exactly the selected stale row in both
                       // synthetic mounted compound remote-cycle journal snapshots (2026-10-23).
                       await repair.discardEntry(entryId);
@@ -1102,7 +1113,7 @@ export class PlanCommandRunner {
     // The direct broadcaster, for `execute`'s reason: the collector has been
     // drained and will not be again.
     if (walked.dirty) {
-      await this.opts.publicServices.workItems.announceTreeNow(projectId);
+      await this.opts.publicServices.workItems.announceTreeNow(workPackageId);
     }
     return walked.result;
   }
@@ -1111,14 +1122,14 @@ export class PlanCommandRunner {
    * Applies every command in order. Under scoped access each command is also
    * held to the organization: a directory command writes through the
    * caller's access (see {@link CommandContext.access}), every work item, step,
-   * parent, sibling and predecessor it names must be this project's, and after
-   * it runs the project may reference nothing outside the organization — the
+   * parent, sibling and predecessor it names must be this work package's, and after
+   * it runs the work package may reference nothing outside the organization — the
    * closure the schedule read checks — or the batch is refused at its index.
    */
   private async applyAll(
     graph: PlanCommandServices,
     scope: CommandAdmission,
-    projectId: string | null,
+    workPackageId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
@@ -1131,7 +1142,7 @@ export class PlanCommandRunner {
     for (const [index, command] of commands.entries()) {
       const context = new CommandContext(
         actorId,
-        projectId,
+        workPackageId,
         index,
         command.kind,
         refs,
@@ -1142,9 +1153,9 @@ export class PlanCommandRunner {
         // person_required; watched 2026-10-26.
         actingPersonId,
       );
-      // Proof: removing this check made the mounted cross-project estimate test fail:
+      // Proof: removing this check made the mounted cross-work-package estimate test fail:
       // Expected: 404 / Received: 200 (2026-09-27).
-      if (projectId !== null && ('workItemId' in command || 'workItemRef' in command)) {
+      if (workPackageId !== null && ('workItemId' in command || 'workItemRef' in command)) {
         // Proof: checking the literal ID before resolving this context made a batch-created
         // ref plus ignored missing ID return 404 instead of 200 (mounted, 2026-09-27).
         const workItemId = context.id(
@@ -1157,24 +1168,33 @@ export class PlanCommandRunner {
         );
         if (
           workItemId !== null &&
-          !(await graph.workItems.hasWorkItemInProject(projectId, workItemId))
+          !(await graph.workItems.hasWorkItemInWorkPackage(workPackageId, workItemId))
         ) {
           context.refuse({ reason: 'not_found' });
         }
       }
-      if (projectId !== null && 'addressedBy' in command && command.addressedBy === 'node') {
+      if (workPackageId !== null && 'addressedBy' in command && command.addressedBy === 'node') {
         // Proof: skipping this validation made mounted clearEstimate cases return 200
         // for a parent (expected 409) and an unknown step (expected 404), 2026-09-27.
-        const refusal = await graph.workItems.validateStepNode(
-          projectId,
-          context.required(command.workItemId, command.workItemRef),
-          command.stepId,
-        );
+        const refusal =
+          command.kind === 'setEstimate'
+            ? await graph.workItems
+                .estimateTarget(
+                  workPackageId,
+                  context.required(command.workItemId, command.workItemRef),
+                  command.stepId,
+                )
+                .then((target) => (target.kind === 'resolved' ? null : target.kind))
+            : await graph.workItems.validateStepNode(
+                workPackageId,
+                context.required(command.workItemId, command.workItemRef),
+                command.stepId,
+              );
         if (refusal !== null) context.refuse({ reason: refusal });
       }
       if (access.kind === 'scoped') {
-        if (projectId !== null) {
-          await refuseForeignReferences(graph, projectId, command, context, access);
+        if (workPackageId !== null) {
+          await refuseForeignReferences(graph, workPackageId, command, context, access);
         }
       }
       applied.push(await applyCommand(bindings, command, context));
@@ -1189,19 +1209,19 @@ export class PlanCommandRunner {
       // later legacy add that closes an SS cycle and rolls back the batch` at 409;
       // also omitting addDependency from this runner guard made it receive 200
       // instead of 409. Both faults restored; watched 2026-09-28.
-      if (projectId !== null && GRAPH_AFFECTING_KINDS.has(command.kind)) {
-        const cycle = await graph.workItems.findDependencyCycle(projectId, actorId);
+      if (workPackageId !== null && GRAPH_AFFECTING_KINDS.has(command.kind)) {
+        const cycle = await graph.workItems.findDependencyCycle(workPackageId, actorId);
         if (cycle !== null) {
           context.refuse({ reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' });
         }
       }
-      if (access.kind === 'scoped' && projectId !== null) {
+      if (access.kind === 'scoped' && workPackageId !== null) {
         // Proof: skipping this check made `refuses a foreign service, team,
         // tag, type, person and predecessor, all or none` in
         // `command-organization.controller.db.test.ts` answer 200 instead of
         // 404 `unknown_service` for the first case; watched 2026-09-27.
         const crossing = await scope.listCrossReferenceKinds(
-          projectId,
+          workPackageId,
           access.scope.organizationId,
         );
         const first = crossing.at(0);
@@ -1219,13 +1239,13 @@ export class PlanCommandRunner {
  * to the creator rule.
  *
  * Proof, watched 2026-09-28: answering `CREATOR_ADMISSION` for scoped access
- * made `recovers a restricted project through a batch, undo and redo, one
+ * made `recovers a restricted workPackage through a batch, undo and redo, one
  * record each` in `command-organization.controller.db.test.ts` answer 403 and
  * `never falls back to the creator rule under scoped access` in
  * `plan-command-admission.test.ts` fail; skipping either `expire`, or granting
  * the journal repair, failed that file's grant-lifetime cases.
  */
 function admissionOf(access: ResourceAccess, grant: GrantedAdmission | null): EditAdmission {
-  if (access.kind === 'legacy') return CREATOR_ADMISSION;
+  if (access.kind === 'legacy') return LEGACY_EDIT_ADMISSION;
   return grant === null ? NO_ADMISSION : grant.admission;
 }

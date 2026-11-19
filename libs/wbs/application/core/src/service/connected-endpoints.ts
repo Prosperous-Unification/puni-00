@@ -36,26 +36,26 @@ function requireEndpointLabel(value: string | null | undefined, name: string): s
 
 /**
  * Label selectors from detached component metadata without IO, scheduling or optimizer projection.
- * Numbers and step positions belong to each endpoint's own captured project.
- * @throws when a captured project, row, step or required label is absent.
+ * Numbers and step positions belong to each endpoint's own captured work package.
+ * @throws when a captured work package, row, step or required label is absent.
  */
 export function createConnectedEndpointProjector(
-  metadataByProject: ConnectedRead['metadataByProject'],
-  numbersByProject = new Map<string, ReadonlyMap<string, string>>(),
+  metadataByWorkPackage: ConnectedRead['metadataByWorkPackage'],
+  numbersByWorkPackage = new Map<string, ReadonlyMap<string, string>>(),
 ): (endpoint: ScopedDependencyEndpoint) => ConnectedTreeEndpoint {
   return (endpoint) => {
     const own = requireEndpointEvidence(
-      metadataByProject.get(endpoint.projectId),
-      `metadata ${endpoint.projectId}`,
+      metadataByWorkPackage.get(endpoint.workPackageId),
+      `metadata ${endpoint.workPackageId}`,
     );
     const row = requireEndpointEvidence(
       own.workItems.find((candidate) => candidate.id === endpoint.workItemId),
       `endpoint row ${endpoint.workItemId}`,
     );
-    let numbers = numbersByProject.get(endpoint.projectId);
+    let numbers = numbersByWorkPackage.get(endpoint.workPackageId);
     if (numbers === undefined) {
       numbers = deriveNumbers(own.workItems);
-      numbersByProject.set(endpoint.projectId, numbers);
+      numbersByWorkPackage.set(endpoint.workPackageId, numbers);
     }
     const workItemNumber = requireEndpointEvidence(
       numbers.get(row.id),
@@ -63,8 +63,8 @@ export function createConnectedEndpointProjector(
     );
     // Proof: undefined abbreviation and row-name injections were accepted before these refusals; both `refuses absent endpoint ... evidence` cases failed.
     const abbreviation = requireEndpointLabel(
-      own.project.abbreviation,
-      `endpoint abbreviation ${endpoint.projectId}`,
+      own.workPackage.abbreviation,
+      `endpoint abbreviation ${endpoint.workPackageId}`,
     );
     const name = requireEndpointLabel(row.name, `endpoint row name ${row.id}`);
     const steps = [...own.steps].sort((left, right) => left.position - right.position);
@@ -73,7 +73,7 @@ export function createConnectedEndpointProjector(
         ? null
         : requireEndpointEvidence(
             steps.find((candidate) => candidate.id === endpoint.stepId),
-            `endpoint step ${endpoint.projectId}.${endpoint.stepId}`,
+            `endpoint step ${endpoint.workPackageId}.${endpoint.stepId}`,
           );
     if (step !== null) {
       // Proof: undefined step-name and step-code injections were accepted as endpoint evidence before these refusals; both named absence cases failed.
@@ -81,7 +81,7 @@ export function createConnectedEndpointProjector(
       requireEndpointEvidence(step.code, `endpoint step code ${step.id}`);
     }
     const stepReference =
-      // Proof: replacing workItemNumber with '010' failed the remote own-number assertion in `projects incoming and outgoing incident labels`.
+      // Proof: replacing workItemNumber with '010' failed the remote own-number assertion in `workPackages incoming and outgoing incident labels`.
       // Proof: restoring non-whole single-step formatting failed `labels a descendant-step selector` on its null step reference and parent address.
       endpoint.scope !== 'node' || step?.code == null
         ? null
@@ -92,7 +92,7 @@ export function createConnectedEndpointProjector(
       isLeaf: !own.workItems.some((candidate) => candidate.parentId === row.id),
       revision: row.revision,
       name,
-      projectAbbreviation: abbreviation,
+      workPackageAbbreviation: abbreviation,
       workItemNumber,
       step:
         step === null
@@ -107,23 +107,25 @@ export function createConnectedEndpointProjector(
 
 /** Cross-check complete captured member identities before projecting labels or historical facts. */
 export function validateConnectedMetadata(captured: ConnectedRead): void {
-  for (const member of captured.projection.capture.projects) {
+  for (const member of captured.projection.capture.workPackages) {
     const metadata = requireEndpointEvidence(
-      captured.metadataByProject.get(member.projectId),
-      `metadata ${member.projectId}`,
+      captured.metadataByWorkPackage.get(member.workPackageId),
+      `metadata ${member.workPackageId}`,
     );
     const rowIds = new Set(member.reads.workItems.map((row) => row.id));
     const stepIds = new Set(member.reads.steps.map((step) => step.id));
     // Proof: removing this guard failed all five `refuses corrupted ... metadata identities` cases; missing steps and foreign owners were accepted.
     if (
-      metadata.project.id !== member.projectId ||
+      metadata.workPackage.id !== member.workPackageId ||
       metadata.workItems.length !== rowIds.size ||
       metadata.steps.length !== stepIds.size ||
       metadata.workItems.some(
-        (row) => row.projectId !== member.projectId || !rowIds.delete(row.id),
+        (row) => row.workPackageId !== member.workPackageId || !rowIds.delete(row.id),
       ) ||
-      metadata.steps.some((step) => step.projectId !== member.projectId || !stepIds.delete(step.id))
+      metadata.steps.some(
+        (step) => step.workPackageId !== member.workPackageId || !stepIds.delete(step.id),
+      )
     )
-      throw new Error(`inconsistent connected tree metadata identities ${member.projectId}`);
+      throw new Error(`inconsistent connected tree metadata identities ${member.workPackageId}`);
   }
 }

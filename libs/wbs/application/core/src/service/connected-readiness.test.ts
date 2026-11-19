@@ -74,7 +74,7 @@ describe('connected live readiness', () => {
       derive(withType(held, 'FF')).eligibilityByNode.get(sliceKey('b', 'build')),
     ).toMatchObject({ canStart: true, canFinish: false });
   });
-  it('refuses absent attempts and own-project foreign step evidence', () => {
+  it('refuses absent attempts and own-work-package foreign step evidence', () => {
     expect(() => derive(capture(), new Map([['B', []]]))).toThrow('attempts');
     const a = connectedReads('A');
     const b = connectedReads('B');
@@ -86,7 +86,7 @@ describe('connected live readiness', () => {
           foreign,
         ),
       ),
-    ).toThrow('own project');
+    ).toThrow('own work package');
     expect(() =>
       derive(
         connectedCapture(
@@ -97,7 +97,7 @@ describe('connected live readiness', () => {
           foreign,
         ),
       ),
-    ).toThrow('own project');
+    ).toThrow('own work package');
     expect(() =>
       derive(
         connectedCapture(a, foreign),
@@ -121,6 +121,6 @@ describe('connected live readiness', () => {
           ['B', []],
         ]),
       ),
-    ).toThrow('own project');
+    ).toThrow('own work package');
   });
 });

@@ -11,7 +11,7 @@ label, so a DI failure says which module asked.
 `realtime.feature.ts` (the moved `use-cases/replay.ts`) admits an internal principal before
 replaying resume points; `replay-buffer.ts` is the bounded, per-subscription fast-path cache;
 `gateway-broadcaster.ts` is the durable-then-push adapter of the neutral `Broadcaster` port
-(`ports/project-event.ts`), exported as the concrete class rather than the port itself because
+(`ports/work-package-event.ts`), exported as the concrete class rather than the port itself because
 `apps/wbs/be-01/src/services.ts` calls its `pushRecorded` method, one level beyond the port
 contract. `replay-orchestrator.ts` answers a reconnecting client's resume from the buffer, falling
 back to the log. Composition still decorates the returned `broadcaster` with

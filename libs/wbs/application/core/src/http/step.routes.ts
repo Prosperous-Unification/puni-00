@@ -94,10 +94,10 @@ function renamedReply(outcome: StepUnitOutcome | AuthorityRefusal): HttpReply<ty
 }
 
 /**
- * Binds the project's three step mutations to their shared wire declarations.
+ * Binds the work package's three step mutations to their shared wire declarations.
  * Identity and structural validation belong to the mounted shape; names remain
  * untrimmed until StepService applies its domain refusal. Reading steps stays
- * on GET /api/projects/:id, without introducing a second list endpoint.
+ * on GET /api/work-packages/:id, without introducing a second list endpoint.
  * Every step route resolves organization access before any lookup.
  * Proof: bypassing the resolution in any one of the three routes alone failed
  * `refuses an unbound session and a removed member before any lookup` in
@@ -120,7 +120,7 @@ export function stepRoutes(
   /** Runs a scoped dependent write in the transaction that records its recovery. */
   const write = <T extends { readonly ok: boolean }>(
     access: ResourceAccess,
-    projectId: string,
+    workPackageId: string,
     actor: AuthenticatedUser,
     detail: { readonly step: 'add' | 'rename' | 'remove' },
     perform: (service: typeof steps, access: ResourceAccess, actorId: string) => Promise<T>,
@@ -129,7 +129,7 @@ export function stepRoutes(
     return runRecoveryWrite(
       recovery,
       access,
-      projectId,
+      workPackageId,
       actor,
       detail,
       (services, freshAccess, retainedActorId) =>
@@ -218,7 +218,7 @@ export function stepRoutes(
       const outcome = await runCommandBatchAfter(
         commands,
         {
-          projectId: params.id,
+          workPackageId: params.id,
           actor: principal,
           commands:
             allowance === undefined
@@ -230,9 +230,9 @@ export function stepRoutes(
           // The step is checked through the batch's own graph, inside its unit
           // of work. Current package.write admits the lookup; the allowance
           // command also requires package.manage_settings. A step of another
-          // project is not_found before anything is written.
+          // work package is not_found before anything is written.
           // Proof: skipping this check made `refuses an allowance edit of a
-          // foreign step or project, changing nothing` in
+          // foreign step or work package, changing nothing` in
           // `step-marker-organization.controller.db.test.ts` fail (16 pass,
           // 1 fail); watched 2026-09-28 after the check moved into the prelude.
           const found = await graph.steps.findWithin(

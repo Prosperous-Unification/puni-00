@@ -18,7 +18,7 @@ const frame = {
   type: 'start',
   protocolVersion: 1,
   callerId: caller,
-  projectId: '018f3f08-2ef7-7d1c-b645-14f877575d65',
+  workPackageId: '018f3f08-2ef7-7d1c-b645-14f877575d65',
   objective: 'pri',
   attemptToken: '018f3f08-2ef7-7d1c-b645-14f877575d66',
   childDeadlineAt: 20000,

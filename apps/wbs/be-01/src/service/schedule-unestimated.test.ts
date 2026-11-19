@@ -35,7 +35,7 @@ const item = (
 ): WorkItem =>
   workItemRow({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     position: (position += 10),
     name: id,
     ...overrides,
@@ -101,7 +101,7 @@ describe('an unestimated slice takes no schedule time', () => {
   it('an entirely unestimated predecessor does not delay its successor', () => {
     // `A` holds two steps and nobody has estimated either. It is still the
     // node `B` waits for, and it finishes where it starts, so `B` begins on
-    // day zero and the project ends when `B`'s one estimated day does.
+    // day zero and the work package ends when `B`'s one estimated day does.
     const rows = [item('A'), item('B')];
     const slices = [
       slice('A', DEV, null),
@@ -234,7 +234,7 @@ describe('an assumed duration is not an estimate', () => {
 
     // **The reach is named, and it has to be since `dep-reach-whole-item`
     // (2026-08-30).** This case is about the anchor walk, and the anchor walk
-    // is one arm of a project's choice rather than the engine's only rule. Left
+    // is one arm of a work package's choice rather than the engine's only rule. Left
     // on the default it would schedule `whole-item` and test the other rule.
     const found = schedule(rows, [edge('A', 'B')], slices, undefined, undefined, 'anchor-slice');
 

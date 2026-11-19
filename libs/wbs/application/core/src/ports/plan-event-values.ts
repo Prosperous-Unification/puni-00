@@ -1,5 +1,5 @@
 /**
- * One command somebody ran on one project: a row of the plan's history.
+ * One command somebody ran on one work package: a row of the plan's history.
  *
  * The fields are the ones `WorkItemService.record` already holds. `before` and
  * `after` are the compensating and forward commands as objects — the store
@@ -18,7 +18,7 @@
  */
 export interface PlanEvent {
   id: string;
-  projectId: string;
+  workPackageId: string;
   userId: string;
   kind: string;
   /** The sentence `record` built, stored rather than re-derived; see {@link JournalPayload}. */
@@ -32,12 +32,12 @@ export interface PlanEvent {
   createdAt: number;
 }
 
-/** What narrows a project's history to the part somebody asked for. */
+/** What narrows a work package's history to the part somebody asked for. */
 export interface PlanEventFilter {
   /**
    * One work item's own events. Omitted is every item's, and not "the events
    * that name no item" — those are the plan-wide ones, and they are in the
-   * project's history rather than any row's.
+   * work package's history rather than any row's.
    */
   workItemId?: string;
   /**

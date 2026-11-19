@@ -1,6 +1,6 @@
 # Capacity
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.application.capacity","memberships":[{"kind":"path","path":"capacity.resource.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every production reader a module-specifier scan found on 2026-09-29, when the compatibility shims were retired."},{"section":"invariants","reason":"The canEditProject gate and the one-project announcement are documented on CapacityService.set; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/app.ts"},{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"}],"knowledgeLimit":"The composition root, the core barrel, Plan commands and be-01's app are declared; the be-01 clock test and controller and database tests are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.capacity","memberships":[{"kind":"path","path":"capacity.resource.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every production reader a module-specifier scan found on 2026-09-29, when the compatibility shims were retired."},{"section":"invariants","reason":"The canEditWorkPackage gate and the one-work-package announcement are documented on CapacityService.set; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/app.ts"},{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"}],"knowledgeLimit":"The composition root, the core barrel, Plan commands and be-01's app are declared; the be-01 clock test and controller and database tests are not tracked here."}} -->
 
 A sealed resource module installed per admitted scope: `servicesOver` in
 `libs/wbs/application/core/src/compose.ts` installs it once for the public graph and once for every
@@ -9,8 +9,8 @@ place that builds a bag, and `contract.ts` states the stores, the broadcaster an
 must supply.
 
 `capacity.resource.ts` (the moved `service/capacity.service.ts`) lists how many of each team a
-project may have at work at once and gates the write on `canEditProject`, announcing
-`capacity_changed` to that project alone. Private bindings are named under the
+work package may have at work at once and gates the write on `canEditWorkPackage`, announcing
+`capacity_changed` to that work package alone. Private bindings are named under the
 `application.capacity` label, so a DI failure says which module asked.
 
 ## Checks

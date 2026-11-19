@@ -45,14 +45,14 @@ function tempDb(): { path: string; cleanup: () => void } {
   };
 }
 
-function seedProject(path: string): void {
+function seedWorkPackage(path: string): void {
   const db = openDatabase(path);
   try {
     db.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     db.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
        VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
@@ -104,43 +104,43 @@ interface Injection {
 function migrated(): { path: string; cleanup: () => void } {
   const db = tempDb();
   runMigrations(db.path, FOLDER);
-  seedProject(db.path);
+  seedWorkPackage(db.path);
   return db;
 }
 
 const GENERATION = `INSERT INTO optimization_generation
-  (project_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
+  (work_package_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
   VALUES ('p-1', '7+1.0.0', 1, 0, 'draning', 1)`;
 
 const CACHE_OBJECTIVE = `INSERT INTO optimized_schedule_cache
-  (project_id, input_hash, objective, contract_version, budget_ms,
+  (work_package_id, input_hash, objective, contract_version, budget_ms,
    generation, status, result_json, failure_reason, created_at)
   VALUES ('p-1', 'h1', 'prio', '7+1.0.0', 60000, 1, 'ok', '{}', NULL, 1)`;
 
 const CACHE_STATUS = `INSERT INTO optimized_schedule_cache
-  (project_id, input_hash, objective, contract_version, budget_ms,
+  (work_package_id, input_hash, objective, contract_version, budget_ms,
    generation, status, result_json, failure_reason, created_at)
   VALUES ('p-1', 'h2', 'pri', '7+1.0.0', 60000, 1, 'okay', '{}', NULL, 1)`;
 
 const CACHE_FAILURE_REASON = `INSERT INTO optimized_schedule_cache
-  (project_id, input_hash, objective, contract_version, budget_ms,
+  (work_package_id, input_hash, objective, contract_version, budget_ms,
    generation, status, result_json, failure_reason, created_at)
   VALUES ('p-1', 'h3', 'pri', '7+1.0.0', 60000, 1, 'failed', NULL, 'exploded', 1)`;
 
 const SLOT_OBJECTIVE = `INSERT INTO solver_slot
-  (project_id, contract_version, generation, objective, budget_ms, owner_id,
+  (work_package_id, contract_version, generation, objective, budget_ms, owner_id,
    attempt_token, lifecycle, pid, started_at, heartbeat_at,
    cancel_requested_at, admitted_deadline_at)
   VALUES ('p-1', '7+1.0.0', 1, 'prio', 60000, 'own-1', 'tok-1', 'running', 4242, 1, 1, NULL, 61000)`;
 
 const SLOT_LIFECYCLE = `INSERT INTO solver_slot
-  (project_id, contract_version, generation, objective, budget_ms, owner_id,
+  (work_package_id, contract_version, generation, objective, budget_ms, owner_id,
    attempt_token, lifecycle, pid, started_at, heartbeat_at,
    cancel_requested_at, admitted_deadline_at)
   VALUES ('p-1', '7+1.0.0', 1, 'pri', 60000, 'own-1', 'tok-1', 'startingg', NULL, 1, 1, NULL, 61000)`;
 
 const QUEUE_OBJECTIVE = `INSERT INTO solver_queue
-  (project_id, contract_version, objective, budget_ms, generation,
+  (work_package_id, contract_version, objective, budget_ms, generation,
    admitted_cancel_epoch, enqueued_at)
   VALUES ('p-1', '7+1.0.0', 'prio', 60000, 1, 0, 1)`;
 
@@ -265,24 +265,24 @@ describe('a stored optimizer enum', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      seedProject(db.path);
+      seedWorkPackage(db.path);
 
       const write = openDatabase(db.path);
       try {
         write.run(`INSERT INTO optimization_generation
-          (project_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
+          (work_package_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
           VALUES ('p-1', '7+1.0.0', 1, 0, 'draining', 1)`);
         write.run(`INSERT INTO optimized_schedule_cache
-          (project_id, input_hash, objective, contract_version, budget_ms,
+          (work_package_id, input_hash, objective, contract_version, budget_ms,
            generation, status, result_json, failure_reason, created_at)
           VALUES ('p-1', 'h1', 'time', '7+1.0.0', 60000, 1, 'failed', NULL, 'oom', 1)`);
         write.run(`INSERT INTO solver_slot
-          (project_id, contract_version, generation, objective, budget_ms, owner_id,
+          (work_package_id, contract_version, generation, objective, budget_ms, owner_id,
            attempt_token, lifecycle, pid, started_at, heartbeat_at,
            cancel_requested_at, admitted_deadline_at)
           VALUES ('p-1', '7+1.0.0', 1, 'time', 60000, 'own-1', 'tok-1', 'starting', NULL, 1, 1, NULL, 61000)`);
         write.run(`INSERT INTO solver_queue
-          (project_id, contract_version, objective, budget_ms, generation,
+          (work_package_id, contract_version, objective, budget_ms, generation,
            admitted_cancel_epoch, enqueued_at)
           VALUES ('p-1', '7+1.0.0', 'time', 60000, 1, 0, 1)`);
       } finally {
@@ -310,12 +310,12 @@ describe('a stored optimizer enum', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      seedProject(db.path);
+      seedWorkPackage(db.path);
 
       const write = openDatabase(db.path);
       try {
         write.run(`INSERT INTO optimized_schedule_cache
-          (project_id, input_hash, objective, contract_version, budget_ms,
+          (work_package_id, input_hash, objective, contract_version, budget_ms,
            generation, status, result_json, failure_reason, created_at)
           VALUES ('p-1', 'h1', 'pri', '7+1.0.0', 60000, 1, 'ok', '{}', NULL, 1)`);
       } finally {

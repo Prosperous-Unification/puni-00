@@ -19,7 +19,7 @@ export function memoryTypedDependencyTable(
 
 /**
  * A typed-link fixture with SQLite's identity and uniqueness refusals.
- * No project, work-item, step or organization context is available: this fixture
+ * No work package, work-item, step or organization context is available: this fixture
  * proves identity and ownership shape only, not SQLite endpoint integrity.
  *
  * Proof: omitting duplicate checks or unknown-ID refusals failed their
@@ -30,11 +30,11 @@ export function inMemoryTypedDependencies(
   table: MemoryTypedDependencyTable = memoryTypedDependencyTable(seed),
 ): TypedDependencyStore & { readonly rows: StoredTypedDependency[] } {
   const { rows, creation } = table;
-  // Proof: removing owner agreement or the required predecessor project separately failed `refuses successor-owner disagreement and owner changes` (2026-10-22).
+  // Proof: removing owner agreement or the required predecessor work package separately failed `refuses successor-owner disagreement and owner changes` (2026-10-22).
   const assertOwner = (row: StoredTypedDependency): void => {
     if (
-      row.projectId !== row.successor.projectId ||
-      typeof row.predecessor.projectId !== 'string'
+      row.workPackageId !== row.successor.workPackageId ||
+      typeof row.predecessor.workPackageId !== 'string'
     ) {
       throw new Error(`typed dependency ${row.id} has inconsistent successor ownership`);
     }
@@ -49,7 +49,7 @@ export function inMemoryTypedDependencies(
   };
   return {
     rows,
-    // This fixture has no optimizer lifecycle or project markers.
+    // This fixture has no optimizer lifecycle or work package markers.
     hasDeletingEndpoint: () => Promise.resolve(false),
     incidents: {
       capture,
@@ -68,7 +68,7 @@ export function inMemoryTypedDependencies(
         // Proof: removing duplicate refusal appended a second row with the same identity in incident restoration test, 2026-10-22.
         const row = receipt.dependency;
         assertOwner(row);
-        if (row.id !== previous.id || row.projectId !== previous.projectId)
+        if (row.id !== previous.id || row.workPackageId !== previous.workPackageId)
           throw new Error('incident restoration cannot change identity or owner');
         if (
           rows.some(
@@ -82,15 +82,16 @@ export function inMemoryTypedDependencies(
         creation.set(row.id, { createdAt: receipt.createdAt, createdBy: receipt.createdBy });
       },
     },
-    listByProject: (projectId) =>
-      Promise.resolve(rows.filter((row) => row.projectId === projectId)),
-    listIncident: (projectIds) => {
-      const projects = new Set(projectIds);
+    listByWorkPackage: (workPackageId) =>
+      Promise.resolve(rows.filter((row) => row.workPackageId === workPackageId)),
+    listIncident: (workPackageIds) => {
+      const workPackages = new Set(workPackageIds);
       return Promise.resolve(
         rows
           .filter(
             (row) =>
-              projects.has(row.predecessor.projectId) || projects.has(row.successor.projectId),
+              workPackages.has(row.predecessor.workPackageId) ||
+              workPackages.has(row.successor.workPackageId),
           )
           .sort((left, right) => left.id.localeCompare(right.id)),
       );
@@ -125,8 +126,10 @@ export function inMemoryTypedDependencies(
       }
       assertOwner(row);
       // Proof: bypassing immutable ownership admitted the moved owner in `refuses successor-owner disagreement and owner changes` (2026-10-22).
-      if (rows[index]?.projectId !== row.projectId)
-        throw new Error(`typed dependency ${row.id} cannot move to project ${row.projectId}`);
+      if (rows[index]?.workPackageId !== row.workPackageId)
+        throw new Error(
+          `typed dependency ${row.id} cannot move to work package ${row.workPackageId}`,
+        );
       rows[index] = row;
     },
     remove: async (id) => {
@@ -146,7 +149,7 @@ export function inMemoryTypedDependencies(
       if (
         removed.some(
           (row) =>
-            row.predecessor.projectId !== row.successor.projectId &&
+            row.predecessor.workPackageId !== row.successor.workPackageId &&
             doomed.has(row.predecessor.workItemId) &&
             !doomed.has(row.successor.workItemId),
         )

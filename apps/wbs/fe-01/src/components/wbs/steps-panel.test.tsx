@@ -41,7 +41,7 @@ const QA: StepView = {
   allowancePercent: 0,
 };
 
-/** A plan where no row sets an earliest start, which is what a fresh project is. */
+/** A plan where no row sets an earliest start, which is what a fresh work package is. */
 const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
@@ -65,7 +65,7 @@ const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
  * Everything the panel is given, with each call recorded.
  *
  * Rendered bare, without the modal around it: this suite is about what the
- * section sends and says, and `project-settings-modal.test.tsx` is about the
+ * section sends and says, and `work-package-settings-modal.test.tsx` is about the
  * shell — who opens it, who closes it, what it refuses to close over and where
  * the focus goes afterwards. Two cases that used to live here, `gives the focus
  * back to the button that opened it` and `leaves no half-answered confirmation
@@ -136,7 +136,7 @@ const type = (label: string, value: string): void => {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 };
 
-describe('the steps a project holds', () => {
+describe('the steps a work package holds', () => {
   itDom('commits a changed allowance and rereads the plan', async () => {
     const stub = stubbed();
     type('QA allowance (%)', '30');
@@ -212,8 +212,8 @@ describe('the steps a project holds', () => {
 
   itDom('says nothing on this panel that reads Phase or Role', () => {
     // The panel's own surface. What it is *called* is the settings modal's tab,
-    // asserted in `project-settings-modal.test.tsx` — this panel renders no
-    // title of its own since `project-config-modal` split it out of the dialog
+    // asserted in `work-package-settings-modal.test.tsx` — this panel renders no
+    // title of its own since `work-package-config-modal` split it out of the dialog
     // it used to be. `Phase` was the word on every control here until
     // `steps-not-phases`, and `Role` was the same thing below.
     stubbed();
@@ -235,7 +235,7 @@ describe('the steps a project holds', () => {
     expect(screen.getByRole('button', { name: 'Remove QA' })).toBeDefined();
   });
 
-  itDom('adds a step and rereads the project', async () => {
+  itDom('adds a step and rereads the work package', async () => {
     const stub = stubbed();
 
     type('New step', 'Design');
@@ -377,7 +377,7 @@ describe('how far a dependency reaches', () => {
 
   itDom('the reach is chosen and written', async () => {
     // Two options and a sentence each, in the section about the steps — a
-    // dependency's reach is a statement about how steps chain. The project's
+    // dependency's reach is a statement about how steps chain. The work package's
     // stored value is what is checked; picking the other one writes it and
     // re-reads the plan, because every date on the table may move on it.
     //
@@ -400,7 +400,7 @@ describe('how far a dependency reaches', () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  itDom('shows the project’s own reach, not the one it was last shown', () => {
+  itDom('shows the work package’s own reach, not the one it was last shown', () => {
     // The dialog holds nothing about the reach: what is checked is be-01's
     // answer, arriving as a prop, exactly as the step names beside it do.
     stubbed({ depReach: 'anchor-slice' });
@@ -420,7 +420,7 @@ describe('how far a dependency reaches', () => {
     // request and read by `checked` — and this failed on
     // `expect(element).toBeChecked() / Received element is not checked:
     // <input checked="" class="mt-1" name="dep-reach" type="radio" …`, the
-    // whole-item option unticked against a project be-01 had not answered for.
+    // whole-item option unticked against a work package be-01 had not answered for.
     // Watched 2026-08-29.
     const held = vi.fn(() => new Promise<void>(() => undefined));
     stubbed({ setDepReach: held });
@@ -448,8 +448,8 @@ describe('how far a dependency reaches', () => {
   `describe('leaving the surface')` stood here on `dep-reach-whole-item` and is
   deliberately not carried over: its two cases — the focus returning to the
   trigger, and a walked-away-from confirmation being dropped — are about the
-  shell, and `project-config-modal` made the shell `ProjectSettingsModal`'s.
-  Both live in `project-settings-modal.test.tsx` now, the second restated as a
+  shell, and `work-package-config-modal` made the shell `WorkPackageSettingsModal`'s.
+  Both live in `work-package-settings-modal.test.tsx` now, the second restated as a
   refusal (the modal will not close over an unanswered confirmation) rather
   than as a silent clear.
 */
@@ -631,7 +631,7 @@ describe('how wide the steps make the table', () => {
   itDom('quotes the table’s own arithmetic, not a sum of its own', () => {
     // The number moves with every width the table declares, including the ones
     // that depend on the plan: the same two steps are 28px wider once
-    // somebody sets an earliest start anywhere in the project.
+    // somebody sets an earliest start anywhere in the work package.
     //
     // Proof: `minWidth` in `steps-panel.tsx` replaced by the hand-written
     // `952 + steps.length * 96` this sentence used to quote, this failed on
@@ -659,7 +659,7 @@ describe('how wide the steps make the table', () => {
     ).toBe(24);
   });
 
-  itDom('resolves the project’s own step ids, not stand-ins for the count', () => {
+  itDom('resolves the work package’s own step ids, not stand-ins for the count', () => {
     // A width can be resolved per column id now, which is what makes an id a
     // fact rather than a placeholder: `T1 column-widths-drag` stores a
     // reader's override under the exact column id, and a `step0-final`
@@ -682,7 +682,7 @@ describe('how wide the steps make the table', () => {
     // the figure that says how much width the steps need has to be that
     // table's. It can only be, because the override is stored under
     // `step-dev-final` — the id the table renders that column by — and this
-    // panel resolves the project's own step ids.
+    // panel resolves the work package's own step ids.
     //
     // Proof: `steps.map((step) => step.id)` replaced by the stand-in
     // `Array.from({ length: steps.length }, (_, at) => \`step${at}\`)`, this
@@ -751,7 +751,7 @@ describe('how wide the steps make the table', () => {
 
 describe('what the section tells the modal it is holding', () => {
   itDom('is clean on mount and dirty from a name typed into the new box', () => {
-    // `project-config-modal` D3: a name typed and not added is an edit a close
+    // `work-package-config-modal` D3: a name typed and not added is an edit a close
     // would lose, so the modal is told.
     const stub = stubbed();
     expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
@@ -818,7 +818,7 @@ describe('the sentences on their own', () => {
   });
 
   it('the removal sentence says step', () => {
-    // A project names its own steps, so one may well be called `Kat` or
+    // A work package names its own steps, so one may well be called `Kat` or
     // `Backend` — the sentence somebody agrees to before a removal has to say
     // what kind of thing is going, in the word every other face uses for it.
     const sentence = usageSentence('QA', {

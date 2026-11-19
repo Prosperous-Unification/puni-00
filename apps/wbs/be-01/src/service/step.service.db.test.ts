@@ -1,16 +1,18 @@
+import { seedLegacyProject } from '../testing/project-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Broadcaster } from '@wbs/core';
 import { EventLogService } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { GatewayBroadcaster } from '@wbs/core/module/realtime/gateway-broadcaster';
 import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
 import { ReplayOrchestrator } from '@wbs/core/module/realtime/replay-orchestrator';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { systemTimers } from '@wbs/runtime-portable';
@@ -42,12 +44,12 @@ import { EstimateRepository } from '../repository/estimate';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -71,14 +73,14 @@ let dir: string;
 let db: ReturnType<typeof openDrizzle>;
 let steps: StepService;
 let stepStore: StepRepository;
-let projectStore: ProjectRepository;
+let workPackageStore: WorkPackageRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
 let measures: StepMeasureRepository;
 let progressStore: StepProgressRepository;
 let directory: DirectoryRepository;
 let broadcast: RecordingBroadcaster;
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 let strangerId: string;
 let devId: string;
@@ -89,7 +91,7 @@ const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
 const newItem = (id: string, position: number, name: string): WorkItem =>
   workItemRow({
     id,
-    projectId,
+    workPackageId,
     position,
     name,
   });
@@ -102,7 +104,9 @@ const newItem = (id: string, position: number, name: string): WorkItem =>
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const stepNamed = async (name: string): Promise<Step> => {
-  const found = (await stepStore.listByProject(projectId)).find((each) => each.name === name);
+  const found = (await stepStore.listByWorkPackage(workPackageId)).find(
+    (each) => each.name === name,
+  );
   if (found === undefined) throw new Error(`no step called ${name}`);
   return found;
 };
@@ -111,10 +115,11 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-service-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
   activateTestStepBlockages(path);
   db = openDrizzle(path);
 
-  projectStore = new ProjectRepository(db, OPEN);
+  workPackageStore = new WorkPackageRepository(db, OPEN);
   stepStore = new StepRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
   actuals = new ActualRepository(db, OPEN);
@@ -123,9 +128,9 @@ beforeEach(async () => {
   directory = new DirectoryRepository(db, OPEN);
   broadcast = recordingBroadcaster();
   steps = new StepService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     steps: stepStore,
     broadcast,
   });
@@ -142,14 +147,15 @@ beforeEach(async () => {
     { at: 2, by: strangerId },
   );
 
-  const created = await new ProjectService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+  const created = await new WorkPackageService({
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
-  }).create('Shed', ownerId);
-  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
-  projectId = created.project.id;
+  }).create('Shed', PARENT_PROJECT_ID, ownerId);
+  if (typeof created === 'string')
+    throw new Error(`fixture work package creation refused: ${created}`);
+  workPackageId = created.workPackage.id;
   devId = (await stepNamed('Dev')).id;
   qaId = (await stepNamed('QA')).id;
 
@@ -164,23 +170,23 @@ afterEach(() => {
 
 describe('StepService.add', () => {
   it('adds a step and announces it', async () => {
-    const outcome = await steps.add(projectId, ownerId, 'Design', 0);
+    const outcome = await steps.add(workPackageId, ownerId, 'Design', 0);
 
     if (!outcome.ok) throw new Error(`add refused: ${outcome.reason}`);
     expect(outcome.value.name).toBe('Design');
-    expect(outcome.value.projectId).toBe(projectId);
+    expect(outcome.value.workPackageId).toBe(workPackageId);
     // The very row that was written, not a shape that resembles it: the event
     // carrying a different id from the answer is the failure worth catching.
     expect(broadcast.published).toEqual([
-      { projectId, event: { type: 'step_added', step: outcome.value } },
+      { workPackageId, event: { type: 'step_added', step: outcome.value } },
     ]);
   });
 
   it('trims the name, and refuses one that is only spaces', async () => {
-    const trimmed = await steps.add(projectId, ownerId, '  Design  ', 0);
+    const trimmed = await steps.add(workPackageId, ownerId, '  Design  ', 0);
     if (!trimmed.ok) throw new Error(`add refused: ${trimmed.reason}`);
     expect(trimmed.value.name).toBe('Design');
-    expect(await steps.add(projectId, ownerId, '   ', 0)).toEqual({
+    expect(await steps.add(workPackageId, ownerId, '   ', 0)).toEqual({
       ok: false,
       reason: 'name_required',
     });
@@ -188,36 +194,43 @@ describe('StepService.add', () => {
     expect(broadcast.published).toHaveLength(1);
   });
 
-  it('refuses a name the project already holds', async () => {
-    expect(await steps.add(projectId, ownerId, 'QA', 0)).toEqual({ ok: false, reason: 'taken' });
+  it('refuses a name the work package already holds', async () => {
+    expect(await steps.add(workPackageId, ownerId, 'QA', 0)).toEqual({
+      ok: false,
+      reason: 'taken',
+    });
     expect(broadcast.published).toEqual([]);
   });
 
-  it('refuses a project that is not there, and one the caller may not write to', async () => {
+  it('refuses an absent package and a restricted legacy package for both stranger and creator', async () => {
     expect(await steps.add(crypto.randomUUID(), ownerId, 'Design', 0)).toEqual({
       ok: false,
       reason: 'not_found',
     });
 
-    await projectStore.update(projectId, { restricted: true }, wrote());
-    expect(await steps.add(projectId, strangerId, 'Design', 0)).toEqual({
+    await workPackageStore.update(workPackageId, { restricted: true }, wrote());
+    expect(await steps.add(workPackageId, strangerId, 'Design', 0)).toEqual({
       ok: false,
       reason: 'forbidden',
     });
-    // The owner of the restricted project still may.
-    expect((await steps.add(projectId, ownerId, 'Design', 0)).ok).toBe(true);
+    // Retired-policy comment retained verbatim; current legacy access refuses every restricted actor.
+    // The owner of the restricted work package still may.
+    expect(await steps.add(workPackageId, ownerId, 'Design', 0)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
   });
 });
 
 describe('StepService.rename', () => {
   it('renames a step and announces it', async () => {
-    const outcome = await steps.rename(projectId, qaId, ownerId, 'Review');
+    const outcome = await steps.rename(workPackageId, qaId, ownerId, 'Review');
 
     expect(outcome).toEqual({
       ok: true,
       value: {
         id: qaId,
-        projectId,
+        workPackageId,
         name: 'Review',
         position: 20,
         code: 'qa',
@@ -227,12 +240,12 @@ describe('StepService.rename', () => {
     });
     expect(broadcast.published).toEqual([
       {
-        projectId,
+        workPackageId,
         event: {
           type: 'step_renamed',
           step: {
             id: qaId,
-            projectId,
+            workPackageId,
             name: 'Review',
             position: 20,
             code: 'qa',
@@ -244,27 +257,28 @@ describe('StepService.rename', () => {
     ]);
   });
 
-  it('refuses a name the project already holds', async () => {
-    expect(await steps.rename(projectId, qaId, ownerId, 'Dev')).toEqual({
+  it('refuses a name the work package already holds', async () => {
+    expect(await steps.rename(workPackageId, qaId, ownerId, 'Dev')).toEqual({
       ok: false,
       reason: 'taken',
     });
   });
 
-  it('refuses a step that belongs to another project', async () => {
-    const other = await new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+  it('refuses a step that belongs to another work package', async () => {
+    const other = await new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast: recordingBroadcaster(),
-    }).create('Roof', ownerId);
-    if (typeof other === 'string') throw new Error(`fixture project creation refused: ${other}`);
-    const theirs = (await stepStore.listByProject(other.project.id)).at(0);
-    if (theirs === undefined) throw new Error('the other project was created without steps');
+    }).create('Roof', PARENT_PROJECT_ID, ownerId);
+    if (typeof other === 'string')
+      throw new Error(`fixture work package creation refused: ${other}`);
+    const theirs = (await stepStore.listByWorkPackage(other.workPackage.id)).at(0);
+    if (theirs === undefined) throw new Error('the other work package was created without steps');
 
-    // Not found rather than forbidden: this project does not have that step,
+    // Not found rather than forbidden: this work package does not have that step,
     // and saying "you may not" would tell the caller it exists here.
-    expect(await steps.rename(projectId, theirs.id, ownerId, 'Review')).toEqual({
+    expect(await steps.rename(workPackageId, theirs.id, ownerId, 'Review')).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -282,14 +296,15 @@ describe('StepService.rename', () => {
  */
 function storeWith(overrides: Partial<StepStore>): StepStore {
   return {
-    listByProject: (projectOf) => stepStore.listByProject(projectOf),
+    listByWorkPackage: (workPackageOf) => stepStore.listByWorkPackage(workPackageOf),
     findById: (stepOf) => stepStore.findById(stepOf),
     add: (toAdd, stamp) => stepStore.add(toAdd, stamp),
-    rename: (projectOf, stepOf, name, stamp) => stepStore.rename(projectOf, stepOf, name, stamp),
-    usageOf: (projectOf, stepOf) => stepStore.usageOf(projectOf, stepOf),
+    rename: (workPackageOf, stepOf, name, stamp) =>
+      stepStore.rename(workPackageOf, stepOf, name, stamp),
+    usageOf: (workPackageOf, stepOf) => stepStore.usageOf(workPackageOf, stepOf),
     patchUnit: (...args) => stepStore.patchUnit(...args),
-    remove: (projectOf, stepOf, cascade, stamp) =>
-      stepStore.remove(projectOf, stepOf, cascade, stamp),
+    remove: (workPackageOf, stepOf, cascade, stamp) =>
+      stepStore.remove(workPackageOf, stepOf, cascade, stamp),
     ...overrides,
   };
 }
@@ -310,14 +325,14 @@ describe('StepService.remove', () => {
           { workItemId: 'strip', stepId: qaId, state, statedAt: 44 },
           wrote(),
         );
-      expect(await steps.remove(projectId, qaId, ownerId, false)).toMatchObject({
+      expect(await steps.remove(workPackageId, qaId, ownerId, false)).toMatchObject({
         ok: false,
         reason: 'in_use',
         inUse: { blockages: 1 },
       });
     }
     expect(transactionsOpened).toBe(0);
-    expect(await blockages.listByProject(projectId)).toEqual([
+    expect(await blockages.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'strip', stepId: qaId, blockedAt: -12 },
     ]);
     expect(broadcast.published).toEqual([]);
@@ -326,25 +341,25 @@ describe('StepService.remove', () => {
   it('refuses a blockage arriving after the fast usage count', async () => {
     const blockages = new StepBlockageRepository(db, OPEN);
     const service = new StepService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast,
       steps: storeWith({
-        async usageOf(project, step) {
-          const counted = await stepStore.usageOf(project, step);
+        async usageOf(workPackage, step) {
+          const counted = await stepStore.usageOf(workPackage, step);
           await blockages.set({ workItemId: 'strip', stepId: qaId, blockedAt: 52 }, wrote());
           return counted;
         },
       }),
     });
-    expect(await service.remove(projectId, qaId, ownerId, false)).toMatchObject({
+    expect(await service.remove(workPackageId, qaId, ownerId, false)).toMatchObject({
       ok: false,
       reason: 'in_use',
       inUse: { blockages: 1 },
     });
     expect(await stepStore.findById(qaId)).not.toBeNull();
-    expect(await blockages.listByProject(projectId)).toHaveLength(1);
+    expect(await blockages.listByWorkPackage(workPackageId)).toHaveLength(1);
     expect(broadcast.published).toEqual([]);
   });
 
@@ -353,15 +368,15 @@ describe('StepService.remove', () => {
     const workItems = new WorkItemRepository(db, OPEN);
     await blockages.set({ workItemId: 'strip', stepId: qaId, blockedAt: -12 }, wrote());
     await blockages.set({ workItemId: 'sand', stepId: devId, blockedAt: 33 }, wrote());
-    const before = await workItems.listByProject(projectId);
-    expect(await stepStore.remove(projectId, qaId, true, wrote())).toMatchObject({
+    const before = await workItems.listByWorkPackage(workPackageId);
+    expect(await stepStore.remove(workPackageId, qaId, true, wrote())).toMatchObject({
       ok: true,
       removal: { blockages: 1, workItemIds: ['strip'] },
     });
-    expect(await blockages.listByProject(projectId)).toEqual([
+    expect(await blockages.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'sand', stepId: devId, blockedAt: 33 },
     ]);
-    const after = await workItems.listByProject(projectId);
+    const after = await workItems.listByWorkPackage(workPackageId);
     for (const id of ['strip', 'sand'])
       expect(after.find((row) => row.id === id)?.revision).toBe(
         Number(before.find((row) => row.id === id)?.revision) + (id === 'strip' ? 1 : 0),
@@ -372,37 +387,38 @@ describe('StepService.remove', () => {
     const blockages = new StepBlockageRepository(db, OPEN);
     const workItems = new WorkItemRepository(db, OPEN);
     await blockages.set({ workItemId: 'strip', stepId: qaId, blockedAt: -12 }, wrote());
-    const before = await workItems.listByProject(projectId);
-    const projectBefore = await projectStore.findById(projectId);
+    const before = await workItems.listByWorkPackage(workPackageId);
+    const workPackageBefore = await workPackageStore.findById(workPackageId);
     const connection = openDatabase(join(dir, 'test.db'));
     connection.run(
-      "CREATE TRIGGER refuse_step_revision BEFORE UPDATE ON project BEGIN SELECT RAISE(ABORT, 'injected revision failure'); END",
+      "CREATE TRIGGER refuse_step_revision BEFORE UPDATE ON work_package BEGIN SELECT RAISE(ABORT, 'injected revision failure'); END",
     );
     connection.close();
     let failure: unknown;
     try {
-      await steps.remove(projectId, qaId, ownerId, true);
+      await steps.remove(workPackageId, qaId, ownerId, true);
     } catch (caught) {
       failure = caught;
     }
-    if (!(failure instanceof Error)) throw new Error('expected a project revision write failure');
-    expect(failure.message).toContain('update "project"');
-    expect(await blockages.listByProject(projectId)).toEqual([
+    if (!(failure instanceof Error))
+      throw new Error('expected a work package revision write failure');
+    expect(failure.message).toContain('update "work_package"');
+    expect(await blockages.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'strip', stepId: qaId, blockedAt: -12 },
     ]);
     expect(await stepStore.findById(qaId)).not.toBeNull();
-    expect(await workItems.listByProject(projectId)).toEqual(before);
-    expect(await projectStore.findById(projectId)).toEqual(projectBefore);
+    expect(await workItems.listByWorkPackage(workPackageId)).toEqual(before);
+    expect(await workPackageStore.findById(workPackageId)).toEqual(workPackageBefore);
     expect(broadcast.published).toEqual([]);
   });
 
   it('removes a step nothing points at, without asking again', async () => {
-    const outcome = await steps.remove(projectId, qaId, ownerId, false);
+    const outcome = await steps.remove(workPackageId, qaId, ownerId, false);
 
     expect(outcome).toEqual({ ok: true });
     expect(await stepStore.findById(qaId)).toBeNull();
     expect(broadcast.published).toEqual([
-      { projectId, event: { type: 'step_removed', stepId: qaId } },
+      { workPackageId, event: { type: 'step_removed', stepId: qaId } },
     ]);
   });
 
@@ -415,7 +431,7 @@ describe('StepService.remove', () => {
     await directory.assign('strip', qaId, ada.id, wrote());
     await directory.assign('strip', devId, ada.id, wrote());
 
-    const outcome = await steps.remove(projectId, qaId, ownerId, false);
+    const outcome = await steps.remove(workPackageId, qaId, ownerId, false);
 
     expect(outcome).toEqual({
       ok: false,
@@ -462,7 +478,7 @@ describe('StepService.remove', () => {
       wrote(),
     );
 
-    const outcome = await steps.remove(projectId, qaId, ownerId, false);
+    const outcome = await steps.remove(workPackageId, qaId, ownerId, false);
 
     expect(outcome).toEqual({
       ok: false,
@@ -528,7 +544,7 @@ describe('StepService.remove', () => {
         return removeThroughStore(...args);
       };
 
-      const outcome = await steps.remove(projectId, qaId, ownerId, false);
+      const outcome = await steps.remove(workPackageId, qaId, ownerId, false);
 
       expect(outcome).toMatchObject({ ok: false, reason: 'in_use' });
       expect(transactionsOpened).toBe(0);
@@ -538,14 +554,16 @@ describe('StepService.remove', () => {
 
   it('removes it on the second, explicit call', async () => {
     await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
-    expect(await steps.remove(projectId, qaId, ownerId, false)).toMatchObject({ reason: 'in_use' });
+    expect(await steps.remove(workPackageId, qaId, ownerId, false)).toMatchObject({
+      reason: 'in_use',
+    });
 
-    const outcome = await steps.remove(projectId, qaId, ownerId, true);
+    const outcome = await steps.remove(workPackageId, qaId, ownerId, true);
 
     expect(outcome).toEqual({ ok: true });
-    expect(await estimates.listByProject(projectId)).toEqual([]);
+    expect(await estimates.listByWorkPackage(workPackageId)).toEqual([]);
     expect(broadcast.published).toEqual([
-      { projectId, event: { type: 'step_removed', stepId: qaId } },
+      { workPackageId, event: { type: 'step_removed', stepId: qaId } },
     ]);
   });
 
@@ -556,12 +574,12 @@ describe('StepService.remove', () => {
     // still refuse: it was never consent to take anything, and what it would
     // take is a trio nobody has been shown.
     const service = new StepService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       steps: storeWith({
-        async usageOf(watchedProject, watchedStep) {
-          const counted = await stepStore.usageOf(watchedProject, watchedStep);
+        async usageOf(watchedWorkPackage, watchedStep) {
+          const counted = await stepStore.usageOf(watchedWorkPackage, watchedStep);
           await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
           return counted;
         },
@@ -569,10 +587,10 @@ describe('StepService.remove', () => {
       broadcast,
     });
 
-    const outcome = await service.remove(projectId, qaId, ownerId, false);
+    const outcome = await service.remove(workPackageId, qaId, ownerId, false);
 
     expect(outcome).toMatchObject({ ok: false, reason: 'in_use' });
-    expect(await estimates.listByProject(projectId)).toHaveLength(1);
+    expect(await estimates.listByWorkPackage(workPackageId)).toHaveLength(1);
     expect(await stepStore.findById(qaId)).not.toBeNull();
     expect(broadcast.published).toEqual([]);
   });
@@ -581,19 +599,19 @@ describe('StepService.remove', () => {
     // Both requests pass the gate against a step that is still there, and one
     // of them commits first. The loser has nothing to remove, so it has nothing
     // to announce either: a second `step_removed` would make every client
-    // reread for a change that did not happen, and the project's revision would
+    // reread for a change that did not happen, and the work package's revision would
     // move for a write nobody made.
     let winnerRevision: number | undefined;
     const service = new StepService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       steps: storeWith({
         async findById(watched) {
           const found = await stepStore.findById(watched);
           if (winnerRevision === undefined) {
-            await stepStore.remove(projectId, qaId, true, wrote());
-            winnerRevision = (await projectStore.findById(projectId))?.revision;
+            await stepStore.remove(workPackageId, qaId, true, wrote());
+            winnerRevision = (await workPackageStore.findById(workPackageId))?.revision;
           }
           return found;
         },
@@ -601,17 +619,17 @@ describe('StepService.remove', () => {
       broadcast,
     });
 
-    const outcome = await service.remove(projectId, qaId, ownerId, true);
+    const outcome = await service.remove(workPackageId, qaId, ownerId, true);
 
     expect(outcome).toEqual({ ok: false, reason: 'not_found' });
-    expect((await projectStore.findById(projectId))?.revision).toBe(winnerRevision);
+    expect((await workPackageStore.findById(workPackageId))?.revision).toBe(winnerRevision);
     expect(broadcast.published).toEqual([]);
   });
 
-  it('refuses a caller who may not write to the project, cascade or not', async () => {
-    await projectStore.update(projectId, { restricted: true }, wrote());
+  it('refuses a caller who may not write to the work package, cascade or not', async () => {
+    await workPackageStore.update(workPackageId, { restricted: true }, wrote());
 
-    expect(await steps.remove(projectId, qaId, strangerId, true)).toEqual({
+    expect(await steps.remove(workPackageId, qaId, strangerId, true)).toEqual({
       ok: false,
       reason: 'forbidden',
     });
@@ -619,7 +637,7 @@ describe('StepService.remove', () => {
   });
 
   it('refuses a step that is not there', async () => {
-    expect(await steps.remove(projectId, crypto.randomUUID(), ownerId, true)).toEqual({
+    expect(await steps.remove(workPackageId, crypto.randomUUID(), ownerId, true)).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -634,36 +652,37 @@ describe('a step removed between the check and the write', () => {
    */
   function serviceWritingIntoTheGap(): WorkItemService {
     const vanishing: EstimateStore = {
-      listByProject: (of) => estimates.listByProject(of),
+      readTarget: (workItemId, stepId) => estimates.readTarget(workItemId, stepId),
+      listByWorkPackage: (of) => estimates.listByWorkPackage(of),
       listByWorkItems: (of, ids) => estimates.listByWorkItems(of, ids),
       listPlacements: (of, ids) => estimates.listPlacements(of, ids),
       remove: (workItemId, stepId, stamp) => estimates.remove(workItemId, stepId, stamp),
       moveAll: (from, to, stamp) => estimates.moveAll(from, to, stamp),
       async set(toSet, stamp) {
-        await stepStore.remove(projectId, qaId, true, wrote());
+        await stepStore.remove(workPackageId, qaId, true, wrote());
         return await estimates.set(toSet, stamp);
       },
     };
     const vanishingToo: DirectoryStore = directoryWith(directory, {
       async assign(workItemId, stepId, personId, stamp) {
-        await stepStore.remove(projectId, qaId, true, wrote());
+        await stepStore.remove(workPackageId, qaId, true, wrote());
         return directory.assign(workItemId, stepId, personId, stamp);
       },
     });
     return new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projectStore,
+        workPackages: workPackageStore,
         workItems: new WorkItemRepository(db, OPEN),
         estimates: vanishing,
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
-      projects: projectStore,
+      workPackages: workPackageStore,
       estimates: vanishing,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
@@ -690,7 +709,7 @@ describe('a step removed between the check and the write', () => {
     const outcome = await serviceWritingIntoTheGap().setEstimate('strip', ownerId, qaId, DAYS);
 
     expect(outcome).toEqual({ ok: false, reason: 'unknown_step' });
-    expect(await estimates.listByProject(projectId)).toEqual([]);
+    expect(await estimates.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('refuses the assignee the same way', async () => {
@@ -713,18 +732,18 @@ describe('a step removed between the check and the write', () => {
     // asserted is unchanged: `writeNamingStep` must not claim the step.
     const workItems = new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projectStore,
+        workPackages: workPackageStore,
         workItems: new WorkItemRepository(db, OPEN),
         estimates: estimates,
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
-      projects: projectStore,
+      workPackages: workPackageStore,
       estimates,
       actuals,
       measures,
@@ -755,13 +774,13 @@ describe('a step removed between the check and the write', () => {
 });
 
 describe('step events', () => {
-  /** What the project's steps looked like at the moment each event was published. */
+  /** What the work package's steps looked like at the moment each event was published. */
   function watchingBroadcaster(): { stepsAtPublish: string[][] } & Broadcaster {
     const stepsAtPublish: string[][] = [];
     return {
       stepsAtPublish,
       async publish(watched: string) {
-        stepsAtPublish.push((await stepStore.listByProject(watched)).map((each) => each.name));
+        stepsAtPublish.push((await stepStore.listByWorkPackage(watched)).map((each) => each.name));
       },
       latestSeq: () => Promise.resolve(-1),
     };
@@ -770,20 +789,20 @@ describe('step events', () => {
   it('records the event after the write, never before it', async () => {
     // The sequence-consistency rule, asserted where it is decided rather than
     // reasoned about: a reader that acts on the event — a client rereading the
-    // project, the replay log recording it — must never see the project as it
+    // work package, the replay log recording it — must never see the work package as it
     // was before the change. Reading the steps from inside `publish` is the
     // only moment that can tell the two orders apart.
     const watching = watchingBroadcaster();
     const service = new StepService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       steps: stepStore,
       broadcast: watching,
     });
 
-    await service.add(projectId, ownerId, 'Design', 0);
-    await service.remove(projectId, qaId, ownerId, true);
+    await service.add(workPackageId, ownerId, 'Design', 0);
+    await service.remove(workPackageId, qaId, ownerId, true);
 
     expect(watching.stepsAtPublish[0]).toContain('Design');
     expect(watching.stepsAtPublish[1]).not.toContain('QA');
@@ -797,9 +816,9 @@ describe('step events', () => {
       now: Date.now,
     });
     const durable = new StepService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       steps: stepStore,
       broadcast: new GatewayBroadcaster({
         clock: testClock,
@@ -820,11 +839,11 @@ describe('step events', () => {
         onPushFailed: () => undefined,
       }),
     });
-    const subscription = `project:${projectId}`;
+    const subscription = `work-package:${workPackageId}`;
 
-    await durable.add(projectId, ownerId, 'Design', 0);
+    await durable.add(workPackageId, ownerId, 'Design', 0);
     const seenUpTo = await eventLog.latestSeq(subscription);
-    await durable.remove(projectId, qaId, ownerId, true);
+    await durable.remove(workPackageId, qaId, ownerId, true);
 
     const replayed = await new ReplayOrchestrator({
       log: new EventLogService(eventLog),
@@ -846,35 +865,37 @@ for (const cascade of [false, true]) {
     await parallels.set({ workItemId: 'strip', stepId: devId, maxParallel: 1 }, wrote());
     await parallels.set({ workItemId: 'sand', stepId: devId, maxParallel: 2 }, wrote());
     await parallels.set({ workItemId: 'sand', stepId: qaId, maxParallel: 3 }, wrote());
-    const before = await projectStore.findById(projectId);
+    const before = await workPackageStore.findById(workPackageId);
     const nodes = [
       { workItemId: 'sand', stepId: devId },
       { workItemId: 'strip', stepId: devId },
     ];
-    expect(await stepStore.remove(projectId, devId, cascade, wrote())).toEqual({
+    expect(await stepStore.remove(workPackageId, devId, cascade, wrote())).toEqual({
       ok: false,
       reason: 'referenced_by_step_parallel',
       nodes,
     });
-    expect(await steps.remove(projectId, devId, ownerId, cascade)).toEqual({
+    expect(await steps.remove(workPackageId, devId, ownerId, cascade)).toEqual({
       ok: false,
       reason: 'referenced_by_step_parallel',
       nodes,
     });
-    expect(await projectStore.findById(projectId)).toEqual(before);
+    expect(await workPackageStore.findById(workPackageId)).toEqual(before);
     expect(broadcast.published).toEqual([]);
     expect(await stepStore.remove('foreign', devId, cascade, wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
-    expect(await stepStore.remove(projectId, 'missing', cascade, wrote())).toEqual({
+    expect(await stepStore.remove(workPackageId, 'missing', cascade, wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
     await parallels.remove('strip', devId, wrote());
     await parallels.remove('sand', devId, wrote());
-    expect(await stepStore.remove(projectId, devId, cascade, wrote())).toMatchObject({ ok: true });
-    expect(await parallels.listByProject(projectId)).toEqual([
+    expect(await stepStore.remove(workPackageId, devId, cascade, wrote())).toMatchObject({
+      ok: true,
+    });
+    expect(await parallels.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: 'sand', stepId: qaId, maxParallel: 3 },
     ]);
   });
@@ -883,19 +904,19 @@ for (const cascade of [false, true]) {
 it('refuses sparse parallelism inserted after the fast usage count', async () => {
   const parallels = new StepParallelRepository(db, OPEN);
   const service = new StepService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast,
     steps: storeWith({
-      async usageOf(project, step) {
-        const counted = await stepStore.usageOf(project, step);
+      async usageOf(workPackage, step) {
+        const counted = await stepStore.usageOf(workPackage, step);
         await parallels.set({ workItemId: 'strip', stepId: devId, maxParallel: 1 }, wrote());
         return counted;
       },
     }),
   });
-  expect(await service.remove(projectId, devId, ownerId, false)).toEqual({
+  expect(await service.remove(workPackageId, devId, ownerId, false)).toEqual({
     ok: false,
     reason: 'referenced_by_step_parallel',
     nodes: [{ workItemId: 'strip', stepId: devId }],
@@ -905,16 +926,16 @@ it('refuses sparse parallelism inserted after the fast usage count', async () =>
 });
 
 it('authorizes before consulting sparse step references', async () => {
-  await projectStore.update(projectId, { restricted: true }, wrote());
+  await workPackageStore.update(workPackageId, { restricted: true }, wrote());
   await new StepParallelRepository(db, OPEN).set(
     { workItemId: 'strip', stepId: devId, maxParallel: 1 },
     wrote(),
   );
   let removals = 0;
   const service = new StepService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast,
     steps: storeWith({
       async remove(...args) {
@@ -923,7 +944,7 @@ it('authorizes before consulting sparse step references', async () => {
       },
     }),
   });
-  expect(await service.remove(projectId, devId, strangerId, true)).toEqual({
+  expect(await service.remove(workPackageId, devId, strangerId, true)).toEqual({
     ok: false,
     reason: 'forbidden',
   });

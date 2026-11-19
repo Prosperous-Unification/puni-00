@@ -23,10 +23,10 @@ beforeEach(() => {
   connection = openConnection(path);
   for (const statement of [
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)",
-    "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('q','Other','u',0,1)",
-    "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','q','Foreign',1)",
-    "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('root','p','Root',1,0),('free','p','Free',2,0)",
-    "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('leaf','p','root','Leaf',1,0)",
+    "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('q','Other','u',0,1)",
+    "INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','q','Foreign',1)",
+    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('root','p','Root',1,0),('free','p','Free',2,0)",
+    "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('leaf','p','root','Leaf',1,0)",
     "INSERT INTO person (id,name) VALUES ('claire','claire'),('worker','worker')",
   ])
     connection.db.run(statement);
@@ -79,12 +79,14 @@ describe('the claim table', () => {
     expect(() => insert('c', 'leaf', 'qa', { run: '' })).toThrow();
   });
 
-  it('refuses a step of another project, on insert and on update', () => {
-    expect(causeOf(() => insert('a', 'leaf', 'foreign'))).toContain('claim step project mismatch');
+  it('refuses a step of another work package, on insert and on update', () => {
+    expect(causeOf(() => insert('a', 'leaf', 'foreign'))).toContain(
+      'claim step work package mismatch',
+    );
     insert('b', 'leaf', 'dev');
     expect(
       causeOf(() => connection.db.run("UPDATE claim SET step_id='foreign' WHERE id='b'")),
-    ).toContain('claim step project mismatch');
+    ).toContain('claim step work package mismatch');
   });
 
   it('refuses a claim that is its own parent', () => {
@@ -106,17 +108,19 @@ describe('ClaimRepository', () => {
   it('refuses a stored claim with no writing account', async () => {
     insert('a', 'leaf', 'dev');
     connection.db.run("UPDATE claim SET created_by=NULL WHERE id='a'");
-    expect(await failureOf(store.listByProject('p'))).toContain('claim a has no writing account');
+    expect(await failureOf(store.listByWorkPackage('p'))).toContain(
+      'claim a has no writing account',
+    );
   });
 
   it('refuses a stamped read of a claim with no write instant', async () => {
     insert('a', 'leaf', 'dev');
     connection.db.run("UPDATE claim SET created_at=NULL WHERE id='a'");
-    expect(await failureOf(store.listStampedByProject('p'))).toContain(
+    expect(await failureOf(store.listStampedByWorkPackage('p'))).toContain(
       'claim a has no write instant',
     );
     // The unstamped reads the claim rules use do not need the instant.
-    expect(await store.listByProject('p')).toHaveLength(1);
+    expect(await store.listByWorkPackage('p')).toHaveLength(1);
   });
 
   it('answers the write instant of each claim', async () => {
@@ -130,7 +134,7 @@ describe('ClaimRepository', () => {
       accountId: 'u',
     };
     expect(await store.add([claim], [], { at: 7, by: 'u' }, [])).toBe('written');
-    expect(await store.listStampedByProject('p')).toEqual([
+    expect(await store.listStampedByWorkPackage('p')).toEqual([
       { ...claim, claimedAt: 7, leaseExpiresAt: null, leaseRevokedAt: null },
     ]);
   });
@@ -151,7 +155,7 @@ describe('ClaimRepository', () => {
     expect(
       await store.add([claim], [{ workItemId: 'leaf', stepId: 'dev' }], { at: 5, by: 'admin' }, []),
     ).toBe('written');
-    expect(await store.listByProject('p')).toEqual([claim]);
+    expect(await store.listByWorkPackage('p')).toEqual([claim]);
     expect(
       connection.db.get<{ revision: number }>("SELECT revision FROM work_item WHERE id='leaf'"),
     ).toEqual({ revision: 1 });
@@ -165,7 +169,7 @@ describe('ClaimRepository', () => {
   it('removes delegated claims with their parent, and refuses a claim no longer stored', async () => {
     insert('parent', 'root', null);
     insert('child', 'leaf', 'dev', { parent: 'parent', person: 'worker' });
-    const parent = (await store.listByProject('p')).find(({ id }) => id === 'parent');
+    const parent = (await store.listByWorkPackage('p')).find(({ id }) => id === 'parent');
     if (parent === undefined) throw new Error('the seeded claim is absent');
     await store.remove([parent], [], { at: 5, by: 'u' });
     expect(ids()).toEqual([]);

@@ -512,7 +512,7 @@ export const stepOfDraftKey = (key: string): string | null => key.split('::')[1]
  * `rowId::<stepId>-<point>` — or null when the column is not a step's.
  *
  * The suffix rule is {@link widthFor}'s, and for the same reason: a step's half
- * of the id is whatever the project called it, so the only thing that can be
+ * of the id is whatever the work package called it, so the only thing that can be
  * matched is the end. Name, Depends on and the date box answer null and are
  * never purged by a step going.
  */

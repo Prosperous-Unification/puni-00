@@ -20,26 +20,26 @@ export interface StubReply {
 export type StubReplies = Readonly<Record<string, StubReply>>;
 
 /**
- * A long space and project name with no break opportunity (underscores, no
+ * A long space and work package name with no break opportunity (underscores, no
  * hyphen or space): what a phone has to wrap rather than widen for.
  */
 export const LONG_NAME = 'quarterly_infrastructure_migration_and_decommissioning_programme';
 
-const space = (id: string, name: string, projectCount: number) => ({
+const space = (id: string, name: string, workPackageCount: number) => ({
   id,
   name,
   virtual: false,
-  projectCount,
+  workPackageCount,
   revision: 1,
   createdById: 'u1',
   createdAt: 1,
 });
 
-const project = (id: string, name: string, restricted = false) => ({
+const workPackage = (id: string, name: string, restricted = false) => ({
   id,
   abbreviation: id.toUpperCase(),
   name,
-  ownerId: 'u1',
+  projectId: 'fixture-project',
   restricted,
   estimateMethod: 'pert',
   depReach: 'whole-item',
@@ -52,7 +52,7 @@ const project = (id: string, name: string, restricted = false) => ({
   optimizationEnabled: false,
   scheduleEngine: 'fast',
   scheduleObjective: 'pri',
-  ownerName: 'ada',
+  createdByName: 'ada',
   lastOpenedAt: null,
 });
 
@@ -85,20 +85,20 @@ const rolledUp = (
   waitingForPerson: 0,
   waitingForCapacity: 0,
   displayed: 'fast',
-  projectRevision: 0,
+  workPackageRevision: 0,
   seq: 1,
 });
 
 const leaf = (
-  projectId: string,
-  projectName: string,
+  workPackageId: string,
+  workPackageName: string,
   workItemId: string,
   number: string,
   name: string,
   lateBy: number | null,
 ) => ({
-  projectId,
-  projectName,
+  workPackageId,
+  workPackageName,
   position: 10,
   workItemId,
   number,
@@ -112,12 +112,12 @@ const leaf = (
   step: { id: 'dev', name: 'Dev' },
 });
 
-/** The space `s`'s projects, in order. */
-export const SPACE_PROJECTS = [
-  project('p1', 'Website relaunch'),
-  project('p2', LONG_NAME),
-  project('p3', 'Billing', true),
-  project('p4', 'Mobile app'),
+/** The space `s`'s work packages, in order. */
+export const SPACE_WORK_PACKAGES = [
+  workPackage('p1', 'Website relaunch'),
+  workPackage('p2', LONG_NAME),
+  workPackage('p3', 'Billing', true),
+  workPackage('p4', 'Mobile app'),
 ];
 
 /** The writable default: every control each page offers is drawn. */
@@ -140,9 +140,12 @@ export const WRITABLE_REPLIES: StubReplies = {
   'GET /api/spaces/s': {
     status: 200,
     body: {
-      space: space('s', 'Launch', SPACE_PROJECTS.length),
+      space: space('s', 'Launch', SPACE_WORK_PACKAGES.length),
       writable: true,
-      rows: SPACE_PROJECTS.map((entry, index) => ({ project: entry, position: (index + 1) * 10 })),
+      rows: SPACE_WORK_PACKAGES.map((entry, index) => ({
+        workPackage: entry,
+        position: (index + 1) * 10,
+      })),
     },
   },
   'GET /api/spaces/s/roll-ups': {
@@ -168,15 +171,19 @@ export const WRITABLE_REPLIES: StubReplies = {
       unavailable: ['p3'],
     },
   },
-  'GET /api/projects': {
+  'GET /api/work-packages': {
     status: 200,
     body: {
-      projects: [...SPACE_PROJECTS, project('p5', 'Hiring plan'), project('p6', 'Office move')],
+      workPackages: [
+        ...SPACE_WORK_PACKAGES,
+        workPackage('p5', 'Hiring plan'),
+        workPackage('p6', 'Office move'),
+      ],
     },
   },
-  'POST /api/spaces/s/projects': { status: 201, body: { position: 50 } },
-  'POST /api/spaces/s/projects/p2/move': { status: 200, body: { position: 15 } },
-  'DELETE /api/spaces/s/projects/p4': { status: 204 },
+  'POST /api/spaces/s/work-packages': { status: 201, body: { position: 50 } },
+  'POST /api/spaces/s/work-packages/p2/move': { status: 200, body: { position: 15 } },
+  'DELETE /api/spaces/s/work-packages/p4': { status: 204 },
 };
 
 /**

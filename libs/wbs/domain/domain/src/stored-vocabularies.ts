@@ -4,7 +4,7 @@
  *
  * They lived in `schema.ts` beside the columns that hold them, which is where
  * they were written and not where they belong: a person's **kind**, a measure's
- * **unit**, which **engine** planned a project and which **objective** it was
+ * **unit**, which **engine** planned a work package and which **objective** it was
  * planned for are facts about the domain, and the `CHECK` constraint that
  * enforces one is the adapter's way of storing a fact it did not invent.
  *
@@ -20,12 +20,12 @@
  */
 
 /**
- * The two engines {@link project.scheduleEngine} may name (tasks.md 3b.8).
+ * The two engines {@link workPackage.scheduleEngine} may name (tasks.md 3b.8).
  *
  * Declared here rather than beside {@link SOLVER_OBJECTIVES} because it is a
- * project vocabulary and not an optimizer-table one: no row in the four
+ * work package vocabulary and not an optimizer-table one: no row in the four
  * optimizer tables stores an engine. The objective deliberately has no twin —
- * `project.schedule_objective` stores the same `'pri' | 'time'`
+ * `workPackage.schedule_objective` stores the same `'pri' | 'time'`
  * {@link SOLVER_OBJECTIVES} already names, so it is a fourth validated column
  * rather than a second vocabulary, and {@link isSolverObjective} reads it.
  *

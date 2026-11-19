@@ -37,7 +37,7 @@ const NUMBER = /^[0-9]+(?:\.[0-9]+)*$/;
  * The canonical step reference: work item number, then the displayed step
  * ordinal before its immutable code — `010.s1-dev`, `020.2.s02-review`.
  *
- * The ordinal is padded to the decimal width of the project's step count, so
+ * The ordinal is padded to the decimal width of the work package's step count, so
  * plain string sorting keeps the displayed step order within one work item.
  * Reordering or repadding changes this spelling, never {@link StepNodeRef}.
  */
@@ -86,7 +86,7 @@ export function parseStepReference(text: string): ParsedStepReference | null {
 }
 
 /**
- * Resolves a step reference within one project's current addresses.
+ * Resolves a step reference within one work package's current addresses.
  *
  * Staleness is not decided here: the caller compares the address revision the
  * reference was read at against {@link describeAddressSpace} of `space` first,
@@ -135,7 +135,7 @@ export function resolveStepReference(
 }
 
 /**
- * The canonical text of a project's address space, which the address revision
+ * The canonical text of a work package's address space, which the address revision
  * is a digest of.
  *
  * Holds exactly what can change what a reference means: every work item's id,
@@ -146,10 +146,10 @@ export function resolveStepReference(
  * Two work items holding one number are described like any others; resolving
  * that number is what refuses, as `ambiguous_work_item`.
  */
-export function describeAddressSpace(projectId: string, space: AddressSpace): string {
+export function describeAddressSpace(workPackageId: string, space: AddressSpace): string {
   const workItems = [...space.workItems]
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
     .map((each) => [each.id, each.number, each.isLeaf ? 'leaf' : 'parent']);
   const steps = orderSteps(space.steps).map((each) => [each.id, each.code, each.position]);
-  return JSON.stringify(['ar1', projectId, workItems, steps]);
+  return JSON.stringify(['ar1', workPackageId, workItems, steps]);
 }

@@ -5,11 +5,11 @@ import { documentConnected } from './plan-document-connected-shapes';
 
 const evidence = () => ({
   kind: 'connected',
-  projectId: 'B',
+  workPackageId: 'B',
   mode: 'isolated',
-  projects: [
+  workPackages: [
     {
-      projectId: 'B',
+      workPackageId: 'B',
       name: 'Build',
       abbreviation: 'BLD',
       rank: 1,
@@ -26,18 +26,18 @@ const evidence = () => ({
     baseline: [],
     selected: [],
     stages: [],
-    idleProjects: ['B'],
+    idleWorkPackages: ['B'],
   },
 });
 test('connected response requires each provenance and placement field independently', () => {
   expect(documentConnected(evidence()) instanceof type.errors).toBe(false);
-  for (const field of ['projectId', 'projects', 'relationships', 'placement']) {
+  for (const field of ['workPackageId', 'workPackages', 'relationships', 'placement']) {
     const broken: Record<string, unknown> = evidence();
     Reflect.deleteProperty(broken, field);
     expect(documentConnected(broken) instanceof type.errors).toBe(true);
   }
   for (const field of [
-    'projectId',
+    'workPackageId',
     'name',
     'abbreviation',
     'rank',
@@ -47,12 +47,12 @@ test('connected response requires each provenance and placement field independen
     'seq',
   ]) {
     const broken = evidence();
-    Reflect.deleteProperty(broken.projects[0], field);
+    Reflect.deleteProperty(broken.workPackages[0], field);
     expect(documentConnected(broken) instanceof type.errors).toBe(true);
   }
 });
 test('connected response refuses missing positions and nonfinite offsets', () => {
-  for (const field of ['baseline', 'selected', 'stages', 'idleProjects', 'originOrdinal']) {
+  for (const field of ['baseline', 'selected', 'stages', 'idleWorkPackages', 'originOrdinal']) {
     const broken = evidence();
     Reflect.deleteProperty(broken.placement, field);
     expect(documentConnected(broken) instanceof type.errors).toBe(true);
@@ -61,7 +61,7 @@ test('connected response refuses missing positions and nonfinite offsets', () =>
     ...evidence(),
     placement: {
       ...evidence().placement,
-      selected: [{ projectId: 'B', workItemId: 'b', stepId: null, start: Infinity, finish: 2 }],
+      selected: [{ workPackageId: 'B', workItemId: 'b', stepId: null, start: Infinity, finish: 2 }],
     },
   };
   expect(documentConnected(broken) instanceof type.errors).toBe(true);

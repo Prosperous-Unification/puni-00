@@ -33,7 +33,7 @@ function ownSettlement<Value>(promise: Promise<Value>): Promise<Settlement<Value
 
 function quotaPlan(
   id: string,
-  projectId: string,
+  workPackageId: string,
   name: string,
   createdAt: number,
   input: { readonly bytes: string; readonly sha256: string },
@@ -41,7 +41,7 @@ function quotaPlan(
 ): SavedPlanWrite {
   return {
     id,
-    projectId,
+    workPackageId,
     name,
     createdBy: 'Quota Writer',
     createdById: DETERMINISTIC_OWNER_B,
@@ -71,7 +71,7 @@ const LATE_SCHEDULE_HASH = '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3
 
 function expectedQuotaPlan(
   id: string,
-  projectId: string,
+  workPackageId: string,
   name: string,
   createdAt: number,
   input: string,
@@ -80,9 +80,10 @@ function expectedQuotaPlan(
   schedule: null | { readonly bytes: string; readonly byteCount: number; readonly sha256: string },
 ): StoredSavedPlan {
   return {
+    stepIdentity: { kind: 'pre_catalogue' },
     header: {
       id,
-      projectId,
+      workPackageId,
       name,
       createdBy: 'Quota Writer',
       createdById: 'owner-b',
@@ -103,14 +104,20 @@ function expectedQuotaPlan(
 
 function quotaSentinel(seed: SeededPlan) {
   return {
-    request: quotaPlan('saved-other-project', seed.projectIds[1], 'Other project sentinel', 500, {
-      bytes: 'é',
-      sha256: OTHER_HASH,
-    }),
+    request: quotaPlan(
+      'saved-other-work-package',
+      seed.workPackageIds[1],
+      'Other work package sentinel',
+      500,
+      {
+        bytes: 'é',
+        sha256: OTHER_HASH,
+      },
+    ),
     expected: expectedQuotaPlan(
-      'saved-other-project',
-      'project-b',
-      'Other project sentinel',
+      'saved-other-work-package',
+      'work-package-b',
+      'Other work package sentinel',
       500,
       'é',
       2,
@@ -124,7 +131,7 @@ async function readQuotaState(fixture: CaseFixture<SavedPlanStore>, ids: readonl
   return {
     plans: await Promise.all(ids.map((id) => fixture.readers.savedPlans.readOf(id))),
     lists: await Promise.all(
-      fixture.seed.projectIds.map((id) => fixture.readers.savedPlans.listOf(id)),
+      fixture.seed.workPackageIds.map((id) => fixture.readers.savedPlans.listOf(id)),
     ),
     principals: await Promise.all(ids.map((id) => fixture.readers.savedPlans.principalsOf(id))),
   };
@@ -133,34 +140,29 @@ async function readQuotaState(fixture: CaseFixture<SavedPlanStore>, ids: readonl
 function expectedQuotaState(
   fixture: CaseFixture<SavedPlanStore>,
   plans: readonly (StoredSavedPlan | null)[],
-  projectA: readonly StoredSavedPlan[],
+  workPackageA: readonly StoredSavedPlan[],
   other: StoredSavedPlan,
 ) {
   return {
     plans: [...plans],
-    lists: [projectA.map(({ header }) => header), [other.header]],
+    lists: [workPackageA.map(({ header }) => header), [other.header]],
     principals: plans.map((plan) =>
       plan === null
         ? null
-        : principals(
-            {
-              id: plan.header.id,
-              projectId: plan.header.projectId,
-              name: plan.header.name,
-              createdBy: plan.header.createdBy,
-              createdById: plan.header.createdById,
-              createdAt: plan.header.createdAt,
-              input: {
-                schemaVersion: plan.header.inputSchemaVersion,
-                bytes: plan.bodies.input ?? '',
-                sha256: plan.header.inputSha256,
-              },
-              schedule: { present: false, absentReason: 'pending' },
+        : principals({
+            id: plan.header.id,
+            workPackageId: plan.header.workPackageId,
+            name: plan.header.name,
+            createdBy: plan.header.createdBy,
+            createdById: plan.header.createdById,
+            createdAt: plan.header.createdAt,
+            input: {
+              schemaVersion: plan.header.inputSchemaVersion,
+              bytes: plan.bodies.input ?? '',
+              sha256: plan.header.inputSha256,
             },
-            plan.header.projectId === fixture.seed.projectIds[0]
-              ? fixture.seed.ownerIds[0]
-              : fixture.seed.ownerIds[1],
-          ),
+            schedule: { present: false, absentReason: 'pending' },
+          }),
     ),
   };
 }
@@ -169,7 +171,7 @@ async function assertQuotaRefusal(fixture: CaseFixture<SavedPlanStore>) {
   const other = quotaSentinel(fixture.seed);
   const held = quotaPlan(
     'quota-held',
-    fixture.seed.projectIds[0],
+    fixture.seed.workPackageIds[0],
     'Quota held',
     501,
     {
@@ -180,7 +182,7 @@ async function assertQuotaRefusal(fixture: CaseFixture<SavedPlanStore>) {
   );
   const expectedHeld = expectedQuotaPlan(
     'quota-held',
-    'project-a',
+    'work-package-a',
     'Quota held',
     501,
     'held-🔒',
@@ -190,12 +192,12 @@ async function assertQuotaRefusal(fixture: CaseFixture<SavedPlanStore>) {
   );
   await writePlan(fixture.port, structuredClone(other.request), other.expected);
   await writePlan(fixture.port, structuredClone(held), expectedHeld);
-  expect(await readQuotaState(fixture, ['quota-held', 'saved-other-project'])).toEqual(
+  expect(await readQuotaState(fixture, ['quota-held', 'saved-other-work-package'])).toEqual(
     expectedQuotaState(fixture, [expectedHeld, other.expected], [expectedHeld], other.expected),
   );
   const incoming = quotaPlan(
     'quota-refused',
-    fixture.seed.projectIds[0],
+    fixture.seed.workPackageIds[0],
     'Quota refused',
     502,
     { bytes: 'incoming-🧭', sha256: INCOMING_HASH },
@@ -209,7 +211,7 @@ async function assertQuotaRefusal(fixture: CaseFixture<SavedPlanStore>) {
   const state = await readQuotaState(fixture, [
     'quota-refused',
     'quota-held',
-    'saved-other-project',
+    'saved-other-work-package',
   ]);
   expect({ observations, outcome, state }).toEqual({
     observations: [{ holding: { plans: 1, bytes: 11 }, incomingBytes: 23 }],
@@ -232,28 +234,28 @@ async function assertQuotaWindow(fixture: CaseFixture<SavedPlanStore>) {
   const other = quotaSentinel(fixture.seed);
   const held = quotaPlan(
     'quota-window-held',
-    fixture.seed.projectIds[0],
+    fixture.seed.workPackageIds[0],
     'Quota window held',
     511,
     { bytes: 'held-🔒', sha256: HELD_HASH },
   );
   const last = quotaPlan(
     'quota-window-last',
-    fixture.seed.projectIds[0],
+    fixture.seed.workPackageIds[0],
     'Quota window last',
     512,
     { bytes: 'last-🧩', sha256: LAST_HASH },
   );
   const rival = quotaPlan(
     'quota-window-rival',
-    fixture.seed.projectIds[0],
+    fixture.seed.workPackageIds[0],
     'Quota window rival',
     513,
     { bytes: 'rival-🚫', sha256: RIVAL_HASH },
   );
   const expectedHeld = expectedQuotaPlan(
     'quota-window-held',
-    'project-a',
+    'work-package-a',
     'Quota window held',
     511,
     'held-🔒',
@@ -263,7 +265,7 @@ async function assertQuotaWindow(fixture: CaseFixture<SavedPlanStore>) {
   );
   const expectedLast = expectedQuotaPlan(
     'quota-window-last',
-    'project-a',
+    'work-package-a',
     'Quota window last',
     512,
     'last-🧩',
@@ -273,7 +275,7 @@ async function assertQuotaWindow(fixture: CaseFixture<SavedPlanStore>) {
   );
   await writePlan(fixture.port, structuredClone(other.request), other.expected);
   await writePlan(fixture.port, structuredClone(held), expectedHeld);
-  expect(await readQuotaState(fixture, ['quota-window-held', 'saved-other-project'])).toEqual(
+  expect(await readQuotaState(fixture, ['quota-window-held', 'saved-other-work-package'])).toEqual(
     expectedQuotaState(fixture, [expectedHeld, other.expected], [expectedHeld], other.expected),
   );
   const primaryObservations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
@@ -342,7 +344,7 @@ async function assertQuotaWindow(fixture: CaseFixture<SavedPlanStore>) {
     'quota-window-last',
     'quota-window-held',
     'quota-window-rival',
-    'saved-other-project',
+    'saved-other-work-package',
   ]);
   expect({ primaryObservations, primaryOutcome, rivalObservations, rivalOutcome, state }).toEqual({
     primaryObservations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 9 }],
@@ -364,13 +366,19 @@ async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
   )
     throw new Error('late body case requires saved-plan schedule-body control');
   const other = quotaSentinel(fixture.seed);
-  const sentinel = quotaPlan('late-sentinel', fixture.seed.projectIds[0], 'Late sentinel', 521, {
-    bytes: 'held-🔒',
-    sha256: HELD_HASH,
-  });
+  const sentinel = quotaPlan(
+    'late-sentinel',
+    fixture.seed.workPackageIds[0],
+    'Late sentinel',
+    521,
+    {
+      bytes: 'held-🔒',
+      sha256: HELD_HASH,
+    },
+  );
   const expectedSentinel = expectedQuotaPlan(
     'late-sentinel',
-    'project-a',
+    'work-package-a',
     'Late sentinel',
     521,
     'held-🔒',
@@ -380,7 +388,7 @@ async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
   );
   await writePlan(fixture.port, structuredClone(other.request), other.expected);
   await writePlan(fixture.port, structuredClone(sentinel), expectedSentinel);
-  expect(await readQuotaState(fixture, ['late-sentinel', 'saved-other-project'])).toEqual(
+  expect(await readQuotaState(fixture, ['late-sentinel', 'saved-other-work-package'])).toEqual(
     expectedQuotaState(
       fixture,
       [expectedSentinel, other.expected],
@@ -390,7 +398,7 @@ async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
   );
   const target = quotaPlan(
     'late-target',
-    fixture.seed.projectIds[0],
+    fixture.seed.workPackageIds[0],
     'Late target',
     522,
     { bytes: 'late-input-🔧', sha256: LATE_INPUT_HASH },
@@ -398,7 +406,7 @@ async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
   );
   const expectedTarget = expectedQuotaPlan(
     'late-target',
-    'project-a',
+    'work-package-a',
     'Late target',
     522,
     'late-input-🔧',
@@ -420,7 +428,7 @@ async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
   const state = await readQuotaState(fixture, [
     'late-target',
     'late-sentinel',
-    'saved-other-project',
+    'saved-other-work-package',
   ]);
   expect({
     observations,
@@ -453,9 +461,10 @@ function storedPlan(
   scheduleBytes: number | null,
 ): StoredSavedPlan {
   return {
+    stepIdentity: { kind: 'pre_catalogue' },
     header: {
       id: plan.id,
-      projectId: plan.projectId,
+      workPackageId: plan.workPackageId,
       name: plan.name,
       createdBy: plan.createdBy,
       createdById: plan.createdById,
@@ -477,11 +486,11 @@ function storedPlan(
   };
 }
 
-function principals(plan: SavedPlanWrite, projectOwnerId: string): SavedPlanPrincipals {
+function principals(plan: SavedPlanWrite): SavedPlanPrincipals {
   return {
     savedPlanId: plan.id,
-    projectId: plan.projectId,
-    projectOwnerId,
+    workPackageId: plan.workPackageId,
+
     createdById: plan.createdById,
   };
 }
@@ -500,7 +509,9 @@ async function assertState(
     ...state.plans,
   ]);
   expect(
-    await Promise.all(fixture.seed.projectIds.map((id) => fixture.readers.savedPlans.listOf(id))),
+    await Promise.all(
+      fixture.seed.workPackageIds.map((id) => fixture.readers.savedPlans.listOf(id)),
+    ),
   ).toEqual(state.lists.map((rows) => [...rows]));
   expect(await Promise.all(ids.map((id) => fixture.readers.savedPlans.principalsOf(id)))).toEqual([
     ...state.principals,
@@ -510,7 +521,7 @@ async function assertState(
 function writePlans(seed: SeededPlan) {
   const present: SavedPlanWrite = {
     id: 'saved-present',
-    projectId: seed.projectIds[0],
+    workPackageId: seed.workPackageIds[0],
     name: 'Present plan',
     createdBy: 'Ada Display',
     createdById: seed.ownerIds[1],
@@ -525,7 +536,7 @@ function writePlans(seed: SeededPlan) {
   };
   const absent: SavedPlanWrite = {
     id: 'saved-absent',
-    projectId: seed.projectIds[0],
+    workPackageId: seed.workPackageIds[0],
     name: 'Absent plan',
     createdBy: 'Guest Snapshot',
     createdById: null,
@@ -544,7 +555,7 @@ function writePlans(seed: SeededPlan) {
 function touchPlans(seed: SeededPlan) {
   const target: SavedPlanWrite = {
     id: 'touch-target',
-    projectId: seed.projectIds[0],
+    workPackageId: seed.workPackageIds[0],
     name: 'Touch target',
     createdBy: 'External author',
     createdById: seed.ownerIds[1],
@@ -554,7 +565,7 @@ function touchPlans(seed: SeededPlan) {
   };
   const nullCreator: SavedPlanWrite = {
     id: 'touch-null-creator',
-    projectId: seed.projectIds[0],
+    workPackageId: seed.workPackageIds[0],
     name: 'Null creator',
     createdBy: 'Deleted account display',
     createdById: null,
@@ -564,19 +575,19 @@ function touchPlans(seed: SeededPlan) {
   };
   const peer: SavedPlanWrite = {
     id: 'touch-peer',
-    projectId: seed.projectIds[0],
-    name: 'Project peer',
+    workPackageId: seed.workPackageIds[0],
+    name: 'Work package peer',
     createdBy: 'Owner A display',
     createdById: seed.ownerIds[0],
     createdAt: 403,
     input: { schemaVersion: 3, bytes: 'peer', sha256: 'hash-peer' },
     schedule: { present: false, absentReason: 'not-requested' },
   };
-  const otherProject: SavedPlanWrite = {
-    id: 'touch-other-project',
-    projectId: seed.projectIds[1],
-    name: 'Other project sentinel',
-    createdBy: 'Owner A cross-project',
+  const otherWorkPackage: SavedPlanWrite = {
+    id: 'touch-other-work-package',
+    workPackageId: seed.workPackageIds[1],
+    name: 'Other work package sentinel',
+    createdBy: 'Owner A cross-work-package',
     createdById: seed.ownerIds[0],
     createdAt: 404,
     input: { schemaVersion: 4, bytes: 'sentinel', sha256: 'hash-sentinel' },
@@ -585,15 +596,15 @@ function touchPlans(seed: SeededPlan) {
   const expectedTarget = storedPlan(target, 6, null);
   const expectedNullCreator = storedPlan(nullCreator, 8, null);
   const expectedPeer = storedPlan(peer, 4, null);
-  const expectedOtherProject = storedPlan(otherProject, 8, null);
+  const expectedOtherWorkPackage = storedPlan(otherWorkPackage, 8, null);
   return {
-    plans: [target, nullCreator, peer, otherProject] as const,
-    stored: [expectedTarget, expectedNullCreator, expectedPeer, expectedOtherProject] as const,
+    plans: [target, nullCreator, peer, otherWorkPackage] as const,
+    stored: [expectedTarget, expectedNullCreator, expectedPeer, expectedOtherWorkPackage] as const,
     principals: [
-      principals(target, seed.ownerIds[0]),
-      principals(nullCreator, seed.ownerIds[0]),
-      principals(peer, seed.ownerIds[0]),
-      principals(otherProject, seed.ownerIds[1]),
+      principals(target),
+      principals(nullCreator),
+      principals(peer),
+      principals(otherWorkPackage),
     ] as const,
   };
 }
@@ -606,10 +617,7 @@ async function assertWrites(fixture: CaseFixture<SavedPlanStore>) {
   await assertState(fixture, [plans.present.id, plans.absent.id], {
     plans: [plans.expectedPresent, plans.expectedAbsent],
     lists: [[plans.expectedAbsent.header, plans.expectedPresent.header], []],
-    principals: [
-      principals(plans.present, fixture.seed.ownerIds[0]),
-      principals(plans.absent, fixture.seed.ownerIds[0]),
-    ],
+    principals: [principals(plans.present), principals(plans.absent)],
   });
 }
 
@@ -631,8 +639,16 @@ async function assertTouches(fixture: CaseFixture<SavedPlanStore>) {
   };
   await assertState(fixture, ids, initial);
 
-  expect(await fixture.port.renameTo('touch-target', 'Renamed target')).toBe('touched');
+  expect(
+    await fixture.port.renameTo('touch-target', 'Renamed target', {
+      kind: 'legacy',
+      actorId: fixture.seed.ownerIds[1],
+      source: 'internal',
+      operation: 'rename',
+    }),
+  ).toBe('touched');
   const renamedTarget: StoredSavedPlan = {
+    stepIdentity: plans.stored[0].stepIdentity,
     header: { ...plans.stored[0].header, name: 'Renamed target' },
     bodies: { input: 'target', schedule: null },
   };
@@ -646,12 +662,33 @@ async function assertTouches(fixture: CaseFixture<SavedPlanStore>) {
   };
   await assertState(fixture, ids, renamed);
 
-  expect(await fixture.port.renameTo('missing-touch-plan', 'Never stored')).toBe('no_such_plan');
+  expect(
+    await fixture.port.renameTo('missing-touch-plan', 'Never stored', {
+      kind: 'legacy',
+      actorId: fixture.seed.ownerIds[1],
+      source: 'internal',
+      operation: 'rename',
+    }),
+  ).toBe('no_such_plan');
   await assertState(fixture, ids, renamed);
-  expect(await fixture.port.deleteOf('missing-touch-plan')).toBe('no_such_plan');
+  expect(
+    await fixture.port.deleteOf('missing-touch-plan', {
+      kind: 'legacy',
+      actorId: fixture.seed.ownerIds[1],
+      source: 'internal',
+      operation: 'delete',
+    }),
+  ).toBe('no_such_plan');
   await assertState(fixture, ids, renamed);
 
-  expect(await fixture.port.deleteOf('touch-target')).toBe('touched');
+  expect(
+    await fixture.port.deleteOf('touch-target', {
+      kind: 'legacy',
+      actorId: fixture.seed.ownerIds[1],
+      source: 'internal',
+      operation: 'delete',
+    }),
+  ).toBe('touched');
   await assertState(fixture, ids, {
     plans: [null, plans.stored[1], plans.stored[2], plans.stored[3], null],
     lists: [[plans.stored[2].header, plans.stored[1].header], [plans.stored[3].header]],

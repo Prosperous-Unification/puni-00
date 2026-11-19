@@ -1,10 +1,10 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
 import type { Permission } from '@wbs/domain';
-import { canEditProject } from '@wbs/domain';
+import { canEditLegacyWorkPackage } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectService } from '../project/project.resource';
+import type { Broadcaster } from '../../ports/work-package-event';
+import type { WorkPackageService } from '../work-package/work-package.resource';
 import type {
   SavedPlanSaveOutcome,
   SavedPlanSaveRequest,
@@ -13,13 +13,13 @@ import type {
 import { SavedPlanCaptureRefusal } from './saved-plans.feature';
 
 export interface SavePlanGraph {
-  readonly projects: Pick<ProjectService, 'readWithin' | 'authorizeWrite'>;
+  readonly workPackages: Pick<WorkPackageService, 'readWithin' | 'authorizeWrite'>;
   readonly plans: Pick<SavedPlanService, 'save'>;
   readonly announcements: Pick<Broadcaster, 'publish'>;
 }
 
 export interface SavePlanInput {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly actor: AuthenticatedUser;
   readonly name?: string;
   /** The caller's organization access, resolved before the save is admitted. */
@@ -49,15 +49,15 @@ export async function savePlan(
 ): Promise<SavedPlanUseCaseOutcome> {
   input = structuredClone(input);
   if (!input.actor.scopes.includes('write')) return { outcome: 'insufficient_scope' };
-  // Proof: reading the project unscoped made `answers 404 alike for a foreign
-  // and an absent project on every saved-plan and history route` in
+  // Proof: reading the work package unscoped made `answers 404 alike for a foreign
+  // and an absent work package on every saved-plan and history route` in
   // `saved-plan-organization.controller.db.test.ts` save a plan of B's
-  // project; watched 2026-09-27.
-  const found = await graph.projects.readWithin(input.projectId, input.access);
+  // work package; watched 2026-09-27.
+  const found = await graph.workPackages.readWithin(input.workPackageId, input.access);
   if (found === null) return { outcome: 'not_found' };
   if (input.access.kind === 'scoped') {
-    const decision = await graph.projects.authorizeWrite(
-      input.projectId,
+    const decision = await graph.workPackages.authorizeWrite(
+      input.workPackageId,
       input.actor.id,
       input.access,
     );
@@ -67,10 +67,10 @@ export async function savePlan(
         ...(decision.reason === 'forbidden' ? { permission: decision.permission } : {}),
       };
     // Proof: legacy-save-plan; bypassed the legacy creator refusal.
-    // 'refuses read-only, wrong-owner, and absent-project calls before save' (admission.test.ts) failed; restored GREEN, 2026-11-10.
-  } else if (!canEditProject(found.project, input.actor.id)) return { outcome: 'forbidden' };
+    // 'refuses read-only, wrong-owner, and absent-work-package calls before save' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+  } else if (!canEditLegacyWorkPackage(found.workPackage)) return { outcome: 'forbidden' };
   const request: SavedPlanSaveRequest = {
-    projectId: input.projectId,
+    workPackageId: input.workPackageId,
     ...(input.name === undefined ? {} : { name: input.name }),
     createdBy: input.actor.username,
     createdById: input.actor.id,
@@ -95,7 +95,7 @@ export async function savePlan(
     throw new SavedPlanWriteError(error);
   }
   if (outcome.outcome === 'saved') {
-    await graph.announcements.publish(input.projectId, { type: 'saved_plans_changed' });
+    await graph.announcements.publish(input.workPackageId, { type: 'saved_plans_changed' });
   }
   return outcome;
 }

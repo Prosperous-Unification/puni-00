@@ -76,7 +76,7 @@ test.each(['connected-feasible', 'connected-fractional'] as const)(
     const valid = answer(scenario, status);
     for (const scope of [
       { kind: 'local' },
-      { ...valid.scope, projectId: '99999999-9999-4999-8999-999999999999' },
+      { ...valid.scope, workPackageId: '99999999-9999-4999-8999-999999999999' },
       { ...valid.scope, inputHash: 'stale' },
       { ...valid.scope, questionHash: 'stale' },
     ]) {

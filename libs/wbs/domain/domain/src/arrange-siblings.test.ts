@@ -46,7 +46,7 @@ describe('arrangeBySchedule', () => {
   });
 
   it('orders a parent by its own projection, wherever its children sit', () => {
-    // A parent's `earliestStart` is the least of its leaves' — `projectOntoWorkItems`
+    // A parent's `earliestStart` is the least of its leaves' — `workPackageOntoWorkItems`
     // computes that, and this function only reads the answer. The case is here
     // because the pair it separates is the one a reader notices: a branch whose
     // first bar is early sits above a leaf that starts later.
@@ -154,7 +154,7 @@ describe('arrangeBySchedule', () => {
     // function did not throw · Received value: { placements: [], moved: [] }`.
     // Worth reading twice: the default does not merely misplace the unscheduled
     // row, it sorts it to the end, finds it already there, and reports an
-    // arrangement of nothing — a silent no-op on half a project. Restored
+    // arrangement of nothing — a silent no-op on half a work package. Restored
     // 2026-09-11.
     const rows = [place('a', null, 10), place('b', null, 20)];
 

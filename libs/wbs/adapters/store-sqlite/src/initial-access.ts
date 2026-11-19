@@ -56,7 +56,9 @@ export function encodeInitialAccess(selection: InitialAccess): string {
 }
 
 /** Schema compatibility for outgoing binaries, which still interpret this column; incoming code never grants from it. */
-export function projectLegacyOfferRole(selection: InitialAccess): 'admin' | 'member' | 'viewer' {
+export function workPackageLegacyOfferRole(
+  selection: InitialAccess,
+): 'admin' | 'member' | 'viewer' {
   if (selection.kind === 'none') return 'viewer';
   switch (selection.roleId) {
     case 'org-admin':
@@ -130,6 +132,12 @@ function readInitialRolePermissionsIn(
     /* Proof: initial-role-kind: removed/changed production boundary.
      * throws on offered initial role metadata wrong-kind before persisting an offer
      * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    /* Proof: omitting only this guard failed throws on offered initial role
+     * metadata wrong-kind before persisting an offer at readRejection's required
+     * Error-rejection contract (1196:11); exact restoration passed. Root/SAME
+     * manually accepted that first contract failure; the automated flight stays
+     * STOP. RED had no expectation footer or cause line. Later message/HTTP/offer
+     * assertions and the mutant post-native freeze are not credited. */
     if (row.kind !== kind) throw new Error('initial access role has an unexpected kind: ' + roleId);
     const permission = row.permission;
     /* Proof: initial-role-empty: explicit trusted-role diagnostic; downstream unknown-value rejection remains.

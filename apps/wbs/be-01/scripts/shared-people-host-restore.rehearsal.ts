@@ -31,11 +31,11 @@ let operationId = 'packaged-restore';
 function createBackup(actor: string, mode = 'isolated') {
   return {
     format: 'shared-people-save',
-    version: 1,
+    version: 2,
     organizations: [{ organizationId: 'org-a', mode }],
     ranks: [
       {
-        projectId: 'a1',
+        workPackageId: 'a1',
         organizationId: 'org-a',
         position: 7,
         createdAt: 2,
@@ -80,7 +80,7 @@ function snapshotDatabase() {
   return queryDatabase(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
   ).map((row) => {
-    // The test-owned SQLite catalogue query projects only its required name column.
+    // The test-owned SQLite catalogue query work packages only its required name column.
     const name = (row as { name: string }).name;
     return { name, rows: queryDatabase(`SELECT * FROM "${name}" ORDER BY rowid`) };
   });
@@ -148,11 +148,11 @@ beforeEach(async () => {
     harness.bind('alice', 'org-a');
     harness.activate();
     harness.sqlite.run(
-      'INSERT INTO project (id, name, owner_id, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+      'INSERT INTO work_package (id, name, owner_id, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
       ['a1', 'a1', actor, actor],
     );
     harness.sqlite.run(
-      'INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)',
+      'INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, ?)',
       ['a1', 'org-a'],
     );
     saved = createBackup(actor);
@@ -249,7 +249,7 @@ it('recovers approved isolated ranks with the exact bundle and cold retries its 
   expect(answer.exit).toBe(0);
   expect(answer.stderr).toBe('');
   expect(answer.stdout).toContain('1 organizations, 1 ranks');
-  expect(queryDatabase('SELECT position FROM project_rank')).toEqual([{ position: 7 }]);
+  expect(queryDatabase('SELECT position FROM work_package_rank')).toEqual([{ position: 7 }]);
   expect(
     queryDatabase(
       'SELECT organizations, ranks, mode_changes, events FROM shared_people_restore_receipt',
@@ -258,7 +258,7 @@ it('recovers approved isolated ranks with the exact bundle and cold retries its 
   expect(queryDatabase('SELECT approval_id FROM shared_people_restore_consumption')).toEqual([
     { approval_id: approval },
   ]);
-  executeStatement('UPDATE project_rank SET position=999');
+  executeStatement('UPDATE work_package_rank SET position=999');
   executeStatement('DELETE FROM organization_membership');
   const before = snapshotDatabase();
   const retry = await runRecovery();

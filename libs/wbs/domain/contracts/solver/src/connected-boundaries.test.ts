@@ -14,13 +14,13 @@ const c = sliceKey('c', null);
 function stage(type: 'FS' | 'SS' | 'FF' = 'FS'): ConnectedOptimizationStage {
   return {
     kind: 'connected-stage',
-    projectId: 'B',
+    workPackageId: 'B',
     mode: 'isolated',
     originOrdinal: 0,
-    projects: [
-      { projectId: 'A', rank: 0, anchorOrdinal: 0 },
-      { projectId: 'B', rank: 1, anchorOrdinal: 0 },
-      { projectId: 'C', rank: 2, anchorOrdinal: 0 },
+    workPackages: [
+      { workPackageId: 'A', rank: 0, anchorOrdinal: 0 },
+      { workPackageId: 'B', rank: 1, anchorOrdinal: 0 },
+      { workPackageId: 'C', rank: 2, anchorOrdinal: 0 },
     ],
     input: {
       rows: ['a', 'b', 'c'].map((id, position) => ({
@@ -65,12 +65,12 @@ function stage(type: 'FS' | 'SS' | 'FF' = 'FS'): ConnectedOptimizationStage {
       elsewhere: new Map(),
       order: {
         kind: 'connected',
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
           ['c', 'C'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 1],
           ['C', 2],
@@ -81,14 +81,14 @@ function stage(type: 'FS' | 'SS' | 'FF' = 'FS'): ConnectedOptimizationStage {
       {
         id: 'ab',
         type,
-        predecessor: { scope: 'whole', projectId: 'A', workItemId: 'a' },
-        successor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+        predecessor: { scope: 'whole', workPackageId: 'A', workItemId: 'a' },
+        successor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
       },
       {
         id: 'bc',
         type,
-        predecessor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
-        successor: { scope: 'whole', projectId: 'C', workItemId: 'c' },
+        predecessor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
+        successor: { scope: 'whole', workPackageId: 'C', workItemId: 'c' },
       },
     ],
     starts: new Map([
@@ -287,15 +287,15 @@ test('complete connected request validation rejects cross-field corruption befor
           projects: [...request.scope.projects, request.scope.projects[0]],
         });
       },
-      /projects are inconsistent/,
+      /connected solver work packages are inconsistent/,
     ],
     [
       (request) => {
         Object.assign(request.scope, {
-          projects: request.scope.projects.filter((project) => project.projectId !== 'B'),
+          projects: request.scope.projects.filter((workPackage) => workPackage.projectId !== 'B'),
         });
       },
-      /projects are inconsistent/,
+      /connected solver work packages are inconsistent/,
     ],
     [
       (request) => {
@@ -737,7 +737,7 @@ test('boundary projection retains every resolved pair of a multi-step authored r
   ]);
 });
 
-test('external FS targets the second selected-project step', () => {
+test('external FS targets the second selected-work-package step', () => {
   const candidate = stage();
   const second = sliceKey('b', 'second');
   (candidate.input.slices as unknown[]).splice(2, 0, {

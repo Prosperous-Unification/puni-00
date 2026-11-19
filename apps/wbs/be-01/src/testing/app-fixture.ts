@@ -1,3 +1,4 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 
 import { type AppOptions, buildApp } from '../app';
@@ -22,15 +23,18 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from './organization-access-fixture';
+import { refusingPlanExports } from './plan-export-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
-import { refusingProjectAddressSearch } from './project-address-search-fixture';
-import { testProjectService } from './project-fixture';
-import { refusingProjectRanks } from './project-rank-fixture';
+import { refusingProjects } from './project-fixture';
 import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
 import { refusingSpaces } from './space-fixture';
 import { testStepService } from './step-fixture';
 import { testWorkItemService } from './work-item-fixture';
+import { refusingWorkPackageAddressSearch } from './work-package-address-search-fixture';
+import { createLegacyWorkPackageObservation } from './work-package-fixture';
+import { testWorkPackageService } from './work-package-fixture';
+import { refusingWorkPackageRanks } from './work-package-rank-fixture';
 import { testWrites } from './writes-fixture';
 
 /**
@@ -50,17 +54,21 @@ import { testWrites } from './writes-fixture';
  */
 export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof buildApp> {
   // An overridden service is the one the batch graph hands out too, so a
-  // route that runs through `writes` (a project PATCH, a step removal) meets the
+  // route that runs through `writes` (a work package PATCH, a step removal) meets the
   // same service the caller named rather than a double beside it.
-  const workItems = overrides.workItems ?? testWorkItemService();
+  const workItems = overrides.workItems ?? testWorkItemService(openTestSource());
   const directory = overrides.directory ?? testDirectoryService();
   const capacity = overrides.capacity ?? testCapacityService();
   const priorityBands = overrides.priorityBands ?? testPriorityBandService();
-  const projects = overrides.projects ?? testProjectService();
+  const workPackages = overrides.workPackages ?? testWorkPackageService();
+  const history = overrides.history ?? testHistoryService();
   const steps = overrides.steps ?? testStepService();
   const calendarMarkers = overrides.calendarMarkers ?? testCalendarMarkerService();
   return buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: createLegacyWorkPackageObservation(workPackages, history),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -70,20 +78,20 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
     auth: testAuthService(),
-    projects,
+    workPackages,
     workItems,
     savedPlans: testSavedPlanService(),
     steps,
     directory,
     capacity,
     priorityBands,
-    history: testHistoryService(),
+    history,
     stepParallels: testStepParallels(),
     calendarMarkers,
     replay: testReplay().replay,
@@ -98,7 +106,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
       directory,
       capacity,
       priorityBands,
-      projects,
+      workPackages,
       steps,
       calendarMarkers,
     }),

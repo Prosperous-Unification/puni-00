@@ -1,14 +1,33 @@
-import { expect, type Page, test } from '@playwright/test';
+import {
+  applyDirectoryCommands as applyDirectoryCommandsShape,
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  type EndpointShape,
+  getWorkItems as getWorkItemsShape,
+  patchWorkPackage as patchWorkPackageShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /** One JSON write through the page's own session, so the API sees a signed-in reader. */
-async function jsonSend<T>(page: Page, method: string, path: string, body: unknown): Promise<T> {
+async function jsonSend<T>(
+  page: Page,
+  shape: EndpointShape,
+  method: string,
+  path: string,
+  body: unknown,
+): Promise<T> {
   return page.evaluate(
-    async ({ verb, at, value }) => {
+    async ({ requestHeaders, fixtureInput }) => {
+      const { verb, at, value } = fixtureInput;
+
       const response = await fetch(at, {
         method: verb,
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.selected),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify(value),
       });
       if (!response.ok) {
@@ -19,7 +38,10 @@ async function jsonSend<T>(page: Page, method: string, path: string, body: unkno
       const text = await response.text();
       return (text === '' ? null : JSON.parse(text)) as T;
     },
-    { verb: method, at: path, value: body },
+    {
+      requestHeaders: { selected: createOrdinaryHeaders(shape) },
+      fixtureInput: { verb: method, at: path, value: body },
+    },
   );
 }
 
@@ -36,19 +58,33 @@ const PLAN_START = '2026-09-21';
 async function seedEveryBarColour(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Every bar colour');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id after creating the plan');
-  await jsonSend(page, 'PATCH', `/api/projects/${projectId}`, { startDate: PLAN_START });
+  await createWorkPackage(page, 'Every bar colour');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('wbs.workPackage')))
+    .not.toBeNull();
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id after creating the plan');
+  await jsonSend(page, patchWorkPackageShape, 'PATCH', `/api/work-packages/${workPackageId}`, {
+    startDate: PLAN_START,
+  });
 
-  const plan = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/projects/${id}/work-items`);
-    return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
-  }, projectId);
+  const plan = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const id = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
+    },
+    {
+      requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+      fixtureInput: workPackageId,
+    },
+  );
   const stepId = (name: string): string => {
     const step = plan.steps.find((each) => each.name === name);
-    if (step === undefined) throw new Error(`a new project has no ${name} step`);
+    if (step === undefined) throw new Error(`a new work package has no ${name} step`);
     return step.id;
   };
   const dev = stepId('Dev');
@@ -57,6 +93,7 @@ async function seedEveryBarColour(page: Page): Promise<void> {
   const people = Array.from({ length: 10 }, (_, at) => `Person ${String(at + 1)}`);
   const created = await jsonSend<{ results: { entity?: { id: string } }[] }>(
     page,
+    applyDirectoryCommandsShape,
     'POST',
     '/api/directory/commands',
     { commands: people.map((name) => ({ kind: 'createPerson', name })) },
@@ -78,8 +115,9 @@ async function seedEveryBarColour(page: Page): Promise<void> {
   const days = { optimistic: 2, realistic: 3, pessimistic: 4 };
   const seeded = await jsonSend<{ results: { ref?: string; id?: string }[] }>(
     page,
+    applyWorkPackageCommandsShape,
     'POST',
-    `/api/projects/${projectId}/commands`,
+    `/api/work-packages/${workPackageId}/commands`,
     {
       commands: [
         ...refs.map((ref, at) => ({
@@ -116,9 +154,15 @@ async function seedEveryBarColour(page: Page): Promise<void> {
     return id;
   };
   // Waiting on a held row is what hatches a bar as blocked by proxy.
-  await jsonSend(page, 'POST', `/api/projects/${projectId}/commands`, {
-    commands: [{ kind: 'addDependency', workItemId: idOf('proxy'), predecessorId: idOf('held') }],
-  });
+  await jsonSend(
+    page,
+    applyWorkPackageCommandsShape,
+    'POST',
+    `/api/work-packages/${workPackageId}/commands`,
+    {
+      commands: [{ kind: 'addDependency', workItemId: idOf('proxy'), predecessorId: idOf('held') }],
+    },
+  );
   await page.reload();
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
   await expect(page.locator('[data-gantt-bar]').first()).toBeVisible();
@@ -136,38 +180,70 @@ async function seedEveryBarColour(page: Page): Promise<void> {
 async function seedSharedInstants(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Shared instants');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id after creating the plan');
-  await jsonSend(page, 'PATCH', `/api/projects/${projectId}`, { startDate: PLAN_START });
-  const plan = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/projects/${id}/work-items`);
-    return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
-  }, projectId);
+  await createWorkPackage(page, 'Shared instants');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('wbs.workPackage')))
+    .not.toBeNull();
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id after creating the plan');
+  await jsonSend(page, patchWorkPackageShape, 'PATCH', `/api/work-packages/${workPackageId}`, {
+    startDate: PLAN_START,
+  });
+  const plan = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const id = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
+    },
+    {
+      requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+      fixtureInput: workPackageId,
+    },
+  );
   const last = plan.steps.at(-1);
   if (last === undefined || plan.steps.length < 2) {
-    throw new Error('a new project has fewer than two steps');
+    throw new Error('a new work package has fewer than two steps');
   }
-  await jsonSend(page, 'POST', `/api/projects/${projectId}/commands`, {
-    commands: [
-      { kind: 'createWorkItem', ref: 'pile', parentId: null, afterId: null, name: 'Row pile' },
-      { kind: 'createWorkItem', ref: 'ghost', parentId: null, afterRef: 'pile', name: 'Row ghost' },
-      { kind: 'createWorkItem', ref: 'long', parentId: null, afterRef: 'ghost', name: 'Row long' },
-      {
-        kind: 'setEstimate',
-        workItemRef: 'long',
-        stepId: last.id,
-        days: { optimistic: 8, realistic: 10, pessimistic: 12 },
-      },
-      {
-        kind: 'setEstimate',
-        workItemRef: 'pile',
-        stepId: last.id,
-        days: { optimistic: 0.25, realistic: 0.5, pessimistic: 1 },
-      },
-    ],
-  });
+  await jsonSend(
+    page,
+    applyWorkPackageCommandsShape,
+    'POST',
+    `/api/work-packages/${workPackageId}/commands`,
+    {
+      commands: [
+        { kind: 'createWorkItem', ref: 'pile', parentId: null, afterId: null, name: 'Row pile' },
+        {
+          kind: 'createWorkItem',
+          ref: 'ghost',
+          parentId: null,
+          afterRef: 'pile',
+          name: 'Row ghost',
+        },
+        {
+          kind: 'createWorkItem',
+          ref: 'long',
+          parentId: null,
+          afterRef: 'ghost',
+          name: 'Row long',
+        },
+        {
+          kind: 'setEstimate',
+          workItemRef: 'long',
+          stepId: last.id,
+          days: { optimistic: 8, realistic: 10, pessimistic: 12 },
+        },
+        {
+          kind: 'setEstimate',
+          workItemRef: 'pile',
+          stepId: last.id,
+          days: { optimistic: 0.25, realistic: 0.5, pessimistic: 1 },
+        },
+      ],
+    },
+  );
   await page.reload();
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
   await expect(page.locator('[data-gantt-bar]').first()).toBeVisible();
@@ -332,7 +408,7 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
       release = resolve;
     });
     let heldReads = 0;
-    await page.route(/\/api\/projects\/[^/]+\/work-items$/, async (route) => {
+    await page.route(/\/api\/work-packages\/[^/]+\/work-items$/, async (route) => {
       heldReads += 1;
       await held;
       await route.continue();

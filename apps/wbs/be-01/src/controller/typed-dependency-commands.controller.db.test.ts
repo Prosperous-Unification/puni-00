@@ -1,14 +1,22 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { evaluateSolverOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
 import { buildSolverRequestPair } from '@wbs/contracts/solver/solver-request-pair';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -32,13 +40,13 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { buildStores } from '../services';
@@ -64,11 +72,12 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -78,7 +87,7 @@ import { testWrites } from '../testing/writes-fixture';
  * made (openspec/changes/add-step-finish-start-dependencies, task 2).
  *
  * Typed dependencies are seeded through the repository: the commands that
- * write them are task 4's. Each project holds the starting steps Dev then QA,
+ * write them are task 4's. Each work package holds the starting steps Dev then QA,
  * and two leaves A and B.
  */
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -88,7 +97,7 @@ let app: ReturnType<typeof buildApp>;
 let typed: TypedDependencyRepository;
 let dependencies: DependencyRepository;
 let estimates: EstimateRepository;
-let projects: ProjectRepository;
+let workPackages: WorkPackageRepository;
 let steps: StepRepository;
 let workItemService: WorkItemService;
 
@@ -96,8 +105,9 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-graph-'));
   const db = openDrizzle(join(dir, 'test.db'));
   runMigrations(join(dir, 'test.db'), FOLDER);
+  seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
   const journal = new CommandJournalRepository(db, OPEN);
-  projects = new ProjectRepository(db, OPEN);
+  workPackages = new WorkPackageRepository(db, OPEN);
   steps = new StepRepository(db, OPEN);
   const workItems = new WorkItemRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
@@ -105,7 +115,7 @@ beforeEach(() => {
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
   const dependencyContext = createLocalDependencyContext({
-    projects,
+    workPackages,
     workItems,
     estimates,
     dependencies,
@@ -121,33 +131,33 @@ beforeEach(() => {
     priorityBands: testPriorityBandService(),
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({
+    workPackages: new WorkPackageService({
       clock: testClock,
-      projects,
+      workPackages,
       broadcast: recordingBroadcaster(),
       dependencyContext,
     }),
     steps: new StepService({
       clock: testClock,
-      projects,
+      workPackages,
       steps,
       broadcast: recordingBroadcaster(),
       dependencyContext,
     }),
     workItems: new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projects,
+        workPackages: workPackages,
         workItems: workItems,
         estimates: estimates,
         dependencies: dependencies,
         typedDependencies: typed,
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
-      projects,
+      workPackages,
       estimates,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
@@ -175,7 +185,15 @@ beforeEach(() => {
     clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: new SqliteWorkPackageObservation({
+      currentCapture: refusingSavedCurrentCapture,
+      openConnection: () => openPackageObservationConnection(join(dir, 'test.db')),
+      activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      now: () => testClock.now(),
+    }),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -185,7 +203,7 @@ beforeEach(() => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
@@ -210,18 +228,18 @@ beforeEach(() => {
         ...writing,
         workItems: new WorkItemService({
           dependencyContext: createLocalDependencyContext({
-            projects: scope.stores.projects,
+            workPackages: scope.stores.workPackages,
             workItems: scope.stores.workItems,
             estimates: scope.stores.estimates,
             dependencies: scope.stores.dependencies,
             typedDependencies: scope.stores.typedDependencies,
           }),
           externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           scheduler: fastScheduler,
           clock: testClock,
           workItems: scope.stores.workItems,
-          projects: scope.stores.projects,
+          workPackages: scope.stores.workPackages,
           estimates: scope.stores.estimates,
           actuals: scope.stores.actuals,
           measures: scope.stores.measures,
@@ -269,8 +287,8 @@ function send(
   );
 }
 
-function command(projectId: string, token: string, step: object): Promise<Response> {
-  return send(`/api/projects/${projectId}/commands`, token, {
+function command(workPackageId: string, token: string, step: object): Promise<Response> {
+  return send(`/api/work-packages/${workPackageId}/commands`, token, {
     method: 'POST',
     body: JSON.stringify({ commands: [step] }),
   });
@@ -279,14 +297,14 @@ function command(projectId: string, token: string, step: object): Promise<Respon
 interface Plan {
   token: string;
   userId: string;
-  projectId: string;
+  workPackageId: string;
   devId: string;
   qaId: string;
   a: string;
   b: string;
 }
 
-/** An owner, a project with Dev then QA, and two root leaves A and B. */
+/** An owner, a work package with Dev then QA, and two root leaves A and B. */
 async function plan(): Promise<Plan> {
   const registered = await app.handle(
     new Request('http://localhost/api/auth/register', {
@@ -296,21 +314,21 @@ async function plan(): Promise<Plan> {
     }),
   );
   const account = (await registered.json()) as { token: string; user: { id: string } };
-  const created = await send('/api/projects', account.token, {
+  const created = await send('/api/work-packages', account.token, {
     method: 'POST',
-    body: JSON.stringify({ name: 'Rewire the shed' }),
+    body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the shed' }),
   });
   const body = (await created.json()) as {
-    project: { id: string };
+    workPackage: { id: string };
     steps: { id: string; name: string }[];
   };
   const stepId = (name: string): string => {
     const found = body.steps.find((each) => each.name === name);
-    if (found === undefined) throw new Error(`a project without its ${name} step`);
+    if (found === undefined) throw new Error(`a work package without its ${name} step`);
     return found.id;
   };
   const add = async (name: string): Promise<string> => {
-    const res = await command(body.project.id, account.token, {
+    const res = await command(body.workPackage.id, account.token, {
       kind: 'createWorkItem',
       parentId: null,
       afterId: null,
@@ -324,7 +342,7 @@ async function plan(): Promise<Plan> {
   return {
     token: account.token,
     userId: account.user.id,
-    projectId: body.project.id,
+    workPackageId: body.workPackage.id,
     devId: stepId('Dev'),
     qaId: stepId('QA'),
     a: await add('A'),
@@ -340,7 +358,7 @@ const node = (workItemId: string, stepId: string): DependencyEndpoint => ({
 
 it('adds a typed node dependency and exposes its minted identity on the tree', async () => {
   const at = await plan();
-  const res = await command(at.projectId, at.token, {
+  const res = await command(at.workPackageId, at.token, {
     kind: 'addTypedDependency',
     predecessor: { scope: 'node', workItemId: at.a, stepId: at.devId },
     successor: { scope: 'node', workItemId: at.b, stepId: at.devId },
@@ -349,7 +367,7 @@ it('adds a typed node dependency and exposes its minted identity on the tree', a
   expect(res.status).toBe(200);
   const reply = (await res.json()) as { results: { id: string }[] };
   expect(reply.results[0]?.id).toBeString();
-  const tree = await send(`/api/projects/${at.projectId}/work-items`, at.token);
+  const tree = await send(`/api/work-packages/${at.workPackageId}/work-items`, at.token);
   const read = (await tree.json()) as { typedDependencies: { id: string }[] };
   expect(read.typedDependencies[0]?.id).toBe(reply.results[0]?.id);
 });
@@ -369,7 +387,7 @@ const typedCommand = (
 it('accepts node IDs, updates endpoints under one ID, and removes the relationship', async () => {
   const at = await plan();
   const first = await command(
-    at.projectId,
+    at.workPackageId,
     at.token,
     typedCommand(at, {
       scope: 'node',
@@ -379,7 +397,7 @@ it('accepts node IDs, updates endpoints under one ID, and removes the relationsh
   expect(first.status).toBe(200);
   const id = ((await first.json()) as { results: { id: string }[] }).results[0]?.id;
   expect(id).toBeString();
-  const read = await send(`/api/projects/${at.projectId}/work-items`, at.token);
+  const read = await send(`/api/work-packages/${at.workPackageId}/work-items`, at.token);
   const tree = (await read.json()) as {
     typedDependencies: { id: string; predecessor: { stepNodeId: string } }[];
   };
@@ -387,7 +405,7 @@ it('accepts node IDs, updates endpoints under one ID, and removes the relationsh
     id,
     predecessor: { stepNodeId: `sn1.${at.a}.${at.devId}` },
   });
-  const changed = await command(at.projectId, at.token, {
+  const changed = await command(at.workPackageId, at.token, {
     kind: 'updateTypedDependency',
     dependencyId: id,
     predecessor: node(at.a, at.qaId),
@@ -395,29 +413,29 @@ it('accepts node IDs, updates endpoints under one ID, and removes the relationsh
     type: 'FS',
   });
   expect(changed.status).toBe(200);
-  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]).toMatchObject({
     id,
     predecessor: node(at.a, at.qaId),
     successor: whole(at.b),
   });
-  const removed = await command(at.projectId, at.token, {
+  const removed = await command(at.workPackageId, at.token, {
     kind: 'removeTypedDependency',
     dependencyId: id,
   });
   expect(removed.status).toBe(200);
-  expect(await typed.listByProject(at.projectId)).toEqual([]);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toEqual([]);
 });
 
 it('keeps legacy addDependency semantics and stores no typed row', async () => {
   const at = await plan();
-  const reply = await command(at.projectId, at.token, {
+  const reply = await command(at.workPackageId, at.token, {
     kind: 'addDependency',
     workItemId: at.b,
     predecessorId: at.a,
   });
   expect(reply.status).toBe(200);
-  expect(await typed.listByProject(at.projectId)).toEqual([]);
-  const tree = await send(`/api/projects/${at.projectId}/work-items`, at.token);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toEqual([]);
+  const tree = await send(`/api/work-packages/${at.workPackageId}/work-items`, at.token);
   const read = (await tree.json()) as { workItems: { id: string; dependsOn: string[] }[] };
   expect(read.workItems.find((row) => row.id === at.b)?.dependsOn).toContain(at.a);
 });
@@ -428,7 +446,7 @@ it('refuses malformed endpoints before applying any command', async () => {
     { scope: 'whole', workItemId: at.a, stepId: at.devId },
     { scope: 'node', workItemId: at.a },
   ]) {
-    const reply = await command(at.projectId, at.token, typedCommand(at, predecessor));
+    const reply = await command(at.workPackageId, at.token, typedCommand(at, predecessor));
     expect(reply.status).toBe(400);
     expect(await reply.json()).toMatchObject({ error: 'invalid_typed_endpoint', at: 0 });
   }
@@ -449,7 +467,7 @@ it('refuses a missing or malformed endpoint as 400', async () => {
     { scope: 'node', stepNodeId: 7 },
     { scope: 'whole', workItemId: 7 },
   ]) {
-    const reply = await command(at.projectId, at.token, {
+    const reply = await command(at.workPackageId, at.token, {
       kind: 'addTypedDependency',
       ...(predecessor === undefined ? {} : { predecessor }),
       successor: node(at.b, at.devId),
@@ -462,7 +480,7 @@ it('refuses a missing or malformed endpoint as 400', async () => {
 
 it('refuses invalid typed endpoints, duplicate keys, unsupported types and absent relationships', async () => {
   const at = await plan();
-  const parentReply = await command(at.projectId, at.token, {
+  const parentReply = await command(at.workPackageId, at.token, {
     kind: 'createWorkItem',
     name: 'Child',
     parentId: at.a,
@@ -476,22 +494,22 @@ it('refuses invalid typed endpoints, duplicate keys, unsupported types and absen
     [whole('missing'), 'not_found', 404],
   ] as const;
   for (const [predecessor, reason, status] of cases) {
-    const reply = await command(at.projectId, at.token, typedCommand(at, predecessor));
+    const reply = await command(at.workPackageId, at.token, typedCommand(at, predecessor));
     expect(reply.status).toBe(status);
     expect(await reply.json()).toMatchObject({ error: reason, at: 0 });
   }
-  const unsupported = await command(at.projectId, at.token, {
+  const unsupported = await command(at.workPackageId, at.token, {
     ...typedCommand(at, whole(at.a)),
     type: 'SF',
   });
   expect(unsupported.status).toBe(400);
   expect(await unsupported.json()).toMatchObject({ error: 'invalid_body' });
-  const first = await command(at.projectId, at.token, typedCommand(at, whole(at.a)));
+  const first = await command(at.workPackageId, at.token, typedCommand(at, whole(at.a)));
   expect(first.status).toBe(200);
-  const duplicate = await command(at.projectId, at.token, typedCommand(at, whole(at.a)));
+  const duplicate = await command(at.workPackageId, at.token, typedCommand(at, whole(at.a)));
   expect(duplicate.status).toBe(409);
   expect(await duplicate.json()).toMatchObject({ error: 'duplicate_dependency' });
-  const absent = await command(at.projectId, at.token, {
+  const absent = await command(at.workPackageId, at.token, {
     kind: 'removeTypedDependency',
     dependencyId: 'missing',
   });
@@ -501,14 +519,14 @@ it('refuses invalid typed endpoints, duplicate keys, unsupported types and absen
 
 it('retains FS and SS on the same endpoints but refuses a duplicate SS', async () => {
   const at = await plan();
-  const first = await command(at.projectId, at.token, typedCommand(at));
+  const first = await command(at.workPackageId, at.token, typedCommand(at));
   expect(first.status).toBe(200);
-  const second = await command(at.projectId, at.token, { ...typedCommand(at), type: 'SS' });
+  const second = await command(at.workPackageId, at.token, { ...typedCommand(at), type: 'SS' });
   expect(second.status).toBe(200);
-  const duplicate = await command(at.projectId, at.token, { ...typedCommand(at), type: 'SS' });
+  const duplicate = await command(at.workPackageId, at.token, { ...typedCommand(at), type: 'SS' });
   expect(duplicate.status).toBe(409);
   expect(await duplicate.json()).toMatchObject({ error: 'duplicate_dependency', at: 0 });
-  expect((await typed.listByProject(at.projectId)).map((row) => row.type).sort()).toEqual([
+  expect((await typed.listByWorkPackage(at.workPackageId)).map((row) => row.type).sort()).toEqual([
     'FS',
     'SS',
   ]);
@@ -516,10 +534,10 @@ it('retains FS and SS on the same endpoints but refuses a duplicate SS', async (
 
 it('refuses an unsupported typed update at the HTTP boundary without changing the row', async () => {
   const at = await plan();
-  const added = await command(at.projectId, at.token, typedCommand(at));
+  const added = await command(at.workPackageId, at.token, typedCommand(at));
   expect(added.status).toBe(200);
   const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
-  const changed = await command(at.projectId, at.token, {
+  const changed = await command(at.workPackageId, at.token, {
     kind: 'updateTypedDependency',
     dependencyId: id,
     predecessor: node(at.a, at.qaId),
@@ -528,7 +546,7 @@ it('refuses an unsupported typed update at the HTTP boundary without changing th
   });
   expect(changed.status).toBe(400);
   expect(await changed.json()).toMatchObject({ error: 'invalid_body' });
-  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]).toMatchObject({
     id,
     predecessor: node(at.a, at.devId),
     successor: node(at.b, at.devId),
@@ -538,10 +556,10 @@ it('refuses an unsupported typed update at the HTTP boundary without changing th
 
 it('undoes an FF to SS update to the exact FF relationship and redoes SS', async () => {
   const at = await plan();
-  const added = await command(at.projectId, at.token, { ...typedCommand(at), type: 'FF' });
+  const added = await command(at.workPackageId, at.token, { ...typedCommand(at), type: 'FF' });
   expect(added.status).toBe(200);
   const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
-  const changed = await command(at.projectId, at.token, {
+  const changed = await command(at.workPackageId, at.token, {
     kind: 'updateTypedDependency',
     dependencyId: id,
     predecessor: node(at.a, at.qaId),
@@ -549,17 +567,21 @@ it('undoes an FF to SS update to the exact FF relationship and redoes SS', async
     type: 'SS',
   });
   expect(changed.status).toBe(200);
-  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  const undo = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+    method: 'POST',
+  });
   expect(undo.status).toBe(200);
-  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]).toMatchObject({
     id,
     predecessor: node(at.a, at.devId),
     successor: node(at.b, at.devId),
     type: 'FF',
   });
-  const redo = await send(`/api/projects/${at.projectId}/redo`, at.token, { method: 'POST' });
+  const redo = await send(`/api/work-packages/${at.workPackageId}/redo`, at.token, {
+    method: 'POST',
+  });
   expect(redo.status).toBe(200);
-  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]).toMatchObject({
     id,
     predecessor: node(at.a, at.qaId),
     successor: whole(at.b),
@@ -569,7 +591,7 @@ it('undoes an FF to SS update to the exact FF relationship and redoes SS', async
 
 it('refuses a later cycle command after an SS add and rolls back the batch', async () => {
   const at = await plan();
-  const response = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+  const response = await send(`/api/work-packages/${at.workPackageId}/commands`, at.token, {
     method: 'POST',
     body: JSON.stringify({
       commands: [
@@ -584,12 +606,12 @@ it('refuses a later cycle command after an SS add and rolls back the batch', asy
     at: 1,
     kind: 'addTypedDependency',
   });
-  expect(await typed.listByProject(at.projectId)).toEqual([]);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toEqual([]);
 });
 
 it('refuses a later legacy add that closes an SS cycle and rolls back the batch', async () => {
   const at = await plan();
-  const response = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+  const response = await send(`/api/work-packages/${at.workPackageId}/commands`, at.token, {
     method: 'POST',
     body: JSON.stringify({
       commands: [
@@ -600,33 +622,33 @@ it('refuses a later legacy add that closes an SS cycle and rolls back the batch'
   });
   expect(response.status).toBe(409);
   expect(await response.json()).toMatchObject({ error: 'cycle', at: 1, kind: 'addDependency' });
-  expect(await typed.listByProject(at.projectId)).toEqual([]);
-  expect(await dependencies.listByProject(at.projectId)).toEqual([]);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toEqual([]);
+  expect(await dependencies.listByWorkPackage(at.workPackageId)).toEqual([]);
 });
 
 it('refuses a self node and a step-node cycle before writing', async () => {
   const at = await plan();
   const self = await command(
-    at.projectId,
+    at.workPackageId,
     at.token,
     typedCommand(at, node(at.a, at.devId), node(at.a, at.devId)),
   );
   expect(self.status).toBe(409);
   expect(await self.json()).toMatchObject({ error: 'self_node' });
   const first = await command(
-    at.projectId,
+    at.workPackageId,
     at.token,
     typedCommand(at, node(at.a, at.qaId), node(at.b, at.qaId)),
   );
   expect(first.status).toBe(200);
   const cycle = await command(
-    at.projectId,
+    at.workPackageId,
     at.token,
     typedCommand(at, node(at.b, at.qaId), node(at.a, at.devId)),
   );
   expect(cycle.status).toBe(409);
   expect(await cycle.json()).toMatchObject({ error: 'cycle' });
-  expect(await typed.listByProject(at.projectId)).toHaveLength(1);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toHaveLength(1);
 });
 
 it('resolves a batch-local node reference and rolls back a later refusal', async () => {
@@ -641,7 +663,7 @@ it('resolves a batch-local node reference and rolls back a later refusal', async
     },
   ];
   const sent = async (commands: object[]) =>
-    send(`/api/projects/${at.projectId}/commands`, at.token, {
+    send(`/api/work-packages/${at.workPackageId}/commands`, at.token, {
       method: 'POST',
       body: JSON.stringify({ commands }),
     });
@@ -656,21 +678,21 @@ it('resolves a batch-local node reference and rolls back a later refusal', async
   ]);
   expect(refused.status).toBe(404);
   expect(await refused.json()).toMatchObject({ error: 'unknown_step', at: 2 });
-  expect(await typed.listByProject(at.projectId)).toEqual([]);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toEqual([]);
   const kept = await sent(steps);
   expect(kept.status).toBe(200);
   const applied = (await kept.json()) as { results: { id: string }[] };
-  expect((await typed.listByProject(at.projectId))[0]?.predecessor).toEqual({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]?.predecessor).toEqual({
     ...node(applied.results[0]?.id ?? '', at.devId),
-    projectId: at.projectId,
+    workPackageId: at.workPackageId,
   });
 });
 
 it('undoes and redoes a typed update with its exact ID and endpoints', async () => {
   const at = await plan();
-  const added = await command(at.projectId, at.token, typedCommand(at));
+  const added = await command(at.workPackageId, at.token, typedCommand(at));
   const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
-  const changed = await command(at.projectId, at.token, {
+  const changed = await command(at.workPackageId, at.token, {
     kind: 'updateTypedDependency',
     dependencyId: id,
     predecessor: node(at.a, at.qaId),
@@ -678,17 +700,21 @@ it('undoes and redoes a typed update with its exact ID and endpoints', async () 
     type: 'FS',
   });
   expect(changed.status).toBe(200);
-  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  const undo = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+    method: 'POST',
+  });
   expect(undo.status).toBe(200);
-  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]).toMatchObject({
     id,
     predecessor: node(at.a, at.devId),
     successor: node(at.b, at.devId),
     type: 'FS',
   });
-  const redo = await send(`/api/projects/${at.projectId}/redo`, at.token, { method: 'POST' });
+  const redo = await send(`/api/work-packages/${at.workPackageId}/redo`, at.token, {
+    method: 'POST',
+  });
   expect(redo.status).toBe(200);
-  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]).toMatchObject({
     id,
     predecessor: node(at.a, at.qaId),
     successor: whole(at.b),
@@ -706,9 +732,9 @@ it('refuses stale undo after another account changes the relationship', async ()
     }),
   );
   const peer = (await registered.json()) as { token: string };
-  const added = await command(at.projectId, at.token, typedCommand(at));
+  const added = await command(at.workPackageId, at.token, typedCommand(at));
   const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
-  const changed = await command(at.projectId, peer.token, {
+  const changed = await command(at.workPackageId, peer.token, {
     kind: 'updateTypedDependency',
     dependencyId: id,
     predecessor: node(at.a, at.qaId),
@@ -716,10 +742,12 @@ it('refuses stale undo after another account changes the relationship', async ()
     type: 'FS',
   });
   expect(changed.status).toBe(200);
-  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  const undo = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+    method: 'POST',
+  });
   expect(undo.status).toBe(409);
   expect(await undo.json()).toMatchObject({ error: 'stale_undo' });
-  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]).toMatchObject({
     id,
     predecessor: node(at.a, at.qaId),
     successor: whole(at.b),
@@ -728,12 +756,12 @@ it('refuses stale undo after another account changes the relationship', async ()
 
 it('refuses undo when the stored relationship changed outside the journal', async () => {
   const at = await plan();
-  const added = await command(at.projectId, at.token, typedCommand(at));
+  const added = await command(at.workPackageId, at.token, typedCommand(at));
   expect(added.status).toBe(200);
-  const stored = (await typed.listByProject(at.projectId)).at(0);
+  const stored = (await typed.listByWorkPackage(at.workPackageId)).at(0);
   if (stored === undefined) throw new Error('typed add did not persist');
   await typed.update(
-    { ...stored, predecessor: { ...node(at.a, at.qaId), projectId: at.projectId } },
+    { ...stored, predecessor: { ...node(at.a, at.qaId), workPackageId: at.workPackageId } },
     { at: 2, by: at.userId },
   );
   // Keep the row revision at the entry's expected value to exercise apply's
@@ -744,15 +772,17 @@ it('refuses undo when the stored relationship changed outside the journal', asyn
   } finally {
     sqlite.close();
   }
-  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  const undo = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+    method: 'POST',
+  });
   expect(undo.status).toBe(409);
   expect(await undo.json()).toMatchObject({
     error: 'stale_undo',
     detail: 'that relationship has changed since this command.',
   });
-  expect((await typed.listByProject(at.projectId))[0]?.predecessor).toEqual({
+  expect((await typed.listByWorkPackage(at.workPackageId))[0]?.predecessor).toEqual({
     ...node(at.a, at.qaId),
-    projectId: at.projectId,
+    workPackageId: at.workPackageId,
   });
 });
 
@@ -767,11 +797,11 @@ it('refuses undo when the stored relationship changed outside the journal', asyn
  */
 it('refuses undo of an update when the stored relationship changed outside the journal', async () => {
   const at = await plan();
-  const added = await command(at.projectId, at.token, typedCommand(at));
+  const added = await command(at.workPackageId, at.token, typedCommand(at));
   expect(added.status).toBe(200);
-  const stored = (await typed.listByProject(at.projectId)).at(0);
+  const stored = (await typed.listByWorkPackage(at.workPackageId)).at(0);
   if (stored === undefined) throw new Error('typed add did not persist');
-  const updated = await command(at.projectId, at.token, {
+  const updated = await command(at.workPackageId, at.token, {
     kind: 'updateTypedDependency',
     dependencyId: stored.id,
     predecessor: node(at.a, at.qaId),
@@ -788,25 +818,27 @@ it('refuses undo of an update when the stored relationship changed outside the j
   } finally {
     sqlite.close();
   }
-  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  const undo = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+    method: 'POST',
+  });
   expect(undo.status).toBe(409);
   expect(await undo.json()).toMatchObject({
     error: 'stale_undo',
     detail: 'that relationship has changed since this command.',
   });
-  expect((await typed.listByProject(at.projectId)).at(0)?.successor).toEqual({
+  expect((await typed.listByWorkPackage(at.workPackageId)).at(0)?.successor).toEqual({
     ...node(at.b, at.devId),
-    projectId: at.projectId,
+    workPackageId: at.workPackageId,
   });
 });
 
 it('refuses undo when only a journalled relationship type changed outside history', async () => {
   const at = await plan();
-  const added = await command(at.projectId, at.token, { ...typedCommand(at), type: 'FF' });
+  const added = await command(at.workPackageId, at.token, { ...typedCommand(at), type: 'FF' });
   expect(added.status).toBe(200);
-  const stored = (await typed.listByProject(at.projectId)).at(0);
+  const stored = (await typed.listByWorkPackage(at.workPackageId)).at(0);
   if (stored === undefined) throw new Error('typed add did not persist');
-  const updated = await command(at.projectId, at.token, {
+  const updated = await command(at.workPackageId, at.token, {
     kind: 'updateTypedDependency',
     dependencyId: stored.id,
     predecessor: node(at.a, at.devId),
@@ -820,33 +852,35 @@ it('refuses undo when only a journalled relationship type changed outside histor
   } finally {
     sqlite.close();
   }
-  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  const undo = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+    method: 'POST',
+  });
   expect(undo.status).toBe(409);
   expect(await undo.json()).toMatchObject({ error: 'stale_undo' });
-  expect((await typed.listByProject(at.projectId)).at(0)?.type).toBe('FS');
+  expect((await typed.listByWorkPackage(at.workPackageId)).at(0)?.type).toBe('FS');
 });
 
 it('rejects a cycle introduced by the second typed add', async () => {
   const at = await plan();
   const first = await command(
-    at.projectId,
+    at.workPackageId,
     at.token,
     typedCommand(at, node(at.a, at.qaId), node(at.b, at.qaId)),
   );
   expect(first.status).toBe(200);
   const second = await command(
-    at.projectId,
+    at.workPackageId,
     at.token,
     typedCommand(at, node(at.b, at.qaId), node(at.a, at.devId)),
   );
   expect(second.status).toBe(409);
   expect(await second.json()).toMatchObject({ error: 'cycle' });
-  expect(await typed.listByProject(at.projectId)).toHaveLength(1);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toHaveLength(1);
 });
 
 it('sees the first typed relationship when a later batch command closes a cycle', async () => {
   const at = await plan();
-  const response = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+  const response = await send(`/api/work-packages/${at.workPackageId}/commands`, at.token, {
     method: 'POST',
     body: JSON.stringify({
       commands: [
@@ -861,16 +895,18 @@ it('sees the first typed relationship when a later batch command closes a cycle'
     at: 1,
     kind: 'addTypedDependency',
   });
-  expect(await typed.listByProject(at.projectId)).toEqual([]);
+  expect(await typed.listByWorkPackage(at.workPackageId)).toEqual([]);
 });
 
 it('refuses redo when its relationship ID has been reused', async () => {
   const at = await plan();
-  const added = await command(at.projectId, at.token, typedCommand(at));
+  const added = await command(at.workPackageId, at.token, typedCommand(at));
   expect(added.status).toBe(200);
-  const stored = (await typed.listByProject(at.projectId)).at(0);
+  const stored = (await typed.listByWorkPackage(at.workPackageId)).at(0);
   if (stored === undefined) throw new Error('typed add did not persist');
-  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  const undo = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+    method: 'POST',
+  });
   expect(undo.status).toBe(200);
   await typed.add(stored, { at: 2, by: at.userId });
   const sqlite = openDatabase(join(dir, 'test.db'));
@@ -879,7 +915,9 @@ it('refuses redo when its relationship ID has been reused', async () => {
   } finally {
     sqlite.close();
   }
-  const redo = await send(`/api/projects/${at.projectId}/redo`, at.token, { method: 'POST' });
+  const redo = await send(`/api/work-packages/${at.workPackageId}/redo`, at.token, {
+    method: 'POST',
+  });
   expect(redo.status).toBe(409);
   expect(await redo.json()).toMatchObject({
     error: 'stale_undo',
@@ -906,12 +944,12 @@ it('refuses redo when its relationship ID has been reused', async () => {
  */
 it('publishes a tight solver answer for an SS/FF plan written through the commands', async () => {
   const at = await plan();
-  const exact = await send(`/api/projects/${at.projectId}`, at.token, {
+  const exact = await send(`/api/work-packages/${at.workPackageId}`, at.token, {
     method: 'PATCH',
     body: JSON.stringify({ estimateRounding: 'exact' }),
   });
   expect(exact.status).toBe(200);
-  const created = await command(at.projectId, at.token, {
+  const created = await command(at.workPackageId, at.token, {
     kind: 'createWorkItem',
     parentId: null,
     afterId: null,
@@ -931,7 +969,7 @@ it('publishes a tight solver answer for an SS/FF plan written through the comman
     successor: whole(successor),
     type,
   });
-  const written = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+  const written = await send(`/api/work-packages/${at.workPackageId}/commands`, at.token, {
     method: 'POST',
     body: JSON.stringify({
       commands: [
@@ -946,8 +984,8 @@ it('publishes a tight solver answer for an SS/FF plan written through the comman
   });
   expect(written.status).toBe(200);
 
-  const input = await workItemService.scheduleInput(at.projectId);
-  if (input === null) throw new Error('the written project has no schedule input');
+  const input = await workItemService.scheduleInput(at.workPackageId);
+  if (input === null) throw new Error('the written work package has no schedule input');
   expect(input.typed.map((dependency) => dependency.type).sort()).toEqual(['FS', 'FS', 'SS']);
   const pair = buildSolverRequestPair(input, '0.4.0', 60_000);
   if (!pair.time.ok) throw new Error('the written plan was refused a solver request');

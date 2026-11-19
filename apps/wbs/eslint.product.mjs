@@ -51,7 +51,7 @@ export default ({
       // compiler: `refs` refuses a `ref.current` read during render, which is
       // the `live` seam every cell in `wbs-table.tsx` reads its live state
       // through on purpose (LLM_README's first landmine); `set-state-in-effect`
-      // refuses the per-project re-reads of remembered layout that happen in
+      // refuses the per-work-package re-reads of remembered layout that happen in
       // effects by design; `immutability` refuses a test harness that captures
       // a hook's API during render because reading it out of an effect would
       // be one render stale (`toasts.test.tsx`); and
@@ -255,7 +255,7 @@ export default ({
   //
   // What this still does not do, stated so nobody reads more into it: eslint
   // matches specifier strings, not a dependency graph, so the guarantee stops
-  // at this project's boundary. A cross-project edge is
+  // at this work package's boundary. A cross-work-package edge is
   // `@nx/enforce-module-boundaries`' job, which *is* graph-transitive. Today
   // no shared library names the framework. The observability metrics collector
   // is framework-free; app composition and `http/elysia` own its HTTP routes.

@@ -1,9 +1,9 @@
-import type { Broadcaster, ProjectEvent } from './project-event';
+import type { Broadcaster, WorkPackageEvent } from './work-package-event';
 
 /** One announcement waiting for its batch to commit and let go of the lock. */
 export interface HeldAnnouncement {
-  projectId: string;
-  event: ProjectEvent;
+  workPackageId: string;
+  event: WorkPackageEvent;
 }
 
 /**
@@ -26,30 +26,32 @@ export interface HeldAnnouncement {
  * for pushes that had already left.
  *
  * Held events are deduplicated when they carry nothing but a `type`, which is
- * what makes forty `directory_changed` for one tag rename into one per project.
+ * what makes forty `directory_changed` for one tag rename into one per work package.
  */
 export class AnnouncementCollector implements Broadcaster {
   private readonly held: HeldAnnouncement[] = [];
 
   constructor(private readonly inner: Broadcaster) {}
 
-  publish(projectId: string, event: ProjectEvent): Promise<void> {
+  publish(workPackageId: string, event: WorkPackageEvent): Promise<void> {
     // Only an event that carries nothing but its type can be deduplicated: two
-    // `directory_changed` for one project say the same thing, and two
+    // `directory_changed` for one work package say the same thing, and two
     // `step_renamed` do not.
     const saysOnlyItsType = Object.keys(event).length === 1;
     if (
       saysOnlyItsType &&
-      this.held.some((each) => each.projectId === projectId && each.event.type === event.type)
+      this.held.some(
+        (each) => each.workPackageId === workPackageId && each.event.type === event.type,
+      )
     ) {
       return Promise.resolve();
     }
-    this.held.push({ projectId, event });
+    this.held.push({ workPackageId, event });
     return Promise.resolve();
   }
 
-  latestSeq(projectId: string): Promise<number> {
-    return this.inner.latestSeq(projectId);
+  latestSeq(workPackageId: string): Promise<number> {
+    return this.inner.latestSeq(workPackageId);
   }
 
   /** What this batch has announced so far, in the order it announced it. */
@@ -64,6 +66,6 @@ export class AnnouncementCollector implements Broadcaster {
    * `UnitOfWork.run`, which is the half of the rule this class exists for.
    */
   async send(): Promise<void> {
-    for (const each of this.held) await this.inner.publish(each.projectId, each.event);
+    for (const each of this.held) await this.inner.publish(each.workPackageId, each.event);
   }
 }

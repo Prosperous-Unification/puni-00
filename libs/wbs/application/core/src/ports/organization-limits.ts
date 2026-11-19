@@ -129,22 +129,22 @@ export interface OrganizationLimitGauge {
   readAgentPersonCap(organizationId: string): Promise<CapReading>;
   /**
    * The organization's effective `maxConcurrentClaims` and how many bound
-   * claims its projects hold: distinct `(work item, person, run)` triples
+   * claims its work packages hold: distinct `(work item, person, run)` triples
    * with at least one claim row (L5), including any the caller's open
    * transaction has written.
    */
   readConcurrentClaimCap(organizationId: string): Promise<CapReading>;
   /**
    * The organization's effective `maxCapacityUnitsPerResource` and, as
-   * `current`, the units of `resourceId` its projects other than
-   * `exceptProjectId` state, summed (L2): what a capacity write to
-   * `exceptProjectId` adds its own units to, so the project's own statement
-   * never counts against itself. 0 when no other project states it, and 0 for
+   * `current`, the units of `resourceId` its work packages other than
+   * `exceptWorkPackageId` state, summed (L2): what a capacity write to
+   * `exceptWorkPackageId` adds its own units to, so the work package's own statement
+   * never counts against itself. 0 when no other work package states it, and 0 for
    * a resource the organization does not own (L16).
    */
   readCapacityCap(
     organizationId: string,
     resourceId: string,
-    exceptProjectId: string,
+    exceptWorkPackageId: string,
   ): Promise<CapReading>;
 }

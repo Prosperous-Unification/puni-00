@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 
 import { documentFromShapes } from './document-from-shapes';
-import { projectWithSteps } from './project-response';
 import { validateSchema } from './schema-shape';
 import { readSolution } from './solution-shapes';
+import { workPackageWithSteps } from './work-package-response';
 
 const response = {
-  project: {
-    id: 'project',
+  workPackage: {
+    id: 'work_package',
     name: 'Plan',
     abbreviation: 'PLAN',
-    ownerId: 'owner',
+    projectId: 'solution-parent',
     restricted: true,
     estimateMethod: 'pert' as const,
     depReach: 'anchor-slice' as const,
@@ -27,7 +27,7 @@ const response = {
   steps: [
     {
       id: 'step',
-      projectId: 'project',
+      workPackageId: 'work_package',
       name: 'Build',
       position: 10,
       code: 'build',
@@ -37,7 +37,7 @@ const response = {
   ],
 };
 
-test('emits the existing solution operation and required slug plus complete project response', () => {
+test('emits the existing solution operation and required slug plus complete work package response', () => {
   const operation = documentFromShapes([readSolution]).paths['/plans/by-solution/{slug}']?.['get'];
   expect(operation?.operationId).toBe('getPlansBy-solutionBySlug');
   expect(operation?.parameters).toEqual([
@@ -45,19 +45,21 @@ test('emits the existing solution operation and required slug plus complete proj
   ]);
   expect(operation?.responses['200']?.content?.['application/json']?.schema).toMatchObject({
     properties: {
-      project: { required: Object.keys(response.project).sort() },
-      steps: { items: { required: ['id', 'name', 'position', 'projectId'] } },
+      workPackage: { required: Object.keys(response.workPackage).sort() },
+      steps: { items: { required: ['id', 'name', 'position', 'workPackageId'] } },
     },
   });
 });
 
-test('validates every required project and step field without stripping additive properties', async () => {
-  expect((await validateSchema(projectWithSteps, response)).issues).toBeUndefined();
-  for (const field of Object.keys(response.project)) {
-    const project = Object.fromEntries(
-      Object.entries(response.project).filter(([key]) => key !== field),
+test('validates every required work package and step field without stripping additive properties', async () => {
+  expect((await validateSchema(workPackageWithSteps, response)).issues).toBeUndefined();
+  for (const field of Object.keys(response.workPackage)) {
+    const workPackage = Object.fromEntries(
+      Object.entries(response.workPackage).filter(([key]) => key !== field),
     );
-    expect((await validateSchema(projectWithSteps, { ...response, project })).issues).toBeDefined();
+    expect(
+      (await validateSchema(workPackageWithSteps, { ...response, workPackage })).issues,
+    ).toBeDefined();
   }
   for (const [field, value] of [
     ['estimateMethod', 'guess'],
@@ -68,16 +70,16 @@ test('validates every required project and step field without stripping additive
   ] as const) {
     expect(
       (
-        await validateSchema(projectWithSteps, {
+        await validateSchema(workPackageWithSteps, {
           ...response,
-          project: { ...response.project, [field]: value },
+          workPackage: { ...response.workPackage, [field]: value },
         })
       ).issues,
     ).toBeDefined();
   }
   expect(
     (
-      await validateSchema(projectWithSteps, {
+      await validateSchema(workPackageWithSteps, {
         ...response,
         steps: [{ id: 'step', name: 'Build', position: 10 }],
       })
@@ -85,10 +87,10 @@ test('validates every required project and step field without stripping additive
   ).toBeDefined();
   const enriched = {
     ...response,
-    project: { ...response.project, createdBy: 'owner' },
+    workPackage: { ...response.workPackage, createdBy: 'owner' },
     steps: response.steps.map((step) => ({ ...step, updatedAt: 3 })),
   };
-  expect(await validateSchema(projectWithSteps, enriched)).toEqual({ value: enriched });
+  expect(await validateSchema(workPackageWithSteps, enriched)).toEqual({ value: enriched });
   expect((await validateSchema(readSolution.params, {})).issues).toBeDefined();
   expect(
     (await validateSchema(readSolution.params, { slug: 'solution', extra: 'x' })).issues,

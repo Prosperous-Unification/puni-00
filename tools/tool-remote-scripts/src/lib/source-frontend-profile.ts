@@ -1,7 +1,7 @@
 import type { SourceEntry, SourceStartupManifest } from './source-startup-manifest';
 
 export type SourceFrontendProfile = 'wbs-source-frontend-wire-v1';
-// These exact logical inputs select one response profile, not the complete producer closure.
+// These fourteen fixed inputs and one complete configuration pair select a response profile, not the complete producer closure.
 const INPUTS = {
   'apps/wbs/fe-01/index.html': {
     bytes: 2482,
@@ -10,14 +10,6 @@ const INPUTS = {
   'apps/wbs/fe-01/src/main.tsx': {
     bytes: 527,
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
-  },
-  'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
-  },
-  'apps/wbs/fe-01/project.json': {
-    bytes: 8117,
-    sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
   },
   'deploy/dev-src/Dockerfile': {
     bytes: 1721,
@@ -68,6 +60,30 @@ const INPUTS = {
     sha256: '4a001feffe9d32b5fb63860d4faa8725f8a4d7a13c2c37b92587234ab3d66c23',
   },
 };
+
+// Both selected files must belong to one complete member; recognized off-diagonals refuse.
+const CONFIGURATIONS = [
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8117,
+      sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+    },
+  },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19552,
+      sha256: 'd45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8132,
+      sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
+    },
+  },
+];
 
 const PAIRS = [
   {
@@ -168,7 +184,7 @@ function readFrontendInput(
   return namespace.get(resolved.join('/'));
 }
 
-/** Selects sixteen common size/hash inputs and one of five exact coupled package/lock epochs from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
+/** Selects fourteen fixed size/hash inputs, one of two complete Vite/project pairs and one of five exact coupled package/lock epochs from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
 export function selectSourceFrontendProfile(
   manifest: SourceStartupManifest,
 ): SourceFrontendProfile {
@@ -196,6 +212,14 @@ export function selectSourceFrontendProfile(
       entry?.kind === 'file' && entry.size === expected.bytes && entry.sha256 === expected.sha256
     );
   };
+  if (
+    !CONFIGURATIONS.some(
+      (configuration) =>
+        matches('apps/wbs/fe-01/vite.config.ts', configuration['apps/wbs/fe-01/vite.config.ts']) &&
+        matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
+    )
+  )
+    refuse();
   if (
     !PAIRS.some(
       (pair) =>

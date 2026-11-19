@@ -53,12 +53,12 @@ function stage(fractional = false): ConnectedOptimizationStage {
     },
     order: {
       kind: 'connected' as const,
-      projectIdByWorkItem: new Map([
+      workPackageIdByWorkItem: new Map([
         ['a', 'A'],
         ['b', 'B'],
         ['c', 'C'],
       ]),
-      rankByProject: new Map([
+      rankByWorkPackage: new Map([
         ['A', 0],
         ['B', 1],
         ['C', 2],
@@ -68,23 +68,27 @@ function stage(fractional = false): ConnectedOptimizationStage {
   const placement = scheduleResolved(input);
   return {
     kind: 'connected-stage',
-    projectId: 'B',
+    workPackageId: 'B',
     mode: 'isolated',
     originOrdinal: 20000,
-    projects: ['A', 'B', 'C'].map((projectId, rank) => ({ projectId, rank, anchorOrdinal: 20000 })),
+    workPackages: ['A', 'B', 'C'].map((workPackageId, rank) => ({
+      workPackageId,
+      rank,
+      anchorOrdinal: 20000,
+    })),
     input,
     relationships: [
       {
         id: 'ab',
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: 'A', workItemId: 'a' },
-        successor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+        predecessor: { scope: 'whole', workPackageId: 'A', workItemId: 'a' },
+        successor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
       },
       {
         id: 'bc',
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
-        successor: { scope: 'whole', projectId: 'C', workItemId: 'c' },
+        predecessor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
+        successor: { scope: 'whole', workPackageId: 'C', workItemId: 'c' },
       },
     ],
     starts: new Map([...placement.slices].map(([slice, placed]) => [slice, placed.earliestStart])),
@@ -138,7 +142,7 @@ test('connected exit materializes the complete component with exact fixed foreig
   expect(outcome.starts).toEqual(new Map([[key('b'), 1]]));
   expect(outcome.decision.schedule.slices.get(key('a'))?.earliestStart).toBe(0);
   expect(outcome.decision.schedule.slices.get(key('c'))?.earliestStart).toBe(2);
-  expect(outcome.decision.scope).toEqual({ kind: 'connected-stage', projectId: 'B' });
+  expect(outcome.decision.scope).toEqual({ kind: 'connected-stage', workPackageId: 'B' });
 });
 
 test('boundary infeasible exit remains distinct with no candidate and full request evidence', () => {

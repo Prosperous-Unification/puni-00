@@ -32,10 +32,10 @@ import {
  * one runtime's `remembered`, `wbs.ganttDetail` and the retired key alike.
  *
  * `wbs.ganttDetail` is one key for the browser, and that is where it parts from
- * `wbs.ganttHeight.<projectId>` beside it: a panel height is one plan's share of
+ * `wbs.ganttHeight.<workPackageId>` beside it: a panel height is one plan's share of
  * one screen, while detail on or off is an answer about a **feature** — a reader
  * who has turned sixty elbows off has turned them off, and having to say so
- * again in the next project is the fault this remembers away. It is
+ * again in the next work package is the fault this remembers away. It is
  * `wbs.ganttDetail` and no longer `wbs.ganttArrows`, because the switch no
  * longer answers about the arrows alone; see the retired-key note below.
  *
@@ -151,7 +151,7 @@ function readDetail(remembered: RememberedPreferences): boolean | null {
  * it gates have nothing to draw. Before 2026-10-14 the default was taken at
  * mount, so an empty, unread plan decided "off" and the same plan opened with
  * Detail on or off depending on which arrived first (ui-review F-065). Links
- * that become unknown again (`null` after a value: the next project, before
+ * that become unknown again (`null` after a value: the next work package, before
  * its first read) decide the default again (ui-review F-088).
  */
 export interface GanttDetail {
@@ -217,7 +217,7 @@ export function useGanttDetail(hasDependencyEdges: boolean | null): GanttDetail 
    * rendering" pattern) rather than in an effect, so the read that brings the
    * links paints the marks in the same frame instead of one frame later.
    *
-   * Links that become **unknown again** unlatch it: that is a project switch
+   * Links that become **unknown again** unlatch it: that is a work package switch
    * (generation 0 before the next plan's first read), and the next plan's
    * default is its own, decided again from its own first read (ui-review
    * F-088). Within one plan the links never go back to unknown, so a late

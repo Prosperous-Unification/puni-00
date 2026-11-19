@@ -8,9 +8,9 @@ admitted batch, over that scope's own stores. `module.ts` seals the graph, `chec
 place that builds a bag, and `contract.ts` states the stores, the broadcaster and the clock a host
 must supply.
 
-`step.resource.ts` (the moved `service/step.service.ts`) adds, renames and removes a project's
-steps on `canEditProject`-gated writes, refusing an uncascaded removal of a step that still holds
-estimates, actuals or assignments, and announces each change to that project. Private bindings are
+`step.resource.ts` (the moved `service/step.service.ts`) adds, renames and removes a work package's
+steps on `canEditWorkPackage`-gated writes, refusing an uncascaded removal of a step that still holds
+estimates, actuals or assignments, and announces each change to that work package. Private bindings are
 named under the `application.step` label, so a DI failure says which module asked.
 
 ## Checks

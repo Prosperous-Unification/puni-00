@@ -37,8 +37,8 @@ const WRITES = [
  * What it cannot see, stated: a statement assembled from variables. The
  * triggers are the enforcement; this is the search task 1.1 asks for.
  *
- * Proof: adding `tx.update(organizationAudit)` to `project.ts`'s
- * `recordRecovery` made this name `project.ts`; watched 2026-10-12.
+ * Proof: adding `tx.update(organizationAudit)` to `work-package.ts`'s
+ * `recordRecovery` made this name `work-package.ts`; watched 2026-10-12.
  */
 describe('the organization audit writers', () => {
   it('never update or delete a row', () => {

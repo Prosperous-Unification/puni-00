@@ -14,18 +14,18 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
 import {
-  project,
-  projectResourceCapacity,
+  workPackage,
+  workPackageResourceCapacity,
   resource,
   workItem,
   workItemResourceDemand,
 } from './schema';
 
 /**
- * How many units of each resource each project's plan may use
+ * How many units of each resource each work package's plan may use
  * (`wbs-resources` R1): {@link CapacityRepository}'s shape for resources. No
  * revision moves on a write here, for that class's reason: a capacity is a fact
- * about the project, not about a work item.
+ * about the work package, not about a work item.
  */
 export class ResourceCapacityRepository implements ResourceCapacityStore {
   constructor(
@@ -34,15 +34,15 @@ export class ResourceCapacityRepository implements ResourceCapacityStore {
   ) {}
 
   /** One primary-key prefix read, ordered by resource id as the contract promises. */
-  async listFor(projectId: string): Promise<ResourceCapacity[]> {
+  async listFor(workPackageId: string): Promise<ResourceCapacity[]> {
     return this.db
       .select({
-        resourceId: projectResourceCapacity.resourceId,
-        units: projectResourceCapacity.units,
+        resourceId: workPackageResourceCapacity.resourceId,
+        units: workPackageResourceCapacity.units,
       })
-      .from(projectResourceCapacity)
-      .where(eq(projectResourceCapacity.projectId, projectId))
-      .orderBy(asc(projectResourceCapacity.resourceId));
+      .from(workPackageResourceCapacity)
+      .where(eq(workPackageResourceCapacity.workPackageId, workPackageId))
+      .orderBy(asc(workPackageResourceCapacity.resourceId));
   }
 
   /**
@@ -50,12 +50,12 @@ export class ResourceCapacityRepository implements ResourceCapacityStore {
    * transaction so an absent one is a modeled refusal rather than a foreign
    * key failure. A clear of a pair never stated deletes nothing and is `ok`.
    *
-   * Proof: with the project read removed, the shared conformance case
+   * Proof: with the work package read removed, the shared conformance case
    * `resourceCapacity.set:missing-reference` failed SQLite certification on the
    * insert's escaped foreign-key failure; watched 2026-10-20.
    */
   async set(
-    projectId: string,
+    workPackageId: string,
     resourceId: string,
     units: number | null,
     stamp: WriteStamp,
@@ -64,11 +64,11 @@ export class ResourceCapacityRepository implements ResourceCapacityStore {
       await Promise.resolve();
       return this.db.transaction((tx) => {
         const held = tx
-          .select({ id: project.id })
-          .from(project)
-          .where(eq(project.id, projectId))
+          .select({ id: workPackage.id })
+          .from(workPackage)
+          .where(eq(workPackage.id, workPackageId))
           .all();
-        if (held.length === 0) return { ok: false, reason: 'unknown_project' };
+        if (held.length === 0) return { ok: false, reason: 'unknown_work_package' };
         const named = tx
           .select({ id: resource.id })
           .from(resource)
@@ -76,17 +76,20 @@ export class ResourceCapacityRepository implements ResourceCapacityStore {
           .all();
         if (named.length === 0) return { ok: false, reason: 'unknown_resource' };
         const pair = and(
-          eq(projectResourceCapacity.projectId, projectId),
-          eq(projectResourceCapacity.resourceId, resourceId),
+          eq(workPackageResourceCapacity.workPackageId, workPackageId),
+          eq(workPackageResourceCapacity.resourceId, resourceId),
         );
         if (units === null) {
-          tx.delete(projectResourceCapacity).where(pair).run();
+          tx.delete(workPackageResourceCapacity).where(pair).run();
           return { ok: true };
         }
-        tx.insert(projectResourceCapacity)
-          .values({ projectId, resourceId, units, ...auditOnCreate(stamp) })
+        tx.insert(workPackageResourceCapacity)
+          .values({ workPackageId, resourceId, units, ...auditOnCreate(stamp) })
           .onConflictDoUpdate({
-            target: [projectResourceCapacity.projectId, projectResourceCapacity.resourceId],
+            target: [
+              workPackageResourceCapacity.workPackageId,
+              workPackageResourceCapacity.resourceId,
+            ],
             set: { units, ...auditOnUpdate(stamp) },
           })
           .run();
@@ -109,8 +112,8 @@ export class DemandRepository implements DemandStore {
     private readonly gate: Gate,
   ) {}
 
-  /** Joined through the work item's project index; ordered by work item then resource. */
-  async listByProject(projectId: string): Promise<Demand[]> {
+  /** Joined through the work item's work package index; ordered by work item then resource. */
+  async listByWorkPackage(workPackageId: string): Promise<Demand[]> {
     return this.db
       .select({
         workItemId: workItemResourceDemand.workItemId,
@@ -119,7 +122,7 @@ export class DemandRepository implements DemandStore {
       })
       .from(workItemResourceDemand)
       .innerJoin(workItem, eq(workItem.id, workItemResourceDemand.workItemId))
-      .where(eq(workItem.projectId, projectId))
+      .where(eq(workItem.workPackageId, workPackageId))
       .orderBy(asc(workItemResourceDemand.workItemId), asc(workItemResourceDemand.resourceId));
   }
 

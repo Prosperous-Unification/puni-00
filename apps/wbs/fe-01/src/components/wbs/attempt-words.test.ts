@@ -17,7 +17,7 @@ const attempt = (overrides: Partial<AttemptView>): AttemptView => ({
   ...overrides,
 });
 
-describe('attempt instants in the project zone (step-node-attempts D3)', () => {
+describe('attempt instants in the work package zone (step-node-attempts D3)', () => {
   it('reads a Kyiv finish as the next day for every reader', () => {
     // 23:30 UTC is 02:30 the next morning in Kyiv (UTC+3 in October). The
     // proof runs this suite under TZ=America/Los_Angeles, where the browser's

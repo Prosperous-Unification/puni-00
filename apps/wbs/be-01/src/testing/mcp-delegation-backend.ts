@@ -89,9 +89,9 @@ backend.options.organizations.resolve = async (principal) => {
 const publish = backend.options.writes.announcements.publish.bind(
   backend.options.writes.announcements,
 );
-backend.options.writes.announcements.publish = (projectId, event) => {
+backend.options.writes.announcements.publish = (workPackageId, event) => {
   publications += 1;
-  return publish(projectId, event);
+  return publish(workPackageId, event);
 };
 
 /**
@@ -230,7 +230,7 @@ const server = Bun.serve({
         );
       return new Response(run.stdout.toString(), { status: 200 });
     }
-    if (request.method === 'POST' && path === '/__fixture/create-project') {
+    if (request.method === 'POST' && path === '/__fixture/create-work-package') {
       const { username, name, token } = (await request.json()) as {
         username: string;
         name: string;
@@ -241,7 +241,7 @@ const server = Bun.serve({
           'SELECT organization_id FROM organization_membership WHERE user_id=?',
         )
         .get(`u-${username}`);
-      if (target === null) throw new Error('fixture project account has no organization');
+      if (target === null) throw new Error('fixture work package account has no organization');
       const authorization = `Bearer ${token}`;
       const selected = await backend.app.handle(
         new Request(`${BOOTED_ORIGIN}/api/organization/active`, {
@@ -257,7 +257,7 @@ const server = Bun.serve({
       const cookie = selected.headers.get('set-cookie')?.split(';')[0];
       if (cookie === undefined) throw new Error('fixture native selection set no cookie');
       const created = await backend.app.handle(
-        new Request(`${BOOTED_ORIGIN}/api/projects`, {
+        new Request(`${BOOTED_ORIGIN}/api/work-packages`, {
           method: 'POST',
           headers: {
             authorization,
@@ -363,9 +363,9 @@ const server = Bun.serve({
       );
       return Response.json({ granted: true });
     }
-    if (request.method === 'POST' && path === '/__fixture/restrict-project') {
+    if (request.method === 'POST' && path === '/__fixture/restrict-work-package') {
       const { id, restricted } = (await request.json()) as { id: string; restricted: boolean };
-      backend.sqlite.run('UPDATE project SET restricted = ?, owner_id = ? WHERE id = ?', [
+      backend.sqlite.run('UPDATE work_package SET restricted = ?, owner_id = ? WHERE id = ?', [
         restricted ? 1 : 0,
         restricted ? 'u-grace' : 'u-dany',
         id,
@@ -394,7 +394,7 @@ const server = Bun.serve({
       );
     if (request.method === 'POST' && path === '/__fixture/write-state') {
       const tables = [
-        'project',
+        'work_package',
         'work_item',
         'dependency',
         'typed_dependency',

@@ -11,7 +11,7 @@ socket is acknowledged and carried no further.
   pure over a `WsSocket`.
 - **`controller/internal.controller.ts`** — be-01's push, fanned out to the
   sockets on that subscription.
-- **`service/presence.ts`** — who is on each project, and the roster broadcast.
+- **`service/presence.ts`** — who is on each work package, and the roster broadcast.
 - **`service/subscription-map.ts`** — sockets by subscription, both directions.
 - **`service/forward-client.ts`** — the call to be-01, with the internal secret.
 
@@ -22,7 +22,7 @@ from the parser fe-01 judges them with.
 ## Refusals
 
 A frame it cannot read is answered `{ type: 'error', code: 'invalid_payload' }`
-and the socket stays open. A subscription that names no project and is not
+and the socket stays open. A subscription that names no work package and is not
 `presence` is refused by name (`unknown_subscription`) rather than registered —
 otherwise a typo is a socket that receives nothing, forever, silently.
 be-01 unreachable is `resume_denied` with `reason: 'unavailable'` per

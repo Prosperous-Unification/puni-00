@@ -1,14 +1,31 @@
 import { expect, type Page } from '@playwright/test';
+import {
+  applyDirectoryCommands as applyDirectoryCommandsShape,
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  type EndpointShape,
+  getWorkItems as getWorkItemsShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /** One JSON POST through the page's own session, so the API sees a signed-in reader. */
-async function jsonPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+async function jsonPost<T>(
+  page: Page,
+  shape: EndpointShape,
+  path: string,
+  body: unknown,
+): Promise<T> {
   return page.evaluate(
-    async ({ at, value }) => {
+    async ({ requestHeaders, fixtureInput }) => {
+      const { at, value } = fixtureInput;
+
       const response = await fetch(at, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.selected),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify(value),
       });
       if (!response.ok) {
@@ -16,7 +33,10 @@ async function jsonPost<T>(page: Page, path: string, body: unknown): Promise<T> 
       }
       return response.json() as Promise<T>;
     },
-    { at: path, value: body },
+    {
+      requestHeaders: { selected: createOrdinaryHeaders(shape) },
+      fixtureInput: { at: path, value: body },
+    },
   );
 }
 
@@ -34,21 +54,33 @@ async function jsonPost<T>(page: Page, path: string, body: unknown): Promise<T> 
  * Every leaf carries an estimate and `010` an assignee, so the corner glyph is
  * seen beside a figure and a person's initials, the cell's fullest reading.
  */
-export async function seedStepReadings(page: Page): Promise<{ projectId: string }> {
+export async function seedStepReadings(page: Page): Promise<{ workPackageId: string }> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Step readings');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id after creating the plan');
+  await createWorkPackage(page, 'Step readings');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('wbs.workPackage')))
+    .not.toBeNull();
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id after creating the plan');
 
-  const plan = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/projects/${id}/work-items`);
-    return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
-  }, projectId);
+  const plan = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const id = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
+    },
+    {
+      requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+      fixtureInput: workPackageId,
+    },
+  );
   const stepId = (name: string): string => {
     const step = plan.steps.find((each) => each.name === name);
-    if (step === undefined) throw new Error(`a new project has no ${name} step`);
+    if (step === undefined) throw new Error(`a new work package has no ${name} step`);
     return step.id;
   };
   const dev = stepId('Dev');
@@ -56,6 +88,7 @@ export async function seedStepReadings(page: Page): Promise<{ projectId: string 
 
   const created = await jsonPost<{ results: { entity?: { id: string } }[] }>(
     page,
+    applyDirectoryCommandsShape,
     '/api/directory/commands',
     { commands: [{ kind: 'createPerson', name: 'Ada Lovelace' }] },
   );
@@ -65,7 +98,9 @@ export async function seedStepReadings(page: Page): Promise<{ projectId: string 
   const names = ['Checkout flow', 'Payment retries', 'Receipt email', 'Refund policy'];
   const refs = ['r010', 'r020', 'r030', 'r040'];
   const commands = (list: Record<string, unknown>[]) =>
-    jsonPost(page, `/api/projects/${projectId}/commands`, { commands: list });
+    jsonPost(page, applyWorkPackageCommandsShape, `/api/work-packages/${workPackageId}/commands`, {
+      commands: list,
+    });
   await commands([
     ...names.map((name, at) => ({
       kind: 'createWorkItem',
@@ -94,10 +129,20 @@ export async function seedStepReadings(page: Page): Promise<{ projectId: string 
     { kind: 'setStatus', workItemRef: 'r030', status: 'on_hold' },
   ]);
 
-  const tree = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/projects/${id}/work-items`);
-    return response.json() as Promise<{ workItems: { id: string; number: string }[] }>;
-  }, projectId);
+  const tree = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const id = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      return response.json() as Promise<{ workItems: { id: string; number: string }[] }>;
+    },
+    {
+      requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+      fixtureInput: workPackageId,
+    },
+  );
   const first = tree.workItems.find((row) => row.number === '010')?.id;
   if (first === undefined) throw new Error('010 was not created');
   // One batch per attempt: an attempt's end must not precede its start, and
@@ -112,5 +157,5 @@ export async function seedStepReadings(page: Page): Promise<{ projectId: string 
   }
   await page.reload();
   await expect(page.getByLabel('Name of 040')).toBeVisible();
-  return { projectId };
+  return { workPackageId };
 }

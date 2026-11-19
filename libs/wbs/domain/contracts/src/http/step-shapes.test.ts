@@ -6,12 +6,12 @@ import { addStep, removeStep, renameStep } from './step-shapes';
 
 test('emits the existing step operation names, name bodies and optional string cascade', () => {
   const document = documentFromShapes([addStep, renameStep, removeStep]);
-  const add = document.paths['/api/projects/{id}/steps']?.['post'];
-  const rename = document.paths['/api/projects/{id}/steps/{stepId}']?.['patch'];
-  const remove = document.paths['/api/projects/{id}/steps/{stepId}']?.['delete'];
-  expect(add?.operationId).toBe('postApiProjectsByIdSteps');
-  expect(rename?.operationId).toBe('patchApiProjectsByIdStepsByStepId');
-  expect(remove?.operationId).toBe('deleteApiProjectsByIdStepsByStepId');
+  const add = document.paths['/api/work-packages/{id}/steps']?.['post'];
+  const rename = document.paths['/api/work-packages/{id}/steps/{stepId}']?.['patch'];
+  const remove = document.paths['/api/work-packages/{id}/steps/{stepId}']?.['delete'];
+  expect(add?.operationId).toBe('postApiWorkPackagesByIdSteps');
+  expect(rename?.operationId).toBe('patchApiWorkPackagesByIdStepsByStepId');
+  expect(remove?.operationId).toBe('deleteApiWorkPackagesByIdStepsByStepId');
   expect(add?.requestBody?.content['application/json']?.schema).toMatchObject({
     type: 'object',
     properties: { name: { type: 'string' }, allowancePercent: { type: 'number' } },
@@ -47,24 +47,24 @@ test('keeps names structural and cascade textual while refusing undeclared input
 
 test('declares the full step response and each usage count and assumed-assignee field', () => {
   const document = documentFromShapes([addStep, removeStep]);
-  const add = document.paths['/api/projects/{id}/steps']?.['post'];
+  const add = document.paths['/api/work-packages/{id}/steps']?.['post'];
   expect(add?.responses['200']?.content?.['application/json']?.schema).toMatchObject({
     properties: {
       step: {
         properties: {
           id: { type: 'string' },
-          projectId: { type: 'string' },
+          workPackageId: { type: 'string' },
           name: { type: 'string' },
           position: { type: 'number' },
           code: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           allowancePercent: { type: 'number' },
           estimateUnit: { enum: ['minutes', 'workdays'] },
         },
-        required: ['id', 'name', 'position', 'projectId'],
+        required: ['id', 'name', 'position', 'workPackageId'],
       },
     },
   });
-  const remove = document.paths['/api/projects/{id}/steps/{stepId}']?.['delete'];
+  const remove = document.paths['/api/work-packages/{id}/steps/{stepId}']?.['delete'];
   // Context and retained sparse policy join in-use, typed dependency and cycle conflicts.
   interface Variant {
     anyOf?: Variant[];
@@ -122,7 +122,7 @@ test('still reads a step from a be-01 that predates step codes', async () => {
   const older = {
     step: {
       id: 'step',
-      projectId: 'project',
+      workPackageId: 'work_package',
       name: 'Dev',
       position: 10,
       estimateUnit: 'workdays' as const,
@@ -144,7 +144,7 @@ test('still reads a step from a be-01 that predates step allowances', async () =
   const older = {
     step: {
       id: 'step',
-      projectId: 'project',
+      workPackageId: 'work_package',
       name: 'Dev',
       position: 10,
       estimateUnit: 'workdays' as const,
@@ -163,7 +163,7 @@ test('still reads a step from a be-01 that predates step allowances', async () =
 
 test('reads a pre-unit backend as the historical workday protocol and refuses malformed present units', async () => {
   const reply = addStep.responses[0].schema;
-  const older = { step: { id: 'step', projectId: 'project', name: 'Dev', position: 10 } };
+  const older = { step: { id: 'step', workPackageId: 'work_package', name: 'Dev', position: 10 } };
   expect((await validateSchema(reply, older)).issues).toBeUndefined();
   expect(
     (await validateSchema(reply, { step: { ...older.step, estimateUnit: 'hours' } })).issues,

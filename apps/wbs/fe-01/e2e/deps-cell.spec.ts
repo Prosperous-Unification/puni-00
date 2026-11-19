@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 /** The painted colour of an element's own background, whatever notation it is in. */
 const bgOf = (locator: Locator): Promise<string> =>
@@ -32,7 +32,7 @@ async function seedSevenChips(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020', '030', '040', '050', '060', '070', '080', '090']) {
     await addRow.click();

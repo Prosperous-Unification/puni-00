@@ -45,7 +45,7 @@ describe('what the cue suggests', () => {
    * 'time' to be null` for the one that finishes later than the schedule on
    * screen, and the three sentence assertions that go with them. Watched
    * 2026-09-08. Both are differences a reader can read and neither is a gain:
-   * an earlier project deadline is the only thing worth being nudged about.
+   * an earlier work package deadline is the only thing worth being nudged about.
    */
   it.each([
     ['an earlier finish is suggested', { pri: 7 }, { pri: true }, 'pri', 'Pri 3 days earlier'],
@@ -70,21 +70,21 @@ describe('what the cue suggests', () => {
       'the same finish reordered',
       { pri: 10 },
       { pri: false },
-      'Same project deadline + reordered',
-      'Priority-first: Same project deadline + reordered',
+      'Same work package deadline + reordered',
+      'Priority-first: Same work package deadline + reordered',
     ],
     [
       'a later finish',
       { pri: 12 },
       { pri: true },
-      'Later project deadline by 2 days',
-      'Priority-first: Later project deadline by 2 days',
+      'Later work package deadline by 2 days',
+      'Priority-first: Later work package deadline by 2 days',
     ],
     [
       'an earlier finish',
       { pri: 7 },
       { pri: true },
-      'Earlier project deadline by 3 days',
+      'Earlier work package deadline by 3 days',
       'Priority-first finishes 3 days earlier',
     ],
   ] as const)(
@@ -116,7 +116,7 @@ describe('what the cue suggests', () => {
     expect(view.suggestion).toBeNull();
     // And the reader is still told what Time would do, measured against Fast
     // like every other row.
-    expect(wordsFor(view, 'time')).toBe('Earlier project deadline by 1 day');
+    expect(wordsFor(view, 'time')).toBe('Earlier work package deadline by 1 day');
   });
 
   it('offers the earlier of two candidates', () => {
@@ -147,9 +147,9 @@ describe('what the cue suggests', () => {
   });
 
   it.each([
-    [-Number.EPSILON, 'Same project deadline + same order', null],
-    [-0.001, 'Earlier project deadline by <0.01 day', 'Pri <0.01 day earlier'],
-    [-1 / 48, 'Earlier project deadline by 0.02 days', 'Pri 0.02 days earlier'],
+    [-Number.EPSILON, 'Same work package deadline + same order', null],
+    [-0.001, 'Earlier work package deadline by <0.01 day', 'Pri <0.01 day earlier'],
+    [-1 / 48, 'Earlier work package deadline by 0.02 days', 'Pri 0.02 days earlier'],
   ] as const)('takes a %s difference through the workday drift', (delta, expected, suggested) => {
     const view = reading({
       finishDays: { fast: 10, pri: 10 + delta },
@@ -175,7 +175,7 @@ describe('what the cue reads out', () => {
     const waiting = reading({ variants: { pri: { state: 'idle' }, time: { state: 'idle' } } });
     expect(waiting.sentence).toContain('Priority-first: Optimizing…');
     // No generation is what a plan with no solvable work in it reads as, and a
-    // disabled project too. Promising a solve there is a promise nobody asked
+    // disabled work package too. Promising a solve there is a promise nobody asked
     // for and nothing will keep.
     // No generation and therefore no stored variant either: the two arrive
     // together, because a figure comes from a schedule and a schedule is
@@ -221,7 +221,7 @@ describe('what the cue reads out', () => {
       'they finish together',
       { pri: 7, time: 7 },
       { pri: true, time: true },
-      'Pri against Time: the same project deadline, in the same order as each other.',
+      'Pri against Time: the same work package deadline, in the same order as each other.',
     ],
     [
       'Time is the earlier one',
@@ -308,7 +308,7 @@ const CONNECTED: ConnectedPlanOptimizationView = {
   ...BASE,
   scope: {
     kind: 'connected-stage',
-    projectId: 'target',
+    workPackageId: 'target',
     originOrdinal: 0,
     mode: 'isolated',
     quantum: 48,
@@ -316,9 +316,9 @@ const CONNECTED: ConnectedPlanOptimizationView = {
     boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
     fixed: [
       {
-        projectId: 'foreign',
-        projectName: 'Foreign',
-        projectAbbreviation: 'FOR',
+        workPackageId: 'foreign',
+        workPackageName: 'Foreign',
+        workPackageAbbreviation: 'FOR',
         workItemId: 'work',
         workItemName: 'Fixed work',
         stepId: 'step',
@@ -335,7 +335,7 @@ const terminal = (evidence: 'contradictory-bounds' | 'initial-model-infeasible')
     kind: 'boundary-infeasible' as const,
     evidence,
     question: {
-      projectId: 'target',
+      workPackageId: 'target',
       inputHash: 'hash-a',
       questionHash: 'question',
       objective: 'pri' as const,

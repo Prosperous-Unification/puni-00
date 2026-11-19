@@ -1,9 +1,9 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 /**
- * The project settings modal, laid out by a browser: what jsdom cannot measure.
+ * The work package settings modal, laid out by a browser: what jsdom cannot measure.
  *
  * Two findings of the 2026-10-13 UI review live here. F-020: the Steps section's
  * name boxes collapsed to ~40px beside their unit, allowance and remove controls,
@@ -20,7 +20,7 @@ const NEARLY = 1;
 async function openSettings(page: Page): Promise<Locator> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
   // A phone reaches the toolbar only through its sheet; everywhere else the
   // toolbar is on the page.
   const sheet = page.getByRole('button', { name: 'Plan actions' });
@@ -30,10 +30,10 @@ async function openSettings(page: Page): Promise<Locator> {
     await sheet.click();
     await expect(page.getByRole('dialog', { name: 'Plan actions' })).toBeVisible();
   }
-  const control = page.getByRole('button', { name: 'Project settings' });
+  const control = page.getByRole('button', { name: 'Work package settings' });
   await expect(control).toBeEnabled();
   await control.click();
-  const dialog = page.getByRole('dialog', { name: 'Project settings' });
+  const dialog = page.getByRole('dialog', { name: 'Work package settings' });
   await expect(dialog).toBeVisible();
   return dialog;
 }
@@ -168,7 +168,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     const dialog = await openSettings(page);
     await addSteps(dialog);
-    const title = dialog.getByRole('heading', { name: 'Project settings' });
+    const title = dialog.getByRole('heading', { name: 'Work package settings' });
 
     const frames: { section: string; top: number; titleTop: number }[] = [];
     for (const section of [
@@ -323,7 +323,7 @@ test.describe('one commit model (F-060, decision D7)', () => {
       if (width === 375 && !(await sheet.isVisible())) {
         await page.getByRole('button', { name: 'Plan actions' }).click();
       }
-      await page.getByRole('button', { name: 'Project settings' }).click();
+      await page.getByRole('button', { name: 'Work package settings' }).click();
       await dialog.getByRole('tab', { name: 'Priorities' }).click();
       await expect(dialog.getByLabel('Name of band 1')).toHaveValue(`Blocker ${String(width)}`);
       await expect(dialog.getByRole('button', { name: 'Save' })).toHaveCount(0);
@@ -338,7 +338,7 @@ test.describe('one commit model (F-060, decision D7)', () => {
  * through, so a case can look at the modal while the write travels.
  */
 async function delaySettingsWrites(page: Page, ms: number): Promise<void> {
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, ms));
     await route.continue();
   });
@@ -461,7 +461,7 @@ test.describe('the settings flow while a write travels (round 3)', () => {
     const dialog = await openSettings(page);
     await dialog.getByRole('tab', { name: 'Priorities' }).click();
     await dialog.getByLabel('Name of band 1').fill('Blocker');
-    const tabs = dialog.getByRole('tablist', { name: 'Project settings sections' });
+    const tabs = dialog.getByRole('tablist', { name: 'Work package settings sections' });
     const before = await tabs.boundingBox();
     await delaySettingsWrites(page, 2000);
     await dialog.getByRole('tab', { name: 'Timezone' }).click();
@@ -513,7 +513,7 @@ test.describe('the settings flow while a write travels (round 3)', () => {
     });
     const dialog = await openSettings(page);
     await dialog.getByRole('tab', { name: 'Timezone' }).click();
-    const zone = dialog.locator('#project-timezone');
+    const zone = dialog.locator('#work-package-timezone');
     // Proof: on 2026-10-14, against 85849d1f3 (the box disabled while the zones
     // load), this failed on `locator.fill: Test timeout of 60000ms exceeded`
     // with `element is not enabled` in its log.

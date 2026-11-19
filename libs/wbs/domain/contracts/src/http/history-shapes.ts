@@ -12,7 +12,7 @@ import { requestSchema, responseSchema } from './schema-shape';
  */
 const historyEvent = type({
   id: 'string',
-  projectId: 'string',
+  workPackageId: 'string',
   userId: 'string',
   kind: 'string',
   label: 'string',
@@ -26,8 +26,8 @@ const historyEvent = type({
 /** Reads optional comma-separated kinds; unknown kind names remain a valid empty result. */
 export const readHistory = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/history',
-  operationId: 'getApiProjectsByIdHistory',
+  path: '/api/work-packages/:id/history',
+  operationId: 'getApiWorkPackagesByIdHistory',
   policies: [
     { kind: 'organization-resource', operation: 'read' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },

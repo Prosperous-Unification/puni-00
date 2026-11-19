@@ -1,9 +1,9 @@
 import type { PlanEvent, PlanEventFilter } from '../../ports/plan-event-values';
 import type { PlanEventService } from '../plan-event/plan-event.resource';
-import type { ProjectService } from '../project/project.resource';
+import type { WorkPackageService } from '../work-package/work-package.resource';
 
 export interface HistoryServiceOptions {
-  projects: ProjectService;
+  workPackages: WorkPackageService;
   events: PlanEventService;
 }
 
@@ -12,14 +12,13 @@ export type HistoryOutcome = { ok: true; value: PlanEvent[] } | { ok: false; rea
 /**
  * The plan's history, read.
  *
- * **Reading is open to every authenticated account, like every other read in this
- * product.** `projectController`'s own split: authentication on every route,
- * authorisation only where something is written. There is nothing to write here —
- * the history is written by `WorkItemService.record` as a side of the command it
- * records, and this service has no write method at all, which is what makes
- * "append-only" a property of the code rather than a promise in a comment.
+ * This raw reader preserves legacy and service-fixture behavior; it does not establish
+ * current package permission. Ordinary HTTP history uses WorkPackageObservation.readHistory,
+ * which admits the complete caller and reads events on one committed observation.
+ * The history is written by `WorkItemService.record` as a side of the command it records,
+ * and this service has no write method at all.
  *
- * The project is read before the events so an absent project is `not_found`
+ * The work package is read before the events so an absent work package is `not_found`
  * rather than an empty history. The two are different answers and a client must
  * be able to tell them apart: a plan somebody just deleted and a plan nobody has
  * edited yet would otherwise look identical.
@@ -33,11 +32,11 @@ export type HistoryOutcome = { ok: true; value: PlanEvent[] } | { ok: false; rea
 export class HistoryService {
   constructor(private readonly opts: HistoryServiceOptions) {}
 
-  async read(projectId: string, filter: PlanEventFilter): Promise<HistoryOutcome> {
-    const project = await this.opts.projects.readProject(projectId);
-    // Proof (2026-09-27): replacing this guard with `false && project === null`
-    // made `answers not_found for a project nothing holds` fail (5 pass, 1 fail).
-    if (project === null) return { ok: false, reason: 'not_found' };
-    return { ok: true, value: await this.opts.events.readHistory(projectId, filter) };
+  async read(workPackageId: string, filter: PlanEventFilter): Promise<HistoryOutcome> {
+    const workPackage = await this.opts.workPackages.readWorkPackage(workPackageId);
+    // Proof (2026-09-27): replacing this guard with `false && workPackage === null`
+    // made `answers not_found for a workPackage nothing holds` fail (5 pass, 1 fail).
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    return { ok: true, value: await this.opts.events.readHistory(workPackageId, filter) };
   }
 }

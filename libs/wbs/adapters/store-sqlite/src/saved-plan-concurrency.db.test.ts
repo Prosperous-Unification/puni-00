@@ -3,19 +3,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Connection } from './db';
 import { openConnection } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import type { SavedPlanWrite } from './saved-plan';
 import { SavedPlanRepository } from './saved-plan';
 import { savedPlan } from './schema';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { HOLDER_CASE_BUDGET_MS, WriteLockHolder } from './testing/write-lock-holder';
 import { UserRepository } from './user';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -24,7 +25,7 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
 /** A plausible header and one small body. The bytes are not the subject here. */
 const record = (id: string): SavedPlanWrite => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: id,
   createdBy: 'Ada Lovelace',
   createdById: null,
@@ -42,17 +43,18 @@ describe('a save that meets a held write lock is refused, not queued behind it',
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-busy-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const seed = openConnection(path);
     await new UserRepository(seed.db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(seed.db, OPEN).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
+    await new WorkPackageRepository(seed.db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -95,7 +97,7 @@ describe('a save that meets a held write lock is refused, not queued behind it',
       // The whole point of `busy_timeout = 0`, told apart from a wait by outcome
       // rather than by a stopwatch. At the connection default this call waits;
       // the holder commits 2.5 s after `go`, inside that 5 s wait, and the
-      // waiting save then succeeds, having held every live edit in the project
+      // waiting save then succeeds, having held every live edit in the work package
       // behind it for the duration.
       // Proof: with refuseToWaitForWriteLock removed from SavedPlanRepository.write
       // this received `{ outcome: 'written' }`; watched 2026-09-29.

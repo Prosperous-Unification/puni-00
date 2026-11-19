@@ -1,7 +1,7 @@
 import { type DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts';
 
 import type { FetchLike } from './backend-request';
-import type { CheckProjectAccess, ProjectAccessVerdict } from './project-access';
+import type { CheckWorkPackageAccess, WorkPackageAccessVerdict } from './work-package-access';
 
 /**
  * The browser cookies that authenticated one socket, exactly as the browser
@@ -25,7 +25,7 @@ export function forwardedCookieHeader(credential: ForwardedBrowserCredential): s
 }
 
 /**
- * Asks be-01's `POST /internal/gateway/projects/:id/browser-access` about one
+ * Asks be-01's `POST /internal/gateway/work-packages/:id/browser-access` about one
  * socket's principal: the gateway secret plus the forwarded browser cookies.
  *
  * - 204 is `granted`.
@@ -38,18 +38,18 @@ export function forwardedCookieHeader(credential: ForwardedBrowserCredential): s
  * secret is the gateway's fault, not the user's) and an unreadable reply, so
  * the caller fails closed.
  */
-export function browserProjectAccess(opts: {
+export function browserWorkPackageAccess(opts: {
   beUrl: string;
   secret: string;
   fetchImpl: FetchLike;
 }): (
   credential: ForwardedBrowserCredential,
   dependencySemantics?: typeof DEPENDENCY_SEMANTICS,
-) => CheckProjectAccess {
-  return (credential, dependencySemantics) => async (projectId, signal) => {
+) => CheckWorkPackageAccess {
+  return (credential, dependencySemantics) => async (workPackageId, signal) => {
     const send = () =>
       opts.fetchImpl(
-        `${opts.beUrl}/internal/gateway/projects/${encodeURIComponent(projectId)}/browser-access`,
+        `${opts.beUrl}/internal/gateway/work-packages/${encodeURIComponent(workPackageId)}/browser-access`,
         {
           method: 'POST',
           headers: {
@@ -87,12 +87,12 @@ export function browserProjectAccess(opts: {
     // secret into a quiet refusal in `throws on a refused gateway secret`
     // (browser-access-client.test.ts, 2026-10-11).
     if (verdict === null)
-      throw new Error(`project browser access failed ${String(response.status)}`);
+      throw new Error(`work package browser access failed ${String(response.status)}`);
     return verdict;
   };
 }
 
-function verdictOf(status: number, code: string | null): ProjectAccessVerdict | null {
+function verdictOf(status: number, code: string | null): WorkPackageAccessVerdict | null {
   if (status === 404 && code === 'not_found') return 'denied';
   if (
     status === 403 &&

@@ -49,10 +49,10 @@ export const NOTHING_PLACED =
 /** What a work item with no name of its own is called on a bar. Never a blank. */
 const UNNAMED_ROW = '(unnamed)';
 
-/** What a project with no name is called in the diagram's title. */
-const UNNAMED_PROJECT = 'Plan';
+/** What a work package with no name is called in the diagram's title. */
+const UNNAMED_WORK_PACKAGE = 'Plan';
 
-/** What a slice under no step at all is called — reachable on a project holding no steps. */
+/** What a slice under no step at all is called — reachable on a work package holding no steps. */
 const NO_STEP = 'no step';
 
 /** What a slice nobody is named on is called, under `assignee` sectioning. */
@@ -311,7 +311,7 @@ function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode)
   const stepOrder = new Map(plan.steps.map((step, at) => [step.id, at]));
   const personOrder = new Map(plan.people.map((person, at) => [person.id, at]));
   const scale = calendarScale(startDate);
-  // The same normalisation `calendarScale` makes of its own origin: a project
+  // The same normalisation `calendarScale` makes of its own origin: a work package
   // whose start date lands on a weekend begins on the Monday. Two origins would
   // stand every date on this diagram a day or two off the ones the table prints.
   const origin = addWorkdays(startDate, 0);
@@ -414,7 +414,7 @@ function taskLine(task: MermaidTask): string {
  */
 function commentLines(plan: PlanExport): string[] {
   return [
-    `    %% ${mermaidComment(plan.projectName)} — exported from the WBS tool at ${plan.generatedAt}.`,
+    `    %% ${mermaidComment(plan.workPackageName)} — exported from the WBS tool at ${plan.generatedAt}.`,
     "    %% Mermaid's gantt is a weaker drawing than the chart this came from. It has no way to",
     '    %% draw dependency arrows, capacity or hand-off waits, slack, priority, the three-point',
     '    %% figures, how many people a work item ran at, or one colour per assignee. Copy as',
@@ -481,11 +481,11 @@ export function planToMermaid(
   const tasks = tasksOf(plan, plan.startDate, sectionMode);
   if (tasks.length === 0) return { drawn: false, refusal: NOTHING_PLACED };
   // A `title` with nothing after it is a parse error rather than an untitled
-  // diagram, so the one project state that can produce one has a word.
-  const title = mermaidPhrase(plan.projectName);
+  // diagram, so the one work package state that can produce one has a word.
+  const title = mermaidPhrase(plan.workPackageName);
   const lines = [
     'gantt',
-    `    title ${title === '' ? UNNAMED_PROJECT : title}`,
+    `    title ${title === '' ? UNNAMED_WORK_PACKAGE : title}`,
     '    dateFormat YYYY-MM-DD',
     '    inclusiveEndDates',
     '    excludes weekends',

@@ -163,7 +163,7 @@ function tokenOf(answer: { status: number; body: unknown }): string {
 
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
 
-/** Two organizations, ada in A only, grace in B only, one project each; then activation. */
+/** Two organizations, ada in A only, grace in B only, one work package each; then activation. */
 async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<string> {
   process.organization('org-a');
   process.organization('org-b');
@@ -197,7 +197,7 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
   const created = await call(
     process,
     'POST',
-    '/api/projects',
+    '/api/work-packages',
     { ...bearer(tokenOf(await requestDelegation(process, 'auth0|ada'))), origin: BOOTED_ORIGIN },
     { name: 'A plan' },
   );
@@ -205,7 +205,7 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
   const foreign = await call(
     process,
     'POST',
-    '/api/projects',
+    '/api/work-packages',
     {
       ...bearer(
         tokenOf(
@@ -223,11 +223,11 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
   process.sqlite.run(
     "DELETE FROM access_grant WHERE id IN ('setup-create-org-a','setup-create-org-b')",
   );
-  return (foreign.body as { project: { id: string } }).project.id;
+  return (foreign.body as { workPackage: { id: string } }).workPackage.id;
 }
 
-const projectNames = (answer: { body: unknown }) =>
-  (answer.body as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
+const workPackageNames = (answer: { body: unknown }) =>
+  (answer.body as { workPackages: { name: string }[] }).workPackages.map((p) => p.name).toSorted();
 
 describe('MCP delegation through the booted composition', () => {
   test('lists nothing and issues nothing before activation', async () => {
@@ -256,7 +256,8 @@ describe('MCP delegation through the booted composition', () => {
     ).toEqual({ status: 200, body: { outcome: 'denied' } });
     // Before activation the raw upstream token keeps its legacy reach.
     expect(
-      (await call(be, 'GET', '/api/projects', bearer(await upstreamToken('auth0|ada')))).status,
+      (await call(be, 'GET', '/api/work-packages', bearer(await upstreamToken('auth0|ada'))))
+        .status,
     ).toBe(200);
   });
 
@@ -326,7 +327,7 @@ describe('MCP delegation through the booted composition', () => {
 
   test('lists, issues and verifies an MCP delegation only after activation', async () => {
     be = await boot();
-    const foreignProject = await activateTwoOrganizations(be);
+    const foreignWorkPackage = await activateTwoOrganizations(be);
     expect(
       await call(be, 'POST', '/internal/mcp/organizations', {
         ...INTERNAL,
@@ -352,20 +353,20 @@ describe('MCP delegation through the booted composition', () => {
       upstream_iss: ISSUER,
       upstream_sub: 'auth0|ada',
     });
-    const listed = await call(be, 'GET', '/api/projects', bearer(token));
+    const listed = await call(be, 'GET', '/api/work-packages', bearer(token));
     expect(listed.status).toBe(200);
-    expect(projectNames(listed)).toEqual(['A plan']);
+    expect(workPackageNames(listed)).toEqual(['A plan']);
     // One use: the same delegation again is refused.
-    expect(await call(be, 'GET', '/api/projects', bearer(token))).toEqual({
+    expect(await call(be, 'GET', '/api/work-packages', bearer(token))).toEqual({
       status: 401,
       body: { error: 'unauthenticated' },
     });
-    // Another organization's project is not found, exactly like an absent one.
+    // Another organization's work package is not found, exactly like an absent one.
     expect(
       await call(
         be,
         'GET',
-        `/api/projects/${foreignProject}`,
+        `/api/work-packages/${foreignWorkPackage}`,
         bearer(tokenOf(await requestDelegation(be, 'auth0|ada'))),
       ),
     ).toMatchObject({ status: 404 });
@@ -380,12 +381,12 @@ describe('MCP delegation through the booted composition', () => {
     );
     expect(decodeJwt(token)['org']).toBe('org-a');
     // Headers on the resource request cannot move it either.
-    const listed = await call(be, 'GET', '/api/projects', {
+    const listed = await call(be, 'GET', '/api/work-packages', {
       ...bearer(token),
       'x-wbs-organization': 'org-b',
       'X-WBS-Expected-Organization': 'org-b',
     });
-    expect(projectNames(listed)).toEqual(['A plan']);
+    expect(workPackageNames(listed)).toEqual(['A plan']);
   });
 
   test('refuses a delegation for an organization the user does not belong to', async () => {
@@ -529,7 +530,7 @@ describe('MCP delegation through the booted composition', () => {
 
   test('refuses a wrong audience, a forged organization and an expired signature', async () => {
     be = await boot();
-    const foreignProject = await activateTwoOrganizations(be);
+    const foreignWorkPackage = await activateTwoOrganizations(be);
     const now = Math.floor(Date.now() / 1000);
     const signed = (claims: { aud?: string; org?: string; iat?: number; exp?: number }) =>
       new SignJWT({
@@ -550,19 +551,27 @@ describe('MCP delegation through the booted composition', () => {
         .sign(delegationKeys.privateKey);
     // A gateway delegation on a resource route, and an MCP one on the gateway route.
     expect(
-      (await call(be, 'GET', '/api/projects', bearer(await signed({ aud: 'wbs-be-01/via-gw-01' }))))
-        .status,
+      (
+        await call(
+          be,
+          'GET',
+          '/api/work-packages',
+          bearer(await signed({ aud: 'wbs-be-01/via-gw-01' })),
+        )
+      ).status,
     ).toBe(401);
     expect(
       (
-        await call(be, 'POST', `/internal/gateway/projects/${foreignProject}/access`, {
+        await call(be, 'POST', `/internal/gateway/work-packages/${foreignWorkPackage}/access`, {
           ...INTERNAL,
           ...bearer(tokenOf(await requestDelegation(be, 'auth0|ada'))),
         })
       ).status,
     ).toBe(401);
     // A correctly signed delegation naming B, which ada does not belong to.
-    expect(await call(be, 'GET', '/api/projects', bearer(await signed({ org: 'org-b' })))).toEqual({
+    expect(
+      await call(be, 'GET', '/api/work-packages', bearer(await signed({ org: 'org-b' }))),
+    ).toEqual({
       status: 403,
       body: { error: 'not_a_member' },
     });
@@ -577,14 +586,15 @@ describe('MCP delegation through the booted composition', () => {
       }),
     ).toString('base64url');
     expect(
-      (await call(be, 'GET', '/api/projects', bearer(`${header}.${forged}.${signature}`))).status,
+      (await call(be, 'GET', '/api/work-packages', bearer(`${header}.${forged}.${signature}`)))
+        .status,
     ).toBe(401);
     expect(
       (
         await call(
           be,
           'GET',
-          '/api/projects',
+          '/api/work-packages',
           bearer(await signed({ iat: now - 200, exp: now - 1 })),
         )
       ).status,
@@ -596,7 +606,7 @@ describe('MCP delegation through the booted composition', () => {
     await activateTwoOrganizations(be);
     // A direct upstream token binds no organization (6.6): no delegation, no selection.
     expect(
-      await call(be, 'GET', '/api/projects', bearer(await upstreamToken('auth0|ada'))),
+      await call(be, 'GET', '/api/work-packages', bearer(await upstreamToken('auth0|ada'))),
     ).toEqual({ status: 403, body: { error: 'no_active_organization' } });
   });
 
@@ -626,7 +636,7 @@ describe('MCP delegation through the booted composition', () => {
       body: { error: 'not_a_member' },
     });
     // A delegation issued before the removal is refused on use.
-    expect(await call(be, 'GET', '/api/projects', bearer(unused))).toEqual({
+    expect(await call(be, 'GET', '/api/work-packages', bearer(unused))).toEqual({
       status: 403,
       body: { error: 'not_a_member' },
     });
@@ -889,7 +899,7 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
       credential_id: CREDENTIAL,
       person_id: 'claire',
     });
-    expect((await call(be, 'GET', '/api/projects', bearer(token))).status).toBe(200);
+    expect((await call(be, 'GET', '/api/work-packages', bearer(token))).status).toBe(200);
     // Another family naming the credential is refused.
     expect(
       await requestDelegation(be, 'auth0|ada', {
@@ -926,7 +936,7 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
     const consent = { grant: 'family-claire', credentialId: CREDENTIAL };
     const unused = tokenOf(await requestDelegation(be, 'auth0|ada', consent));
     revokeMachineCredential(be.sqlite, CREDENTIAL, Date.now());
-    expect(await call(be, 'GET', '/api/projects', bearer(unused))).toEqual({
+    expect(await call(be, 'GET', '/api/work-packages', bearer(unused))).toEqual({
       status: 401,
       body: { error: 'unauthenticated' },
     });
@@ -934,7 +944,7 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
     be.sqlite.run('UPDATE machine_credential SET revoked_at = NULL WHERE id = ?', [CREDENTIAL]);
     const another = tokenOf(await requestDelegation(be, 'auth0|ada', consent));
     be.sqlite.run("UPDATE person SET account_id = 'u-eve' WHERE id = 'claire'");
-    expect((await call(be, 'GET', '/api/projects', bearer(another))).status).toBe(401);
+    expect((await call(be, 'GET', '/api/work-packages', bearer(another))).status).toBe(401);
   });
 
   test('denies a consent family once its credential is revoked', async () => {
@@ -1063,19 +1073,19 @@ describe('undo through an MCP consent session', () => {
       ),
       origin: BOOTED_ORIGIN,
     });
-    const listed = await call(booted, 'GET', '/api/projects', await human());
-    const projectId = (listed.body as { projects: { id: string; name: string }[] }).projects.find(
-      ({ name }) => name === 'A plan',
-    )?.id;
-    if (projectId === undefined) throw new Error(`no A plan: ${JSON.stringify(listed)}`);
+    const listed = await call(booted, 'GET', '/api/work-packages', await human());
+    const workPackageId = (
+      listed.body as { workPackages: { id: string; name: string }[] }
+    ).workPackages.find(({ name }) => name === 'A plan')?.id;
+    if (workPackageId === undefined) throw new Error(`no A plan: ${JSON.stringify(listed)}`);
     booted.sqlite.run(
       "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('consent-undo','org-a','work_package',?,'machine_credential',?,'package-contributor','route',1)",
-      [projectId, CREDENTIAL],
+      [workPackageId, CREDENTIAL],
     );
     const created = await call(
       booted,
       'POST',
-      `/api/projects/${projectId}/commands`,
+      `/api/work-packages/${workPackageId}/commands`,
       await human(),
       {
         commands: ['Human', 'Agent'].map((name) => ({
@@ -1097,7 +1107,7 @@ describe('undo through an MCP consent session', () => {
       const renamed = await call(
         booted,
         'POST',
-        `/api/projects/${projectId}/commands`,
+        `/api/work-packages/${workPackageId}/commands`,
         await headers(),
         {
           commands: [{ kind: 'patchWorkItem', workItemId, patch: { name } }],
@@ -1116,19 +1126,19 @@ describe('undo through an MCP consent session', () => {
     await rename(human, humanRow, 'Human, renamed');
     await rename(agent, agentRow, 'Agent, renamed');
     expect(
-      await call(booted, 'POST', `/api/projects/${projectId}/undo`, await agent()),
+      await call(booted, 'POST', `/api/work-packages/${workPackageId}/undo`, await agent()),
     ).toMatchObject({
       status: 200,
     });
     expect(names()).toMatchObject({ [humanRow]: 'Human, renamed', [agentRow]: 'Agent' });
     expect(
-      await call(booted, 'POST', `/api/projects/${projectId}/undo`, await agent()),
+      await call(booted, 'POST', `/api/work-packages/${workPackageId}/undo`, await agent()),
     ).toMatchObject({
       status: 409,
       body: { error: 'nothing_to_undo' },
     });
     expect(
-      await call(booted, 'POST', `/api/projects/${projectId}/undo`, await human()),
+      await call(booted, 'POST', `/api/work-packages/${workPackageId}/undo`, await human()),
     ).toMatchObject({
       status: 200,
     });

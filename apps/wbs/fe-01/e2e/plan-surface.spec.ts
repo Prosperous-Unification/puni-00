@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
 import { openSeededPlan, seedPlan as seedRecipe } from './plan-fixture';
 
@@ -65,7 +65,7 @@ const TALL_PLAN = 23;
 
 const RUN_TOKEN = String(Date.now());
 
-/** Authors static prerequisites, then opens them through the real project picker. */
+/** Authors static prerequisites, then opens them through the real work package picker. */
 async function seedPlan(page: Page, rows: number): Promise<void> {
   const info = test.info();
   const recipeRows = Array.from({ length: rows }, (_, index) => ({

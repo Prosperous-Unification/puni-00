@@ -121,10 +121,12 @@ it('separates explicit connected producer wire keys from local package ownership
 
 it('refuses an ambiguous shorthand at a mixed wire producer rather than preserving its host value', () => {
   const path = SOLVER + 'build-connected-solver-request.ts';
-  const source = readSource(path).replace(
-    'projectId: projectId, key, start, finish',
-    'projectId, key, start, finish',
-  );
+  const current = readSource(path);
+  const anchor = 'fixed.push({ projectId: workPackageId, key, start, finish });';
+  expect(current.split(anchor)).toHaveLength(2);
+  expect(() => renameText(current, path)).not.toThrow();
+  const source = current.replace(anchor, 'fixed.push({ projectId, key, start, finish });');
+  expect(source).not.toBe(current);
   expect(() => {
     renameText(source, path);
   }).toThrow('wire producer requires explicit property mapping');

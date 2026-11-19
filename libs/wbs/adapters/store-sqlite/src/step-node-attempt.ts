@@ -1,3 +1,4 @@
+import {readSqliteAttemptsIn,readSqliteAttemptsOfIn,readSqliteIssuedIn} from './tuple-reads';
 import type {
   AttemptEnd,
   AttemptEnded,
@@ -10,7 +11,7 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { attemptOf, isAttemptOutcome } from '@wbs/domain';
-import { and, asc, eq, inArray, isNull, max, type SQL, sql } from 'drizzle-orm';
+import { and, eq, isNull, max, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -19,10 +20,11 @@ import { messagesOf } from './constraint';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { signalAttemptResourceUses } from './resource-use';
+import { moveResourceUseAttemptLocationsIn } from './resource-use-location';
 import { bumpWorkItems } from './revision';
-import { step, stepNodeAttempt, stepNodeAttemptIssued, stepProgress, workItem } from './schema';
+import { stepNodeAttempt, stepNodeAttemptIssued, stepProgress } from './schema';
 
-/** The columns every read takes, the audit columns left off. */
+/** The columns returned by writes, with audit columns left off. */
 const ATTEMPT_COLUMNS = {
   workItemId: stepNodeAttempt.workItemId,
   stepId: stepNodeAttempt.stepId,
@@ -118,48 +120,19 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
     private readonly gate: Gate,
   ) {}
 
-  async listByProject(projectId: string): Promise<StoredAttempt[]> {
-    return await this.listWhere(eq(workItem.projectId, projectId));
+  /** All numbered history, in current SC18 step order and number order within each pair. */
+  async listByWorkPackage(workPackageId:string):Promise<StoredAttempt[]>{
+    return await this.gate.enter(()=>Promise.resolve(this.db.transaction(tx=>readSqliteAttemptsIn(tx,workPackageId,null))));
   }
 
-  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredAttempt[]> {
-    if (ids.length === 0) return [];
-    return await this.listWhere(
-      and(eq(workItem.projectId, projectId), inArray(stepNodeAttempt.workItemId, [...ids])),
-    );
+  async listByWorkItems(workPackageId:string,ids:readonly string[]):Promise<StoredAttempt[]>{
+    const retained=[...ids];
+    return await this.gate.enter(()=>Promise.resolve(this.db.transaction(tx=>readSqliteAttemptsIn(tx,workPackageId,retained))));
   }
 
-  async listOfWorkItem(workItemId: string): Promise<ReadonlyMap<string, readonly StoredAttempt[]>> {
-    const bySteps = new Map<string, StoredAttempt[]>();
-    for (const attempt of await this.listWhere(eq(stepNodeAttempt.workItemId, workItemId))) {
-      const held = bySteps.get(attempt.stepId);
-      if (held === undefined) bySteps.set(attempt.stepId, [attempt]);
-      else held.push(attempt);
-    }
-    return bySteps;
-  }
-
-  /**
-   * By work item, then the step's **position**, then number ascending: the
-   * order the work runs in, as `StepProgressRepository.listByProject` reads.
-   * Inner joins, because both references are foreign keys.
-   */
-  private async listWhere(condition: SQL | undefined): Promise<StoredAttempt[]> {
-    await Promise.resolve();
-    return this.db
-      .select(ATTEMPT_COLUMNS)
-      .from(stepNodeAttempt)
-      .innerJoin(step, eq(stepNodeAttempt.stepId, step.id))
-      .innerJoin(workItem, eq(stepNodeAttempt.workItemId, workItem.id))
-      .where(condition)
-      .orderBy(
-        stepNodeAttempt.workItemId,
-        step.position,
-        stepNodeAttempt.stepId,
-        stepNodeAttempt.attemptNumber,
-      )
-      .all()
-      .map(storedAttemptOf);
+  /** Resolves both package and history on the same supplied snapshot. */
+  async listOfWorkItem(workItemId:string):Promise<ReadonlyMap<string,readonly StoredAttempt[]>>{
+    return await this.gate.enter(()=>Promise.resolve(this.db.transaction(tx=>readSqliteAttemptsOfIn(tx,workItemId))));
   }
 
   /**
@@ -350,22 +323,9 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
     });
   }
 
-  async listIssued(projectId: string, ids: readonly string[]): Promise<IssuedAttemptNumber[]> {
-    await Promise.resolve();
-    if (ids.length === 0) return [];
-    return this.db
-      .select({
-        workItemId: stepNodeAttemptIssued.workItemId,
-        stepId: stepNodeAttemptIssued.stepId,
-        issued: stepNodeAttemptIssued.issued,
-      })
-      .from(stepNodeAttemptIssued)
-      .innerJoin(workItem, eq(stepNodeAttemptIssued.workItemId, workItem.id))
-      .where(
-        and(eq(workItem.projectId, projectId), inArray(stepNodeAttemptIssued.workItemId, [...ids])),
-      )
-      .orderBy(asc(stepNodeAttemptIssued.workItemId), asc(stepNodeAttemptIssued.stepId))
-      .all();
+  async listIssued(workPackageId:string,ids:readonly string[]):Promise<IssuedAttemptNumber[]>{
+    const retained=[...ids];
+    return await this.gate.enter(()=>Promise.resolve(this.db.transaction(tx=>readSqliteIssuedIn(tx,workPackageId,retained))));
   }
 
   async raiseIssued(marks: readonly IssuedAttemptNumber[]): Promise<void> {
@@ -388,6 +348,7 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db.transaction((tx) => {
+        moveResourceUseAttemptLocationsIn(tx, fromWorkItemId, toWorkItemId);
         raiseMarks(
           tx,
           tx

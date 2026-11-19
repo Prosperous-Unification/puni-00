@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 import type { BrowserPackagesProof } from './browser-packages-probe';
 import { buildBrowserProbeBundle } from './browser-probe-bundle';

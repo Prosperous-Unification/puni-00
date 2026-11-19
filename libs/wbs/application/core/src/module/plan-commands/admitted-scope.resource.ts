@@ -4,9 +4,12 @@ import type { CommandAccess } from '../../ports/command-access';
 import type { CommandGraphAuthority, DependencyContext } from '../../ports/dependency-context';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
 import type { Scope } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
+import type {
+  RecoveryAuditDetail,
+  WorkPackageCrossReferenceKind,
+} from '../../ports/work-package-values';
 import { type Authorization, authorize } from '../../service/authorize';
 import type { PlanCommand } from '../../service/plan-command';
 import { COMMAND_PERMISSIONS } from './command-permissions';
@@ -39,20 +42,20 @@ export class AdmittedScope {
   }
 
   /**
-   * The kind of every reference that leaves the project or its organization,
+   * The kind of every reference that leaves the work package or its organization,
    * in the order the source reports them.
    *
-   * Proof: answering none made `fails closed on a project that already crosses
-   * its organization` and `fails closed on a project another project reaches
+   * Proof: answering none made `fails closed on a workPackage that already crosses
+   * its organization` and `fails closed on a workPackage another workPackage reaches
    * into, changing neither` in `command-organization.controller.db.test.ts`
    * fail (20 pass, 2 fail); watched 2026-09-29.
    */
   async listCrossReferenceKinds(
-    projectId: string,
+    workPackageId: string,
     organizationId: string,
-  ): Promise<ProjectCrossReferenceKind[]> {
-    const crossing = await this.#scope.stores.projects.findCrossReferences(
-      projectId,
+  ): Promise<WorkPackageCrossReferenceKind[]> {
+    const crossing = await this.#scope.stores.workPackages.findCrossReferences(
+      workPackageId,
       organizationId,
     );
     return crossing.map(({ kind }) => kind);
@@ -72,7 +75,7 @@ export class AdmittedScope {
    * references. Missing or unreadable grant authority is never a refusal.
    */
   async refuseOutsideScope(
-    projectId: string | null,
+    workPackageId: string | null,
     actorId: string,
     access: Extract<ResourceAccess, { kind: 'scoped' }>,
     detail: RecoveryAuditDetail,
@@ -81,20 +84,20 @@ export class AdmittedScope {
     const organization = access.scope;
     if (actorId !== access.principal.id || organization.userId !== access.principal.id)
       throw new Error('admitted permission principal differs from the acting account');
-    const project =
-      projectId === null
+    const workPackage =
+      workPackageId === null
         ? null
-        : await this.#scope.stores.projects.findInOrganization(
-            projectId,
+        : await this.#scope.stores.workPackages.findInOrganization(
+            workPackageId,
             organization.organizationId,
           );
-    if (projectId !== null && project === null) return { ok: false, reason: 'not_found' };
+    if (workPackageId !== null && workPackage === null) return { ok: false, reason: 'not_found' };
     const permissions: readonly Permission[] =
       'journal' in detail || commands.length === 0
-        ? [projectId === null ? 'organization.manage_directory' : 'package.write']
+        ? [workPackageId === null ? 'organization.manage_directory' : 'package.write']
         : commands.map((command) => COMMAND_PERMISSIONS[command.kind]);
     for (const permission of permissions) {
-      if (permission === 'project.manage_budgets' && project !== null) {
+      if (permission === 'project.manage_budgets' && workPackage !== null) {
         // Proof: moving this below the owner check disclosed hidden setBudget/clearBudget to a no-grant subject (two mounted RED cases); omitting the package evaluation admitted restricted admin/super-admin setBudget/clearBudget and a hidden budgets-only role; mounted tests observed nine RED cases across admission/replay, 2026-11-09.
         const packageAuthority = await authorize(
           this.#scope.stores.accessDecisions,
@@ -104,9 +107,11 @@ export class AdmittedScope {
             chain: {
               level: 'work_package',
               organizationId: organization.organizationId,
-              workPackageId: project.id,
+              spaceId: null,
+              projectId: workPackage.projectId,
+              workPackageId: workPackage.id,
             },
-            restricted: project.restricted,
+            restricted: workPackage.restricted,
           },
           permission,
         );
@@ -115,17 +120,19 @@ export class AdmittedScope {
       }
       const scope =
         permission.startsWith('organization.') ||
-        permission.startsWith('project.') ||
-        project === null
+        permission.startsWith('workPackage.') ||
+        workPackage === null
           ? { kind: 'organization' as const, organizationId: organization.organizationId }
           : {
               kind: 'work_package' as const,
               chain: {
                 level: 'work_package' as const,
                 organizationId: organization.organizationId,
-                workPackageId: project.id,
+                spaceId: null,
+                projectId: workPackage.projectId,
+                workPackageId: workPackage.id,
               },
-              restricted: project.restricted,
+              restricted: workPackage.restricted,
             };
       const decision = await authorize(
         this.#scope.stores.accessDecisions,
@@ -136,30 +143,32 @@ export class AdmittedScope {
       // Proof: registry-command-grant fault failed 'names package.write when a viewer runs createWorkItem|budget-owner authority independently.*write' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
       if (!decision.ok) return decision;
     }
-    if (projectId === null) return null;
+    if (workPackageId === null) return null;
     const related = new Set<string>();
     const held = commands.some(
       (command) =>
         command.kind === 'updateTypedDependency' || command.kind === 'removeTypedDependency',
     )
-      ? await this.#scope.stores.typedDependencies.listByProject(projectId)
+      ? await this.#scope.stores.typedDependencies.listByWorkPackage(workPackageId)
       : [];
     for (const command of commands) {
       if (command.kind === 'addTypedDependency' || command.kind === 'updateTypedDependency') {
-        if (command.predecessor.projectId !== undefined) related.add(command.predecessor.projectId);
-        if (command.successor.projectId !== undefined) related.add(command.successor.projectId);
+        if (command.predecessor.workPackageId !== undefined)
+          related.add(command.predecessor.workPackageId);
+        if (command.successor.workPackageId !== undefined)
+          related.add(command.successor.workPackageId);
       }
       if (command.kind === 'updateTypedDependency' || command.kind === 'removeTypedDependency') {
         const dependency = held.find((relationship) => relationship.id === command.dependencyId);
         if (dependency !== undefined) {
-          related.add(dependency.predecessor.projectId);
-          related.add(dependency.successor.projectId);
+          related.add(dependency.predecessor.workPackageId);
+          related.add(dependency.successor.workPackageId);
         }
       }
     }
-    related.delete(projectId);
+    related.delete(workPackageId);
     for (const relatedId of related) {
-      const affected = await this.#scope.stores.projects.findInOrganization(
+      const affected = await this.#scope.stores.workPackages.findInOrganization(
         relatedId,
         organization.organizationId,
       );
@@ -172,6 +181,8 @@ export class AdmittedScope {
           chain: {
             level: 'work_package',
             organizationId: organization.organizationId,
+            spaceId: null,
+            projectId: affected.projectId,
             workPackageId: affected.id,
           },
           restricted: affected.restricted,
@@ -180,14 +191,14 @@ export class AdmittedScope {
       );
       if (!authority.ok) return authority;
     }
-    const kinds = await this.listCrossReferenceKinds(projectId, organization.organizationId);
-    // Proof: skipping this check made `fails closed on a project that already
+    const kinds = await this.listCrossReferenceKinds(workPackageId, organization.organizationId);
+    // Proof: skipping this check made `fails closed on a workPackage that already
     // crosses its organization` in `command-organization.controller.db.test.ts`
     // answer 200 instead of 500; watched 2026-09-27, and again here on
     // 2026-09-29 (20 pass, 2 fail).
     if (kinds.length > 0) {
       throw new Error(
-        `project "${projectId}" holds references outside its organization: ${[...new Set(kinds)].sort().join(', ')}`,
+        `work package "${workPackageId}" holds references outside its organization: ${[...new Set(kinds)].sort().join(', ')}`,
       );
     }
     return null;
@@ -203,7 +214,7 @@ export interface OpenCommandGraph {
 /** Feature-owned command and receiver operations; the raw borrowed scope stays private. */
 export interface CommandAdmission {
   /** Coordinator expiry without caller admission. */
-  releaseExpiredLeases(projectId: string, broadcast: Broadcaster): Promise<number>;
+  releaseExpiredLeases(workPackageId: string, broadcast: Broadcaster): Promise<number>;
   resolveAccess: CommandAccess['resolve'];
   /** Pure current runtime authorization over this same borrowed command transaction. */
   authorizeRuntime(
@@ -212,7 +223,7 @@ export interface CommandAdmission {
   refuseOutsideScope: AdmittedScope['refuseOutsideScope'];
   listCrossReferenceKinds: AdmittedScope['listCrossReferenceKinds'];
   openCommandGraph(
-    projectId: string | null,
+    workPackageId: string | null,
     broadcast: Broadcaster,
     authority: CommandGraphAuthority,
   ): OpenCommandGraph;

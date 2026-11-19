@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
 import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-geometry';
 import { shortIsoDate } from '../src/components/wbs/short-date';
@@ -21,7 +21,7 @@ import {
   resetHiddenColumns,
   widthFor,
 } from '../src/components/wbs/table-frame';
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 /**
  * The plan {@link seedPlan} builds, as far as a column's width depends on it.
@@ -218,14 +218,14 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
 
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id after creating the plan');
+  await createWorkPackage(page);
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id after creating the plan');
   await page.evaluate(
     ({ id, hidden }) => {
       localStorage.setItem(`wbs.hiddenColumns.${id}`, JSON.stringify(hidden));
     },
-    { id: projectId, hidden: LINKS_SHOWN_HIDDEN_COLUMNS },
+    { id: workPackageId, hidden: LINKS_SHOWN_HIDDEN_COLUMNS },
   );
   await page.reload();
   const addRow = page.getByRole('button', { name: 'Add work item' });
@@ -263,12 +263,12 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   await page.mouse.move(0, 0);
   await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
 
-  // A project start date, because without one the earliest-start cells are a
+  // A work package start date, because without one the earliest-start cells are a
   // rendered disabled state that never opens an editor — and the editor is
   // what {@link measure} has to measure. No row sets an earliest start of its
   // own, so the column stays at its narrow width; see {@link SEEDED_PLAN}.
-  await page.getByLabel('Project start date').fill('2026-06-01');
-  await page.getByLabel('Project start date').blur();
+  await page.getByLabel('Work package start date').fill('2026-06-01');
+  await page.getByLabel('Work package start date').blur();
   await expect(page.getByLabel('Earliest start for 010')).toBeEnabled();
 }
 
@@ -644,7 +644,7 @@ function measureDaysIn(
  */
 async function dateThePlanOffThisYear(page: Page): Promise<number> {
   const year = new Date().getFullYear() + 1;
-  const start = page.getByLabel('Project start date');
+  const start = page.getByLabel('Work package start date');
   await start.fill(`${String(year)}-05-20`);
   await start.blur();
   // `'27` and not `2027` since 2026-09-13 — `shortIsoDate`'s two-digit off-year.
@@ -1001,10 +1001,10 @@ test.describe('the table, measured by a browser', () => {
     expect(shown['name']).toBe(120);
 
     await page.evaluate(() => {
-      const projectId = localStorage.getItem('wbs.project');
-      if (projectId === null) throw new Error('no selected project');
-      localStorage.removeItem(`wbs.hiddenColumns.${projectId}`);
-      localStorage.removeItem(`wbs.linksResetShown.${projectId}`);
+      const workPackageId = localStorage.getItem('wbs.workPackage');
+      if (workPackageId === null) throw new Error('no selected work package');
+      localStorage.removeItem(`wbs.hiddenColumns.${workPackageId}`);
+      localStorage.removeItem(`wbs.linksResetShown.${workPackageId}`);
     });
     await page.reload();
     await expect(page.getByLabel('Name of 010')).toBeVisible();
@@ -1303,8 +1303,8 @@ test.describe('the table, measured by a browser', () => {
     // `Keep the fraction`, because the default charges whole days and a whole
     // day is two glyphs: the fractional result is what makes this the tight case
     // rather than the wide one two tests above.
-    await page.getByRole('button', { name: 'Project settings' }).click();
-    const settings = page.getByRole('dialog', { name: 'Project settings' });
+    await page.getByRole('button', { name: 'Work package settings' }).click();
+    const settings = page.getByRole('dialog', { name: 'Work package settings' });
     await settings.getByRole('tab', { name: 'Estimating' }).click();
     const exact = settings.getByRole('radio', { name: 'Keep the fraction' });
     // `click` and then wait for the tick, not `check`: the radio is drawn from
@@ -1318,7 +1318,7 @@ test.describe('the table, measured by a browser', () => {
     await expect(settings).toBeHidden();
 
     // **`Ola`, and not this file's usual `Nia`.** The people directory is one
-    // per deployment, not one per project: `seedPlan` makes a new project but
+    // per deployment, not one per work package: `seedPlan` makes a new work package but
     // takes no new account (its `_account` parameter is unused), so a person
     // created here is still on the list when a later test opens its own picker.
     // Watched on 2026-09-20: with this test creating `Nia`, `a step’s figure
@@ -1799,7 +1799,7 @@ test.describe('the table, measured by a browser', () => {
      */
     await page.setViewportSize(NARROW);
     await scrollFrameTo(page, SCROLLED);
-    // The suite deliberately seeds Links shown, while this project has no refs;
+    // The suite deliberately seeds Links shown, while this work package has no refs;
     // first take that explicit fixture layout back to the contextual baseline.
     // Only then is there nothing to reset until a width has been dragged.
     await expect(page.getByRole('button', { name: 'Reset layout' })).toBeVisible();
@@ -2397,7 +2397,7 @@ test.describe('the table, measured by a browser', () => {
 
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    // Two, which is what a new project has and what D14's 1219px figure is
+    // Two, which is what a new work package has and what D14's 1219px figure is
     // about.
     const twoSteps = await stepIdsOnScreen();
     expect(twoSteps).toHaveLength(2);
@@ -2417,8 +2417,8 @@ test.describe('the table, measured by a browser', () => {
 
     // Three, which is the state D14 says already scrolled — and nothing had
     // ever watched scroll.
-    // Through `Project settings` and its `Steps` tab, since `project-config-modal`.
-    await page.getByRole('button', { name: 'Project settings' }).click();
+    // Through `WorkPackage settings` and its `Steps` tab, since `work-package-config-modal`.
+    await page.getByRole('button', { name: 'Work package settings' }).click();
     await page.getByRole('tab', { name: 'Steps' }).click();
     await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');
     await page.getByRole('button', { name: 'Add step' }).click();
@@ -2432,7 +2432,7 @@ test.describe('the table, measured by a browser', () => {
     // `useSettingsSection`'s `attempt`, with the single press this replaces,
     // failed on `expect(locator).toBeVisible() failed … getByRole('button', {
     // name: 'Unfold Design estimates' }) … element(s) not found`, the
-    // `Project settings` dialog still open in the snapshot. With this loop the
+    // `WorkPackage settings` dialog still open in the snapshot. With this loop the
     // same hold passed.
     await expect(async () => {
       await page.keyboard.press('Escape');
@@ -2470,15 +2470,15 @@ test.describe('the table, measured by a browser', () => {
     // One, which is the case the regression said no longer fits. It has the
     // most room of the three.
     for (const step of ['Design', 'QA']) {
-      await page.getByRole('button', { name: 'Project settings' }).click();
-      await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+      await page.getByRole('button', { name: 'Work package settings' }).click();
+      await expect(page.getByRole('dialog', { name: 'Work package settings' })).toBeVisible();
       await page.getByRole('tab', { name: 'Steps' }).click();
       // No estimate stands on either of these two — `seedPlan` estimates Dev
       // alone — so each removal is one press with no cascade to confirm.
       await page.getByRole('button', { name: `Remove ${step}` }).click();
       await expect(page.getByRole('button', { name: `Remove ${step}` })).toHaveCount(0);
       // The modal refuses Escape while a section still holds a write in
-      // flight (`project-config-modal` D3), and the removal's reread lands a
+      // flight (`work-package-config-modal` D3), and the removal's reread lands a
       // moment after the button goes. Pressing until the surface is gone is
       // the honest wait: a single press is a race this test does not own.
       await expect(async () => {
@@ -3048,7 +3048,7 @@ test.describe('the table, measured by a browser', () => {
     // not open at all. Observed on h2puni, 2026-08-08, `waiting for
     // getByRole('listbox', { name: 'QA assignee for 030' })`.
     // A different name from the figure-alignment case above. People belong to
-    // the account rather than the throwaway project, so reusing Nia here would
+    // the account rather than the throwaway work package, so reusing Nia here would
     // offer the existing person instead of the add row this check measures.
     await folded.fill('@Uma');
     await expect(page.getByRole('listbox', { name: 'QA assignee for 030' })).toBeVisible();
@@ -3102,7 +3102,7 @@ test.describe('the table, measured by a browser', () => {
   test('is as narrow as the plan lets the earliest-start column be', async ({ page }) => {
     // The two at-rest states, measured. The seeded plan sets no earliest start
     // anywhere, so the column is the narrow one; the moment any row in the
-    // project sets a day it is the wide one, on every row at once.
+    // work package sets a day it is the wide one, on every row at once.
     //
     // Proof: `PLAN_WIDTHS`'s `not-before` entry replaced by a constant 84, the
     // first assertion here failed on `expected 84 to be 56`. Watched,
@@ -3158,7 +3158,7 @@ test.describe('the table, measured by a browser', () => {
     const starts = await dateCells(page, 'start');
     const finishes = await dateCells(page, 'finish');
 
-    // Non-vacuity first, and it is not decoration: without a project start
+    // Non-vacuity first, and it is not decoration: without a work package start
     // date these cells read `0` and `2.5`, which fit any width ever declared —
     // the check would pass at 52px while saying nothing. The year is what
     // makes the day the widest thing this column prints, and the marker is

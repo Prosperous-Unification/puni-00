@@ -1,14 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { Source, TransactionalStores } from '@wbs/core';
 import type { AvailableWorkItemService as WorkItemService } from '@wbs/core/testing/available-work-item-service';
-import { inMemoryServices } from '@wbs/core/testing/harness';
+import { createTestServices } from '@wbs/core/testing/harness';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
@@ -18,33 +14,31 @@ import {
   type Connection,
   type Drizzle,
   openDatabase,
-  openDrizzle,
   openReadOnlyConnection,
   openReadOnlyDatabase,
 } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { openSqliteSource } from './source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import {createScopePackage,openScopedServiceFixture} from './testing/scoped-service-fixture';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STAMP = { at: 1, by: 'owner' };
 const LEGACY = { kind: 'legacy' } as const;
-let folder: string;
+let owned:ReturnType<typeof openScopedServiceFixture>;
 let path: string;
 let db: Drizzle;
-let projects: ProjectRepository;
+let workPackages: WorkPackageRepository;
 let directory: DirectoryRepository;
 let service: WorkItemService;
 let workItems: WorkItemRepository;
 let claims: ClaimRepository;
 
 /**
- * The claims read's one observation (`ClaimStore.observeProject`,
+ * The claims read's one observation (`ClaimStore.observeWorkPackage`,
  * `wbs-claim-display` C1) over real SQLite, through a read-only connection of
  * its own as be-01 binds it: a writer racing the read, in this process or
  * another, never makes it answer a claim on a row it did not read; an open
@@ -52,39 +46,24 @@ let claims: ClaimRepository;
  * admission is refused inside the observation.
  */
 beforeEach(async () => {
-  folder = mkdtempSync(join(tmpdir(), 'wbs-claim-observation-'));
-  path = join(folder, 'test.db');
-  runMigrations(path, FOLDER);
-  db = openDrizzle(path);
+  owned=openScopedServiceFixture('wbs-claim-observation-');
+  path=owned.path;
+  db=owned.source.db;
   directory = new DirectoryRepository(db, OPEN);
-  projects = new ProjectRepository(db, OPEN);
+  workPackages = new WorkPackageRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
   claims = new ClaimRepository(db, OPEN, { openConnection: () => openReadOnlyConnection(path) });
-  service = inMemoryServices({ projects, workItems, directory, claims }).service;
+  service = createTestServices(owned.source,{ workPackages, workItems, directory, claims }).service;
   await new UserRepository(db, OPEN).create(
     { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
     STAMP,
   );
-  await projects.create(
-    projectRow({ id: 'project', ownerId: 'owner' }),
-    [
-      {
-        id: 'step-dev',
-        projectId: 'project',
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    STAMP,
-  );
+  await createScopePackage(owned.source,workPackageRow({id:'work_package',projectId:'fixture-project'}),{id:'step-dev',name:'Dev',position:10,code:'step-dev',defaultAllowancePercent:0,defaultEstimateUnit:'workdays'},STAMP);
   await personAdded(directory.addPerson({ id: 'codex', name: 'codex-fleet' }, [], STAMP));
 });
 
-afterEach(() => {
-  rmSync(folder, { recursive: true, force: true });
+afterEach(async () => {
+  await owned.close();
 });
 
 /** Tracks the actual read-only handle handed to the public claim observer. */
@@ -130,7 +109,7 @@ function createTrackedClaimObserver(failBegin = false) {
 /** Inserts a row and claims its step, as a concurrent batch would, after `delay` turns. */
 async function claimNewRow(id: string, delay: number): Promise<void> {
   for (let turn = 0; turn < delay; turn += 1) await Promise.resolve();
-  await workItems.insert(workItemRow({ id, projectId: 'project' }), [], STAMP);
+  await workItems.insert(workItemRow({ id, workPackageId: 'work_package' }), [], STAMP);
   const written = await claims.add(
     [
       {
@@ -154,7 +133,9 @@ describe('the claims observation', () => {
   it('settles and closes its one owned connection after a successful claim read', async () => {
     const tracked = createTrackedClaimObserver();
     try {
-      expect((await tracked.observed.observeProject('project', LEGACY)).kind).toBe('observed');
+      expect((await tracked.observed.observeWorkPackage('work_package', LEGACY)).kind).toBe(
+        'observed',
+      );
       tracked.assertSettledClose();
     } finally {
       tracked.closeLeakedHandles();
@@ -164,7 +145,7 @@ describe('the claims observation', () => {
   it('settles and closes its one owned connection after not-found and modeled refusal', async () => {
     const absent = createTrackedClaimObserver();
     try {
-      expect(await absent.observed.observeProject('nowhere', LEGACY)).toEqual({
+      expect(await absent.observed.observeWorkPackage('nowhere', LEGACY)).toEqual({
         kind: 'not_found',
       });
       absent.assertSettledClose();
@@ -174,7 +155,7 @@ describe('the claims observation', () => {
     db.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     const refused = createTrackedClaimObserver();
     try {
-      expect(await refused.observed.observeProject('project', LEGACY)).toEqual({
+      expect(await refused.observed.observeWorkPackage('work_package', LEGACY)).toEqual({
         kind: 'access_refused',
         refusal: 'no_active_organization',
       });
@@ -188,7 +169,7 @@ describe('the claims observation', () => {
     db.run('DROP TABLE organization_activation');
     const tracked = createTrackedClaimObserver();
     try {
-      const failure = await tracked.observed.observeProject('project', LEGACY).then(
+      const failure = await tracked.observed.observeWorkPackage('work_package', LEGACY).then(
         () => null,
         (cause: unknown) => cause,
       );
@@ -203,7 +184,7 @@ describe('the claims observation', () => {
   it('closes an acquired owned connection when BEGIN fails before the read', async () => {
     const tracked = createTrackedClaimObserver(true);
     try {
-      const failure = await tracked.observed.observeProject('project', LEGACY).then(
+      const failure = await tracked.observed.observeWorkPackage('work_package', LEGACY).then(
         () => null,
         (cause: unknown) => cause,
       );
@@ -217,7 +198,7 @@ describe('the claims observation', () => {
 
   it('answers whatever a racing claim on a new row lands before or after', async () => {
     for (let delay = 0; delay < 40; delay += 1) {
-      const reading = service.claimsWithin('project', LEGACY).then(
+      const reading = service.claimsWithin('work_package', LEGACY).then(
         (answer) => (answer === null || 'kind' in answer ? 'refused' : 'answered'),
         (error: unknown) => String(error),
       );
@@ -227,9 +208,9 @@ describe('the claims observation', () => {
   });
 
   it('refuses legacy access once the deployment is activated', async () => {
-    expect((await claims.observeProject('project', LEGACY)).kind).toBe('observed');
+    expect((await claims.observeWorkPackage('work_package', LEGACY)).kind).toBe('observed');
     db.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
-    expect(await claims.observeProject('project', LEGACY)).toEqual({
+    expect(await claims.observeWorkPackage('work_package', LEGACY)).toEqual({
       kind: 'access_refused',
       refusal: 'no_active_organization',
     });
@@ -237,7 +218,7 @@ describe('the claims observation', () => {
 
   it('does not see a claim an open batch has not committed', async () => {
     db.run(
-      "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-staged', 'project', 1, 'Staged')",
+      "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-staged', 'work_package', 1, 'Staged')",
     );
     // The batch's own transaction on the process connection, as sqliteUnitOfWork opens it.
     db.run('BEGIN IMMEDIATE');
@@ -245,7 +226,7 @@ describe('the claims observation', () => {
       db.run(
         "INSERT INTO claim (id, work_item_id, step_id, person_id, created_at, created_by) VALUES ('claim-staged', 'w-staged', 'step-dev', 'codex', 1, 'owner')",
       );
-      const observed = await claims.observeProject('project', LEGACY);
+      const observed = await claims.observeWorkPackage('work_package', LEGACY);
       if (observed.kind !== 'observed') throw new Error(`observed ${observed.kind}`);
       expect(observed.claims).toEqual([]);
     } finally {
@@ -267,7 +248,7 @@ describe('the claims observation', () => {
               if (committed || !query.includes('from "step"')) return;
               committed = true;
               writer.run(
-                "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-other', 'project', 1, 'Other')",
+                "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-other', 'work_package', 1, 'Other')",
               );
               writer.run(
                 "INSERT INTO claim (id, work_item_id, step_id, person_id, created_at, created_by) VALUES ('claim-other', 'w-other', 'step-dev', 'codex', 1, 'owner')",
@@ -280,18 +261,18 @@ describe('the claims observation', () => {
         },
       };
     };
-    const observing = inMemoryServices({
-      projects,
+    const observing = createTestServices(owned.source,{
+      workPackages,
       workItems,
       directory,
       claims: new ClaimRepository(db, OPEN, { openConnection: hooked }),
     }).service;
     try {
-      const answer = await observing.claimsWithin('project', LEGACY);
+      const answer = await observing.claimsWithin('work_package', LEGACY);
       expect(committed).toBe(true);
       if (answer === null || 'kind' in answer) throw new Error('the first read did not answer');
       expect(answer.claims).toEqual([]);
-      const after = await observing.claimsWithin('project', LEGACY);
+      const after = await observing.claimsWithin('work_package', LEGACY);
       if (after === null || 'kind' in after) throw new Error('the second read did not answer');
       expect(after.claims.map(({ claimId }) => claimId)).toEqual(['claim-other']);
     } finally {
@@ -319,10 +300,12 @@ describe('the claims observation', () => {
         return member;
       },
     });
-    const failure = await new ClaimRepository(broken, OPEN).observeProject('project', LEGACY).then(
-      () => null,
-      (error: unknown) => error,
-    );
+    const failure = await new ClaimRepository(broken, OPEN)
+      .observeWorkPackage('work_package', LEGACY)
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
     db.run('ROLLBACK');
     if (!(failure instanceof AggregateError)) throw new Error(`threw ${String(failure)}`);
     const [cause, rollbackCause] = failure.errors.map((each) => String(each));
@@ -331,8 +314,8 @@ describe('the claims observation', () => {
     expect(failure.errors).toHaveLength(2);
   });
 
-  it('answers an absent project as not found', async () => {
-    expect(await claims.observeProject('nowhere', LEGACY)).toEqual({ kind: 'not_found' });
+  it('answers an absent work package as not found', async () => {
+    expect(await claims.observeWorkPackage('nowhere', LEGACY)).toEqual({ kind: 'not_found' });
   });
 });
 
@@ -352,7 +335,7 @@ describe("the source's public claims read", () => {
       try {
         const seen = await source.uow.run(async ({ stores }) => {
           await stores.workItems.insert(
-            workItemRow({ id: 'w-batch', projectId: 'project' }),
+            workItemRow({ id: 'w-batch', workPackageId: 'work_package' }),
             [],
             STAMP,
           );
@@ -374,8 +357,8 @@ describe("the source's public claims read", () => {
           );
           if (written !== 'written') throw new Error(`the batch claim was refused: ${written}`);
           // The batch itself sees its own claim; the public catalog must not.
-          const own = await stores.claims.observeProject('project', LEGACY);
-          const observed = await source.stores.claims.observeProject('project', LEGACY);
+          const own = await stores.claims.observeWorkPackage('work_package', LEGACY);
+          const observed = await source.stores.claims.observeWorkPackage('work_package', LEGACY);
           return { commit: false, value: { own, observed } };
         });
         if (seen.own.kind !== 'observed' || seen.observed.kind !== 'observed')
@@ -407,9 +390,9 @@ describe("the source's public claims read", () => {
       },
     }).bindLivePlans({ schedulerOf: () => fastScheduler });
     await claimNewRow('w-first', 0);
-    const first = await source.stores.claims.observeProject('project', LEGACY);
+    const first = await source.stores.claims.observeWorkPackage('work_package', LEGACY);
     await claimNewRow('w-second', 0);
-    const second = await source.stores.claims.observeProject('project', LEGACY);
+    const second = await source.stores.claims.observeWorkPackage('work_package', LEGACY);
     if (first.kind !== 'observed' || second.kind !== 'observed')
       throw new Error('an observation did not answer');
     expect(first.claims.map(({ id }) => id)).toEqual(['claim-w-first']);

@@ -1,7 +1,7 @@
 import {
   accessSubjectOf,
   authorize,
-  authorizePackage,
+  authorizePackageAt,
   authorizePackageSettings,
   capOf,
   type DirectoryStore,
@@ -10,13 +10,13 @@ import {
 } from '@wbs/core';
 import type {
   BeforeImport,
-  BeforeProjectUpdate,
   BeforeStepRemoval,
+  BeforeWorkPackageUpdate,
   CapturedFanout,
   DirectoryWriteAddress,
   DirectoryWriteResolution,
   LifecycleOwnership,
-  ResolveProjectWriteScope,
+  ResolveWorkPackageWriteScope,
 } from '@wbs/core/ports/fanout-capture-store';
 import { scheduleInputOfCaptured } from '@wbs/core/service/saved-plan-schedule';
 import type { DependencyFanout } from '@wbs/core/service/shared-people-fanout';
@@ -28,8 +28,6 @@ import { discoverConnectedTopologyIn } from './connected-plan-capture';
 import type { Drizzle } from './db';
 import { OPEN } from './gate';
 import { readOrganizationActivation } from './organization-activation';
-import { ProjectRepository } from './project';
-import { ProjectRankRepository } from './project-rank';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { readConnectedPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
@@ -37,28 +35,35 @@ import {
   externalDependency,
   organization,
   organizationMembership,
-  project,
-  projectOrganization,
+  workPackage,
+  workPackageOrganization,
 } from './schema';
+import { readSettingTargetIn } from './settings';
 import { readCapacityMode } from './shared-people-mode';
 import { StepNodeAttemptRepository } from './step-node-attempt';
+import { WorkPackageRepository } from './work-package';
+import { WorkPackageRankRepository } from './work-package-rank';
 
 /** Resolves a trusted maintenance target on its borrowed writer before any lifecycle mutation. */
-export function resolveLifecycleOwnerIn(db: Drizzle, projectId: string): LifecycleOwnership {
-  const target = db.select({ id: project.id }).from(project).where(eq(project.id, projectId)).get();
+export function resolveLifecycleOwnerIn(db: Drizzle, workPackageId: string): LifecycleOwnership {
+  const target = db
+    .select({ id: workPackage.id })
+    .from(workPackage)
+    .where(eq(workPackage.id, workPackageId))
+    .get();
   // Proof: omitting the absent-target branch changed the mounted no-op into
-  // a false missing-ownership corruption error for project `missing`.
+  // a false missing-ownership corruption error for work package `missing`.
   if (target === undefined) return { kind: 'absent' };
   if (readOrganizationActivation(db) === 'pre_activation') return { kind: 'legacy' };
   const ownership = db
-    .select({ organizationId: projectOrganization.organizationId })
-    .from(projectOrganization)
-    .where(eq(projectOrganization.resourceId, projectId))
+    .select({ organizationId: workPackageOrganization.organizationId })
+    .from(workPackageOrganization)
+    .where(eq(workPackageOrganization.resourceId, workPackageId))
     .get();
   // Proof: omitting this refusal replaced trusted missing ownership with an
-  // incidental property error in the mounted active-project negative.
+  // incidental property error in the mounted active-work-package negative.
   if (ownership === undefined)
-    throw new Error(`active project ${projectId} lacks organization ownership`);
+    throw new Error(`active work package ${workPackageId} lacks organization ownership`);
   const owner = db
     .select({ id: organization.id })
     .from(organization)
@@ -67,52 +72,58 @@ export function resolveLifecycleOwnerIn(db: Drizzle, projectId: string): Lifecyc
   // Proof: omitting this check replaced a malformed trusted owner with an
   // incidental property error before the mounted capture-zero assertion.
   if (owner === undefined)
-    throw new Error(`project ${projectId} has malformed organization ownership`);
+    throw new Error(`work package ${workPackageId} has malformed organization ownership`);
   return { kind: 'scoped', organizationId: owner.id };
 }
 
 /** Current import write authority on the same borrowed connection as capture. */
 export function authorizeImportIn(db: Drizzle): BeforeImport {
-  return async (actorId, access) => {
+  return async (actorId, access, project) => {
     if (access.kind === 'legacy') return { ok: true };
     if (access.scope.userId !== actorId || access.principal.id !== actorId)
       throw new Error('import permission principal differs from its actor');
-    // Proof: import-create-grant fault failed 'encodes organization.create_project on a refused import' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    // Historical P16 organization-admission evidence follows; the destination-project gate requires its own current proof.
+    // Proof: import-create-grant fault failed 'encodes organization.create_work_package on a refused import' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (project.chain.organizationId !== access.scope.organizationId)
+      throw new Error('import project target differs from its admitted organization');
     const decision = await authorize(
       new AccessDecisionRepository(db),
       access.principal,
-      { kind: 'organization', organizationId: access.scope.organizationId },
-      'organization.create_project',
+      project,
+      'project.manage_packages',
     );
     return decision.ok
       ? { ok: true }
-      : { ok: false, reason: 'forbidden', permission: 'organization.create_project' };
+      : decision.reason === 'not_found'
+        ? { ok: false, reason: 'not_found' }
+        : { ok: false, reason: 'forbidden', permission: 'project.manage_packages' };
   };
 }
 
-/** Rechecks current membership/project ownership without creating an audit or grant. */
-export function authorizeProjectFanoutIn(
+/** Rechecks current membership/work-package ownership without creating an audit or grant. */
+export function authorizeWorkPackageFanoutIn(
   db: Drizzle,
   lifetime: ReadSnapshotLifetime,
-): BeforeProjectUpdate {
-  return async (projectId, actorId, access, patch) => {
+): BeforeWorkPackageUpdate {
+  return async (workPackageId, actorId, access, patch) => {
     if (access.kind === 'legacy') return { ok: true };
     const organizationId = access.scope.organizationId;
-    const project = await new ProjectRepository(db, OPEN).findInOrganization(
-      projectId,
+    const workPackage = readSettingTargetIn(
+      db,
+      { level: 'work_package', id: workPackageId },
       organizationId,
     );
-    // Proof: removing this check made `fanout authorizeProjectUpdate` issue 1 expired membership query.
+    await Promise.resolve();
+    // Proof: removing this check made `fanout authorizeWorkPackageUpdate` issue 1 expired membership query.
     lifetime.assertOpen();
-    if (project === null) return { ok: false, reason: 'not_found' };
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
     if (access.scope.userId !== actorId || access.principal.id !== actorId)
-      throw new Error('project fanout principal differs from its actor');
-    // Proof: checking package.read here admitted the revoked settings grant in `rechecks manage_settings before project fanout observation after its grant is revoked` (fanout-capture.db.test.ts); watched 2026-11-09.
+      throw new Error('work package fanout principal differs from its actor');
+    // Proof: checking package.read here admitted the revoked settings grant in `rechecks manage_settings before workPackage fanout observation after its grant is revoked` (fanout-capture.db.test.ts); watched 2026-11-09.
     return authorizePackageSettings(
       new AccessDecisionRepository(db),
       access.principal,
-      organizationId,
-      project,
+      workPackage,
       patch,
     );
   };
@@ -120,25 +131,27 @@ export function authorizeProjectFanoutIn(
 
 /**
  * Resolves current scope on the borrowed writer, applying detached verifier metadata
- * through the credential role policy before project classification. Explicit undefined
+ * through the credential role policy before work package classification. Explicit undefined
  * preserves direct-context callers; resolution creates neither audit nor grant.
- * The borrowed lifetime must remain open through project and membership reads.
+ * The borrowed lifetime must remain open through work package and membership reads.
  *
  * @throws when the lifetime expires or a trusted membership role is malformed.
  */
-export function resolveProjectWriteScopeIn(
+export function resolveWorkPackageWriteScopeIn(
   db: Drizzle,
   lifetime: ReadSnapshotLifetime,
-): ResolveProjectWriteScope {
-  return async (projectId, organizationId, actorId, authentication) => {
-    const project = await new ProjectRepository(db, OPEN).findInOrganization(
-      projectId,
+): ResolveWorkPackageWriteScope {
+  return async (workPackageId, organizationId, actorId, authentication) => {
+    const workPackage = readSettingTargetIn(
+      db,
+      { level: 'work_package', id: workPackageId },
       organizationId,
     );
-    // Proof: removing this post-await check made suspended runtime project resolution issue membership SQL during a later writer (R10, 2026-10-26).
+    await Promise.resolve();
+    // Proof: removing this post-await check made suspended runtime work package resolution issue membership SQL during a later writer (R10, 2026-10-26).
     lifetime.assertOpen();
-    // Proof: F11 removed this check; the foreign-project runtime read threw instead of returning not_found.
-    if (project === null) return { ok: false, reason: 'not_found' };
+    // Proof: F11 removed this check; the foreign-work-package runtime read threw instead of returning not_found.
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
     const membership = db
       .select({ userId: organizationMembership.userId })
       .from(organizationMembership)
@@ -155,18 +168,14 @@ export function resolveProjectWriteScopeIn(
       organizationId,
       userId: actorId,
       // Proof: replacing this cap with null failed `preserves the credential
-      // cap when resolving a borrowed project write scope`; watched 2026-11-09.
+      // cap when resolving a borrowed work package write scope`; watched 2026-11-09.
       cap: capOf(accessSubjectOf({ id: actorId, authentication })),
     };
     // Proof: F13 bypassed this decision; a current viewer received runtime facts.
     const decision = await authorize(
       new AccessDecisionRepository(db),
       { id: actorId, authentication },
-      {
-        kind: 'work_package',
-        chain: { level: 'work_package', organizationId, workPackageId: projectId },
-        restricted: project.restricted,
-      },
+      workPackage,
       'package.write',
     );
     lifetime.assertOpen();
@@ -179,20 +188,22 @@ export function authorizeStepFanoutIn(
   db: Drizzle,
   lifetime: ReadSnapshotLifetime,
 ): BeforeStepRemoval {
-  return async (projectId, actorId, access) => {
+  return async (workPackageId, actorId, access) => {
     if (access.kind === 'legacy') return { ok: true };
     const organizationId = access.scope.organizationId;
-    const project = await new ProjectRepository(db, OPEN).findInOrganization(
-      projectId,
+    const workPackage = readSettingTargetIn(
+      db,
+      { level: 'work_package', id: workPackageId },
       organizationId,
     );
+    await Promise.resolve();
     // Proof: removing this check made `fanout authorizeStepRemoval` issue 1 expired membership query.
     lifetime.assertOpen();
-    if (project === null) return { ok: false, reason: 'not_found' };
-    return authorizePackage(
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    return authorizePackageAt(
       new AccessDecisionRepository(db),
       access,
-      project,
+      workPackage,
       actorId,
       'package.write',
     );
@@ -280,7 +291,7 @@ export async function readFanoutObservationIn(
   // Proof: removing this guard labeled pre-activation capture isolated, not legacy.
   if (readOrganizationActivation(db) === 'pre_activation')
     return {
-      observation: { mode: 'legacy', organizationId: null, projects: [] },
+      observation: { mode: 'legacy', organizationId: null, workPackages: [] },
       dependency: null,
       localFacts: new Map(),
     };
@@ -288,25 +299,25 @@ export async function readFanoutObservationIn(
   // Proof: removing this guard invoked the throwing shared scheduler in isolated mode.
   if (mode === 'isolated')
     return {
-      observation: { mode, organizationId, projects: [] },
+      observation: { mode, organizationId, workPackages: [] },
       dependency: await readDependencyFanoutIn(db, organizationId, options, lifetime, mode),
       localFacts: new Map(),
     };
   const dependency = await readDependencyFanoutIn(db, organizationId, options, lifetime, mode);
-  const ranks = await new ProjectRankRepository(db, OPEN).orderIn(organizationId);
+  const ranks = await new WorkPackageRankRepository(db, OPEN).orderIn(organizationId);
   // Proof: removing this partition restores the historical external-capture refusal in the external shared DB writer witness.
   const ordinary = ranks.filter(
-    ({ projectId }) => dependency.projects.get(projectId) === 'not_incident',
+    ({ workPackageId }) => dependency.workPackages.get(workPackageId) === 'not_incident',
   );
   lifetime.assertOpen();
-  const projects = new ProjectRepository(db, OPEN);
+  const workPackages = new WorkPackageRepository(db, OPEN);
   const readable = await Promise.all(
-    ranks.map(async ({ projectId }) => {
+    ranks.map(async ({ workPackageId }) => {
       lifetime.assertOpen();
-      const project = await projects.findInOrganization(projectId, organizationId);
+      const workPackage = await workPackages.findInOrganization(workPackageId, organizationId);
       lifetime.assertOpen();
-      if (project === null) throw new Error('rank names an unreadable project');
-      return project;
+      if (workPackage === null) throw new Error('rank names an unreadable work package');
+      return workPackage;
     }),
   );
   const fullSnapshot = await readChainSnapshotIn(
@@ -324,40 +335,40 @@ export async function readFanoutObservationIn(
   const captures = new Map<string, Promise<PlanInputReads>>();
   const snapshot = {
     ...fullSnapshot,
-    projects: fullSnapshot.projects.filter(
-      ({ project }) => dependency.projects.get(project.id) === 'not_incident',
+    workPackages: fullSnapshot.workPackages.filter(
+      ({ workPackage }) => dependency.workPackages.get(workPackage.id) === 'not_incident',
     ),
-    capturePlan: (projectId: string) => {
-      const held = captures.get(projectId);
+    capturePlan: (workPackageId: string) => {
+      const held = captures.get(workPackageId);
       // Proof: bypassing this memo reads ordinary a1/a4 twice in the staged external shared capture witness.
       if (held !== undefined) return held;
-      const fresh = fullSnapshot.capturePlan(projectId);
-      captures.set(projectId, fresh);
+      const fresh = fullSnapshot.capturePlan(workPackageId);
+      captures.set(workPackageId, fresh);
       return fresh;
     },
   };
   const localFacts = new Map<string, string>();
   const captured = await Promise.all(
-    ordinary.map(async ({ projectId, rank }) => {
-      const reads = await snapshot.capturePlan(projectId);
+    ordinary.map(async ({ workPackageId, rank }) => {
+      const reads = await snapshot.capturePlan(workPackageId);
       lifetime.assertOpen();
       const personIds = [...new Set(reads.assignments.map(({ personId }) => personId))].sort();
       // Proof: treating physical numeric rank positions as local facts and
       // observable booking changes emitted a false row on pure respacing.
       localFacts.set(
-        projectId,
+        workPackageId,
         JSON.stringify([
           scheduleInputHash(scheduleInputOfCaptured(reads)),
-          reads.project.startDate,
-          reads.project.optimizationEnabled,
-          reads.project.scheduleEngine,
-          reads.project.scheduleObjective,
+          reads.workPackage.startDate,
+          reads.workPackage.optimizationEnabled,
+          reads.workPackage.scheduleEngine,
+          reads.workPackage.scheduleObjective,
           personIds,
         ]),
       );
-      const chain = await readChain(snapshot, projectId);
+      const chain = await readChain(snapshot, workPackageId);
       if (chain.kind === 'not_found')
-        throw new Error('ranked project disappeared inside fan-out capture');
+        throw new Error('ranked work package disappeared inside fan-out capture');
       const outcome =
         chain.kind === 'scheduled'
           ? chain.scheduled
@@ -365,19 +376,19 @@ export async function readFanoutObservationIn(
             ? { kind: chain.reason }
             : chain;
       return {
-        projectId,
+        workPackageId,
         organizationId,
-        name: reads.project.name,
+        name: reads.workPackage.name,
         rankPosition: rank,
-        startDate: reads.project.startDate,
+        startDate: reads.workPackage.startDate,
         personIds,
         inputHash: chain.kind === 'scheduled' ? scheduleInputHash(chain.input) : null,
         incomingBasis:
           chain.kind === 'scheduled' ? incomingCalendarHash(chain.input.elsewhere) : null,
         settings: {
-          optimizationEnabled: reads.project.optimizationEnabled,
-          scheduleEngine: reads.project.scheduleEngine,
-          scheduleObjective: reads.project.scheduleObjective,
+          optimizationEnabled: reads.workPackage.optimizationEnabled,
+          scheduleEngine: reads.workPackage.scheduleEngine,
+          scheduleObjective: reads.workPackage.scheduleObjective,
         },
         outcome,
       };
@@ -385,7 +396,7 @@ export async function readFanoutObservationIn(
   );
   lifetime.assertOpen();
   return {
-    observation: { mode, organizationId, projects: captured },
+    observation: { mode, organizationId, workPackages: captured },
     // Proof: replacing this projection with null loses successor/tail events in mounted shared predecessor completion.
     dependency,
     localFacts,
@@ -414,60 +425,62 @@ async function readDependencyFanoutIn(
   const connections: DependencyFanout['connections'][number][] = edges.map((edge) => ({
     key: JSON.stringify([
       edge.id,
-      edge.predecessorProjectId,
+      edge.predecessorWorkPackageId,
       edge.predecessorWorkItemId,
       edge.predecessorScope,
       edge.predecessorStepId,
-      edge.successorProjectId,
+      edge.successorWorkPackageId,
       edge.successorWorkItemId,
       edge.successorScope,
       edge.successorStepId,
       edge.type,
     ]),
-    predecessorProjectId: edge.predecessorProjectId,
-    successorProjectId: edge.successorProjectId,
+    predecessorWorkPackageId: edge.predecessorWorkPackageId,
+    successorWorkPackageId: edge.successorWorkPackageId,
   }));
   const ownership = db
-    .select({ projectId: projectOrganization.resourceId })
-    .from(projectOrganization)
-    .where(eq(projectOrganization.organizationId, organizationId))
+    .select({ workPackageId: workPackageOrganization.resourceId })
+    .from(workPackageOrganization)
+    .where(eq(workPackageOrganization.organizationId, organizationId))
     .all();
-  // Proof: retaining only incident IDs lost both event rows in `invalidates surviving projects disconnected by relationship removal`.
-  const projects = new Map(ownership.map(({ projectId }) => [projectId, 'not_incident']));
+  // Proof: retaining only incident IDs lost both event rows in `invalidates surviving workPackages disconnected by relationship removal`.
+  const workPackages = new Map(
+    ownership.map(({ workPackageId }) => [workPackageId, 'not_incident']),
+  );
   const members = new Set<string>();
   const components: ReadonlySet<string>[] = [];
   for (const edge of connections)
-    for (const endpoint of [edge.predecessorProjectId, edge.successorProjectId]) {
+    for (const endpoint of [edge.predecessorWorkPackageId, edge.successorWorkPackageId]) {
       if (members.has(endpoint)) continue;
-      // Proof: forcing isolated discovery makes the alternating shared capture witness retain ordinary projects [a1, a4] instead of [].
+      // Proof: forcing isolated discovery makes the alternating shared capture witness retain ordinary work packages [a1, a4] instead of [].
       const topology = discoverConnectedTopologyIn(db, endpoint, mode, lifetime);
-      components.push(topology.projects);
-      for (const projectId of topology.projects) members.add(projectId);
+      components.push(topology.workPackages);
+      for (const workPackageId of topology.workPackages) members.add(workPackageId);
     }
   const ordinals = new Map<string, number>();
   if (members.size > 0) {
-    const order = await new ProjectRankRepository(db, OPEN).orderIn(organizationId);
+    const order = await new WorkPackageRankRepository(db, OPEN).orderIn(organizationId);
     // Proof: removing this check read one dependency member after rank evidence expired.
     lifetime.assertOpen();
     for (const component of components)
       // Proof: using global rank instead made the disconnected component change
       // during an unrelated move in the component-relative rank DB witness.
       order
-        .filter(({ projectId }) => component.has(projectId))
-        .forEach(({ projectId }, index) => {
-          ordinals.set(projectId, index);
+        .filter(({ workPackageId }) => component.has(workPackageId))
+        .forEach(({ workPackageId }, index) => {
+          ordinals.set(workPackageId, index);
         });
   }
   const people = new Map<string, readonly string[]>();
-  for (const projectId of members) {
-    const header = await new ProjectRepository(db, OPEN).findInOrganization(
-      projectId,
+  for (const workPackageId of members) {
+    const header = await new WorkPackageRepository(db, OPEN).findInOrganization(
+      workPackageId,
       organizationId,
     );
     lifetime.assertOpen();
     const captured = await readConnectedPlanInputIn(
       db,
-      projectId,
+      workPackageId,
       { kind: 'scoped', scope: { organizationId } },
       lifetime,
       options.captureRead,
@@ -476,29 +489,29 @@ async function readDependencyFanoutIn(
     // Proof: removing this refusal changed the missing-endpoint negative from the named invariant to a property-access TypeError; the unreadable seam separately throws unchanged.
     if (captured === null || header === null)
       throw new Error('dependency fan-out endpoint is unreadable');
-    const ordinal = ordinals.get(projectId);
+    const ordinal = ordinals.get(workPackageId);
     // Proof: omitting this refusal made the omitted authoritative-order member
     // DB negative resolve successfully instead of rejecting corrupt evidence.
     if (ordinal === undefined) throw new Error('dependency fan-out member absent from rank order');
-    const attempts = await new StepNodeAttemptRepository(db, OPEN).listByProject(projectId);
+    const attempts = await new StepNodeAttemptRepository(db, OPEN).listByWorkPackage(workPackageId);
     // Proof: expiring the borrowed read during this await must refuse the fanout
     // rather than fingerprinting rows from a closed snapshot.
     lifetime.assertOpen();
-    people.set(projectId, [...new Set(captured.assignments.map(({ personId }) => personId))]);
-    projects.set(
-      projectId,
+    people.set(workPackageId, [...new Set(captured.assignments.map(({ personId }) => personId))]);
+    workPackages.set(
+      workPackageId,
       JSON.stringify([
         scheduleInputHash(scheduleInputOfCaptured(captured)),
-        captured.project.name,
+        captured.workPackage.name,
         // Proof: omitting ordinal made isolated/shared staged rank reversal and
         // both mounted rank reversal witnesses retain zero dependency events.
         ordinal,
         // Proof: omitting abbreviation made the mounted abbreviation-only PATCH retain one event instead of two.
         header.abbreviation,
-        captured.project.startDate,
-        captured.project.optimizationEnabled,
-        captured.project.scheduleEngine,
-        captured.project.scheduleObjective,
+        captured.workPackage.startDate,
+        captured.workPackage.optimizationEnabled,
+        captured.workPackage.scheduleEngine,
+        captured.workPackage.scheduleObjective,
         // Proof: substituting [] lost the real borrowed-writer remote-completion event in `records remote completion without shared people`.
         captured.progress,
         // Proof: substituting [] left zero B/C events after the mounted A
@@ -524,15 +537,15 @@ async function readDependencyFanoutIn(
   }
   // Proof: omitting person bridges loses downstream/tail events in the mounted shared-person label writer.
   if (mode === 'shared')
-    for (const [projectId, personIds] of people)
+    for (const [workPackageId, personIds] of people)
       for (const [neighborId, neighborPeople] of people)
-        if (projectId < neighborId)
+        if (workPackageId < neighborId)
           for (const personId of personIds)
             if (neighborPeople.includes(personId))
               connections.push({
-                key: JSON.stringify(['person', personId, projectId, neighborId]),
-                predecessorProjectId: projectId,
-                successorProjectId: neighborId,
+                key: JSON.stringify(['person', personId, workPackageId, neighborId]),
+                predecessorWorkPackageId: workPackageId,
+                successorWorkPackageId: neighborId,
               });
-  return { organizationId, projects, connections };
+  return { organizationId, workPackages, connections };
 }

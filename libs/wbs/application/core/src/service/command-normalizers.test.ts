@@ -72,7 +72,7 @@ export function normalizerTypeCases() {
     ...commandDefinitions,
     temporaryCommand: defineCommand('temporaryCommand', {
       schema: type({ kind: "'temporaryCommand'" }),
-      scope: 'project',
+      scope: 'work_package',
       description: 'Temporary compile-negative command.',
     }),
   } as const;
@@ -92,7 +92,7 @@ export function normalizerTypeCases() {
     ...commandDefinitions,
     setActual: defineCommand('setActual', {
       schema: type({ kind: "'setActual'", elapsedDays: 'number' }),
-      scope: 'project',
+      scope: 'work_package',
       description: 'Temporary compile-negative required field rename.',
     }),
   } as const;
@@ -232,21 +232,21 @@ describe('scoped typed endpoint addresses', () => {
       type: 'FS',
     } as never).predecessor;
 
-  test('preserves an explicit project for every endpoint spelling', () => {
+  test('preserves an explicit work package for every endpoint spelling', () => {
     for (const endpoint of [
       { scope: 'whole', workItemId: 'predecessor' },
       { scope: 'node', workItemId: 'predecessor', stepId: 'design' },
       { scope: 'descendant-step', workItemId: 'predecessor', stepId: 'design' },
     ] as const) {
-      expect(normalize({ ...endpoint, projectId: 'remote' })).toEqual({
+      expect(normalize({ ...endpoint, workPackageId: 'remote' })).toEqual({
         ...endpoint,
-        projectId: 'remote',
+        workPackageId: 'remote',
       });
       expect(normalize(endpoint)).toEqual(endpoint);
     }
-    expect(normalize({ scope: 'node', stepNodeId: nodeId, projectId: 'remote' })).toEqual({
+    expect(normalize({ scope: 'node', stepNodeId: nodeId, workPackageId: 'remote' })).toEqual({
       scope: 'node',
-      projectId: 'remote',
+      workPackageId: 'remote',
       workItemId: '11111111-1111-4111-8111-111111111111',
       stepId: '22222222-2222-4222-8222-222222222222',
     });
@@ -256,19 +256,19 @@ describe('scoped typed endpoint addresses', () => {
     for (const scope of ['whole', 'node', 'descendant-step'] as const) {
       const endpoint =
         scope === 'whole'
-          ? { projectId: 'owner', scope, workItemId: 'work-item/a' }
-          : { projectId: 'owner', scope, workItemId: 'work-item/a', stepId: 'step/a' };
+          ? { workPackageId: 'owner', scope, workItemId: 'work-item/a' }
+          : { workPackageId: 'owner', scope, workItemId: 'work-item/a', stepId: 'step/a' };
       expect(normalize(endpoint)).toEqual(endpoint);
       for (const field of scope === 'whole'
-        ? ['projectId', 'workItemId']
-        : ['projectId', 'workItemId', 'stepId']) {
+        ? ['workPackageId', 'workItemId']
+        : ['workPackageId', 'workItemId', 'stepId']) {
         for (const malformed of ['', ' ', ' padded '])
           expect(() => normalize({ ...endpoint, [field]: malformed })).toThrow(
             'invalid_typed_endpoint',
           );
       }
     }
-    // Omitted project retains the existing local parser contract, including exact aliases.
+    // Omitted work package retains the existing local parser contract, including exact aliases.
     expect(normalize({ scope: 'whole', workItemRef: 'PUNI.080.39' })).toEqual({
       scope: 'whole',
       workItemRef: 'PUNI.080.39',
@@ -279,9 +279,9 @@ describe('scoped typed endpoint addresses', () => {
     });
   });
 
-  test('refuses malformed project addresses and explicitly scoped batch aliases', () => {
-    for (const projectId of ['', ' ', 7, null]) {
-      expect(() => normalize({ scope: 'whole', workItemId: 'w', projectId })).toThrow(
+  test('refuses malformed work package addresses and explicitly scoped batch aliases', () => {
+    for (const workPackageId of ['', ' ', 7, null]) {
+      expect(() => normalize({ scope: 'whole', workItemId: 'w', workPackageId })).toThrow(
         'invalid_typed_endpoint',
       );
     }
@@ -291,7 +291,7 @@ describe('scoped typed endpoint addresses', () => {
           scope,
           workItemRef: 'named',
           stepId: scope === 'whole' ? undefined : 's',
-          projectId: 'owner',
+          workPackageId: 'owner',
         }),
       ).toThrow('invalid_typed_endpoint');
     }

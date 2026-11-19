@@ -43,8 +43,8 @@ function component(): PreparedConnectedOptimization {
     mode: 'isolated',
     originOrdinal: 20000,
     relationships: [],
-    projects: ['A', 'B'].map((projectId, rank) => ({
-      projectId,
+    workPackages: ['A', 'B'].map((workPackageId, rank) => ({
+      workPackageId,
       rank,
       anchorOrdinal: 20000,
       enabled: true,
@@ -55,11 +55,11 @@ function component(): PreparedConnectedOptimization {
       ...resolved,
       order: {
         kind: 'connected',
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 1],
         ]),
@@ -83,7 +83,7 @@ test('real captured adapter prepares fixed foreign requests then materializes th
     solverVersion: '0.4.0',
     budgetMs: 100,
     readPair: ({ stage, questions, requests }) => {
-      seen.push(stage.projectId);
+      seen.push(stage.workPackageId);
       expect(questions.time.inputHash).toBe(
         createHash('sha256').update(canonicalConnectedStageInput(stage)).digest('hex'),
       );
@@ -93,7 +93,7 @@ test('real captured adapter prepares fixed foreign requests then materializes th
         createHash('sha256')
           .update(
             JSON.stringify([
-              stage.projectId,
+              stage.workPackageId,
               questions.time.inputHash,
               'time',
               contractVersionOf('0.4.0'),
@@ -108,13 +108,13 @@ test('real captured adapter prepares fixed foreign requests then materializes th
       if (built.kind !== 'request') throw new Error('expected request');
       expect(built.request.scope.fixed).toEqual([
         {
-          projectId: stage.projectId === 'A' ? 'B' : 'A',
-          key: key(stage.projectId === 'A' ? 'b' : 'a'),
-          start: stage.projectId === 'A' ? 4 : 0,
-          finish: stage.projectId === 'A' ? 5 : 1,
+          projectId: stage.workPackageId === 'A' ? 'B' : 'A',
+          key: key(stage.workPackageId === 'A' ? 'b' : 'a'),
+          start: stage.workPackageId === 'A' ? 4 : 0,
+          finish: stage.workPackageId === 'A' ? 5 : 1,
         },
       ]);
-      const local = key(stage.projectId.toLowerCase());
+      const local = key(stage.workPackageId.toLowerCase());
       return {
         generation: 1,
         variants: {
@@ -125,7 +125,7 @@ test('real captured adapter prepares fixed foreign requests then materializes th
               wireVersion: 5,
               scope: {
                 kind: 'connected-stage',
-                projectId: stage.projectId,
+                projectId: stage.workPackageId,
                 inputHash: questions.time.inputHash,
                 questionHash: questions.time.questionHash,
               },
@@ -135,8 +135,8 @@ test('real captured adapter prepares fixed foreign requests then materializes th
                 makespan: { value: 48, stageValue: 48, bound: 48, status: 'optimal' },
                 priority: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
                 movement: {
-                  value: stage.projectId === 'A' ? 144 : 192,
-                  stageValue: stage.projectId === 'A' ? 144 : 192,
+                  value: stage.workPackageId === 'A' ? 144 : 192,
+                  stageValue: stage.workPackageId === 'A' ? 144 : 192,
                   bound: 0,
                   status: 'optimal',
                 },
@@ -201,7 +201,13 @@ test('disabled captured identity does not access the source', () => {
     },
   });
   const selected = selectConnectedOptimizations(
-    { ...prepared, projects: prepared.projects.map((project) => ({ ...project, enabled: false })) },
+    {
+      ...prepared,
+      workPackages: prepared.workPackages.map((workPackage) => ({
+        ...workPackage,
+        enabled: false,
+      })),
+    },
     baseline,
     adapter,
   );
@@ -247,26 +253,26 @@ test('prepared fractional boundary infeasibility survives the adapter and select
   }));
   const prepared: PreparedConnectedOptimization = {
     ...initial,
-    projects: ['A', 'B', 'C'].map((projectId, rank) => ({
-      projectId,
+    workPackages: ['A', 'B', 'C'].map((workPackageId, rank) => ({
+      workPackageId,
       rank,
       anchorOrdinal: 20000,
-      engine: projectId === 'B' ? 'optimized' : 'fast',
+      engine: workPackageId === 'B' ? 'optimized' : 'fast',
       objective: 'time',
-      enabled: projectId === 'B',
+      enabled: workPackageId === 'B',
     })),
     relationships: [
       {
         id: 'ab',
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: 'A', workItemId: 'a' },
-        successor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+        predecessor: { scope: 'whole', workPackageId: 'A', workItemId: 'a' },
+        successor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
       },
       {
         id: 'bc',
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
-        successor: { scope: 'whole', projectId: 'C', workItemId: 'c' },
+        predecessor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
+        successor: { scope: 'whole', workPackageId: 'C', workItemId: 'c' },
       },
     ],
     input: {
@@ -294,12 +300,12 @@ test('prepared fractional boundary infeasibility survives the adapter and select
       },
       order: {
         kind: 'connected',
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
           ['c', 'C'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 1],
           ['C', 2],
@@ -324,7 +330,9 @@ test('prepared fractional boundary infeasibility survives the adapter and select
   if (selected.kind !== 'selected') throw new Error('expected component');
   expect(reads).toBe(1);
   expect(selected.placement).toBe(baseline);
-  const observation = selected.stages.find(({ stage }) => stage.projectId === 'B')?.optimization;
+  const observation = selected.stages.find(
+    ({ stage }) => stage.workPackageId === 'B',
+  )?.optimization;
   expect(observation?.variants.time.state).toBe('boundary-infeasible');
   expect(observation?.candidates.time).toBeNull();
   if (observation?.variants.time.state !== 'boundary-infeasible')

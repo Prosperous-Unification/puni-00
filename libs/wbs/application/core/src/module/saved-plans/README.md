@@ -14,9 +14,10 @@ write transaction and principal-based touch authorization. `saved-plan-values.ts
 read and touch outcomes. The compatibility service accepts direct store-based construction. `save-plan.ts` (the moved `use-cases/save-plan.ts`) admits one
 save for an authenticated actor and announces it after it is written. `saved-plan-integrity.ts`
 and `saved-plan-schedule.ts` provide stored-body verification and detached scheduling of a captured
-plan. `saved-plan-comparison.ts` projects immutable per-side scope, objective outcomes and exact
-pre-selection boundaries with frozen historical readers. It is dormant until compare HTTP, client
-and UI contracts can be wired together; it accepts no live capabilities. Private bindings are named under the
+plan. `saved-plan-comparison.ts` work packages immutable per-side scope, objective outcomes and exact
+pre-selection boundaries with frozen historical readers. The HTTP comparison dispatches saved bytes and current capture through required data-only
+observation purposes; saved historical projection accepts no live capabilities. Current capture
+selects authority, readable graph and exact caches on one loan, with local Fast finishing after closure. Private bindings are named under the
 `application.saved-plans` label, so a DI failure says which module asked.
 
 ## Checks

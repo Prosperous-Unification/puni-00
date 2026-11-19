@@ -12,16 +12,16 @@ import type { CapacityStore, CapacityWritten, TeamCapacity } from '@wbs/core';
  *
  * What it deliberately does **not** keep is the existence check on the two ids.
  * `CapacityRepository.set` reads both inside its own transaction and answers
- * `not_found`; these Maps hold no projects and no teams, so a fixture that
+ * `not_found`; these Maps hold no work packages and no teams, so a fixture that
  * answered anything about an unknown id would be answering a question it cannot
- * know — the shape `inMemoryDirectory`'s own `projectIds: []` comment names. That
+ * know — the shape `inMemoryDirectory`'s own `workPackageIds: []` comment names. That
  * refusal is asserted against real SQLite in `repository/capacity.test.ts`.
  */
 export function inMemoryCapacity(
   /**
-   * What the store starts holding, as `projectId -> teamId -> slots`.
+   * What the store starts holding, as `workPackageId -> teamId -> slots`.
    *
-   * Written rather than set through `set`, because most callers want a project
+   * Written rather than set through `set`, because most callers want a work package
    * that already states a number and going through the write path to get one puts
    * the setup at the mercy of the thing under test.
    */
@@ -35,13 +35,13 @@ export function inMemoryCapacity(
    */
 
   return {
-    slotsFor(projectId) {
+    slotsFor(workPackageId) {
       // A copy, not the stored Map: the engine's adapter is handed this and a
       // caller that mutated it would be editing the store from the read side.
-      return Promise.resolve(new Map(held.get(projectId) ?? []));
+      return Promise.resolve(new Map(held.get(workPackageId) ?? []));
     },
-    listFor(projectId) {
-      const teams = [...(held.get(projectId) ?? [])];
+    listFor(workPackageId) {
+      const teams = [...(held.get(workPackageId) ?? [])];
       // Team-id order, as the repository's `orderBy` gives: a fixture in
       // insertion order would let a payload-order assertion pass against a
       // production read that reshuffles.
@@ -52,11 +52,11 @@ export function inMemoryCapacity(
       }));
       return Promise.resolve(listed);
     },
-    set(projectId, serviceTeamId, size, _stamp) {
-      const forProject = held.get(projectId) ?? new Map<string, number>();
-      if (size === null) forProject.delete(serviceTeamId);
-      else forProject.set(serviceTeamId, size);
-      held.set(projectId, forProject);
+    set(workPackageId, serviceTeamId, size, _stamp) {
+      const forWorkPackage = held.get(workPackageId) ?? new Map<string, number>();
+      if (size === null) forWorkPackage.delete(serviceTeamId);
+      else forWorkPackage.set(serviceTeamId, size);
+      held.set(workPackageId, forWorkPackage);
       const written: CapacityWritten = { ok: true };
       return Promise.resolve(written);
     },
@@ -71,7 +71,10 @@ export function memoryCapacityTable(
 ): MemoryCapacityTable {
   return {
     held: new Map(
-      Object.entries(seed).map(([projectId, teams]) => [projectId, new Map(Object.entries(teams))]),
+      Object.entries(seed).map(([workPackageId, teams]) => [
+        workPackageId,
+        new Map(Object.entries(teams)),
+      ]),
     ),
   };
 }

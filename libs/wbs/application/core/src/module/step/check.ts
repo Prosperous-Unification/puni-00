@@ -20,7 +20,7 @@ export function installStep(requirements: StepRequirements): StepExports {
       accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
         factoryReturnKind: 'sync-value',
       }),
-      projectStore: DiBag.createProvider(() => requirements.projects, {
+      workPackageStore: DiBag.createProvider(() => requirements.workPackages, {
         factoryReturnKind: 'sync-value',
       }),
       stepStore: DiBag.createProvider(() => requirements.steps, {

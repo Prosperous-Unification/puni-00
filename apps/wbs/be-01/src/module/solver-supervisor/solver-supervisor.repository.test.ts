@@ -9,7 +9,7 @@ import { connectSolverSupervisor } from './solver-supervisor.repository';
 const request = {
   unix: '/run/wbs-solver/supervisor.sock',
   callerId: 'a'.repeat(12),
-  projectId: '018f3f08-2ef7-7d1c-b645-14f877575d65',
+  workPackageId: '018f3f08-2ef7-7d1c-b645-14f877575d65',
   objective: 'pri' as const,
   attemptToken: '018f3f08-2ef7-7d1c-b645-14f877575d66',
   childDeadlineAt: Date.now() + 60_000,

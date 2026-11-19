@@ -1,6 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 /**
  * `Arrange by schedule`, measured against the real stack.
@@ -65,7 +65,7 @@ async function numbersOnScreen(page: Page): Promise<string[]> {
 async function threeRowsOutOfOrder(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020', '030']) {
@@ -115,7 +115,7 @@ test.describe('arranging a plan by its schedule, in a browser', () => {
     // `Idle` and `First` both start on day zero and keep the order they read
     // in; `Waits` falls to the bottom.
     //
-    // Proof: the handler in `wbs-table.tsx` wired to `api.freezeProject`
+    // Proof: the handler in `wbs-table.tsx` wired to `api.freezeWorkPackage`
     // instead — watched failing on `Expected: ["Idle", "First", "Waits"] ·
     // Received: ["Waits", "Idle", "First"]`, the plan in the order it was
     // typed in; 2026-09-11.

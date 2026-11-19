@@ -30,14 +30,14 @@ export interface OccupancyHolder {
   readonly runId: string | null;
   readonly workItemId: string;
   /**
-   * The holder's project, named on a holder across the organization
+   * The holder's work package, named on a holder across the organization
    * (`wbs-shared-occupancy` S5) so a reader knows its work item is not this
-   * project's; absent on a holder in the asking project.
+   * work package's; absent on a holder in the asking work package.
    */
-  readonly projectId?: string;
+  readonly workPackageId?: string;
 }
 
-/** One resource's occupancy across a project: the units its leaves hold, and who holds them. */
+/** One resource's occupancy across a work package: the units its leaves hold, and who holds them. */
 export interface ResourceOccupancy {
   readonly resourceId: string;
   readonly occupied: number;
@@ -53,20 +53,20 @@ export interface BelowDeclaredDemand {
 
 /**
  * One occupancy row of an organization's claims ({@link OccupancyRow}) with
- * the project and organization its leaf belongs to: what the organization-wide
+ * the work package and organization its leaf belongs to: what the organization-wide
  * check counts against a **Directory capacity** (`wbs-shared-occupancy` S2).
  */
 export interface OrganizationOccupancyRow extends OccupancyRow {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly organizationId: string;
 }
 
 /**
- * Which check bound a shortage (`wbs-shared-occupancy` S3): the project's
+ * Which check bound a shortage (`wbs-shared-occupancy` S3): the work package's
  * stated capacity, or the resource's directory capacity across the
  * organization.
  */
-export type OccupancyScope = 'project' | 'organization';
+export type OccupancyScope = 'work_package' | 'organization';
 
 /**
  * One resource a claim would take more of than it has free. `free` is the
@@ -75,7 +75,7 @@ export type OccupancyScope = 'project' | 'organization';
  *
  * `scope` names the check that bound it and is present exactly when the
  * resource states a directory capacity: a resource that states none is
- * counted within the project alone, and its shortage reads byte for byte as
+ * counted within the work package alone, and its shortage reads byte for byte as
  * it did before directory capacities existed.
  */
 export interface ResourceShortage {
@@ -196,8 +196,8 @@ export function occupancyByResource(rows: readonly OccupancyRow[]): ResourceOccu
 }
 
 /**
- * The free units of every resource the project states a capacity for, in
- * resource-id order: capacity minus what the project's leaves hold. An
+ * The free units of every resource the work package states a capacity for, in
+ * resource-id order: capacity minus what the work package's leaves hold. An
  * unstated resource has no entry, because it constrains nothing.
  */
 export function freeUnitsOf(
@@ -254,13 +254,13 @@ export function askedUnitsOf(
  * units are free. For each resource of `asked`, in resource-id order, the leaf
  * may hold `units` when it already holds that many or more; otherwise in each
  * scope that states a capacity, that capacity minus what the scope's other
- * leaves hold must cover them: the project's stated capacity against the
- * project's rows, and the resource's directory capacity against every row of
+ * leaves hold must cover them: the work package's stated capacity against the
+ * work package's rows, and the resource's directory capacity against every row of
  * its organization. The scope with fewer free units binds (on a tie the
  * organization); a resource stated in neither never refuses.
  *
  * Called inside the batch's transaction, so the write coordinator orders two
- * claims and the second reads the first's units, in any project.
+ * claims and the second reads the first's units, in any work package.
  *
  * Proof: with the comparison answering null, `refuses the ninth of eight 4 GB
  * claims on 32 GB` (claim-occupancy.test.ts) claimed, and `admits one of two concurrent
@@ -270,15 +270,15 @@ export function askedUnitsOf(
 export function refuseOccupancy(request: {
   readonly workItemId: string;
   readonly asked: readonly ResourceUnits[];
-  /** The project's stated capacities. */
+  /** The work package's stated capacities. */
   readonly capacities: readonly ResourceCapacity[];
-  /** Every occupancy row of the project's claims. */
+  /** Every occupancy row of the work package's claims. */
   readonly occupancy: readonly OccupancyRow[];
   /** The stated directory capacities of the asked resources; one unstated has no entry. */
   readonly directoryCapacities: readonly ResourceCapacity[];
   /**
    * The units every leaf of the organization holds of each of those resources,
-   * this project's leaves and the asking leaf included (each leaf's largest
+   * this work package's leaves and the asking leaf included (each leaf's largest
    * copy, summed: `ClaimStore.organizationUnitsOf`). The check takes the
    * asking leaf's own units off, read from `occupancy`, where it always is.
    */
@@ -315,7 +315,7 @@ export function refuseOccupancy(request: {
         asked: units,
         free: capacity - (taken?.occupied ?? 0),
         holders: taken?.holders ?? [],
-        scope: 'project',
+        scope: 'work_package',
       });
     }
     const directory = directoryOf.get(resourceId);

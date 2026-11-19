@@ -38,8 +38,8 @@ import {
 } from '@wbs/store-sqlite/optimized-schedule-cache';
 import { readMembershipIn } from '@wbs/store-sqlite/organization-access';
 import { readOrganizationActivation } from '@wbs/store-sqlite/organization-activation';
-import { ProjectRepository } from '@wbs/store-sqlite/project';
-import { project } from '@wbs/store-sqlite/schema';
+import { workPackage } from '@wbs/store-sqlite/schema';
+import { WorkPackageRepository } from '@wbs/store-sqlite/work-package';
 import { eq } from 'drizzle-orm';
 
 import type {
@@ -55,7 +55,7 @@ import type {
 import type { Drizzle } from './db';
 import { drizzleOuterTransaction } from './db';
 import type { EventLogTransactionalWrite } from './event-log';
-import { recordRecovery } from './project';
+import { recordRecovery } from './work-package';
 
 type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
 type RetryAsk = Parameters<OptimizationRepository['admitRetry']>[0];
@@ -84,8 +84,8 @@ export async function authorizeRetryIn(
   const { organizationId, actorId, principal } = ask.scoped;
   if (principal.id !== actorId) throw new Error('Retry principal differs from its actor');
   if (readMembershipIn(db, organizationId, actorId) === null) return { kind: 'forbidden' };
-  const addressed = await new ProjectRepository(db, OPEN).findInOrganization(
-    ask.key.projectId,
+  const addressed = await new WorkPackageRepository(db, OPEN).findInOrganization(
+    ask.key.workPackageId,
     organizationId,
   );
   if (addressed === null) return null;
@@ -94,7 +94,13 @@ export async function authorizeRetryIn(
     principal,
     {
       kind: 'work_package',
-      chain: { level: 'work_package', organizationId, workPackageId: addressed.id },
+      chain: {
+        level: 'work_package',
+        organizationId,
+        spaceId: null,
+        projectId: addressed.projectId,
+        workPackageId: addressed.id,
+      },
       restricted: addressed.restricted,
     },
     'package.manage_settings',
@@ -150,7 +156,7 @@ export function retryPreflightIn(
       },
     };
 
-  const current = readGeneration(tx, ask.key.projectId, ask.key.contractVersion);
+  const current = readGeneration(tx, ask.key.workPackageId, ask.key.contractVersion);
   // Proof: bypassing this guard let a public Retry with valid caller hash but
   // mismatched persisted generation reach accepted/launcher instead of refusal.
   if (current?.inputHash !== ask.key.inputHash)
@@ -194,7 +200,10 @@ export function retryMutationIn(
   tx: Transaction,
   ask: RetryAsk,
   eligible: Extract<RetryPreflight, { readonly kind: 'eligible' }>,
-  onFinished?: (target: { readonly projectId: string; readonly contractVersion?: string }) => void,
+  onFinished?: (target: {
+    readonly workPackageId: string;
+    readonly contractVersion?: string;
+  }) => void,
 ): OptimizationRetryDecision {
   const accepted = (admission: ReservedSolverAdmission | null): OptimizationRetryDecision => {
     // Proof: skipping this insert made accepted recovery Retry lack its audit row.
@@ -203,14 +212,14 @@ export function retryMutationIn(
         id: crypto.randomUUID(),
         organizationId: ask.scoped.organizationId,
         actorId: ask.scoped.actorId,
-        projectId: ask.key.projectId,
+        workPackageId: ask.key.workPackageId,
         detail: { optimizer: 'retry' },
         at: ask.now,
       });
     return { kind: 'accepted', generation: eligible.generation, admission };
   };
   const request = {
-    projectId: ask.key.projectId,
+    workPackageId: ask.key.workPackageId,
     contractVersion: ask.key.contractVersion,
     generation: eligible.generation,
     objective: ask.objective,
@@ -224,7 +233,7 @@ export function retryMutationIn(
   if (admission.kind === 'closed') return { kind: 'not-retryable', state: eligible.outcome.kind };
   if (admission.kind === 'reserved') return accepted(enrichAdmission(admission, ask.key.budgetMs));
   const queued = enqueueSolverRequestIn(tx, {
-    projectId: ask.key.projectId,
+    workPackageId: ask.key.workPackageId,
     contractVersion: ask.key.contractVersion,
     generation: eligible.generation,
     objective: ask.objective,
@@ -262,7 +271,7 @@ export function recordOptimizationOutcomeIn(
       const stored = storeConnectedOptimizationOutcomeIn(tx, write);
       if (stored !== 'stored') return { decision: { kind: stored }, envelopes: [] };
       const identity = {
-        projectId: write.claim.projectId,
+        workPackageId: write.claim.workPackageId,
         generation: write.claim.generation,
         inputHash: write.question.inputHash,
         objective: write.claim.objective,
@@ -286,7 +295,7 @@ export function recordOptimizationOutcomeIn(
                   failureReason: write.outcome.reason,
                 }
               : { type: 'schedule_optimization_infeasible', ...identity };
-      const subscription = subscriptionFor(write.claim.projectId);
+      const subscription = subscriptionFor(write.claim.workPackageId);
       const recorded = eventLog.recordEventIn(tx, subscription, event, write.now);
       if (!isRecordedEvent(recorded))
         throw new Error('stored connected outcome has no durable event envelope');
@@ -342,11 +351,11 @@ export function observeForAdmissionIn(
     (tx) => {
       if (key.questions !== undefined) {
         const enabled = tx
-          .select({ enabled: project.optimizationEnabled })
-          .from(project)
-          .where(eq(project.id, key.projectId))
+          .select({ enabled: workPackage.optimizationEnabled })
+          .from(workPackage)
+          .where(eq(workPackage.id, key.workPackageId))
           .get();
-        const current = readGeneration(tx, key.projectId, key.contractVersion);
+        const current = readGeneration(tx, key.workPackageId, key.contractVersion);
         if (enabled?.enabled !== true || (current !== null && current.admissionState !== 'open'))
           return { kind: 'idle' };
         const captured = readConnectedOptimizationPair(tx, { questions: key.questions });
@@ -363,7 +372,7 @@ export function observeForAdmissionIn(
           };
         const generation = allocateEnabledGenerationIn(
           tx,
-          key.projectId,
+          key.workPackageId,
           key.contractVersion,
           key.inputHash,
           now,
@@ -380,14 +389,14 @@ export function observeForAdmissionIn(
       }
       const generation = allocateEnabledGenerationIn(
         tx,
-        key.projectId,
+        key.workPackageId,
         key.contractVersion,
         key.inputHash,
         now,
       );
       if (generation === null) return { kind: 'idle' } as const;
       const requests: { key: typeof key; objective: 'pri' | 'time' }[] = [];
-      const pair = projectCachedPair(
+      const pair = workPackageCachedPair(
         readOptimizedPairAndSpawn(tx, key, (request) => {
           requests.push(request);
         }),
@@ -420,8 +429,8 @@ export function reservationOf(
     : admission;
 }
 
-function projectCachedPair(pair: ReturnType<typeof readOptimizedPair>): OptimizationCachedPair {
-  const project = (outcome: typeof pair.pri): OptimizationCachedPair['pri'] => {
+function workPackageCachedPair(pair: ReturnType<typeof readOptimizedPair>): OptimizationCachedPair {
+  const workPackage = (outcome: typeof pair.pri): OptimizationCachedPair['pri'] => {
     const state = optimizationVariantState(outcome, false);
     if (outcome.kind === 'ok') {
       // Proof (2026-09-27): making store-sqlite's optimizationVariantState answer idle for an
@@ -435,7 +444,7 @@ function projectCachedPair(pair: ReturnType<typeof readOptimizedPair>): Optimiza
     if (state.state === 'ready') throw new Error('non-ready outcome projected as ready');
     return { kind: 'non-ready', state, schedule: null };
   };
-  return { pri: project(pair.pri), time: project(pair.time) };
+  return { pri: workPackage(pair.pri), time: workPackage(pair.time) };
 }
 
 function enrichAdmission(
@@ -457,12 +466,12 @@ export function createOptimizationRepository(
   gate: Gate,
 ): OptimizationRepository {
   return {
-    allocateGeneration: (projectId, contractVersion, inputHash, now) =>
+    allocateGeneration: (workPackageId, contractVersion, inputHash, now) =>
       // Proof: bypassing this source turn made the real held-writer allocation
       // settle inside the owner's transaction and disappear on rollback.
       gate.enter(() =>
         Promise.resolve().then(() =>
-          allocateEnabledGeneration(db, projectId, contractVersion, inputHash, now),
+          allocateEnabledGeneration(db, workPackageId, contractVersion, inputHash, now),
         ),
       ),
     observeForAdmission: (key, now) =>

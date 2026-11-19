@@ -1,4 +1,4 @@
-import { type CDPSession, expect, type Page, test } from '@playwright/test';
+import { type CDPSession, expect, type Page, test } from './ordinary-test';
 
 import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 import { painted, seedRenderingPlan } from './rendering-fixture';
@@ -353,7 +353,7 @@ test('the faces end together with a chart dragged short, and the fit settles', a
   // table's last screen of rows.
   await page.evaluate((id) => {
     localStorage.setItem(`wbs.ganttHeight.${id}`, '160');
-  }, seeded.projectId);
+  }, seeded.workPackageId);
   await page.setViewportSize({ width: 1280, height: 1100 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
@@ -427,15 +427,15 @@ test('Full keeps the chart’s horizontal scroll on the way in and out', async (
     { run: 'scroll-stability', worker: testInfo.workerIndex, test: `full-${String(Date.now())}` },
   );
   const client = fixtureClient(page);
-  const project = fixtureSuccess(
-    'getApiProjectsById',
-    await client.getApiProjectsById({ params: { id: seeded.projectId } }),
+  const workPackage = fixtureSuccess(
+    'getApiWorkPackagesById',
+    await client.getApiWorkPackagesById({ params: { id: seeded.workPackageId } }),
   ).body;
-  const stepId = project.steps[0].id;
+  const stepId = workPackage.steps[0].id;
   fixtureSuccess(
-    'postApiProjectsByIdCommands',
-    await client.postApiProjectsByIdCommands({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdCommands',
+    await client.postApiWorkPackagesByIdCommands({
+      params: { id: seeded.workPackageId },
       body: {
         commands: [
           ...refs.map((ref) => ({

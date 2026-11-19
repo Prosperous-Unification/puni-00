@@ -35,23 +35,25 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
         h.bind('owner', 'org');
         h.bind('viewer', 'org');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/projects', { name: 'Restore replay' });
+        const created = await h.call('owner', 'POST', '/api/work-packages', {
+          name: 'Restore replay',
+        });
         expect(created.status).toBe(200);
-        const projectId = (created.body as { project: { id: string } }).project.id;
+        const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
         const step = h.sqlite
-          .query('SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1')
-          .get(projectId) as { id: string } | null;
+          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id LIMIT 1')
+          .get(workPackageId) as { id: string } | null;
         if (step === null) throw new Error('fixture step absent');
         for (const id of ['root', 'unrelated'])
           h.sqlite.run(
-            'INSERT INTO work_item (id,project_id,name,position,revision) VALUES (?,?,?,1,0)',
-            [id, projectId, id],
+            'INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES (?,?,?,1,0)',
+            [id, workPackageId, id],
           );
         const parentId = policy === 'root' ? null : 'root';
         if (operation === 'undo-delete')
           h.sqlite.run(
-            "INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES ('child',?,'Authored',?,1,0)",
-            [projectId, parentId],
+            "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('child',?,'Authored',?,1,0)",
+            [workPackageId, parentId],
           );
         if (policy === 'captured-blockage')
           h.sqlite.run(
@@ -70,15 +72,15 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
         const replay = operation.startsWith('redo') ? 'redo' : 'undo';
         expect(
           (
-            await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+            await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
               commands: replay === 'undo' ? [edit, patch] : [patch, edit],
             })
           ).status,
         ).toBe(200);
         if (replay === 'redo')
-          expect((await h.call('owner', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(
-            200,
-          );
+          expect(
+            (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/undo`)).status,
+          ).toBe(200);
         // The restored row is absent; its destination survives without revision drift.
         const owner = policy === 'unrelated' || policy === 'root' ? 'unrelated' : 'root';
         const beforeRevision = h.sqlite
@@ -107,13 +109,13 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
         }
         if (policy === 'parent')
           h.sqlite.run(
-            "INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES ('sibling',?,'Sibling','root',2,0)",
-            [projectId],
+            "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('sibling',?,'Sibling','root',2,0)",
+            [workPackageId],
           );
         if (policy === 'shape')
           h.sqlite.run(
-            "INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES ('pinned',?,'root','node',?,'unrelated','whole','FS')",
-            [projectId, step.id],
+            "INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES ('pinned',?,'root','node',?,'unrelated','whole','FS')",
+            [workPackageId, step.id],
           );
         if (policy === 'blockage')
           h.sqlite.run(
@@ -122,7 +124,7 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
           );
         const tables = [
           'work_item',
-          'project',
+          'work_package',
           'step_parallel',
           'estimate',
           'actual',
@@ -141,8 +143,8 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
           tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
         const before = snapshot();
         const journalBefore = h.sqlite
-          .query('SELECT * FROM command_journal WHERE project_id = ?')
-          .all(projectId);
+          .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+          .all(workPackageId);
         expect(journalBefore).toHaveLength(1);
         const appliedNames: string[] = [];
         // Preserve real repository writes while observing that the first replay patch ran before refusal.
@@ -185,13 +187,16 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
         try {
           if (policy === 'throw') {
             expect(
-              (await h.call('viewer', 'POST', `/api/projects/${projectId}/${replay}`)).status,
+              (await h.call('viewer', 'POST', `/api/work-packages/${workPackageId}/${replay}`))
+                .status,
             ).toBe(403);
             expect(
-              h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+              h.sqlite
+                .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+                .all(workPackageId),
             ).toEqual(journalBefore);
           }
-          answer = await h.call('owner', 'POST', `/api/projects/${projectId}/${replay}`);
+          answer = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/${replay}`);
         } finally {
           patchRead.mockRestore();
           blockageWrite.mockRestore();
@@ -217,7 +222,9 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
           expect(answer.status).toBe(500);
           expect(snapshot()).toEqual(before);
           expect(
-            h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+            h.sqlite
+              .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+              .all(workPackageId),
           ).toEqual(journalBefore);
         } else {
           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
@@ -231,10 +238,12 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
             });
           expect(snapshot()).toEqual(before);
           expect(
-            h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+            h.sqlite
+              .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+              .all(workPackageId),
           ).toHaveLength(0);
           expect(
-            (await h.call('owner', 'POST', `/api/projects/${projectId}/${replay}`)).status,
+            (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/${replay}`)).status,
           ).toBe(409);
         }
       } finally {
@@ -254,20 +263,22 @@ it('redo-duplicate restores its historical snapshot without rereading newly auth
     h.grantPermissions('org', 'owner', ['organization.create_project']);
     h.bind('owner', 'org');
     h.activate();
-    const created = await h.call('owner', 'POST', '/api/projects', { name: 'Duplicate history' });
+    const created = await h.call('owner', 'POST', '/api/work-packages', {
+      name: 'Duplicate history',
+    });
     expect(created.status).toBe(200);
-    const projectId = (created.body as { project: { id: string } }).project.id;
+    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
     const step = h.sqlite
-      .query('SELECT id FROM step WHERE project_id = ? LIMIT 1')
-      .get(projectId) as { id: string } | null;
+      .query('SELECT id FROM step WHERE work_package_id = ? LIMIT 1')
+      .get(workPackageId) as { id: string } | null;
     if (step === null) throw new Error('fixture step absent');
     h.sqlite.run(
-      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('source',?,'Original',1,0)",
-      [projectId],
+      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('source',?,'Original',1,0)",
+      [workPackageId],
     );
     expect(
       (
-        await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+        await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
           commands: [{ kind: 'duplicateWorkItem', workItemId: 'source' }],
         })
       ).status,
@@ -276,7 +287,9 @@ it('redo-duplicate restores its historical snapshot without rereading newly auth
       .query("SELECT id FROM work_item WHERE name = 'Original (copy)'")
       .get() as { id: string } | null;
     if (copy === null) throw new Error('historical duplicate absent');
-    expect((await h.call('owner', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(200);
+    expect((await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/undo`)).status).toBe(
+      200,
+    );
     const beforeRevision = h.sqlite
       .query("SELECT revision FROM work_item WHERE id = 'source'")
       .get();
@@ -295,7 +308,7 @@ it('redo-duplicate restores its historical snapshot without rereading newly auth
     });
     let answer: Awaited<ReturnType<typeof h.call>>;
     try {
-      answer = await h.call('owner', 'POST', `/api/projects/${projectId}/redo`);
+      answer = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/redo`);
     } finally {
       sparseRead.mockRestore();
     }
@@ -323,22 +336,22 @@ for (const policy of ['source', 'destination'] as const) {
       h.grantPermissions('org', 'owner', ['organization.create_project']);
       h.bind('owner', 'org');
       h.activate();
-      const created = await h.call('owner', 'POST', '/api/projects', {
+      const created = await h.call('owner', 'POST', '/api/work-packages', {
         name: 'Nested duplicate history',
       });
       expect(created.status).toBe(200);
-      const projectId = (created.body as { project: { id: string } }).project.id;
+      const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
       const step = h.sqlite
-        .query('SELECT id FROM step WHERE project_id = ? LIMIT 1')
-        .get(projectId) as { id: string } | null;
+        .query('SELECT id FROM step WHERE work_package_id = ? LIMIT 1')
+        .get(workPackageId) as { id: string } | null;
       if (step === null) throw new Error('fixture step absent');
       h.sqlite.run(
-        "INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES ('parent',?,'Parent',NULL,1,0),('source',?,'Original','parent',1,0)",
-        [projectId, projectId],
+        "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('parent',?,'Parent',NULL,1,0),('source',?,'Original','parent',1,0)",
+        [workPackageId, workPackageId],
       );
       expect(
         (
-          await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+          await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
             commands: [{ kind: 'duplicateWorkItem', workItemId: 'source' }],
           })
         ).status,
@@ -347,7 +360,9 @@ for (const policy of ['source', 'destination'] as const) {
         .query("SELECT id FROM work_item WHERE name = 'Original (copy)'")
         .get() as { id: string } | null;
       if (copy === null) throw new Error('historical duplicate absent');
-      expect((await h.call('owner', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(200);
+      expect(
+        (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/undo`)).status,
+      ).toBe(200);
       // Move the historical source away without revision drift, leaving a valid leaf destination.
       const revisions = h.sqlite.query('SELECT id,revision FROM work_item ORDER BY id').all();
       h.sqlite.run("UPDATE work_item SET parent_id = NULL WHERE id = 'source'");
@@ -366,15 +381,15 @@ for (const policy of ['source', 'destination'] as const) {
         'listByWorkItems',
       ).mockImplementation(function (
         this: StepParallelRepository,
-        project: string,
+        workPackage: string,
         owners: readonly string[],
       ) {
         if (owners.includes('source')) throw new Error('cannot reread historical duplicate source');
-        return readParallels.call(this, project, owners);
+        return readParallels.call(this, workPackage, owners);
       });
       let answer: Awaited<ReturnType<typeof h.call>>;
       try {
-        answer = await h.call('owner', 'POST', `/api/projects/${projectId}/redo`);
+        answer = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/redo`);
       } finally {
         sparseRead.mockRestore();
       }

@@ -1,4 +1,4 @@
-import { type RefCallback, useCallback, useEffect, useState } from 'react';
+import { type RefCallback, useCallback, useRef } from 'react';
 
 /**
  * Closes an open `<details>` when a pointer goes down anywhere outside it, or
@@ -51,14 +51,26 @@ import { type RefCallback, useCallback, useEffect, useState } from 'react';
  * effect that reads `ref.current` can run before that `<details>` exists and
  * never install its listener.
  */
+/**
+ * Nested marked disclosures share one open branch; only unrelated branches are peers.
+ * Escape is owned by the innermost eligible open descendant containing its target,
+ * or by that descendant for a body-origin key. Closed native ancestors make a
+ * branch ineligible, so hidden children cannot take keyboard focus. Pointer and
+ * Tab dismissal retain the original contract recorded above.
+ */
+/**
+ * The current registration belongs to the callback ref itself: detachment synchronously
+ * removes the peer marker and listeners, cancels queued Tab work and fences old callbacks.
+ * A wide persistent disclosure can therefore leave dismissal without waiting for an effect.
+ * Reattachment creates a fresh registration, including during StrictMode ref replay.
+ */
 export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
-  const [panel, setPanel] = useState<HTMLDetailsElement | null>(null);
-  const rememberPanel = useCallback((node: HTMLDetailsElement | null): void => {
-    setPanel(node);
-  }, []);
-
-  useEffect(() => {
-    if (panel === null) return undefined;
+  const disposeCurrent = useRef<(() => void) | null>(null);
+  return useCallback((panel: HTMLDetailsElement | null): void => {
+    const previous = disposeCurrent.current;
+    disposeCurrent.current = null;
+    if (previous !== null) previous();
+    if (panel === null) return;
     panel.setAttribute(DISMISSIBLE, '');
 
     const closeIfOutside = (event: PointerEvent): void => {
@@ -69,11 +81,30 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       panel.open = false;
     };
 
+    const isOpenBranch = (node: Element): boolean => {
+      let ancestor = node.parentElement;
+      while (ancestor !== null) {
+        if (ancestor.matches('details:not([open])')) return false;
+        ancestor = ancestor.parentElement;
+      }
+      return true;
+    };
+
     const closeOnEscape = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || !panel.open || event.defaultPrevented) return;
+      if (event.key !== 'Escape' || !panel.open || event.defaultPrevented || !isOpenBranch(panel))
+        return;
       const { target } = event;
       const inside = target instanceof Node && panel.contains(target);
       if (!inside && target !== document.body) return;
+      const descendants = panel.querySelectorAll(`details[${DISMISSIBLE}][open]`);
+      if (
+        [...descendants].some(
+          (descendant) =>
+            isOpenBranch(descendant) &&
+            (target === document.body || (target instanceof Node && descendant.contains(target))),
+        )
+      )
+        return;
       event.preventDefault();
       panel.open = false;
       summaryOf(panel).focus();
@@ -110,7 +141,13 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
 
     const closeOthers = (): void => {
       for (const other of document.querySelectorAll(`details[${DISMISSIBLE}][open]`)) {
-        if (other !== panel && other instanceof HTMLDetailsElement) other.open = false;
+        if (
+          other !== panel &&
+          other instanceof HTMLDetailsElement &&
+          !other.contains(panel) &&
+          !panel.contains(other)
+        )
+          other.open = false;
       }
     };
 
@@ -140,7 +177,11 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
     panel.addEventListener('focusout', closeOnFocusOut);
     panel.addEventListener('click', closeOnSummaryClick);
     panel.addEventListener('toggle', closeOnToggle);
-    return () => {
+    disposeCurrent.current = () => {
+      // Proof: omitting this removal in a private source overlay failed `keeps a still-mounted
+      // wide disclosure open when an unrelated summary activates before passive cleanup`: the
+      // connected retired panel stayed marked and closed; canonical rerun passed (2026-11-14).
+      panel.removeAttribute(DISMISSIBLE);
       document.removeEventListener('pointerdown', closeIfOutside, true);
       document.removeEventListener('keydown', closeOnEscape);
       panel.removeEventListener('keydown', armOnTab);
@@ -149,9 +190,7 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       panel.removeEventListener('click', closeOnSummaryClick);
       panel.removeEventListener('toggle', closeOnToggle);
     };
-  }, [panel]);
-
-  return rememberPanel;
+  }, []);
 }
 
 /** The mark every panel this hook holds carries, so opening one can close the rest. */

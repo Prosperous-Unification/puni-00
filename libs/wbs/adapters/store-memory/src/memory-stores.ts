@@ -1,16 +1,29 @@
-import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
+import {retainFirstChildWrite,type FirstChildWrite,type FirstChildWriteOutcome,type WriteStamp} from '@wbs/core';
+import {applyMemoryFirstChildIn} from './first-child';
+import {ownMemoryMeasureReads,ownMemoryMeasureEstimateReads,ownMemoryAttemptReads} from './tuple-reads';
+import {retainSubtreeWrite,type SubtreeStore,type SubtreeWriteOutcome} from '@wbs/core';
+import {applyMemorySubtreeIn} from './subtree-write';
+import { ownMemoryActualReads, ownMemoryProgressReads } from './point-reads';
+import {createCurrentBlockageStore,createCurrentParallelStore} from './sparse-step-stores';
+import type { Space, SpaceStore } from '@wbs/core';
+import {
+  claimIdentityOf,
+  readPackageStepValues,
+  WorkPackageStepMissing,
+  retainWorkPackageCreation,
+  type TransactionalStores,
+  type WorkPackageStore,
+  type StepUnitWritten,
+} from '@wbs/core';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { OrganizationLimitValues } from '@wbs/domain';
+import { allowanceHundredthsOf, resolveSetting } from '@wbs/domain';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
 import { inMemoryAttempts, type MemoryAttemptTable, memoryAttemptTable } from './attempt-fixture';
 import { inMemoryUsers, type MemoryUserTable, memoryUserTable } from './auth-fixture';
 import { inMemoryBudgets, type MemoryBudgetTable, memoryBudgetTable } from './budget-fixture';
-import {
-  inMemoryCalendarMarkers,
-  type MemoryCalendarMarkerTable,
-  memoryCalendarMarkerTable,
-} from './calendar-marker-fixture';
+import { inMemoryCalendarMarkers, type MemoryCalendarMarkerTable } from './calendar-marker-fixture';
 import {
   inMemoryCapacity,
   type MemoryCapacityTable,
@@ -55,7 +68,7 @@ import {
 import {
   countEstimatesKeyedBy,
   countFactsKeyedBy,
-  definitionsOfProject,
+  definitionsOfWorkPackage,
   inMemoryMeasures,
   type MemoryMeasureTable,
   memoryMeasureTable,
@@ -70,6 +83,7 @@ import {
   type MemoryOrganizationLimitTables,
   memoryOrganizationLimitTables,
 } from './organization-limits-fixture';
+import { writePackageCreatorGrantIn } from './package-creation-fixture';
 import {
   inMemoryPriorityBands,
   type MemoryPriorityBandTable,
@@ -80,7 +94,6 @@ import {
   type MemoryProgressTable,
   memoryProgressTable,
 } from './progress-fixture';
-import { inMemoryProjects, type MemoryProjectTables, memoryProjectTables } from './project-fixture';
 import {
   inMemoryEventLog,
   type MemoryEventLogTables,
@@ -93,13 +106,25 @@ import {
   memoryRuntimeTable,
 } from './runtime-command';
 import {
-  inMemoryStepBlockages,
+  captureMemorySettingsIn,
+  inMemorySettings,
+  type MemorySettingTables,
+} from './settings-fixture';
+import { inMemorySpaces } from './space-fixture';
+import {
   type MemoryStepBlockageTable,
   memoryStepBlockageTable,
 } from './step-blockage-fixture';
-import { inMemorySteps, type MemoryStepTable, memoryStepTable } from './step-fixture';
 import {
-  inMemoryStepParallels,
+  inMemoryStepCatalogue,
+  materializeMemoryPackageStepsIn,
+  type MemoryStepCatalogueContext,
+  type MemoryStepCatalogueTables,
+  memoryStepCatalogueTables,
+} from './step-catalogue';
+import { inMemorySteps, type MemoryStepTable, memoryStepTable } from './step-fixture';
+import { readMemoryPackageStepsIn } from './step-package-reads';
+import {
   type MemoryStepParallelTable,
   memoryStepParallelTable,
 } from './step-parallel-fixture';
@@ -109,13 +134,24 @@ import {
   type MemoryTypedDependencyTable,
   memoryTypedDependencyTable,
 } from './typed-dependency-fixture';
+import {
+  createMemoryWorkPackageIn,
+  inMemoryWorkPackages,
+  type MemoryWorkPackageTables,
+  memoryWorkPackageTables,
+} from './work-package-fixture';
 
 interface MemoryTables {
+  readonly settings: MemorySettingTables;
+  readonly spaces: Map<string, Space>;
+  readonly spacePeople: Map<string, Set<string>>;
+  readonly spaceTeams: Map<string, Set<string>>;
   readonly runtime: MemoryRuntimeTable;
   readonly users: MemoryUserTable;
-  readonly projects: MemoryProjectTables;
+  readonly workPackages: MemoryWorkPackageTables;
   readonly directory: MemoryDirectoryTables;
   readonly steps: MemoryStepTable;
+  readonly stepCatalogue: MemoryStepCatalogueTables;
   readonly dependencies: MemoryDependencyTable;
   readonly typedDependencies: MemoryTypedDependencyTable;
   readonly workItems: MemoryWorkItemTables;
@@ -138,12 +174,18 @@ interface MemoryTables {
 }
 
 function emptyTables(): MemoryTables {
+  const packages = memoryWorkPackageTables();
   return {
+    settings: packages.settings,
+    spaces: packages.spaces,
+    spacePeople: new Map(),
+    spaceTeams: new Map(),
     runtime: memoryRuntimeTable(),
     users: memoryUserTable(),
-    projects: memoryProjectTables(),
+    workPackages: packages,
     directory: memoryDirectoryTables(),
     steps: memoryStepTable(),
+    stepCatalogue: memoryStepCatalogueTables(),
     dependencies: memoryDependencyTable(),
     typedDependencies: memoryTypedDependencyTable(),
     workItems: memoryWorkItemTables(),
@@ -159,7 +201,7 @@ function emptyTables(): MemoryTables {
     claims: memoryClaimTable(),
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
-    calendarMarkers: memoryCalendarMarkerTable(),
+    calendarMarkers: packages.markers,
     eventLog: memoryEventLogTables(),
     journal: memoryCommandJournalTables(),
     organizationLimits: memoryOrganizationLimitTables(),
@@ -195,7 +237,7 @@ function detachedStore<T extends object>(store: T): T {
 }
 
 /** Applies the one detached-read boundary to every store in the catalog. */
-function detachedStores(stores: TransactionalStores): TransactionalStores {
+function detachedStores<Stores extends TransactionalStores>(stores: Stores): Stores {
   const wrapped = new Map<PropertyKey, object>();
   return new Proxy(stores, {
     get(target, key, receiver) {
@@ -225,19 +267,37 @@ export class MemoryState {
   }
 
   replaceWith(next: MemoryState): void {
+    replaceMap(this.tables.settings.values, next.tables.settings.values);
+    replaceMap(this.tables.spaces, next.tables.spaces);
+    replaceMap(this.tables.spacePeople, next.tables.spacePeople);
+    replaceMap(this.tables.spaceTeams, next.tables.spaceTeams);
     // Proof: P27 aliased the staged tables; refused/late-failing real runtime writes escaped rollback.
     this.tables.runtime.ledger = structuredClone(next.tables.runtime.ledger);
     replaceMap(this.tables.runtime.authorities, next.tables.runtime.authorities);
     replaceMap(this.tables.runtime.bindings, next.tables.runtime.bindings);
     replaceMap(this.tables.runtime.acceptances, next.tables.runtime.acceptances);
     replaceMap(this.tables.users.byId, next.tables.users.byId);
-    replaceMap(this.tables.projects.projects, next.tables.projects.projects);
-    replaceMap(this.tables.projects.steps, next.tables.projects.steps);
-    replaceMap(this.tables.projects.opened, next.tables.projects.opened);
+    replaceMap(this.tables.workPackages.workPackages, next.tables.workPackages.workPackages);
+    replaceMap(this.tables.workPackages.steps, next.tables.workPackages.steps);
+    replaceMap(this.tables.workPackages.opened, next.tables.workPackages.opened);
+    replaceMap(this.tables.workPackages.owning, next.tables.workPackages.owning);
+    replaceMap(
+      this.tables.workPackages.creation.projects,
+      next.tables.workPackages.creation.projects,
+    );
+    replaceMap(
+      this.tables.workPackages.creation.creators,
+      next.tables.workPackages.creation.creators,
+    );
+    replaceMap(this.tables.workPackages.creation.roles, next.tables.workPackages.creation.roles);
+    replaceMap(this.tables.workPackages.creation.grants, next.tables.workPackages.creation.grants);
+    replaceMap(this.tables.workPackages.creation.audits, next.tables.workPackages.creation.audits);
     // Proof: with this line removed, `undoes an allowance edit committed in an
     // earlier unit of work` failed: the undo answered ok: false (2026-09-27).
-    replaceMap(this.tables.projects.allowanceRevisions, next.tables.projects.allowanceRevisions);
-    replaceMap(this.tables.projects.timezones, next.tables.projects.timezones);
+    replaceMap(
+      this.tables.workPackages.allowanceRevisions,
+      next.tables.workPackages.allowanceRevisions,
+    );
     replaceMap(this.tables.directory.teams, next.tables.directory.teams);
     replaceMap(this.tables.directory.tags, next.tables.directory.tags);
     replaceMap(this.tables.directory.services, next.tables.directory.services);
@@ -278,6 +338,10 @@ export class MemoryState {
       this.tables.directory.measureDefinitions.organizations,
       next.tables.directory.measureDefinitions.organizations,
     );
+    replaceMap(this.tables.stepCatalogue.retirements,next.tables.stepCatalogue.retirements);
+    replaceMap(this.tables.stepCatalogue.definitions, next.tables.stepCatalogue.definitions);
+    replaceMap(this.tables.stepCatalogue.bindings, next.tables.stepCatalogue.bindings);
+    replaceMap(this.tables.stepCatalogue.packageValues, next.tables.stepCatalogue.packageValues);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
     // Proof: omitting this copy left `commits all mixed-store writes together`
@@ -305,7 +369,7 @@ export class MemoryState {
     replaceArray(this.tables.budgets.rows, next.tables.budgets.rows);
     replaceArray(this.tables.progress.rows, next.tables.progress.rows);
     replaceArray(this.tables.attempts.rows, next.tables.attempts.rows);
-    // Proof: removing this copy failed the project-seeded fact transaction test
+    // Proof: removing this copy failed the work-package-seeded fact transaction test
     // after commit left the old fact in place; watched 2026-10-13.
     replaceArray(this.tables.blockages.rows, next.tables.blockages.rows);
     // Proof: copy removed; source commit assertion lost the real authored fact (memory-commit.txt), 2026-10-15.
@@ -315,7 +379,7 @@ export class MemoryState {
     // their committed claims; watched 2026-10-19.
     replaceArray(this.tables.claims.rows, next.tables.claims.rows);
     // Proof: with this copy removed, `acquires the declared demand and reads it
-    // per project and per resource` (resource-occupancy.db.test.ts, memory) read
+    // per work package and per resource` (resource-occupancy.db.test.ts, memory) read
     // no occupancy after the batch committed; watched 2026-10-20.
     replaceArray(this.tables.claims.occupancy, next.tables.claims.occupancy);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
@@ -327,10 +391,210 @@ export class MemoryState {
     replaceArray(this.tables.journal.events, next.tables.journal.events);
     replaceMap(this.tables.organizationLimits.caps, next.tables.organizationLimits.caps);
     replaceMap(
-      this.tables.organizationLimits.projectOrganization,
-      next.tables.organizationLimits.projectOrganization,
+      this.tables.organizationLimits.workPackageOrganization,
+      next.tables.organizationLimits.workPackageOrganization,
     );
   }
+}
+
+function catalogueContextOf(state: MemoryState): MemoryStepCatalogueContext {
+  return {
+    usage: {
+      workItems: state.tables.workItems,
+      estimates: state.tables.estimates,
+      actuals: state.tables.actuals,
+      progress: state.tables.progress,
+      measures: state.tables.measures,
+      measureEstimates: state.tables.measureEstimates,
+      attempts: state.tables.attempts,
+      assignments: state.tables.directory.assignments,
+      claims: state.tables.claims,
+      blockages: state.tables.blockages,
+      parallels: state.tables.stepParallels,
+      dependencies: state.tables.typedDependencies,
+      people: state.tables.directory.people,
+      users: state.tables.users.byId,
+      personOrganization: state.tables.directory.organizationOf,
+    },
+    organizations: state.tables.directory.measureDefinitions.organizations,
+    spaces: state.tables.spaces,
+    projects: state.tables.workPackages.creation.projects,
+    packages: state.tables.workPackages.workPackages,
+    packageOrganization: state.tables.organizationLimits.workPackageOrganization,
+    packageOwnership: state.tables.workPackages.owning,
+    types: state.tables.directory.workItemTypes,
+    typeOrganization: state.tables.directory.organizationOf,
+  };
+}
+
+function requireBirthEntry<Key, Value>(
+  rows: ReadonlyMap<Key, Value>,
+  key: Key,
+  label: string,
+): Value {
+  const entry = rows.get(key);
+  if (entry === undefined) throw new Error('prepared package birth has no ' + label);
+  return entry;
+}
+
+/** Publishes only the newborn's prepared entries; unrelated staged writes and all existing package overrides remain untouched. */
+function publishPackageBirth(
+  state: MemoryState,
+  prepared: MemoryState,
+  workPackageId: string,
+  grantId: string,
+  auditId: string,
+): void {
+  const packages = state.tables.workPackages,
+    staged = prepared.tables.workPackages;
+  const retained = structuredClone({
+    workPackage: requireBirthEntry(staged.workPackages, workPackageId, 'package'),
+    starting: requireBirthEntry(staged.steps, workPackageId, 'starting steps'),
+    organizationId: requireBirthEntry(staged.owning, workPackageId, 'package ownership'),
+    mapping: requireBirthEntry(
+      prepared.tables.organizationLimits.workPackageOrganization,
+      workPackageId,
+      'organization mapping',
+    ),
+    creator: requireBirthEntry(staged.creation.creators, workPackageId, 'creator'),
+    grant: requireBirthEntry(staged.creation.grants, grantId, 'creator grant'),
+    audit: requireBirthEntry(staged.creation.audits, auditId, 'creator audit'),
+    values: requireBirthEntry(
+      prepared.tables.stepCatalogue.packageValues,
+      workPackageId,
+      'explicit catalogue values',
+    ),
+    settings: [...prepared.tables.settings.values].filter(
+      ([, row]) => row.scope.level === 'work_package' && row.scope.id === workPackageId,
+    ),
+  });
+  if (
+    packages.workPackages.has(workPackageId) ||
+    packages.steps.has(workPackageId) ||
+    packages.owning.has(workPackageId) ||
+    state.tables.organizationLimits.workPackageOrganization.has(workPackageId) ||
+    packages.creation.creators.has(workPackageId) ||
+    packages.creation.grants.has(grantId) ||
+    packages.creation.audits.has(auditId) ||
+    state.tables.stepCatalogue.packageValues.has(workPackageId) ||
+    [...state.tables.settings.values.values()].some(
+      (row) => row.scope.level === 'work_package' && row.scope.id === workPackageId,
+    )
+  )
+    throw new Error('package birth identity became occupied before publication');
+  packages.workPackages.set(workPackageId, retained.workPackage);
+  packages.steps.set(workPackageId, retained.starting);
+  packages.owning.set(workPackageId, retained.organizationId);
+  state.tables.organizationLimits.workPackageOrganization.set(workPackageId, retained.mapping);
+  packages.creation.creators.set(workPackageId, retained.creator);
+  packages.creation.grants.set(grantId, retained.grant);
+  packages.creation.audits.set(auditId, retained.audit);
+  state.tables.stepCatalogue.packageValues.set(workPackageId, retained.values);
+  for (const [key, row] of retained.settings) state.tables.settings.values.set(key, row);
+}
+
+/**
+ * Binds scoped birth to its actual Source/repair loan. The required callback is
+ * checked at entry, after raw asynchronous settings preparation, and immediately
+ * before publication. No lifetime default or replacement owner exists.
+ * The final current-chain/catalogue capture and newborn publication are synchronous.
+ */
+export function createMemoryPackageBirthIn(
+  state: MemoryState,
+  assertOpen: () => void,
+): WorkPackageStore['createInOrganization'] {
+  return async (workPackage, starting, stamp, organizationId, creatorGrant) => {
+    assertOpen();
+    const retained = retainWorkPackageCreation(
+      workPackage,
+      starting,
+      stamp,
+      organizationId,
+      creatorGrant,
+    );
+    const preparation = state.clone();
+    const birth = inMemoryWorkPackages(
+      inMemoryUsers(preparation.tables.users),
+      preparation.tables.workPackages,
+      {
+        users: preparation.tables.users.byId,
+        organizations: preparation.tables.directory.measureDefinitions.organizations,
+        memberships: preparation.tables.directory.organizationMembers,
+        ownership: preparation.tables.organizationLimits.workPackageOrganization,
+      },
+    );
+    const written = await birth.createInOrganization(
+      retained.workPackage,
+      retained.steps,
+      retained.stamp,
+      retained.organizationId,
+      retained.creatorGrant,
+    );
+    assertOpen();
+    if (typeof written === 'string') return written;
+    // Read the current same-loan graph only after the raw birth's real settings/project awaits settle.
+    const prepared = state.clone();
+    if (prepared.tables.workPackages.workPackages.has(retained.workPackage.id))
+      throw new Error('duplicate package identity');
+    const creation = {
+      users: prepared.tables.users.byId,
+      organizations: prepared.tables.directory.measureDefinitions.organizations,
+      memberships: prepared.tables.directory.organizationMembers,
+      ownership: prepared.tables.organizationLimits.workPackageOrganization,
+    };
+    const current = createMemoryWorkPackageIn(
+      retained.workPackage,
+      retained.steps,
+      retained.organizationId,
+      prepared.tables.workPackages,
+      creation,
+    );
+    if (typeof current === 'string') return current;
+    prepared.tables.workPackages.creation.creators.set(current.id, retained.stamp.by);
+    prepared.tables.organizationLimits.workPackageOrganization.set(
+      current.id,
+      retained.organizationId,
+    );
+    writePackageCreatorGrantIn(
+      prepared.tables.workPackages.creation,
+      creation,
+      retained.organizationId,
+      current.id,
+      retained.stamp,
+      retained.creatorGrant,
+    );
+    // Only the supplied package's validated own setting rows are retained; current ancestors stay in the fresh graph.
+    for (const [key, row] of preparation.tables.settings.values) {
+      if (row.scope.level === 'work_package' && row.scope.id === current.id)
+        prepared.tables.settings.values.set(key, structuredClone(row));
+    }
+    const chain = materializeMemoryPackageStepsIn(
+      prepared.tables.stepCatalogue,
+      catalogueContextOf(prepared),
+      retained.organizationId,
+      current.id,
+    );
+    const snapshot = captureMemorySettingsIn(prepared.tables.settings, chain, () =>
+      [...prepared.tables.calendarMarkers.held.values()].map(({ scope, ...marker }) => ({
+        scope,
+        marker,
+      })),
+    );
+    const returned = {
+      ...structuredClone(current),
+      pertWeights: resolveSetting(chain, 'pertWeights', snapshot).value,
+      budgetFactor: resolveSetting(chain, 'budgetFactor', snapshot).value,
+    };
+    assertOpen();
+    publishPackageBirth(
+      state,
+      prepared,
+      current.id,
+      retained.creatorGrant.id,
+      retained.creatorGrant.auditId,
+    );
+    return returned;
+  };
 }
 
 /**
@@ -342,19 +606,19 @@ export function bindStores(
   state: MemoryState,
   lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
   organizationDefaultLimits?: OrganizationLimitValues,
-): TransactionalStores {
+): TransactionalStores & { readonly spaces: SpaceStore } {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
   const fixtureDirectory = inMemoryDirectory(
-    (projectId) => {
+    (workPackageId) => {
       if (workItems === null) throw new Error('work-item table was read before it was bound');
-      return workItems.listByProject(projectId);
+      return workItems.listByWorkPackage(workPackageId);
     },
     state.tables.directory,
     state.tables.users.byId,
   );
   const measureOwnership = {
-    projectOrganization: state.tables.organizationLimits.projectOrganization,
+    workPackageOrganization: state.tables.organizationLimits.workPackageOrganization,
     definitions: state.tables.directory.measureDefinitions,
   };
   const claimsOf = (personId: string) =>
@@ -366,16 +630,16 @@ export function bindStores(
     async renameTag(tagId, name, stamp) {
       const written = await fixtureDirectory.renameTag(tagId, name, stamp);
       if (!written.ok) return written;
-      // Proof: the coherent capture RED received projectIds: [] after the real
-      // attached tag rename; source-owned relations must supply its touched project.
-      const projectIds = [
+      // Proof: the coherent capture RED received workPackageIds: [] after the real
+      // attached tag rename; source-owned relations must supply its touched work package.
+      const workPackageIds = [
         ...new Set(
           [...state.tables.workItems.byId.values()]
             .filter((row) => state.tables.workItems.tagsOf.get(row.id)?.includes(tagId) === true)
-            .map((row) => row.projectId),
+            .map((row) => row.workPackageId),
         ),
       ].sort();
-      return { ...written, projectIds };
+      return { ...written, workPackageIds };
     },
     // Claims live in the source's own table, out of the fixture's sight: a
     // person's claims refuse an unconfirmed removal and go with a confirmed one,
@@ -405,14 +669,16 @@ export function bindStores(
       ];
       return { ...removed, removal: { ...removed.removal, workItemIds } };
     },
-    // The fixture's resource answers, with the projects a demand sits in read
+    // The fixture's resource answers, with the work packages a demand sits in read
     // off the source's own work items, which the fixture cannot see.
     async patchResource(resourceId, patch, stamp) {
       const written = await fixtureDirectory.patchResource(resourceId, patch, stamp);
       if (!written.ok) return written;
       return {
         ...written,
-        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+        workPackageIds: [
+          ...new Set([...written.workPackageIds, ...demandWorkPackagesOf(resourceId)]),
+        ].sort(),
       };
     },
     async setResourceProvider(resourceId, providerId, organizationId, stamp) {
@@ -425,36 +691,40 @@ export function bindStores(
       if (!written.ok) return written;
       return {
         ...written,
-        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+        workPackageIds: [
+          ...new Set([...written.workPackageIds, ...demandWorkPackagesOf(resourceId)]),
+        ].sort(),
       };
     },
     // SQLite's twin over the ownership this source keeps: every id not the
-    // organization's, an unowned project included.
+    // organization's, an unowned work package included.
     // Proof: with this override removed, the scoped directory capacity write
     // of directory-capacity.test.ts threw `the in-memory directory has
-    // no project ownership` (2 pass, 2 fail); watched 2026-10-25.
-    projectsOutside(projectIds, organizationId) {
+    // no work package ownership` (2 pass, 2 fail); watched 2026-10-25.
+    workPackagesOutside(workPackageIds, organizationId) {
       return Promise.resolve(
-        projectIds.filter(
-          (id) => state.tables.organizationLimits.projectOrganization.get(id) !== organizationId,
+        workPackageIds.filter(
+          (id) =>
+            state.tables.organizationLimits.workPackageOrganization.get(id) !== organizationId,
         ),
       );
     },
-    // The announce set is SQLite's: the projects that demand, state or hold
+    // The announce set is SQLite's: the work packages that demand, state or hold
     // the resource, a holder only in the resource's own organization (review S3-1).
     // Proof: with the holders left out, the memory certification's
     // `directory.setDirectoryCapacity:state-clear-remove` read `[]`; watched 2026-11-01.
     async setDirectoryCapacity(resourceId, units, act) {
       const written = await fixtureDirectory.setDirectoryCapacity(resourceId, units, act);
       if (!written.ok) return written;
-      const holding = occupyingProjectsOf(resourceId).filter(
+      const holding = occupyingWorkPackagesOf(resourceId).filter(
         (id) =>
-          state.tables.organizationLimits.projectOrganization.get(id) === written.organizationId,
+          state.tables.organizationLimits.workPackageOrganization.get(id) ===
+          written.organizationId,
       );
       return {
         ...written,
-        projectIds: [
-          ...new Set([...written.projectIds, ...demandProjectsOf(resourceId), ...holding]),
+        workPackageIds: [
+          ...new Set([...written.workPackageIds, ...demandWorkPackagesOf(resourceId), ...holding]),
         ].sort(),
       };
     },
@@ -505,7 +775,7 @@ export function bindStores(
       };
     },
     async removeResource(resourceId, cascade, stamp) {
-      const projectIds = demandProjectsOf(resourceId);
+      const workPackageIds = demandWorkPackagesOf(resourceId);
       const rows = await demandRowsOf(resourceId);
       const occupancies = occupyingLeavesOf(resourceId);
       // Proof: with this refusal removed, the memory certification's
@@ -520,32 +790,32 @@ export function bindStores(
         return removed.reason === 'in_use'
           ? { ...removed, usage: { ...removed.usage, rows, occupancies } }
           : removed;
-      // Read before the cascade takes the occupancy: a project whose only link
+      // Read before the cascade takes the occupancy: a work package whose only link
       // is a standing claim's units is told too.
       // Proof: with this left out, `refuses deleting a resource a claim holds,
       // counting it, and cascades on confirmation` (resource-occupancy.db.test.ts)
-      // announced no project on memory; watched 2026-10-20.
-      const occupying = occupyingProjectsOf(resourceId);
+      // announced no work package on memory; watched 2026-10-20.
+      const occupying = occupyingWorkPackagesOf(resourceId);
       cascadeOccupancy(state.tables.claims, resourceId);
       return {
         ok: true,
         removal: {
           ...removed.removal,
-          projectIds: [
-            ...new Set([...removed.removal.projectIds, ...projectIds, ...occupying]),
+          workPackageIds: [
+            ...new Set([...removed.removal.workPackageIds, ...workPackageIds, ...occupying]),
           ].sort(),
         },
       };
     },
   };
-  /** The projects whose claims hold units of the resource. */
-  const occupyingProjectsOf = (resourceId: string): string[] => {
-    const projectOfClaim = new Map(
+  /** The work packages whose claims hold units of the resource. */
+  const occupyingWorkPackagesOf = (resourceId: string): string[] => {
+    const workPackageOfClaim = new Map(
       state.tables.claims.rows.map(({ id, workItemId }) => {
-        const projectId = state.tables.workItems.byId.get(workItemId)?.projectId;
-        if (projectId === undefined)
+        const workPackageId = state.tables.workItems.byId.get(workItemId)?.workPackageId;
+        if (workPackageId === undefined)
           throw new Error(`claim ${id} names absent work item ${workItemId}`);
-        return [id, projectId] as const;
+        return [id, workPackageId] as const;
       }),
     );
     return [
@@ -553,9 +823,10 @@ export function bindStores(
         state.tables.claims.occupancy
           .filter((row) => row.resourceId === resourceId)
           .map(({ claimId }) => {
-            const projectId = projectOfClaim.get(claimId);
-            if (projectId === undefined) throw new Error(`occupancy names absent claim ${claimId}`);
-            return projectId;
+            const workPackageId = workPackageOfClaim.get(claimId);
+            if (workPackageId === undefined)
+              throw new Error(`occupancy names absent claim ${claimId}`);
+            return workPackageId;
           }),
       ),
     ];
@@ -569,30 +840,32 @@ export function bindStores(
         .map(({ claimId }) => leafOf.get(claimId)),
     ).size;
   };
-  /** The projects whose work items demand the resource. */
-  const demandProjectsOf = (resourceId: string): string[] => {
-    const projectOf = new Map(
-      [...state.tables.workItems.byId.values()].map((row) => [row.id, row.projectId]),
+  /** The work packages whose work items demand the resource. */
+  const demandWorkPackagesOf = (resourceId: string): string[] => {
+    const workPackageOf = new Map(
+      [...state.tables.workItems.byId.values()].map((row) => [row.id, row.workPackageId]),
     );
     return [
       ...new Set(
         [...state.tables.directory.resources.demands.values()]
           .filter((each) => each.resourceId === resourceId)
           .flatMap((each) => {
-            const projectId = projectOf.get(each.workItemId);
-            if (projectId === undefined)
+            const workPackageId = workPackageOf.get(each.workItemId);
+            if (workPackageId === undefined)
               throw new Error(`demand names absent work item ${each.workItemId}`);
-            return [projectId];
+            return [workPackageId];
           }),
       ),
     ].sort();
   };
-  /** A usage's rows for the demanding projects: their labelled work items and names. */
+  /** A usage's rows for the demanding work packages: their labelled work items and names. */
   const demandRowsOf = async (resourceId: string) => {
     if (workItems === null) throw new Error('work-item table was read before it was bound');
     const bound = workItems;
-    const projectIds = demandProjectsOf(resourceId);
-    const rows = await Promise.all(projectIds.map((projectId) => bound.listByProject(projectId)));
+    const workPackageIds = demandWorkPackagesOf(resourceId);
+    const rows = await Promise.all(
+      workPackageIds.map((workPackageId) => bound.listByWorkPackage(workPackageId)),
+    );
     return {
       assignments: [],
       steps: [],
@@ -602,10 +875,10 @@ export function bindStores(
       machineCredentials: 0,
       capacityOf: new Map<string, number>(),
       workItems: rows.flat(),
-      projects: projectIds.map((id) => {
-        const project = state.tables.projects.projects.get(id);
-        if (project === undefined) throw new Error(`demand names absent project ${id}`);
-        return { id, name: project.name };
+      workPackages: workPackageIds.map((id) => {
+        const workPackage = state.tables.workPackages.workPackages.get(id);
+        if (workPackage === undefined) throw new Error(`demand names absent work package ${id}`);
+        return { id, name: workPackage.name };
       }),
     };
   };
@@ -621,82 +894,126 @@ export function bindStores(
     table: state.tables.stepParallels,
     workItems,
   });
-  // A removed step leaves the project's own step list too, as SQLite's one
-  // `step` table does: the work-item service reads `projects.stepsOf`, and a
+  // A removed step leaves the work package's own step list too, as SQLite's one
+  // `step` table does: the work-item service reads `workPackages.stepsOf`, and a
   // step still listed there after its removal let a replay restore rows onto it.
   // Proof: with this removal skipped, `refuses an undo of a delete once a step
   // its claims and progress name was removed` (resource-occupancy.db.test.ts)
   // answered the undo ok on memory; watched 2026-10-20.
   const steps: typeof tableSteps = {
     ...tableSteps,
-    async remove(projectId, stepId, cascade, stamp) {
-      const removed = await tableSteps.remove(projectId, stepId, cascade, stamp);
+    async listByWorkPackage(workPackageId) {
+      return await Promise.resolve(readMemoryPackageStepsIn(state.tables.stepCatalogue, catalogueContextOf(state), workPackageId));
+    },
+    async remove(workPackageId, stepId, cascade, stamp) {
+      const removed = await tableSteps.remove(workPackageId, stepId, cascade, stamp);
       if (removed.ok) {
-        const listed = state.tables.projects.steps.get(projectId);
+        const listed = state.tables.workPackages.steps.get(workPackageId);
         if (listed !== undefined)
-          state.tables.projects.steps.set(
-            projectId,
+          state.tables.workPackages.steps.set(
+            workPackageId,
             listed.filter(({ id }) => id !== stepId),
           );
       }
       return removed;
     },
   };
-  const projects = inMemoryProjects(users, state.tables.projects);
-  const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
-  const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
-  // The memory twin of `project_organization` joined to `measure`: the
-  // owning organization's definitions, or none for an unowned project.
-  const measures = inMemoryMeasures(
-    workItems,
-    state.tables.measures,
-    steps,
-    (projectId) => definitionsOfProject(measureOwnership, projectId),
-    state.tables.measureEstimates,
-  );
-  const measureEstimates = inMemoryMeasureEstimates(
-    workItems,
-    state.tables.measures,
-    state.tables.measureEstimates,
-    steps,
-    (projectId) => definitionsOfProject(measureOwnership, projectId),
-  );
-  const progress = inMemoryProgress(workItems, state.tables.progress, steps);
-  const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps, progress);
-  const blockages = inMemoryStepBlockages(
+  const tableWorkPackages = inMemoryWorkPackages(users, state.tables.workPackages, {
+    users: state.tables.users.byId,
+    organizations: state.tables.directory.measureDefinitions.organizations,
+    memberships: state.tables.directory.organizationMembers,
+    ownership: state.tables.organizationLimits.workPackageOrganization,
+  });
+  const workPackages: WorkPackageStore = {
+    ...tableWorkPackages,
+    /** Current per-package unit write over the actual state owned by this composition. */
+    async setStepUnit(workPackageId,stepId,unit,_stamp):Promise<StepUnitWritten>{
+      const selected=readMemoryPackageStepsIn(state.tables.stepCatalogue,catalogueContextOf(state),workPackageId)
+        .find(entry=>entry.id===stepId);
+      if(selected===undefined)return await Promise.resolve({ok:false,reason:'not_found'});
+      const values=state.tables.stepCatalogue.packageValues.get(workPackageId);
+      const held=values?.get(stepId);
+      if(values===undefined||held===undefined)throw new WorkPackageStepMissing(workPackageId,stepId);
+      const before=readPackageStepValues(held,workPackageId,stepId);
+      if(before.estimateUnit===unit)return await Promise.resolve({ok:true,step:selected});
+      const holdings=state.tables.estimates.rows.filter(row=>row.stepId===stepId&&
+        state.tables.workItems.byId.get(row.workItemId)?.workPackageId===workPackageId).length;
+      if(holdings>0)return await Promise.resolve({ok:false,reason:'estimates_present',count:holdings});
+      const owner=state.tables.workPackages.workPackages.get(workPackageId);
+      if(owner===undefined)throw new Error('unit package vanished inside its Source turn');
+      const written={...held,estimateUnit:unit};
+      const after=readPackageStepValues(written,workPackageId,stepId);
+      values.set(stepId,written);
+      state.tables.workPackages.workPackages.set(workPackageId,{...owner,revision:owner.revision+1});
+      return await Promise.resolve({ok:true,step:{...selected,estimateUnit:after.estimateUnit}});
+    },
+    /** Synchronous under the actual Source turn: update only explicit package values and its revision. */
+    async setStepAllowance(workPackageId, stepId, allowancePercent, _stamp) {
+      const selected = readMemoryPackageStepsIn(state.tables.stepCatalogue, catalogueContextOf(state), workPackageId)
+        .find((entry) => entry.id === stepId);
+      if (selected === undefined) return await Promise.resolve({ ok: false, reason: 'not_found' });
+      const values = state.tables.stepCatalogue.packageValues.get(workPackageId);
+      const held = values?.get(stepId);
+      if (values === undefined || held === undefined) throw new WorkPackageStepMissing(workPackageId, stepId);
+      const before = readPackageStepValues(held, workPackageId, stepId);
+      const allowanceBps = allowanceHundredthsOf(allowancePercent);
+      const written = { ...held, allowanceBps, allowanceRevision: before.allowanceRevision + 1 };
+      const after = readPackageStepValues(written, workPackageId, stepId);
+      const owner = state.tables.workPackages.workPackages.get(workPackageId);
+      if (owner === undefined) throw new Error('allowance package vanished inside its Source turn');
+      values.set(stepId, written);
+      state.tables.workPackages.workPackages.set(workPackageId, { ...owner, revision: owner.revision + 1 });
+      return await Promise.resolve({
+        ok: true,
+        step: { ...selected, allowancePercent: after.allowancePercent },
+        previousPercent: before.allowancePercent,
+        revision: after.allowanceRevision,
+      });
+    },
+    /** Current package members only; retained unbound rows cannot make a stale journal replayable. */
+    async stepAllowanceRevisions(workPackageId) {
+      const selected = readMemoryPackageStepsIn(state.tables.stepCatalogue, catalogueContextOf(state), workPackageId);
+      return await Promise.resolve(new Map(selected.map((entry) => {
+        const row = state.tables.stepCatalogue.packageValues.get(workPackageId)?.get(entry.id);
+        if (row === undefined) throw new WorkPackageStepMissing(workPackageId, entry.id);
+        return [entry.id, readPackageStepValues(row, workPackageId, entry.id).allowanceRevision];
+      })));
+    },
+    async stepsOf(workPackageId) {
+      return await Promise.resolve(readMemoryPackageStepsIn(state.tables.stepCatalogue, catalogueContextOf(state), workPackageId));
+    },
+  };
+  const estimates = inMemoryEstimates(
     workItems,
     {
-      async findById(stepId) {
-        const step = await steps.findById(stepId);
-        if (step !== null) return step;
-        for (const project of await projects.list()) {
-          const seeded = (await projects.stepsOf(project.id)).find(
-            (candidate) => candidate.id === stepId,
-          );
-          if (seeded !== undefined) return seeded;
-        }
-        return null;
-      },
+      catalogue: state.tables.stepCatalogue,
+      scope: catalogueContextOf(state),
+      workItems: state.tables.workItems,
     },
-    state.tables.blockages,
+    state.tables.estimates,
   );
-  const stepParallels = inMemoryStepParallels(
+  const actuals = ownMemoryActualReads(inMemoryActuals(workItems,{catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems},state.tables.actuals),state.tables.actuals,()=>({catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems}));
+  // The memory twin of `work_package_organization` joined to `measure`: the
+  // owning organization's definitions, or none for an unowned work package.
+  const measures = ownMemoryMeasureReads(inMemoryMeasures(
     workItems,
-    {
-      async findById(stepId) {
-        const step = await steps.findById(stepId);
-        if (step !== null) return step;
-        for (const project of await projects.list()) {
-          const seeded = (await projects.stepsOf(project.id)).find(
-            (candidate) => candidate.id === stepId,
-          );
-          if (seeded !== undefined) return seeded;
-        }
-        return null;
-      },
-    },
-    state.tables.stepParallels,
-  );
+    {...{catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems},measureDefinitions:state.tables.directory.measureDefinitions},
+    state.tables.measures,
+    (workPackageId) => definitionsOfWorkPackage(measureOwnership, workPackageId),
+    state.tables.measureEstimates,
+  ),state.tables.measures,()=>({catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems,measureDefinitions:state.tables.directory.measureDefinitions}));
+  const measureEstimates = ownMemoryMeasureEstimateReads(inMemoryMeasureEstimates(
+    workItems,
+    state.tables.measures,
+    state.tables.measureEstimates,
+    steps,
+    (workPackageId) => definitionsOfWorkPackage(measureOwnership, workPackageId),
+  ),state.tables.measureEstimates,state.tables.measures,()=>({catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems,measureDefinitions:state.tables.directory.measureDefinitions}));
+  const progress = ownMemoryProgressReads(inMemoryProgress(workItems,{catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems},state.tables.progress),state.tables.progress,()=>({catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems}));
+  const attempts = ownMemoryAttemptReads(inMemoryAttempts(workItems,state.tables.attempts,steps,progress),state.tables.attempts,()=>({catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems,measureDefinitions:state.tables.directory.measureDefinitions}));
+  const sparseContext={catalogue:state.tables.stepCatalogue,scope:catalogueContextOf(state),workItems:state.tables.workItems};
+  const blockages=createCurrentBlockageStore(sparseContext,state.tables.blockages);
+  const stepParallels=createCurrentParallelStore(sparseContext,state.tables.stepParallels);
   const rowsOnlyWorkItems = workItems;
   workItems = {
     ...rowsOnlyWorkItems,
@@ -733,19 +1050,67 @@ export function bindStores(
     },
   };
   const demands = inMemoryDemands(state.tables.directory.resources, workItems);
-  const stores: TransactionalStores = {
+  const settings = inMemorySettings(state.tables.settings, {
+    organizationExists: (id) => state.tables.directory.measureDefinitions.organizations.has(id),
+    readSpace: (id) => state.tables.spaces.get(id) ?? null,
+    readProject: (id) => state.tables.workPackages.creation.projects.get(id) ?? null,
+    readPackage: (id) => {
+      const row = state.tables.workPackages.workPackages.get(id);
+      return row === undefined
+        ? null
+        : {
+            projectId: row.projectId,
+            restricted: row.restricted,
+            organizationId: state.tables.organizationLimits.workPackageOrganization.get(id) ?? null,
+          };
+    },
+    packageIds: () => [...state.tables.workPackages.workPackages.keys()],
+    touchPackage: (id, _stamp) => {
+      const row = state.tables.workPackages.workPackages.get(id);
+      if (row === undefined) throw new Error('settings descendant package is absent');
+      state.tables.workPackages.workPackages.set(id, { ...row, revision: row.revision + 1 });
+      return {
+        workPackageId: id,
+        event: {
+          type: 'work_package_settings_changed',
+          optimizationEnabled: row.optimizationEnabled,
+          scheduleEngine: row.scheduleEngine,
+          scheduleObjective: row.scheduleObjective,
+        },
+      };
+    },
+    readMarkers: () =>
+      [...state.tables.calendarMarkers.held.values()].map(({ scope, ...marker }) => ({
+        scope,
+        marker,
+      })),
+  });
+  const stores: TransactionalStores & { readonly spaces: SpaceStore } = {
+    spaces: inMemorySpaces({
+      spaces: state.tables.spaces,
+      settings: state.tables.settings,
+      markers: state.tables.calendarMarkers,
+      projects: state.tables.workPackages.creation.projects,
+      personOrganization: state.tables.directory.organizationOf,
+      teamOrganization: state.tables.directory.organizationOf,
+      people: state.tables.spacePeople,
+      teams: state.tables.spaceTeams,
+      organizations: state.tables.directory.measureDefinitions.organizations,
+    }),
+    settings,
     runtimeCommands: inMemoryRuntimeCommands(state.tables.runtime),
     users,
-    projects,
+    workPackages,
     directory,
     steps,
+    stepCatalogue: inMemoryStepCatalogue(state.tables.stepCatalogue, catalogueContextOf(state)),
     workItems,
     estimates,
     actuals,
     measures,
     measureEstimates,
-    budgets: inMemoryBudgets(workItems, state.tables.budgets, (projectId) =>
-      definitionsOfProject(measureOwnership, projectId),
+    budgets: inMemoryBudgets(workItems, state.tables.budgets, (workPackageId) =>
+      definitionsOfWorkPackage(measureOwnership, workPackageId),
     ),
     progress,
     attempts,
@@ -758,10 +1123,10 @@ export function bindStores(
       claimIdentityOf(directory),
       (resourceId) => state.tables.directory.resources.resources.has(resourceId),
       {
-        projects: state.tables.projects,
+        workPackages: state.tables.workPackages,
         workItems: state.tables.workItems,
         people: state.tables.directory.people,
-        projectOrganization: state.tables.organizationLimits.projectOrganization,
+        workPackageOrganization: state.tables.organizationLimits.workPackageOrganization,
         resourceOrganization: state.tables.directory.organizationOf,
       },
     ),
@@ -769,12 +1134,21 @@ export function bindStores(
     typedDependencies,
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     capacity: inMemoryCapacity({}, state.tables.capacity),
-    resourceCapacity: inMemoryResourceCapacity(state.tables.directory.resources, (projectId) =>
-      Promise.resolve(state.tables.projects.projects.has(projectId)),
+    resourceCapacity: inMemoryResourceCapacity(state.tables.directory.resources, (workPackageId) =>
+      Promise.resolve(state.tables.workPackages.workPackages.has(workPackageId)),
     ),
     demands,
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
-    calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
+    calendarMarkers: {
+      ...inMemoryCalendarMarkers([], state.tables.calendarMarkers),
+      async listFor(id) {
+        const target = await settings.readTarget({ level: 'work_package', id }, null);
+        if (target === null) return [];
+        return resolveSetting(target.chain, 'calendarMarkers', await settings.capture(target)).map(
+          ({ marker }) => ({ ...marker, workPackageId: id }),
+        );
+      },
+    },
     planEvents: inMemoryPlanEvents([], { held: state.tables.journal.events }),
     eventLog: inMemoryEventLog(state.tables.eventLog),
     journal: inMemoryCommandJournal(state.tables.journal, (journalEventIds) => {
@@ -782,7 +1156,7 @@ export function bindStores(
       // when the expected late rollback case did not pass (2026-10-16).
       lateWrite.reach('journal-history-insert', { journalEventIds });
     }),
-    subtrees: inMemorySubtrees(
+    subtrees: {writeFirstChild: async (write,stamp)=> await Promise.resolve(writeMemoryFirstChild(state,write,stamp)), ...inMemorySubtrees(
       {
         workItems,
         estimates,
@@ -798,7 +1172,7 @@ export function bindStores(
         // the expected late rollback outcome (2026-10-16).
         lateWrite.reach('subtree-final-satellite', { satelliteKeys });
       },
-    ),
+    )},
     ...(organizationDefaultLimits === undefined
       ? {}
       : {
@@ -816,4 +1190,52 @@ export function bindStores(
   // Proof: returning stores directly failed both public and admitted detached
   // storage-shape reads after caller mutation (2026-10-16).
   return detachedStores(stores);
+}
+
+/**
+ * Actual Source-only method stage. Retained inputs precede any queue/yield; a
+ * fresh clone is captured AFTER that suspension and transformed synchronously.
+ * Existing Source/loan assertions fence entry, publication and exposed return.
+ */
+export function createMemorySubtreeStore(state:MemoryState,assertActive:()=>void,lateWrite:MemoryLateWriteSeam):SubtreeStore{
+  return{writeFirstChild(write,stamp):Promise<FirstChildWriteOutcome>{
+    const kept=retainFirstChildWrite(write,stamp);
+    assertActive();
+    return Promise.resolve().then(()=>{
+      assertActive();
+      const prepared=state.clone();
+      const written=applyMemoryFirstChildIn(prepared,catalogueContextOf(prepared),kept.write);
+      if(written.kind!=='written')return written;
+      assertActive();
+      state.replaceWith(prepared);
+      return written;
+    });
+  },insertSubtree(copy,stamp):Promise<SubtreeWriteOutcome>{
+    const kept=retainSubtreeWrite(copy,stamp);
+    assertActive();
+    return Promise.resolve().then<SubtreeWriteOutcome>(()=>{
+      assertActive();
+      const prepared=state.clone();
+      const outcome=applyMemorySubtreeIn(prepared,{catalogue:prepared.tables.stepCatalogue,scope:catalogueContextOf(prepared),workItems:prepared.tables.workItems},kept.copy);
+      // Proof: MEM_LOCAL omitted this return; borrowed-subtree-refusal-keeps-commit kept its refusal but leaked the candidate row after COMMIT (0/1/28); exact restoration passed 1/0/34, 2026-11-18.
+      // Proof: BULK_MEM_LOCAL_POINT omitted only this local rollback dependency.
+      // The modeled refusal still passed after the unrelated actual outer COMMIT;
+      // the next graph equality exposed the added restored row. Restoration passed.
+      if(outcome!=='written')return outcome;
+      const satelliteKeys=kept.copy.estimates.map(({workItemId,stepId})=>workItemId+':'+stepId);
+      lateWrite.reach('subtree-final-satellite',{satelliteKeys});
+      assertActive();
+      state.replaceWith(prepared);
+      return outcome;
+    });
+  }};
+}
+
+/** Raw fixture state transformation; actual Source wrappers supply their own queue and lifetime fences. */
+function writeMemoryFirstChild(state:MemoryState,write:FirstChildWrite,stamp:WriteStamp):FirstChildWriteOutcome{
+  const kept=retainFirstChildWrite(write,stamp);
+  const prepared=state.clone();
+  const written=applyMemoryFirstChildIn(prepared,catalogueContextOf(prepared),kept.write);
+  if(written.kind==='written')state.replaceWith(prepared);
+  return written;
 }

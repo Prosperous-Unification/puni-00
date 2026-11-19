@@ -1,4 +1,6 @@
 import type {
+  FirstChildWrite,
+  FirstChildWriteOutcome,
   ExternalRef,
   FrozenNumber,
   LabelledWorkItem,
@@ -6,6 +8,7 @@ import type {
   Repositioned,
   SubtreeCopy,
   SubtreeStore,
+  SubtreeWriteOutcome,
   WorkItem,
   WorkItemPatch,
   WorkItemPatched,
@@ -13,6 +16,7 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
+import {retainFirstChildWrite,retainSubtreeWrite} from '@wbs/core';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -41,6 +45,9 @@ import {
   workItemWorkItemType,
 } from './schema';
 import { basisColumns, factCondition, storedColumnsOf } from './step-measure';
+import {readSqliteStepWriteIn} from './step-write';
+import {writeSubtreeIn} from './subtree-write';
+import {writeFirstChildIn} from './first-child';
 
 /**
  * The not-before pair as the row will stand: what the patch names, and what the
@@ -93,13 +100,13 @@ function joinRowsFor(
  * already keeps for a retired column (see `directory.ts`'s `listTeams`): a bare
  * select reads every column drizzle knows about, and since the audit columns are
  * **recorded, not published**, that would put `created_at`, `updated_at` and
- * `created_by` into `LabelledWorkItem` — which `listByProject` spreads straight
+ * `created_by` into `LabelledWorkItem` — which `listByWorkPackage` spreads straight
  * into its answer — and from there into the plan payload. The declared return
  * types check the list is complete.
  */
 export const WORK_ITEM_COLUMNS = {
   id: workItem.id,
-  projectId: workItem.projectId,
+  workPackageId: workItem.workPackageId,
   parentId: workItem.parentId,
   position: workItem.position,
   name: workItem.name,
@@ -177,7 +184,7 @@ export class WorkItemRepository implements WorkItemStore {
    * its `slices` argument in that order, and `deriveNumbers` sorts each sibling
    * group **stably** — so for two siblings tied on `position` the array order is
    * what breaks the tie, and the derived number is the third of `goesFirst`'s
-   * four tie-breaks. Unordered, two reads of an unchanged project hand Fast two
+   * four tie-breaks. Unordered, two reads of an unchanged work package hand Fast two
    * different argument tuples and produce two different plans.
    *
    * A tied `position` is a legal and reachable state rather than a corruption to
@@ -187,46 +194,46 @@ export class WorkItemRepository implements WorkItemStore {
    * the defect was about. Why the tie is tolerated instead of constrained
    * unique, and what the one-time date movement cost: `docs/adr/0016-a-tied-sibling-position-is-legal-and-the-row-id-resolves-it.md`.
    *
-   * Index-served rather than sorted: `work_item_project_id_id` —
-   * `(project_id, id)` — covers this `WHERE` and this `ORDER BY` as one read.
-   * `work_item_siblings` opens on `project_id` too, so the filter always
+   * Index-served rather than sorted: `work_item_work_package_id_id` —
+   * `(work_package_id, id)` — covers this `WHERE` and this `ORDER BY` as one read.
+   * `work_item_siblings` opens on `work_package_id` too, so the filter always
    * resolved; what did not was the sort, which SQLite spent a temp B-tree on.
    *
    * The optimized cache key is unaffected either way: `canonical-schedule-input`
    * groups slices by work item rather than hashing the array it was handed, so
    * the key does not read this order.
    */
-  async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
-    return this.listRows(projectId);
+  async listByWorkPackage(workPackageId: string): Promise<LabelledWorkItem[]> {
+    return this.listRows(workPackageId);
   }
 
-  async listUpdateInstants(projectId: string): Promise<ReadonlyMap<string, number | null>> {
+  async listUpdateInstants(workPackageId: string): Promise<ReadonlyMap<string, number | null>> {
     const rows = await this.db
       .select({ id: workItem.id, updatedAt: workItem.updatedAt })
       .from(workItem)
-      .where(eq(workItem.projectId, projectId));
+      .where(eq(workItem.workPackageId, workPackageId));
     return new Map(rows.map((row) => [row.id, row.updatedAt]));
   }
 
-  async listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]> {
+  async listByIds(workPackageId: string, ids: readonly string[]): Promise<LabelledWorkItem[]> {
     if (ids.length === 0) return [];
-    return this.listRows(projectId, ids);
+    return this.listRows(workPackageId, ids);
   }
 
   /**
    * Finds each requested row's source-order predecessor with one correlated
    * descending index seek. An aggregate self-join is not equivalent here: it
-   * scans every earlier row in the project before computing the same identity.
+   * scans every earlier row in the work package before computing the same identity.
    */
   async listPlacements(
-    projectId: string,
+    workPackageId: string,
     ids: readonly string[],
   ): Promise<{ id: string; afterId: string | null }[]> {
     if (ids.length === 0) return [];
     const afterId = sql<string | null>`(
       SELECT predecessor.id
       FROM work_item AS predecessor
-      WHERE predecessor.project_id = work_item.project_id
+      WHERE predecessor.work_package_id = work_item.work_package_id
         AND predecessor.id < work_item.id
       ORDER BY predecessor.id DESC
       LIMIT 1
@@ -234,31 +241,34 @@ export class WorkItemRepository implements WorkItemStore {
     return this.db
       .select({ id: workItem.id, afterId })
       .from(workItem)
-      .where(and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids])))
+      .where(and(eq(workItem.workPackageId, workPackageId), inArray(workItem.id, [...ids])))
       .orderBy(asc(workItem.id));
   }
 
-  private async listRows(projectId: string, ids?: readonly string[]): Promise<LabelledWorkItem[]> {
-    const withinProject = () =>
+  private async listRows(
+    workPackageId: string,
+    ids?: readonly string[],
+  ): Promise<LabelledWorkItem[]> {
+    const withinWorkPackage = () =>
       ids === undefined
-        ? eq(workItem.projectId, projectId)
-        : and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids]));
+        ? eq(workItem.workPackageId, workPackageId)
+        : and(eq(workItem.workPackageId, workPackageId), inArray(workItem.id, [...ids]));
     const rows = await this.db
       .select(WORK_ITEM_COLUMNS)
       .from(workItem)
-      .where(withinProject())
+      .where(withinWorkPackage())
       .orderBy(asc(workItem.id));
     const joined = await this.db
       .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
       .from(workItemTeam)
       .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
-      .where(withinProject())
+      .where(withinWorkPackage())
       .orderBy(asc(workItemTeam.teamId));
     const tagged = await this.db
       .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
       .from(workItemTag)
       .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
-      .where(withinProject())
+      .where(withinWorkPackage())
       .orderBy(asc(workItemTag.tagId));
     // The third dimension's join, read exactly as the two above it. `service_id`
     // is still on the row this `select` returns and is still ignored here: the
@@ -269,7 +279,7 @@ export class WorkItemRepository implements WorkItemStore {
       .select({ workItemId: workItemService.workItemId, serviceId: workItemService.serviceId })
       .from(workItemService)
       .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
-      .where(withinProject())
+      .where(withinWorkPackage())
       .orderBy(asc(workItemService.serviceId));
     // The fourth dimension's join, read exactly as the three above it — and the
     // only one whose result needs no walk afterwards. A type does not inherit
@@ -280,7 +290,7 @@ export class WorkItemRepository implements WorkItemStore {
       .select({ workItemId: workItemWorkItemType.workItemId, typeId: workItemWorkItemType.typeId })
       .from(workItemWorkItemType)
       .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
-      .where(withinProject())
+      .where(withinWorkPackage())
       .orderBy(asc(workItemWorkItemType.typeId));
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
@@ -311,7 +321,7 @@ export class WorkItemRepository implements WorkItemStore {
       })
       .from(workItemExternalRef)
       .innerJoin(workItem, eq(workItemExternalRef.workItemId, workItem.id))
-      .where(withinProject())
+      .where(withinWorkPackage())
       .orderBy(asc(workItemExternalRef.position));
     const refsOf = new Map<string, ExternalRef[]>();
     for (const each of referenced) {
@@ -890,7 +900,7 @@ export class WorkItemRepository implements WorkItemStore {
   /**
    * Freezes every number in one statement, not one per row.
    *
-   * A freeze names **every** work item in the project, so the loop this replaces
+   * A freeze names **every** work item in the work package, so the loop this replaces
    * issued 2,000 `UPDATE`s for a 2,000-row plan — inside the outer transaction
    * and therefore inside the process-wide write lock (ADR 0007), which is the
    * cost that ADR names as the first thing to revisit.
@@ -986,6 +996,14 @@ export class WorkItemRepository implements WorkItemStore {
   }
 }
 
+class FirstChildRollback extends Error{
+  constructor(readonly outcome:Exclude<FirstChildWriteOutcome,{kind:'written'}>){super('first child transition refused');}
+}
+
+class SubtreeApplicabilityRollback extends Error{
+  constructor(readonly refusal:Exclude<SubtreeWriteOutcome,'written'>){super(refusal.kind==='estimate_refused'?'subtree estimate applicability refused':'subtree point applicability refused');}
+}
+
 const nonAtomicSubtreeMutants = new WeakSet<SubtreeRepository>();
 
 /**
@@ -1009,6 +1027,33 @@ export class SubtreeRepository implements SubtreeStore {
   ) {}
 
   /**
+   * Same actual gate and synchronous method-local rollback owner as subtree restoration; marker values escape only after successful cleanup.
+   * Proof: bypassing writeSubtreeIn let first-child-late-native-fault leave a
+   * staged child and moved estimates/measures. The native-failure case in
+   * first-child.db.test.ts failed at its same-writer evidence comparison and
+   * passed after exact restoration.
+   */
+  async writeFirstChild(write:FirstChildWrite,stamp:WriteStamp):Promise<FirstChildWriteOutcome>{
+    const kept=retainFirstChildWrite(write,stamp);
+    try{
+      return await this.gate.enter(()=>{
+        const written=writeSubtreeIn(this.db,()=>{
+          const child=kept.write.kind==='fresh'?kept.write.child:kept.write.record.child;
+          const parent=this.db.select(WORK_ITEM_COLUMNS).from(workItem).where(eq(workItem.id,child.parentId)).get()??null;
+          const currentChild=this.db.select(WORK_ITEM_COLUMNS).from(workItem).where(eq(workItem.id,child.id)).get()??null;
+          const decision=writeFirstChildIn(this.db,kept.write,kept.stamp,parent,currentChild);
+          if(decision.kind!=='written')throw new FirstChildRollback(decision);
+          return decision;
+        });
+        return Promise.resolve(written);
+      });
+    }catch(cause:unknown){
+      if(cause instanceof FirstChildRollback)return structuredClone(cause.outcome);
+      throw cause;
+    }
+  }
+
+  /**
    * The statement order is forced by the foreign keys, not chosen: rows before
    * anything that references them, the reparenting after the rows it points
    * at exist, and the dependencies last because each references two.
@@ -1026,14 +1071,15 @@ export class SubtreeRepository implements SubtreeStore {
    * revision of. `bumpedWorkItemOnReparent` is what keeps a row that only
    * changed position out of that — the same rule as everywhere else here.
    *
-   * `async` is load-bearing, as it is in `ProjectRepository.create`:
-   * `db.transaction` is synchronous, so without it a constraint violation
-   * would throw before the promise this signature advertises exists, and a
-   * caller holding it with `.catch()` would never see the rejection.
+   * `async` is load-bearing, as it is in `WorkPackageRepository.create`:
+   * writeSubtreeIn is synchronous; the outer async preserves unknown thrown
+   * causes as rejections. The actual admitted gate supplies Source/loan lifetime,
+   * and the write segment contains no await after candidate capture or COMMIT.
    */
-  async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
-    await this.gate.enter(async () => {
-      await Promise.resolve();
+  async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<SubtreeWriteOutcome> {
+    const kept=retainSubtreeWrite(copy,stamp);
+    copy=kept.copy;stamp=kept.stamp;
+    try{return await this.gate.enter(() => {
       const write = (tx: SQLiteBunDatabase): void => {
         const satelliteKeys: string[] = [];
         for (const moved of copy.respaced) {
@@ -1115,6 +1161,21 @@ export class SubtreeRepository implements SubtreeStore {
             })
             .where(eq(workItem.id, child.id))
             .run();
+        }
+        // Candidate rows, direct types and reparenting are already on THIS writer.
+        // Validate all requested step values before the first satellite INSERT.
+        for(const estimate of copy.estimates){
+          const decision=readSqliteStepWriteIn(tx,estimate.workItemId,estimate.stepId);
+          if(decision.kind!=='resolved')throw new SubtreeApplicabilityRollback({kind:'estimate_refused',workItemId:estimate.workItemId,stepId:estimate.stepId,reason:decision.kind});
+        }
+        for(const [fact,points] of [['actual',copy.actuals],['progress',copy.progress],['measure',copy.measures]] as const){
+          for(const point of points){
+            const decision=readSqliteStepWriteIn(tx,point.workItemId,point.stepId);
+            // Proof: BULK_SQL_ACTUAL/PROGRESS/MEASURE each omitted only its kind.
+            // Each public restore owner returned written instead of point_refused after
+            // healthy restore/remove/unbind; each exact-restored control passed.
+            if(decision.kind!=='resolved')throw new SubtreeApplicabilityRollback({kind:'point_refused',fact,workItemId:point.workItemId,stepId:point.stepId,reason:decision.kind});
+          }
         }
         if (copy.estimates.length > 0) {
           tx.insert(estimate)
@@ -1242,9 +1303,14 @@ export class SubtreeRepository implements SubtreeStore {
         );
         this.lateWrite.reach('subtree-final-satellite', { satelliteKeys });
       };
-      if (!nonAtomicSubtreeMutants.has(this)) this.db.transaction(write);
+      if (!nonAtomicSubtreeMutants.has(this)) writeSubtreeIn(this.db,()=>write(this.db));
       else write(this.db);
-    });
+      return Promise.resolve<SubtreeWriteOutcome>('written');
+    });}
+    catch(cause:unknown){
+      if(cause instanceof SubtreeApplicabilityRollback)return structuredClone(cause.refusal);
+      throw cause;
+    }
   }
 }
 

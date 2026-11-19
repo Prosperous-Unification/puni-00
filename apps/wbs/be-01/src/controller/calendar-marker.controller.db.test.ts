@@ -1,10 +1,19 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { automaticColor, MARKER_NAME_MAX } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
@@ -16,9 +25,9 @@ import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { type Drizzle, openDatabase, openDrizzle } from '../repository/db';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -43,13 +52,14 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -121,7 +131,7 @@ const CUSTOM_FILL = '#5d6afe';
  * the statuses, the shapes, and that the routes are wired to that store at all.
  *
  * Two accounts, registered through `/api/auth/register` so a token names an
- * identity `userFromHeaders` really resolves: `owner` owns the project and
+ * identity `userFromHeaders` really resolves: `owner` owns the work package and
  * `mallory` is the third party the permission case needs.
  */
 describe('the calendar-marker routes', () => {
@@ -130,7 +140,7 @@ describe('the calendar-marker routes', () => {
   let app: ReturnType<typeof buildApp>;
   let db: Drizzle;
   let tokens: Record<string, string>;
-  let projectId: string;
+  let workPackageId: string;
   let auth: AuthService;
 
   /**
@@ -164,6 +174,7 @@ describe('the calendar-marker routes', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-calendar-marker-http-'));
     dbPath = join(dir, 'test.db');
     runMigrations(dbPath, FOLDER);
+    seedLegacyProject(dbPath, 'http-fixture-legacy', PROJECT_ID);
     const broadcast = recordingBroadcaster();
     statements.length = 0;
     db = openDrizzle(dbPath, {
@@ -171,7 +182,7 @@ describe('the calendar-marker routes', () => {
         statements.push(query);
       },
     });
-    const projects = new ProjectRepository(db, OPEN);
+    const workPackages = new WorkPackageRepository(db, OPEN);
 
     auth = new AuthService({
       clock: testClock,
@@ -179,14 +190,22 @@ describe('the calendar-marker routes', () => {
       tokens: joseTokenCodec(TEST_JWT_KEY),
       passwords: bunPasswordHasher,
     });
-    const projectService = new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projects),
+    const workPackageService = new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       broadcast,
     });
     app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: new SqliteWorkPackageObservation({
+        currentCapture: refusingSavedCurrentCapture,
+        openConnection: () => openPackageObservationConnection(dbPath),
+        activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+        now: () => testClock.now(),
+      }),
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -196,27 +215,27 @@ describe('the calendar-marker routes', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
       auth,
-      projects: projectService,
+      workPackages: workPackageService,
       // A clock held still, because `createdAt` is an ordering key here rather
       // than a stamp: every marker this file creates ties on `(date,
       // createdAt)`, which is the only state in which the third key decides
       // anything at all.
       stepParallels: testStepParallels(),
       calendarMarkers: new CalendarMarkerService({
-        projects,
+        workPackages,
         markers: new CalendarMarkerRepository(db, OPEN),
         clock: clockOf({ now: () => FIXED_NOW, newId: () => MINTED }),
       }),
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
-      workItems: testWorkItemService(),
+      workItems: testWorkItemService(openTestSource()),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -225,9 +244,9 @@ describe('the calendar-marker routes', () => {
       admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      // The same project service the routes use: a project PATCH runs through
-      // the batch graph, and a double there has never seen these projects.
-      writes: testWrites(broadcast, { projects: projectService }),
+      // The same work package service the routes use: a work package PATCH runs through
+      // the batch graph, and a double there has never seen these work packages.
+      writes: testWrites(broadcast, { workPackages: workPackageService,workItems:testWorkItemService(openTestSource()) }),
       migrationsApplied: true,
     });
 
@@ -243,13 +262,13 @@ describe('the calendar-marker routes', () => {
       tokens[username] = ((await res.json()) as { token: string }).token;
     }
 
-    // Created through the route, so the project's `ownerId` is the account the
+    // Created through the route, so the work package's `ownerId` is the account the
     // token names rather than an id this file invented.
-    const created = await as(tokens['owner'], '/api/projects', {
+    const created = await as(tokens['owner'], '/api/work-packages', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Rewire the shed' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the shed' }),
     });
-    projectId = ((await created.json()) as { project: { id: string } }).project.id;
+    workPackageId = ((await created.json()) as { workPackage: { id: string } }).workPackage.id;
   });
 
   afterEach(() => {
@@ -257,47 +276,49 @@ describe('the calendar-marker routes', () => {
   });
 
   /**
-   * The four verbs, addressed at **a named project** rather than at the one
+   * The four verbs, addressed at **a named work package** rather than at the one
    * `beforeEach` seeded.
    *
-   * Task 4.6 is the reason they take the project: every case before it drives
-   * one project, and an isolation test written against a single seeded project
-   * passes with no `project_id` predicate at all. The single-project helpers
-   * below are these with `projectId` bound, so both projects reach the routes
+   * Task 4.6 is the reason they take the work package: every case before it drives
+   * one work package, and an isolation test written against a single seeded work package
+   * passes with no `work_package_id` predicate at all. The single-work-package helpers
+   * below are these with `workPackageId` bound, so both work packages reach the routes
    * through one path and a case cannot accidentally prove that two spellings of
    * a request agree.
    */
-  const createIn = (project: string, who: string, body: Record<string, unknown>) =>
-    as(tokens[who], `/api/projects/${project}/calendar-markers`, {
+  const createIn = (workPackage: string, who: string, body: Record<string, unknown>) =>
+    as(tokens[who], `/api/work-packages/${workPackage}/calendar-markers`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
 
-  const patchIn = (project: string, who: string, id: string, body: Record<string, unknown>) =>
-    as(tokens[who], `/api/projects/${project}/calendar-markers/${id}`, {
+  const patchIn = (workPackage: string, who: string, id: string, body: Record<string, unknown>) =>
+    as(tokens[who], `/api/work-packages/${workPackage}/calendar-markers/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
 
-  const removeIn = (project: string, who: string, id: string) =>
-    as(tokens[who], `/api/projects/${project}/calendar-markers/${id}`, { method: 'DELETE' });
+  const removeIn = (workPackage: string, who: string, id: string) =>
+    as(tokens[who], `/api/work-packages/${workPackage}/calendar-markers/${id}`, {
+      method: 'DELETE',
+    });
 
-  const listIn = async (project: string, who: string) => {
-    const res = await as(tokens[who], `/api/projects/${project}/calendar-markers`);
+  const listIn = async (workPackage: string, who: string) => {
+    const res = await as(tokens[who], `/api/work-packages/${workPackage}/calendar-markers`);
     expect(res.status).toBe(200);
     return ((await res.json()) as { markers: { id: string; name: string; color: string | null }[] })
       .markers;
   };
 
-  const create = (who: string, body: Record<string, unknown>) => createIn(projectId, who, body);
+  const create = (who: string, body: Record<string, unknown>) => createIn(workPackageId, who, body);
 
   const patch = (who: string, id: string, body: Record<string, unknown>) =>
-    patchIn(projectId, who, id, body);
+    patchIn(workPackageId, who, id, body);
 
-  const list = (who: string) => listIn(projectId, who);
+  const list = (who: string) => listIn(workPackageId, who);
 
   it('requires cookie origin and write scope before accepting marker writes', async () => {
-    const path = `/api/projects/${projectId}/calendar-markers`;
+    const path = `/api/work-packages/${workPackageId}/calendar-markers`;
     const body = JSON.stringify({ markerId: MINTED, date: '2026-09-01', name: 'Guarded' });
     const refused = await app.handle(
       new Request(`http://localhost${path}`, {
@@ -330,7 +351,7 @@ describe('the calendar-marker routes', () => {
   });
 
   it('preserves marker form media and refuses duplicate writable fields', async () => {
-    const path = `/api/projects/${projectId}/calendar-markers`;
+    const path = `/api/work-packages/${workPackageId}/calendar-markers`;
     for (const multipart of [false, true]) {
       const encode = (fields: readonly (readonly [string, string])[]) => {
         const body = multipart ? new FormData() : new URLSearchParams();
@@ -364,12 +385,12 @@ describe('the calendar-marker routes', () => {
       expect(duplicate.status).toBe(422);
       expect(await duplicate.json()).toEqual({ error: 'malformed', field: 'name' });
       expect(await list('owner')).toMatchObject([{ name: 'Renamed' }]);
-      expect((await removeIn(projectId, 'owner', MINTED)).status).toBe(204);
+      expect((await removeIn(workPackageId, 'owner', MINTED)).status).toBe(204);
     }
   });
 
   it('rejects undeclared marker inputs without changing a stored marker', async () => {
-    const path = `/api/projects/${projectId}/calendar-markers`;
+    const path = `/api/work-packages/${workPackageId}/calendar-markers`;
     const created = await as(tokens['owner'], path, {
       method: 'POST',
       body: JSON.stringify({ markerId: MINTED, date: '2026-09-01', name: 'Before' }),
@@ -421,7 +442,7 @@ describe('the calendar-marker routes', () => {
     expect(made.status).toBe(201);
     expect(((await made.json()) as { marker: unknown }).marker).toEqual({
       id: 'a1000000-0000-4000-8000-000000000001',
-      projectId,
+      workPackageId,
       date: '2026-09-14',
       name: 'Site visit',
       // Absent in the body, and **resolved** in the answer: `null` is what
@@ -453,7 +474,7 @@ describe('the calendar-marker routes', () => {
 
     const removed = await as(
       tokens['owner'],
-      `/api/projects/${projectId}/calendar-markers/a1000000-0000-4000-8000-000000000001`,
+      `/api/work-packages/${workPackageId}/calendar-markers/a1000000-0000-4000-8000-000000000001`,
       { method: 'DELETE' },
     );
     expect(removed.status).toBe(204);
@@ -488,7 +509,7 @@ describe('the calendar-marker routes', () => {
     expect(((await renamed.json()) as { marker: { color: string } }).marker.color).toBe(fill);
 
     // The column itself, which no response can show.
-    expect(await new CalendarMarkerRepository(db, OPEN).listFor(projectId)).toMatchObject([
+    expect(await new CalendarMarkerRepository(db, OPEN).listFor(workPackageId)).toMatchObject([
       { color: null },
     ]);
   });
@@ -497,7 +518,7 @@ describe('the calendar-marker routes', () => {
    * TASK-279 AC #7: a refusal names a field only when that field was on the
    * request.
    *
-   * Both collection routes refuse an unknown project with `not_found`, and
+   * Both collection routes refuse an unknown work package with `not_found`, and
    * neither request carries a marker id — the `GET` cannot, and this `POST`
    * does not. `refusalBody` used to answer `field: 'markerId'` for every
    * non-`forbidden` refusal, so both bodies blamed a value that was never sent.
@@ -512,10 +533,10 @@ describe('the calendar-marker routes', () => {
    * first: `blames` then defaults to `undefined`, which is what this case
    * expects, so it stays green and the create's `taken` case fails instead.
    */
-  it('refuses an unknown project on the collection routes without blaming markerId', async () => {
+  it('refuses an unknown work package on the collection routes without blaming markerId', async () => {
     const absent = 'e0000000-0000-4000-8000-0000000000ab';
 
-    const listed = await as(tokens['owner'], `/api/projects/${absent}/calendar-markers`);
+    const listed = await as(tokens['owner'], `/api/work-packages/${absent}/calendar-markers`);
     expect(listed.status).toBe(404);
     expect(await listed.json()).toEqual({ error: 'not_found' });
 
@@ -528,9 +549,9 @@ describe('the calendar-marker routes', () => {
    * TASK-279 AC #7, the other half: the **marker-addressed** routes.
    *
    * `PATCH` and `DELETE` do carry a marker id, so the fix above left them
-   * blaming it unconditionally — including for an **absent project**, where the
+   * blaming it unconditionally — including for an **absent work package**, where the
    * id on the path is real, well-formed and entirely innocent. Both refusals
-   * are the same `not_found`: the service merges "no such project" and "no such
+   * are the same `not_found`: the service merges "no such work package" and "no such
    * marker" into one reason on purpose, so the route cannot tell them apart
    * from the reason and now reads `CalendarMarkerRefused.about` instead.
    *
@@ -547,33 +568,33 @@ describe('the calendar-marker routes', () => {
    * That second failure is worth stating, because it is what makes an earlier
    * line of this fix falsifiable. `refusalBody` used to carry an explicit
    * `reason !== 'forbidden'` arm; it was struck as unfalsifiable, since
-   * `forbidden` is minted only by `gate()`, which tags it `about: 'project'`.
+   * `forbidden` is minted only by `gate()`, which tags it `about: 'workPackage'`.
    * The negative confirms the subsumption rather than assuming it: with
    * `about` ignored, `forbidden` starts carrying `field: 'markerId'` and the
    * read-only case fails. The arm was redundant with `about`, not with
    * nothing.
    */
-  it('blames markerId for an absent marker but not for an absent project', async () => {
-    const absentProject = 'e0000000-0000-4000-8000-0000000000ac';
+  it('blames markerId for an absent marker but not for an absent work package', async () => {
+    const absentWorkPackage = 'e0000000-0000-4000-8000-0000000000ac';
     const absentMarker = 'f9000000-0000-4000-8000-00000000000e';
 
-    const patchedElsewhere = await patchIn(absentProject, 'owner', absentMarker, {
+    const patchedElsewhere = await patchIn(absentWorkPackage, 'owner', absentMarker, {
       name: 'Nothing to rename',
     });
     expect(patchedElsewhere.status).toBe(404);
     expect(await patchedElsewhere.json()).toEqual({ error: 'not_found' });
 
-    const removedElsewhere = await removeIn(absentProject, 'owner', absentMarker);
+    const removedElsewhere = await removeIn(absentWorkPackage, 'owner', absentMarker);
     expect(removedElsewhere.status).toBe(404);
     expect(await removedElsewhere.json()).toEqual({ error: 'not_found' });
 
     // Same reason, same status, same routes — and here the field is the truth,
-    // because the project resolved and the marker is what was missing.
+    // because the work package resolved and the marker is what was missing.
     const patched = await patch('owner', absentMarker, { name: 'Nothing to rename' });
     expect(patched.status).toBe(404);
     expect(await patched.json()).toEqual({ error: 'not_found', field: 'markerId' });
 
-    const removed = await removeIn(projectId, 'owner', absentMarker);
+    const removed = await removeIn(workPackageId, 'owner', absentMarker);
     expect(removed.status).toBe(404);
     expect(await removed.json()).toEqual({ error: 'not_found', field: 'markerId' });
   });
@@ -607,7 +628,7 @@ describe('the calendar-marker routes', () => {
   });
 
   /**
-   * A date outside every horizon the project could draw is **stored and
+   * A date outside every horizon the work package could draw is **stored and
    * returned**, because a marker's date is absolute (ADR 0017).
    *
    * "Stored, not drawn" is the rule an undated plan gets, and this is the same
@@ -628,16 +649,16 @@ describe('the calendar-marker routes', () => {
    * Task 7.4, and it is **two** cases because the second is what stops the
    * first from being read as the wrong rule.
    *
-   * The guard is 4.3's `IsoDate` validator, **not** a check on the project's
+   * The guard is 4.3's `IsoDate` validator, **not** a check on the work package's
    * start date. A workday number is not an `IsoDate`, so 4.3 already refuses
    * it; a `startDate === null` check would refuse something else entirely and
    * wrongly, because a marker's date is absolute (ADR 0017) and is therefore
-   * storable on a project with no start date. Such a marker simply has no axis
+   * storable on a work package with no start date. Such a marker simply has no axis
    * to draw on until one exists — the same "stored, not drawn" rule the
    * out-of-horizon case above gets.
    *
-   * The project `beforeEach` seeds is created with a name and nothing else, so
-   * it is already the undated project this task needs; both cases read that
+   * The work package `beforeEach` seeds is created with a name and nothing else, so
+   * it is already the undated work package this task needs; both cases read that
    * back rather than assuming it, because the day a seeded start date appears
    * these two would silently stop testing what they name.
    *
@@ -651,14 +672,14 @@ describe('the calendar-marker routes', () => {
    * Negative: `isIsoDate(body.date)` removed from the create path in
    * `createProblem`, watched storing `7`. Recorded in `verify.md`.
    */
-  const undatedProject = async () => {
-    const res = await as(tokens['owner'], `/api/projects/${projectId}`);
+  const undatedWorkPackage = async () => {
+    const res = await as(tokens['owner'], `/api/work-packages/${workPackageId}`);
     expect(res.status).toBe(200);
-    return (await res.json()) as { project: { startDate: string | null } };
+    return (await res.json()) as { workPackage: { startDate: string | null } };
   };
 
-  it('refuses a workday number as a date on an undated project, and writes nothing', async () => {
-    expect((await undatedProject()).project.startDate).toBeNull();
+  it('refuses a workday number as a date on an undated work package, and writes nothing', async () => {
+    expect((await undatedWorkPackage()).workPackage.startDate).toBeNull();
 
     const refused = await create('owner', {
       markerId: 'f1000000-0000-4000-8000-000000000007',
@@ -671,8 +692,8 @@ describe('the calendar-marker routes', () => {
     expect(await list('owner')).toEqual([]);
   });
 
-  it('stores an absolute date on that same undated project, and lists it back', async () => {
-    expect((await undatedProject()).project.startDate).toBeNull();
+  it('stores an absolute date on that same undated work package, and lists it back', async () => {
+    expect((await undatedWorkPackage()).workPackage.startDate).toBeNull();
 
     const made = await create('owner', {
       markerId: 'f1000000-0000-4000-8000-000000000008',
@@ -684,9 +705,9 @@ describe('the calendar-marker routes', () => {
     expect(await list('owner')).toMatchObject([{ date: '2026-08-19', name: 'Cutover' }]);
   });
 
-  /** Closes the project to everyone but its owner, through the route that owns that column. */
+  /** Closes the work package to everyone but its owner, through the route that owns that column. */
   const restrict = async () => {
-    const res = await as(tokens['owner'], `/api/projects/${projectId}`, {
+    const res = await as(tokens['owner'], `/api/work-packages/${workPackageId}`, {
       method: 'PATCH',
       body: JSON.stringify({ restricted: true }),
     });
@@ -705,7 +726,7 @@ describe('the calendar-marker routes', () => {
    * the server through **one** `PATCH` but take body-specific branches inside
    * it, and the delete is a separate route with a separate handler.
    *
-   * `mallory` is read-only in the only sense this API has one: the project is
+   * `mallory` is read-only in the only sense this API has one: the work package is
    * restricted and she does not own it, so `canEdit` is false for her and true
    * for `owner`.
    *
@@ -743,13 +764,13 @@ describe('the calendar-marker routes', () => {
 
     const removed = await as(
       tokens['mallory'],
-      `/api/projects/${projectId}/calendar-markers/${SEEDED}`,
+      `/api/work-packages/${workPackageId}/calendar-markers/${SEEDED}`,
       { method: 'DELETE' },
     );
     expect(removed.status).toBe(403);
 
     // Read back through the owner, because `mallory` may still *read* a
-    // restricted project — the assertion is about the rows, not about her.
+    // restricted work package — the assertion is about the rows, not about her.
     expect(await list('owner')).toEqual(before);
   });
 
@@ -1066,9 +1087,9 @@ describe('the calendar-marker routes', () => {
   /**
    * Task 4.5: the `not_found` row — 404, and it blames the `id`.
    *
-   * A marker id that resolves to nothing this project owns. The row covers "the
-   * marker is absent, or another project's" and answers the same code for both,
-   * because the caller may not learn that another project's marker exists;
+   * A marker id that resolves to nothing this work package owns. The row covers "the
+   * marker is absent, or another work package's" and answers the same code for both,
+   * because the caller may not learn that another work package's marker exists;
    * task 4.6 is where the second half of that sentence is driven.
    */
   it('refuses a rename of an absent marker with not_found, naming the field', async () => {
@@ -1085,18 +1106,18 @@ describe('the calendar-marker routes', () => {
     expect(await list('owner')).toEqual(before);
   });
 
-  /** Task 4.6's second project, owned by the same account so the cases are about scope and not permission. */
-  const secondProject = async (): Promise<string> => {
-    const made = await as(tokens['owner'], '/api/projects', {
+  /** Task 4.6's second work package, owned by the same account so the cases are about scope and not permission. */
+  const secondWorkPackage = async (): Promise<string> => {
+    const made = await as(tokens['owner'], '/api/work-packages', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Rewire the other shed' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the other shed' }),
     });
-    // 200, not 201: `POST /api/projects` answers with the project rather than
-    // with a Created. Asserted anyway, because a `secondProject` that silently
+    // 200, not 201: `POST /api/work-packages` answers with the work package rather than
+    // with a Created. Asserted anyway, because a `secondWorkPackage` that silently
     // refused would hand every case below an `undefined` id and the isolation
     // they assert would be two requests missing the same way.
     expect(made.status).toBe(200);
-    return ((await made.json()) as { project: { id: string } }).project.id;
+    return ((await made.json()) as { workPackage: { id: string } }).workPackage.id;
   };
 
   /** A's marker and B's, one apiece — the pair every isolation case below is written over. */
@@ -1104,18 +1125,18 @@ describe('the calendar-marker routes', () => {
   const THEIRS = 'b2000000-0000-4000-8000-00000000000b';
 
   /**
-   * Two projects, one marker each, both created through the routes.
+   * Two work packages, one marker each, both created through the routes.
    *
-   * `mallory` never appears: both projects are the owner's, so a case that
+   * `mallory` never appears: both work packages are the owner's, so a case that
    * refuses is refusing on **scope** and not on permission. Task 4.2 already
-   * owns the permission half, and a fixture where the second project belonged
+   * owns the permission half, and a fixture where the second work package belonged
    * to someone else would let a `canEdit` check answer every case here with the
-   * `project_id` predicate gone.
+   * `work_package_id` predicate gone.
    */
-  const twoProjects = async (): Promise<string> => {
-    const other = await secondProject();
+  const twoWorkPackages = async (): Promise<string> => {
+    const other = await secondWorkPackage();
     expect(
-      (await createIn(projectId, 'owner', { markerId: MINE, date: '2026-09-14', name: 'Mine' }))
+      (await createIn(workPackageId, 'owner', { markerId: MINE, date: '2026-09-14', name: 'Mine' }))
         .status,
     ).toBe(201);
     expect(
@@ -1126,32 +1147,32 @@ describe('the calendar-marker routes', () => {
   };
 
   /**
-   * Task 4.6: a project's list holds none of another project's markers, and a
+   * Task 4.6: a work package's list holds none of another work package's markers, and a
    * rename that names one is refused with both rows left alone.
    *
    * The `not_found` code is the same one an absent marker gets, and that is the
    * contract rather than an approximation: the caller may not learn that
-   * another project's marker exists.
+   * another work package's marker exists.
    *
-   * Negative: `eq(calendarMarker.projectId, projectId)` struck from
+   * Negative: `eq(calendarMarker.workPackageId, workPackageId)` struck from
    * `CalendarMarkerRepository.listFor`'s `where`. Watched at 21 pass / 2 fail —
    * this case and the delete case below, both on a list read answering **both**
-   * markers (`Mine` came back from the other project's list) — while the rename
+   * markers (`Mine` came back from the other work package's list) — while the rename
    * refusal itself still answered 404, because that path is scoped by `touch`'s
    * own predicate and not by the list's. That split is the point: the two
    * halves of "isolated" are two predicates. Watched 2026-09-05.
    */
-  it('lists only its own markers, and refuses a rename naming another project’s', async () => {
-    const other = await twoProjects();
+  it('lists only its own markers, and refuses a rename naming another work package’s', async () => {
+    const other = await twoWorkPackages();
 
-    expect((await listIn(projectId, 'owner')).map((marker) => marker.id)).toEqual([MINE]);
+    expect((await listIn(workPackageId, 'owner')).map((marker) => marker.id)).toEqual([MINE]);
     expect((await listIn(other, 'owner')).map((marker) => marker.id)).toEqual([THEIRS]);
 
-    const refused = await patchIn(projectId, 'owner', THEIRS, { name: 'Not mine to rename' });
+    const refused = await patchIn(workPackageId, 'owner', THEIRS, { name: 'Not mine to rename' });
     expect(refused.status).toBe(404);
     expect(await refused.json()).toEqual({ error: 'not_found', field: 'markerId' });
 
-    expect(await listIn(projectId, 'owner')).toMatchObject([{ id: MINE, name: 'Mine' }]);
+    expect(await listIn(workPackageId, 'owner')).toMatchObject([{ id: MINE, name: 'Mine' }]);
     expect(await listIn(other, 'owner')).toMatchObject([{ id: THEIRS, name: 'Theirs' }]);
   });
 
@@ -1162,15 +1183,15 @@ describe('the calendar-marker routes', () => {
    * Rename and recolour arrive as two bodies through one `PATCH`, so scoping
    * that handler scopes both — the delete is a separate route with a predicate
    * of its own that nothing above names. A delete matched on marker id alone
-   * removes project B's row through project A's route while every case above
+   * removes work package B's row through work package A's route while every case above
    * passes.
    *
    * Negative, and it is the delete path's own: **the delete path scoped by
-   * marker id alone** — the `projectId` term struck from *both* of
+   * marker id alone** — the `workPackageId` term struck from *both* of
    * `CalendarMarkerRepository.remove`'s statements, its `one(...)` guard read
    * and the `tx.delete(...)` beneath it. Watched at 22 pass / 1 fail, exactly
-   * this case, with the cross-project delete answering 204 and `THEIRS` gone
-   * from the other project's list — while the rename case above, the round trip
+   * this case, with the cross-work-package delete answering 204 and `THEIRS` gone
+   * from the other work package's list — while the rename case above, the round trip
    * and the permission case stayed green. The list-predicate negative cannot
    * reach this fault: the delete never runs through the list query.
    *
@@ -1183,15 +1204,15 @@ describe('the calendar-marker routes', () => {
    * test here asserts it, and `tasks.md` 4.6 records why.
    * Both watched 2026-09-05.
    */
-  it('refuses a delete naming another project’s marker, and leaves that row standing', async () => {
-    const other = await twoProjects();
+  it('refuses a delete naming another work package’s marker, and leaves that row standing', async () => {
+    const other = await twoWorkPackages();
 
-    const refused = await removeIn(projectId, 'owner', THEIRS);
+    const refused = await removeIn(workPackageId, 'owner', THEIRS);
     expect(refused.status).toBe(404);
     expect(await refused.json()).toEqual({ error: 'not_found', field: 'markerId' });
 
     expect(await listIn(other, 'owner')).toMatchObject([{ id: THEIRS, name: 'Theirs' }]);
-    expect(await listIn(projectId, 'owner')).toMatchObject([{ id: MINE, name: 'Mine' }]);
+    expect(await listIn(workPackageId, 'owner')).toMatchObject([{ id: MINE, name: 'Mine' }]);
   });
 
   /**
@@ -1225,7 +1246,7 @@ describe('the calendar-marker routes', () => {
    * unchanged, which is the visible half. The **statements** name no
    * `work_item`, which is the half that catches a read: a read changes no row,
    * so the first assertion alone passes over a marker list that also selected
-   * every work item of the project and threw the answer away — and that read is
+   * every work item of the work package and threw the answer away — and that read is
    * a coupling, one migration away from being a dependency.
    *
    * `calendar_marker` is asserted to be *present* in the same log before
@@ -1256,12 +1277,14 @@ describe('the calendar-marker routes', () => {
   // Proof: querying work_item by marker.id in repository create produced a logged
   // SELECT where this mounted test requires an empty work_item statement list.
   it('creates, renames, recolours and deletes without naming the work_item table', async () => {
-    const owner = await new ProjectRepository(db, OPEN).findById(projectId);
+    const owner = await new WorkPackageRepository(db, OPEN).findById(workPackageId);
     expect(owner).not.toBeNull();
-    const wrote: WriteStamp = { at: FIXED_NOW, by: owner?.ownerId ?? '' };
+    const actor = await auth.authenticate(tokens['owner']);
+    if (actor === null) throw Error('fixture actor is absent');
+    const wrote: WriteStamp = { at: FIXED_NOW, by: actor.id };
     const seeded: WorkItem = {
       id: 'aaaaaaaa-0000-4000-8000-00000000aaaa',
-      projectId,
+      workPackageId,
       parentId: null,
       position: 10,
       name: 'Strip the old wiring',
@@ -1285,7 +1308,7 @@ describe('the calendar-marker routes', () => {
     expect(before).toHaveLength(1);
 
     // Cleared here rather than trusted from `beforeEach`: the seed above, the
-    // registrations and the project create are all on this connection, and the
+    // registrations and the work package create are all on this connection, and the
     // assertion is about what the **marker routes** issued.
     statements.length = 0;
 
@@ -1295,7 +1318,7 @@ describe('the calendar-marker routes', () => {
     expect(await list('owner')).toHaveLength(1);
     expect((await patch('owner', MINE, { name: 'Site visit, rescheduled' })).status).toBe(200);
     expect((await patch('owner', MINE, { color: CUSTOM_FILL })).status).toBe(200);
-    expect((await removeIn(projectId, 'owner', MINE)).status).toBe(204);
+    expect((await removeIn(workPackageId, 'owner', MINE)).status).toBe(204);
 
     expect(statements.some((query) => query.includes('calendar_marker'))).toBe(true);
     expect(statements.filter((query) => query.includes('work_item'))).toEqual([]);

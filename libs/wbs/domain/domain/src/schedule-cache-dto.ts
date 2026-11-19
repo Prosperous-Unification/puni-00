@@ -18,7 +18,7 @@ import { type Schedule, type Scheduled, type ScheduledSlice, sliceKey } from './
  * before this release, where the contract now promises `number | null`. The
  * rows are recomputed instead, which is what the fence is for.
  *
- * **3 since 2026-09-29** (`share-people-across-projects` slice 4), because a
+ * **3 since 2026-09-29** (`share-people-across-work-packages` slice 4), because a
  * stored schedule may now hold the `elsewhere` floor, a slice's
  * `elsewhereHolder` and the schedule's `waitingElsewhere`. A version-2 reader
  * cast the first into a floor it has no words for, so the fence moves and those
@@ -29,8 +29,12 @@ import { type Schedule, type Scheduled, type ScheduledSlice, sliceKey } from './
  * carries {@link ScheduledSlice.capacityResource} and a null `capacityTeamId`.
  * A version-3 reader cast that into a capacity wait naming no team, so the
  * fence moves and those rows are recomputed.
+ * **5 for the work-package rename**, because elsewhereHolder now carries
+ * workPackageId. Historical saved-body upgrades are separate from cache decoding.
+ * Proof: outgoing version4 failed 'writes renamed schedule cache DTO5' and
+ * 'refuses outgoing schedule cache DTO4' before this fence moved.
  */
-export const CACHE_DTO_VERSION = 4;
+export const CACHE_DTO_VERSION = 5;
 
 /**
  * One `Map` entry, as JSON can carry it.

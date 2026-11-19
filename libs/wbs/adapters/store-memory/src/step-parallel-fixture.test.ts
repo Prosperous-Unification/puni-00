@@ -15,23 +15,23 @@ beforeEach(async () => {
   table = memoryStepParallelTable();
   parallel = inMemoryStepParallels(stores.workItems, stores.steps, table);
   await stores.steps.add(
-    { id: 'dev', projectId: 'p', name: 'Dev', allowancePercent: 0, estimateUnit: 'workdays' },
+    { id: 'dev', workPackageId: 'p', name: 'Dev', allowancePercent: 0, estimateUnit: 'workdays' },
     stamp,
   );
   await stores.steps.add(
     {
       id: 'foreign',
-      projectId: 'foreign',
+      workPackageId: 'foreign',
       name: 'Foreign',
       allowancePercent: 0,
       estimateUnit: 'workdays',
     },
     stamp,
   );
-  await stores.workItems.insert(workItemRow({ id: 'a', projectId: 'p' }), [], stamp);
-  await stores.workItems.insert(workItemRow({ id: 'parent', projectId: 'p' }), [], stamp);
+  await stores.workItems.insert(workItemRow({ id: 'a', workPackageId: 'p' }), [], stamp);
+  await stores.workItems.insert(workItemRow({ id: 'parent', workPackageId: 'p' }), [], stamp);
   await stores.workItems.insert(
-    workItemRow({ id: 'child', projectId: 'p', parentId: 'parent' }),
+    workItemRow({ id: 'child', workPackageId: 'p', parentId: 'parent' }),
     [],
     stamp,
   );
@@ -40,7 +40,7 @@ describe('memory parallelism corruption boundary', () => {
   for (const [name, workItemId, stepId, maxParallel] of [
     ['owner', 'absent', 'dev', 2],
     ['step', 'a', 'absent', 2],
-    ['project', 'a', 'foreign', 2],
+    ['workPackage', 'a', 'foreign', 2],
     ['leaf', 'parent', 'dev', 2],
     ['range', 'a', 'dev', 1001],
   ] as const)
@@ -49,11 +49,11 @@ describe('memory parallelism corruption boundary', () => {
       const messages = {
         owner: 'invalid work-item reference',
         step: 'invalid step reference',
-        project: 'project mismatch',
+        workPackage: 'work package mismatch',
         leaf: 'not a leaf',
         range: 'integer from 1 to 1000',
       };
-      await assertStepParallelRefusal(parallel.listByProject('p'), messages[name]);
+      await assertStepParallelRefusal(parallel.listByWorkPackage('p'), messages[name]);
       await assertStepParallelRefusal(parallel.listByWorkItems('p', [workItemId]), messages[name]);
     });
   it('write refuses a missing owner with a trusted-reference error', async () => {
@@ -67,16 +67,16 @@ describe('memory parallelism corruption boundary', () => {
       { workItemId: 'a', stepId: 'dev', maxParallel: 2 },
       { workItemId: 'a', stepId: 'dev', maxParallel: 3 },
     );
-    await assertStepParallelRefusal(parallel.listByProject('p'), /duplicate/);
+    await assertStepParallelRefusal(parallel.listByWorkPackage('p'), /duplicate/);
   });
   it('reads and writes detached values', async () => {
     const authored = { workItemId: 'a', stepId: 'dev', maxParallel: 2 };
     await parallel.set(authored, stamp);
     authored.maxParallel = 4;
-    const read = await parallel.listByProject('p');
+    const read = await parallel.listByWorkPackage('p');
     expect(read).toEqual([{ workItemId: 'a', stepId: 'dev', maxParallel: 2 }]);
     read[0].maxParallel = 9;
-    expect(await parallel.listByProject('p')).toEqual([
+    expect(await parallel.listByWorkPackage('p')).toEqual([
       { workItemId: 'a', stepId: 'dev', maxParallel: 2 },
     ]);
   });
@@ -84,7 +84,11 @@ describe('memory parallelism corruption boundary', () => {
 
 for (const cascade of [false, true])
   it(`refuses removing a memory step with retained parallelism (cascade=${String(cascade)})`, async () => {
-    await stores.workItems.insert(workItemRow({ id: 'other', projectId: 'foreign' }), [], stamp);
+    await stores.workItems.insert(
+      workItemRow({ id: 'other', workPackageId: 'foreign' }),
+      [],
+      stamp,
+    );
     await stores.stepParallels.set(
       { workItemId: 'other', stepId: 'foreign', maxParallel: 3 },
       stamp,
@@ -96,7 +100,7 @@ for (const cascade of [false, true])
       nodes: [{ workItemId: 'a', stepId: 'dev' }],
     });
     expect(await stores.steps.findById('dev')).not.toBeNull();
-    expect(await stores.stepParallels.listByProject('p')).toEqual([
+    expect(await stores.stepParallels.listByWorkPackage('p')).toEqual([
       { workItemId: 'a', stepId: 'dev', maxParallel: 1 },
     ]);
     expect(await stores.steps.remove('foreign', 'dev', cascade, stamp)).toEqual({
@@ -105,20 +109,20 @@ for (const cascade of [false, true])
     });
     await stores.stepParallels.remove('a', 'dev', stamp);
     expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toMatchObject({ ok: true });
-    expect(await stores.stepParallels.listByProject('foreign')).toEqual([
+    expect(await stores.stepParallels.listByWorkPackage('foreign')).toEqual([
       { workItemId: 'other', stepId: 'foreign', maxParallel: 3 },
     ]);
   });
 
 it('returns sorted detached memory references for the exact target', async () => {
-  await stores.workItems.insert(workItemRow({ id: 'a:b', projectId: 'p' }), [], stamp);
+  await stores.workItems.insert(workItemRow({ id: 'a:b', workPackageId: 'p' }), [], stamp);
   const facts = memoryStepParallelTable();
   facts.rows.push(
     { workItemId: 'a:b', stepId: 'dev', maxParallel: 1 },
     { workItemId: 'a', stepId: 'dev', maxParallel: 1 },
     { workItemId: 'a', stepId: 'foreign', maxParallel: 1 },
   );
-  const steps = inMemorySteps([stepRow({ id: 'dev', projectId: 'p' })], undefined, undefined, {
+  const steps = inMemorySteps([stepRow({ id: 'dev', workPackageId: 'p' })], undefined, undefined, {
     table: facts,
     workItems: stores.workItems,
   });
@@ -142,19 +146,28 @@ it('returns sorted detached memory references for the exact target', async () =>
 
 for (const [name, workItemId, maxParallel, message] of [
   ['owner', 'absent', 2, 'invalid work-item reference'],
-  ['project', 'other', 2, 'project mismatch'],
+  ['work_package', 'other', 2, 'work package mismatch'],
   ['leaf', 'parent', 2, 'not a leaf'],
   ['range', 'a', 1001, 'integer from 1 to 1000'],
   ['duplicate', 'a', 2, 'duplicate'],
 ] as const)
   it(`removal throws on corrupt retained memory ${name}`, async () => {
-    await stores.workItems.insert(workItemRow({ id: 'other', projectId: 'foreign' }), [], stamp);
+    await stores.workItems.insert(
+      workItemRow({ id: 'other', workPackageId: 'foreign' }),
+      [],
+      stamp,
+    );
     table.rows.push({ workItemId, stepId: 'dev', maxParallel });
     if (name === 'duplicate') table.rows.push({ workItemId, stepId: 'dev', maxParallel });
-    const steps = inMemorySteps([stepRow({ id: 'dev', projectId: 'p' })], undefined, undefined, {
-      table,
-      workItems: stores.workItems,
-    });
+    const steps = inMemorySteps(
+      [stepRow({ id: 'dev', workPackageId: 'p' })],
+      undefined,
+      undefined,
+      {
+        table,
+        workItems: stores.workItems,
+      },
+    );
     await assertStepParallelRefusal(steps.remove('p', 'dev', true, stamp), message);
     expect(await steps.findById('dev')).not.toBeNull();
     expect(table.rows).toHaveLength(name === 'duplicate' ? 2 : 1);
@@ -173,20 +186,20 @@ for (const sameStep of [false, true])
     let reads = 0;
     const workItems = {
       ...stores.workItems,
-      async listByProject(projectId: string) {
+      async listByWorkPackage(workPackageId: string) {
         reads++;
         if (reads === 2) {
           if (arrive === undefined) throw new Error('missing arrival signal');
           arrive();
         }
         await waiting;
-        return stores.workItems.listByProject(projectId);
+        return stores.workItems.listByWorkPackage(workPackageId);
       },
     };
     const steps = inMemorySteps(
       [
-        stepRow({ id: 'a', projectId: 'p', name: 'A' }),
-        stepRow({ id: 'b', projectId: 'p', name: 'B' }),
+        stepRow({ id: 'a', workPackageId: 'p', name: 'A' }),
+        stepRow({ id: 'b', workPackageId: 'p', name: 'B' }),
       ],
       undefined,
       undefined,
@@ -201,5 +214,7 @@ for (const sameStep of [false, true])
     expect(await second).toMatchObject(
       sameStep ? { ok: false, reason: 'not_found' } : { ok: true },
     );
-    expect((await steps.listByProject('p')).map((step) => step.id)).toEqual(sameStep ? ['b'] : []);
+    expect((await steps.listByWorkPackage('p')).map((step) => step.id)).toEqual(
+      sameStep ? ['b'] : [],
+    );
   });

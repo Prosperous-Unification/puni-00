@@ -22,7 +22,7 @@ const steps = [
 ];
 
 test('reads only leaf nodes in step order, with effective numbers and null for uncoded steps', async () => {
-  const addresses = await readStepAddresses('project', { workItems, steps }, digest);
+  const addresses = await readStepAddresses('work_package', { workItems, steps }, digest);
   expect(addresses.stepNodes).toEqual([
     { id: `sn1.${leafId}.${devId}`, workItemId: leafId, stepId: devId, reference: '010.1.s1-dev' },
     { id: `sn1.${leafId}.${qaId}`, workItemId: leafId, stepId: qaId, reference: null },
@@ -34,15 +34,15 @@ test('reads only leaf nodes in step order, with effective numbers and null for u
   ]);
 });
 
-test('answers no nodes for a stepless project', async () => {
-  expect((await readStepAddresses('project', { workItems, steps: [] }, digest)).stepNodes).toEqual(
-    [],
-  );
+test('answers no nodes for a stepless work package', async () => {
+  expect(
+    (await readStepAddresses('work_package', { workItems, steps: [] }, digest)).stepNodes,
+  ).toEqual([]);
 });
 
 test('address revision ignores names but follows numbers, codes, order, and leafhood', async () => {
   const revision = async (rows: typeof workItems, columns: typeof steps) =>
-    (await readStepAddresses('project', { workItems: rows, steps: columns }, digest))
+    (await readStepAddresses('work_package', { workItems: rows, steps: columns }, digest))
       .addressRevision;
   const original = await revision(workItems, steps);
   expect(

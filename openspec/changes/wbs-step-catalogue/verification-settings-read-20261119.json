@@ -1,0 +1,142 @@
+{
+  "kind": "organization Steps superseded-read publication proof",
+  "observations": [
+    {
+      "phase": "baseline",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/baseline/native.receipt.json",
+        "sha256": "1b412e9b15adf67af984417786b7aea6c1422c9d9db212ec661c2982264f1d92",
+        "bytes": 1537,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/baseline/native.validation.json",
+        "sha256": "f5e74fafd5205410cc304a068c3a930c431e8d0461054db4385516e3409f178d",
+        "bytes": 687,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/baseline/native.log",
+        "sha256": "588dd58d32f7ffd03f41b59f3d453e0fcaac3ef741a8e373da7d07c417ba53d0",
+        "bytes": 6193,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "fault",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/fault/native.receipt.json",
+        "sha256": "c105f45ccf52d82ccc60a87c528274fa357cc975f568b9901bce892b5fffac40",
+        "bytes": 1532,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/fault/native.validation.json",
+        "sha256": "699bcc412746dad70c9be33fea9f5cae069ba89150b015a25f904ccf8473994f",
+        "bytes": 682,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/fault/native.log",
+        "sha256": "980bf9af99401ea03faf5117f998a09a3043d4527a618505219e1a89370c3939",
+        "bytes": 16471,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "after",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/after/native.receipt.json",
+        "sha256": "52355e232ce6c273122281bb6a5fa5178f6f1b28ed1ee6996c392ebc6e14bb88",
+        "bytes": 1531,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/after/native.validation.json",
+        "sha256": "387884b80929a10a28b5220602f0350f3ddd4c14ac092a2560989a44bf096689",
+        "bytes": 681,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/after/native.log",
+        "sha256": "95411ec35e18535a246c1dd390f740674eda2889b548dd6aafc36cf776d8c577",
+        "bytes": 6193,
+        "mode": 384
+      }
+    }
+  ],
+  "plan": {
+    "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/plan.json",
+    "sha256": "e0c5622ff17c81a156fb7ef706e0aa192f0a5063ed21db32e39375ef0f79b72f",
+    "bytes": 3764,
+    "mode": 384
+  },
+  "engine": {
+    "path": "/tmp/puni-catalogue-ui-supersession-proof-engine-root-v2.ts",
+    "sha256": "710690ac137f2c7dfefa43324b5cf1ff14cfb69c19f63cc5169ab308c1f804c0",
+    "bytes": 9240,
+    "mode": 384
+  },
+  "installed": {
+    "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/installed.json",
+    "sha256": "a20105f041330a54376047cc86db7ba54bf68516918bf2a449f7f41fd22febd1",
+    "bytes": 491,
+    "mode": 384
+  },
+  "restored": {
+    "path": "/tmp/puni-catalogue-ui-proof-superseded_read-v2/restored.json",
+    "sha256": "776c15f56f08651081b5083b3b91c743f501773c464f1c2cd91ef0f8b59aab6d",
+    "bytes": 485,
+    "mode": 384
+  },
+  "canonical": {
+    "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+    "sha256": "0cc84b472317fb4af59b0dbf526444336b980ea9e973b8701fe941364c35d344",
+    "bytes": 5963,
+    "mode": 436
+  },
+  "inventories": [
+    {
+      "path": "/tmp/puni-catalogue-ui-deferred-live-v1/source-pins.json",
+      "sha256": "4653109ec800314666c51238ed242b71adeb16aa37098335749577728bed7ea1",
+      "bytes": 5201959,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-profile-corrections-live-v1/cli/source-pins.json",
+      "sha256": "f41b852260b073ca0e60a988fa032e99f2932fc508dc28b191b3ebd2985ebf56",
+      "bytes": 280711,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-profile-corrections-live-v1/cli/forge-read-inputs.json",
+      "sha256": "7bd78598b11a2efc7bf07b8162fd94907cca2e732e14ee909030c38dc099fe95",
+      "bytes": 16254,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+      "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+      "bytes": 145510,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+      "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+      "bytes": 76933,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-profile-corrections-live-v1/cli/native-io-immutable-support-pins.json",
+      "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+      "bytes": 704,
+      "mode": 384
+    }
+  ],
+  "fault": "Remove only the currentness return before publishing the actual catalogue reply. The delayed earlier second GET overwrites the completed third GET: the assertion at line164 cannot find Newer response and the real table displays Older response.",
+  "after": "Exact canonical bytes restored; same actual owner passes with one selected case and35 skipped.",
+  "qualification": "This proves only suppression of a superseded successful reply. It does not establish unmount/error suppression, all refusal variants, permissions, editing/bindings, real browser behavior or full Settings completion."
+}

@@ -11,8 +11,11 @@ import type {
   RuntimeScope,
   RuntimeState as RuntimeStateValue,
 } from '@wbs/contracts';
+import { encodeRuntimeRequestAtVersion } from '@wbs/contracts';
 import { matchesRuntimeReceipt, matchesRuntimeScope } from '@wbs/contracts';
 import type { Claim } from '@wbs/domain';
+
+import { readRuntimeAcceptanceScope } from '../../ports/runtime-command-records';
 
 export { matchesRuntimeClaim } from '@wbs/contracts';
 
@@ -32,12 +35,12 @@ import { digestRuntimeBasis, type RuntimeContext } from './runtime-state';
 /** Detached authentication identities, captured synchronously before entering the UoW queue. */
 export interface RuntimeAdmissionIdentity {
   readonly organizationId: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly personId: string;
   readonly actorId: string;
   /**
    * Detached verifier metadata captured before queuing; explicit undefined preserves
-   * direct-context compatibility. Fresh admission applies its role policy before project classification.
+   * direct-context compatibility. Fresh admission applies its role policy before work package classification.
    */
   readonly authentication: CredentialAuthentication | undefined;
   readonly credential: CredentialPin | null;
@@ -99,7 +102,18 @@ export class RuntimeReceiver {
       if (retained !== null) {
         await verifyRuntimeAcceptance(retained, ledger.ledgerId, this.digest);
         // Proof: P3-05 removed byte comparison; changed-owner retry received the old acceptance.
-        if (retained.canonicalRequest !== canonicalRequest)
+        // Proof: runtime-authority-changed-identity-refusal omitted retained authority byte equality; changed retry returned the old success; 'mounted migrated runtime1 changed command conflicts without rewriting original identity' failed and restored GREEN.
+        // Proof: dash-native-changed-authority-identity: omitting exact retained authority request-byte equality.
+        // 'native original1 changed grant requires exact identity conflict after cold deletion' failed; exact restoration passed.
+        // The first mutant assertion is success versus refusal; restored cases check exact409/body/no-effects.
+        if (
+          retained.canonicalRequest !==
+          // Proof: runtime-authority-retry-retained-format encoded a valid legacy authority retry as current2; 'mounted migrated runtime1 grant replay and lookup return original receipt without effects' failed and restored GREEN.
+          encodeRuntimeRequestAtVersion(retained.schemaVersion, admitted.scope, {
+            ...request,
+            kind: 'authority',
+          })
+        )
           return { commit: false, value: { ok: false, reason: 'runtime_command_conflict' } };
         const receipt = retained.receipt;
         return {
@@ -122,8 +136,9 @@ export class RuntimeReceiver {
       if (authority === null)
         return { commit: false, value: { ok: false, reason: 'runtime_generation_conflict' } };
       const requestDigest = await this.digest.sha256(canonicalRequest);
+      // Proof: runtime-authority-current-emission emitted authority receipt1; the current-only insertion boundary refused it; 'mounted current runtime authority writes canonical acceptance and receipt2 while body stays1' failed and restored GREEN.
       const receipt: AuthorityReceipt = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         ledgerId: ledger.ledgerId,
         scope: admitted.scope,
         commandId: request.commandId,
@@ -132,7 +147,7 @@ export class RuntimeReceiver {
         acceptance: { kind: 'authority', authority },
       };
       await admitted.commands.insertAcceptance({
-        schemaVersion: 1,
+        schemaVersion: 2,
         commandId: request.commandId,
         canonicalRequest,
         requestDigest,
@@ -183,8 +198,8 @@ export class RuntimeReceiver {
         {
           ledgerId: ledger.ledgerId,
           organizationId: admitted.scope.organizationId,
-          projectId: admitted.scope.projectId,
-          projectRevision: observation.projectRevision,
+          workPackageId: admitted.scope.workPackageId,
+          workPackageRevision: observation.workPackageRevision,
           workItems: observation.workItems,
         },
         this.digest,
@@ -203,13 +218,14 @@ export class RuntimeReceiver {
         commit: true,
         value: {
           ok: true,
+          // Proof: runtime-state-current-emission emitted state1 with current fields; response consistency refused it; 'mounted current runtime state2 emits renamed scope with no retained writes' failed and restored GREEN.
           value: {
-            schemaVersion: 1,
+            schemaVersion: 2,
             ledgerId: ledger.ledgerId,
             scope: admitted.scope,
             basis,
             facts: {
-              projectRevision: observation.projectRevision,
+              workPackageRevision: observation.workPackageRevision,
               workItems: observation.workItems,
               steps: observation.steps,
             },
@@ -230,15 +246,25 @@ export async function verifyRuntimeAcceptance(
   digest: Digest,
 ): Promise<void> {
   const canonical = parseCanonicalRuntimeRequest(stored.canonicalRequest);
+  // Proof: 'receiver refuses runtime2 grant carrying canonical1 despite a matching original digest' accepted the coherent mismatch before this exact format correspondence; the inverse format has its own reached control.
+  // Proof: runtime-receiver-format-correspondence omitted original envelope/canonical format correspondence in both directions; 'receiver refuses runtime2 grant carrying canonical1 despite a matching original digest'; 'receiver refuses runtime1 grant carrying canonical2 before receipt projection' failed and restored GREEN.
+  if (
+    encodeRuntimeRequestAtVersion(stored.schemaVersion, canonical.scope, canonical.operation) !==
+    stored.canonicalRequest
+  )
+    throw new Error('runtime canonical acceptance format mismatch');
+  const retainedScope = readRuntimeAcceptanceScope(stored);
   const request = canonical.operation;
   // Proof: P3-09 removed correspondence; five canonical scope/command/ledger corruptions resolved.
   if (
     request.expectedLedgerId !== ledgerId ||
     request.commandId !== stored.commandId ||
-    !matchesRuntimeScope(canonical.scope, stored.scope)
+    !matchesRuntimeScope(canonical.scope, retainedScope)
   )
     throw new Error('runtime canonical receipt identity mismatch');
   // Proof: P3-07 removed this comparison; otherwise-consistent wrong-digest acquisition resolved.
+  // Proof: runtime-receiver-original-string-digest hashed a current re-encoding instead of original retained bytes; 'receiver verifies genuine runtime1 grant using original bytes and original receipt' failed and restored GREEN.
+  // Proof: runtime-receiver-digest-guard omitted original-string digest equality; 'receiver checks runtime1 grant digest against the original string' failed and restored GREEN.
   if ((await digest.sha256(stored.canonicalRequest)) !== stored.requestDigest)
     throw new Error('runtime canonical request digest mismatch');
   // Proof: P3-10 removed this check; corrupted authority and final claim/write receipt fixtures resolved.

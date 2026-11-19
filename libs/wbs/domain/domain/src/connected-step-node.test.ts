@@ -1,18 +1,18 @@
 import { expect, it } from 'bun:test';
 
-import { type ConnectedProjectGraph, resolveConnectedGraph } from './connected-step-node';
+import { type ConnectedWorkPackageGraph, resolveConnectedGraph } from './connected-step-node';
 import type { DependencyReach } from './dependency-reach';
 import { indexTree } from './schedule';
 import { findStepNodeCycle, type GraphSlice, resolveStepNodeGraph } from './slice-edges';
 import type { ScopedTypedDependency } from './typed-dependency';
 
-function project(
-  projectId: string,
+function workPackage(
+  workPackageId: string,
   leafIds: string[],
   stepIds: string[],
   parentId?: string,
   reach: DependencyReach = 'anchor-slice',
-): ConnectedProjectGraph {
+): ConnectedWorkPackageGraph {
   const tree = indexTree([
     ...(parentId === undefined
       ? []
@@ -39,7 +39,7 @@ function project(
     return slices;
   };
   return {
-    projectId,
+    workPackageId,
     tree,
     slicesByLeaf,
     graph: resolveStepNodeGraph(leafIds, slicesOf, [], reach),
@@ -47,26 +47,26 @@ function project(
   };
 }
 
-const a = project('a', ['A'], ['design', 'test']);
-const b = project('b', ['B'], ['build']);
+const a = workPackage('a', ['A'], ['design', 'test']);
+const b = workPackage('b', ['B'], ['build']);
 function link(
   id: string,
   from: [string, string, string?],
   to: [string, string, string?],
 ): ScopedTypedDependency {
-  const endpoint = ([projectId, workItemId, stepId]: [string, string, string?]) =>
+  const endpoint = ([workPackageId, workItemId, stepId]: [string, string, string?]) =>
     stepId === undefined
-      ? { projectId, workItemId, scope: 'whole' as const }
-      : { projectId, workItemId, stepId, scope: 'node' as const };
+      ? { workPackageId, workItemId, scope: 'whole' as const }
+      : { workPackageId, workItemId, stepId, scope: 'node' as const };
   return { id, predecessor: endpoint(from), successor: endpoint(to), type: 'FS' };
 }
 const forward = link('forward', ['a', 'A', 'design'], ['b', 'B', 'build']);
 const returning = link('returning', ['b', 'B', 'build'], ['a', 'A', 'test']);
 
 it('accepts A.design B.build A.test and retains ownership and relationship provenance', () => {
-  const connected = resolveConnectedGraph({ projects: [a, b], external: [forward, returning] });
+  const connected = resolveConnectedGraph({ workPackages: [a, b], external: [forward, returning] });
   expect(findStepNodeCycle(connected.graph)).toBeNull();
-  expect([...connected.projectIdByWorkItem]).toEqual([
+  expect([...connected.workPackageIdByWorkItem]).toEqual([
     ['A', 'a'],
     ['B', 'b'],
   ]);
@@ -78,12 +78,12 @@ it('refuses true reverse cycles and a cycle through distinct tasks', () => {
   expect(
     findStepNodeCycle(
       resolveConnectedGraph({
-        projects: [a, b],
+        workPackages: [a, b],
         external: [forward, link('reverse', ['b', 'B', 'build'], ['a', 'A', 'design'])],
       }).graph,
     )?.kind,
   ).toBe('cycle');
-  const c = project('a', ['A', 'C'], ['design', 'test']);
+  const c = workPackage('a', ['A', 'C'], ['design', 'test']);
   const local = link('close', ['a', 'C', 'test'], ['a', 'A', 'design']);
   const localGraph = {
     ...c,
@@ -105,7 +105,7 @@ it('refuses true reverse cycles and a cycle through distinct tasks', () => {
   expect(
     findStepNodeCycle(
       resolveConnectedGraph({
-        projects: [localGraph, b],
+        workPackages: [localGraph, b],
         external: [forward, link('return', ['b', 'B', 'build'], ['a', 'C', 'test'])],
       }).graph,
     )?.kind,
@@ -126,23 +126,25 @@ it('keeps local self-node refusal and authored provenance', () => {
   );
   expect(
     findStepNodeCycle(
-      resolveConnectedGraph({ projects: [{ ...a, graph, relationships: [self] }], external: [] })
-        .graph,
+      resolveConnectedGraph({
+        workPackages: [{ ...a, graph, relationships: [self] }],
+        external: [],
+      }).graph,
     ),
   ).toEqual({ kind: 'self_node', relationshipIds: ['self'] });
 });
 
 it('expands every remote parent pair using each endpoint tree and own step identity', () => {
-  const left = project('a', ['A1', 'A2'], ['design', 'test'], 'AP');
-  const right = project('b', ['B1', 'B2'], ['build', 'verify'], 'BP');
+  const left = workPackage('a', ['A1', 'A2'], ['design', 'test'], 'AP');
+  const right = workPackage('b', ['B1', 'B2'], ['build', 'verify'], 'BP');
   const dependency: ScopedTypedDependency = {
     id: 'parents',
-    predecessor: { projectId: 'a', workItemId: 'AP', scope: 'descendant-step', stepId: 'test' },
-    successor: { projectId: 'b', workItemId: 'BP', scope: 'descendant-step', stepId: 'build' },
+    predecessor: { workPackageId: 'a', workItemId: 'AP', scope: 'descendant-step', stepId: 'test' },
+    successor: { workPackageId: 'b', workItemId: 'BP', scope: 'descendant-step', stepId: 'build' },
     type: 'FS',
   };
   const edges = resolveConnectedGraph({
-    projects: [left, right],
+    workPackages: [left, right],
     external: [dependency],
   }).graph.edges.filter((edge) => edge.provenance === 'authored');
   expect(
@@ -169,7 +171,7 @@ it('preserves whole FS SS FF boundaries and stepless nodes', () => {
     const dependency = { ...link(type, ['a', 'A'], ['b', 'B']), type };
     expect(
       resolveConnectedGraph({
-        projects: [a, project('b', ['B'], ['build', 'verify'])],
+        workPackages: [a, workPackage('b', ['B'], ['build', 'verify'])],
         external: [dependency],
       }).graph.edges.at(-1),
     ).toMatchObject({ predecessor: { at: before }, successor: { at: after }, type });
@@ -177,38 +179,38 @@ it('preserves whole FS SS FF boundaries and stepless nodes', () => {
   expect(
     findStepNodeCycle(
       resolveConnectedGraph({
-        projects: [project('a', ['A'], []), project('b', ['B'], [])],
+        workPackages: [workPackage('a', ['A'], []), workPackage('b', ['B'], [])],
         external: [link('go', ['a', 'A'], ['b', 'B']), link('back', ['b', 'B'], ['a', 'A'])],
       }).graph,
     )?.kind,
   ).toBe('cycle');
 });
 
-it('accepts empty projects', () => {
+it('accepts empty work packages', () => {
   expect(
-    resolveConnectedGraph({ projects: [project('empty', [], [])], external: [] }).graph,
+    resolveConnectedGraph({ workPackages: [workPackage('empty', [], [])], external: [] }).graph,
   ).toEqual({ nodes: [], edges: [] });
 });
 
-it('refuses duplicate project and work-item ownership even without relationships', () => {
-  expect(() => resolveConnectedGraph({ projects: [a, a], external: [] })).toThrow(
-    /duplicate project/,
+it('refuses duplicate work package and work-item ownership even without relationships', () => {
+  expect(() => resolveConnectedGraph({ workPackages: [a, a], external: [] })).toThrow(
+    /duplicate work-package/,
   );
   expect(() =>
-    resolveConnectedGraph({ projects: [a, project('b', ['A'], ['build'])], external: [] }),
+    resolveConnectedGraph({ workPackages: [a, workPackage('b', ['A'], ['build'])], external: [] }),
   ).toThrow(/work item A.*ownership/);
 });
 
-it('refuses missing endpoint project, cross-owned work item, absent work item and absent step', () => {
+it('refuses missing endpoint work package, cross-owned work item, absent work item and absent step', () => {
   for (const [endpoint, message] of [
-    [{ ...forward.predecessor, projectId: 'missing' }, /project missing/],
-    [{ ...forward.predecessor, projectId: 'c' }, /work item A/],
+    [{ ...forward.predecessor, workPackageId: 'missing' }, /work-package missing/],
+    [{ ...forward.predecessor, workPackageId: 'c' }, /work item A/],
     [{ ...forward.predecessor, workItemId: 'missing' }, /work item missing/],
     [{ ...forward.predecessor, scope: 'node' as const, stepId: 'build' }, /no step build/],
   ] as const)
     expect(() =>
       resolveConnectedGraph({
-        projects: [a, b, project('c', [], [])],
+        workPackages: [a, b, workPackage('c', [], [])],
         external: [{ ...forward, predecessor: endpoint }],
       }),
     ).toThrow(message);
@@ -218,7 +220,7 @@ it('refuses absent and empty slices instead of creating a boundary', () => {
   for (const slicesByLeaf of [new Map(), new Map([['A', []]])]) {
     expect(() =>
       resolveConnectedGraph({
-        projects: [{ ...a, slicesByLeaf }, b],
+        workPackages: [{ ...a, slicesByLeaf }, b],
         external: [link('whole', ['a', 'A'], ['b', 'B'])],
       }),
     ).toThrow(/slice.*A/);
@@ -227,51 +229,58 @@ it('refuses absent and empty slices instead of creating a boundary', () => {
 
 it('refuses local/external misclassification and conflicting relationship identities', () => {
   expect(() =>
-    resolveConnectedGraph({ projects: [{ ...a, relationships: [forward] }, b], external: [] }),
+    resolveConnectedGraph({ workPackages: [{ ...a, relationships: [forward] }, b], external: [] }),
   ).toThrow(/local.*forward/);
   expect(() =>
-    resolveConnectedGraph({ projects: [a, b], external: [link('local', ['a', 'A'], ['a', 'A'])] }),
+    resolveConnectedGraph({
+      workPackages: [a, b],
+      external: [link('local', ['a', 'A'], ['a', 'A'])],
+    }),
   ).toThrow(/external.*local/);
   expect(() =>
     resolveConnectedGraph({
-      projects: [a, b],
+      workPackages: [a, b],
       external: [forward, { ...returning, id: 'forward' }],
     }),
   ).toThrow(/conflicting relationship forward/);
   expect(
-    resolveConnectedGraph({ projects: [a, b], external: [forward, forward] }).graph.edges.filter(
-      (edge) => edge.provenance === 'authored',
-    ),
+    resolveConnectedGraph({
+      workPackages: [a, b],
+      external: [forward, forward],
+    }).graph.edges.filter((edge) => edge.provenance === 'authored'),
   ).toHaveLength(1);
 });
 
-it('refuses a local relationship whose predecessor belongs to another project', () => {
+it('refuses a local relationship whose predecessor belongs to another work package', () => {
   expect(() =>
-    resolveConnectedGraph({ projects: [a, { ...b, relationships: [forward] }], external: [] }),
+    resolveConnectedGraph({ workPackages: [a, { ...b, relationships: [forward] }], external: [] }),
   ).toThrow(/local relationship forward/);
 });
 
-it('refuses missing local endpoint facts in a supplied project context', () => {
+it('refuses missing local endpoint facts in a supplied work package context', () => {
   const local = link('broken-local', ['a', 'missing'], ['a', 'A']);
   expect(() =>
-    resolveConnectedGraph({ projects: [{ ...a, relationships: [local] }], external: [] }),
+    resolveConnectedGraph({ workPackages: [{ ...a, relationships: [local] }], external: [] }),
   ).toThrow(/work item missing/);
 });
 
-it('refuses each foreign local endpoint project independently even when work-item lookup would succeed', () => {
+it('refuses each foreign local endpoint work package independently even when work-item lookup would succeed', () => {
   for (const dependency of [
     link('foreign-before', ['b', 'A', 'design'], ['a', 'A', 'test']),
     link('foreign-after', ['a', 'A', 'design'], ['b', 'A', 'test']),
   ]) {
     expect(() =>
-      resolveConnectedGraph({ projects: [{ ...a, relationships: [dependency] }, b], external: [] }),
+      resolveConnectedGraph({
+        workPackages: [{ ...a, relationships: [dependency] }, b],
+        external: [],
+      }),
     ).toThrow(/local relationship/);
   }
 });
 
-it('refuses duplicate empty project identities without ownership masking', () => {
-  const empty = project('empty', [], []);
-  expect(() => resolveConnectedGraph({ projects: [empty, empty], external: [] })).toThrow(
-    /duplicate project empty/,
+it('refuses duplicate empty work package identities without ownership masking', () => {
+  const empty = workPackage('empty', [], []);
+  expect(() => resolveConnectedGraph({ workPackages: [empty, empty], external: [] })).toThrow(
+    /duplicate workPackage empty/,
   );
 });

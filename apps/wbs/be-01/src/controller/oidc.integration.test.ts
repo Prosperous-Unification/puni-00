@@ -1,3 +1,7 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { createLegacyWorkPackageObservation } from '../testing/work-package-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import type { JwtClaims } from '@wbs/auth';
 import {
   browserBindingCookieName,
@@ -32,14 +36,15 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { testProjectService } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { testWorkPackageService } from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 import * as oidcOptionsModule from './oidc-options';
 
@@ -173,8 +178,13 @@ function fixture(
     ...routeOptions,
   };
   const users = inMemoryUsers();
+  const workPackages = testWorkPackageService();
+  const history = testHistoryService();
   const app = buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: createLegacyWorkPackageObservation(workPackages, history),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -184,7 +194,7 @@ function fixture(
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -193,20 +203,20 @@ function fixture(
     auth: testAuthService(users, oidc),
     capacity: testCapacityService(),
     directory: testDirectoryService(),
-    history: testHistoryService(),
+    history,
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
+    writes: testWrites(undefined,{workItems:testWorkItemService(openTestSource())}),
     migrationsApplied: true,
     oidc,
     priorityBands: testPriorityBandService(),
     admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
-    projects: testProjectService(),
+    workPackages,
     replay: testReplay().replay,
     steps: testStepService(),
-    workItems: testWorkItemService(),
+    workItems: testWorkItemService(openTestSource()),
     savedPlans: testSavedPlanService(),
   });
   return { app, calls, logs, tokens, transactions, users, oidc };
@@ -524,8 +534,8 @@ describe('OIDC browser routes', () => {
     const f = fixture({ ...claims, wbs_groups: ['dev:wbs:read'] });
 
     const write = await f.app.handle(
-      new Request('https://dev.wbs.test/api/projects', {
-        body: JSON.stringify({ name: 'Must remain absent' }),
+      new Request('https://dev.wbs.test/api/work-packages', {
+        body: JSON.stringify({ projectId: PROJECT_ID, name: 'Must remain absent' }),
         headers: {
           'content-type': 'application/json',
           cookie: '__Host-wbs_access=reader-token',
@@ -535,7 +545,7 @@ describe('OIDC browser routes', () => {
       }),
     );
     const read = await f.app.handle(
-      new Request('https://dev.wbs.test/api/projects', {
+      new Request('https://dev.wbs.test/api/work-packages', {
         headers: { cookie: '__Host-wbs_access=reader-token' },
       }),
     );
@@ -543,7 +553,7 @@ describe('OIDC browser routes', () => {
     expect(write.status).toBe(403);
     expect(await write.json()).toEqual({ error: 'insufficient_scope' });
     expect(read.status).toBe(200);
-    expect(await read.json()).toEqual({ projects: [], nextCursor: null });
+    expect(await read.json()).toEqual({ workPackages: [], nextCursor: null });
   });
 
   it('guards every registered user-facing mutation with write scope', async () => {
@@ -581,7 +591,7 @@ describe('OIDC browser routes', () => {
       .sort((a, b) => a.path.localeCompare(b.path));
     expect(commandRoutes).toEqual([
       { method: 'POST', path: '/api/directory/commands' },
-      { method: 'POST', path: '/api/projects/:id/commands' },
+      { method: 'POST', path: '/api/work-packages/:id/commands' },
     ]);
     expect(mutations.length).toBeGreaterThanOrEqual(10);
     for (const route of mutations) {
@@ -615,7 +625,7 @@ describe('OIDC browser routes', () => {
   it('treats a malformed access cookie as unauthenticated instead of crashing', async () => {
     const f = fixture();
     const res = await f.app.handle(
-      new Request('https://dev.wbs.test/api/projects', {
+      new Request('https://dev.wbs.test/api/work-packages', {
         headers: { cookie: '__Host-wbs_access=%E0%A4%A' },
       }),
     );
@@ -1384,7 +1394,7 @@ describe('OIDC browser routes', () => {
       }),
     },
     {
-      name: 'a failure this project does not recognise',
+      name: 'a failure this work package does not recognise',
       kind: 'defect',
       reason: 'unrecognised_failure',
       level: 'error',
@@ -1533,7 +1543,7 @@ describe('OIDC browser routes', () => {
    * The route's half of the fifth malformed callback. The adapter refuses a
    * callback whose `iss` is not the issuer discovery resolved to — it is the one
    * such refusal the route cannot make itself, because the issuer identifier
-   * only exists after discovery — and rejects with a type this project owns.
+   * only exists after discovery — and rejects with a type this work package owns.
    *
    * **What this asserts is that the owned rejection does not reach the
    * classifier.** Before it did: the library refused the same callback as

@@ -60,7 +60,7 @@ export interface HoverPreviewProps {
  *
  * `react-markdown` renders to React elements and does **not** pass raw HTML
  * through — no `rehype-raw` here, deliberately. Notes are written by one
- * person and read by everyone else on the project, so a note containing a
+ * person and read by everyone else on the work package, so a note containing a
  * `<script>` or an `onerror` attribute must render as the text somebody typed
  * and nothing else. That is the whole reason this is a markdown renderer
  * rather than `dangerouslySetInnerHTML` over a converted string.

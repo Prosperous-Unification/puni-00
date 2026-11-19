@@ -1,9 +1,9 @@
-import type { ProjectAddressApi } from '@/lib/wbs-api';
+import type { WorkPackageAddressApi } from '@/lib/wbs-api';
 
 /** An explicit fixture boundary: unconfigured discovery refuses authentication; endpoint access is never fabricated. */
-export function createRefusingAddressApi(): ProjectAddressApi {
+export function createRefusingAddressApi(): WorkPackageAddressApi {
   return {
-    projects: () =>
+    workPackages: () =>
       Promise.resolve({
         kind: 'refusal' as const,
         representation: 'json' as const,

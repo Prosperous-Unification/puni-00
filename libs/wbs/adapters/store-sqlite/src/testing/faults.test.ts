@@ -5,19 +5,20 @@ import { join } from 'node:path';
 import { defineFault, recordFaultProof } from '@wbs/conformance';
 import type { NewJournalEntry, PlanEvent, SavedPlanWrite, SubtreeCopy } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import * as publicSqlite from '../index';
 import { runMigrations } from '../migrate';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
 import { openSqliteSourceWithFault, sqliteLateWriteControl } from './faults';
+import { seedLegacyPackageParent } from './legacy-package-parent';
 
 const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const stamp = { at: 1, by: 'owner' };
 const entry = (id: string): NewJournalEntry => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   userId: 'owner',
   personId: null,
   kind: 'estimate',
@@ -28,7 +29,7 @@ const entry = (id: string): NewJournalEntry => ({
 });
 const event = (id: string): PlanEvent => ({
   id: `event-${id}`,
-  projectId: 'p1',
+  workPackageId: 'p1',
   userId: 'owner',
   kind: 'estimate',
   label: id,
@@ -40,7 +41,7 @@ const event = (id: string): PlanEvent => ({
 });
 const savedPlan = (id: string): SavedPlanWrite => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: id,
   createdBy: 'Owner',
   createdById: 'owner',
@@ -54,7 +55,7 @@ const savedPlan = (id: string): SavedPlanWrite => ({
   },
 });
 const subtree = (id: string): SubtreeCopy => ({
-  rows: [workItemRow({ id, projectId: 'p1' })],
+  rows: [workItemRow({ id, workPackageId: 'p1' })],
   respaced: [],
   reparented: [],
   estimates: [{ workItemId: id, stepId: 'step-1', optimistic: 1, realistic: 2, pessimistic: 3 }],
@@ -141,6 +142,7 @@ describe('SQLite conformance fault controls', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sqlite-fault-'));
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
+    seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
     const control = sqliteLateWriteControl('journal-history-insert');
     const source = openSqliteSourceWithFault(
       { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
@@ -151,12 +153,12 @@ describe('SQLite conformance fault controls', () => {
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
         stamp,
       );
-      await source.stores.projects.create(
-        projectRow({ id: 'p1', ownerId: 'owner' }),
+      await source.stores.workPackages.create(
+        workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
         [
           {
             id: 'step-1',
-            projectId: 'p1',
+            workPackageId: 'p1',
             name: 'Dev',
             position: 10,
             code: 'dev',
@@ -179,7 +181,7 @@ describe('SQLite conformance fault controls', () => {
       expect(
         (
           await source.stores.journal.entriesFor({
-            projectId: 'p1',
+            workPackageId: 'p1',
             userId: 'owner',
             personId: null,
           })
@@ -196,7 +198,7 @@ describe('SQLite conformance fault controls', () => {
       expect(
         (
           await restored.stores.journal.entriesFor({
-            projectId: 'p1',
+            workPackageId: 'p1',
             userId: 'owner',
             personId: null,
           })
@@ -213,6 +215,7 @@ describe('SQLite conformance fault controls', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sqlite-fault-'));
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
+    seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
     const control = sqliteLateWriteControl('subtree-final-satellite');
     const source = openSqliteSourceWithFault(
       { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
@@ -223,12 +226,12 @@ describe('SQLite conformance fault controls', () => {
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
         stamp,
       );
-      await source.stores.projects.create(
-        projectRow({ id: 'p1', ownerId: 'owner' }),
+      await source.stores.workPackages.create(
+        workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
         [
           {
             id: 'step-1',
-            projectId: 'p1',
+            workPackageId: 'p1',
             name: 'Dev',
             position: 10,
             code: 'dev',
@@ -239,7 +242,7 @@ describe('SQLite conformance fault controls', () => {
         stamp,
       );
       await source.stores.subtrees.insertSubtree(subtree('sentinel'), stamp);
-      expect(await source.stores.estimates.listByProject('p1')).toEqual([
+      expect(await source.stores.estimates.listByWorkPackage('p1')).toEqual([
         ...subtree('sentinel').estimates,
       ]);
       control.arm();
@@ -253,10 +256,10 @@ describe('SQLite conformance fault controls', () => {
       // Proof: moving the barrier before the estimate write returned [] here.
       expect(control.observedSatelliteKeys()).toEqual(['faulted:step-1']);
       // Proof: moving the barrier after the transaction added `faulted` here.
-      expect((await source.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
+      expect((await source.stores.workItems.listByWorkPackage('p1')).map(({ id }) => id)).toEqual([
         'sentinel',
       ]);
-      expect(await source.stores.estimates.listByProject('p1')).toEqual([
+      expect(await source.stores.estimates.listByWorkPackage('p1')).toEqual([
         ...subtree('sentinel').estimates,
       ]);
       const restored = openSqliteSourceWithFault(
@@ -264,11 +267,10 @@ describe('SQLite conformance fault controls', () => {
         sqliteLateWriteControl('subtree-final-satellite'),
       );
       await restored.stores.subtrees.insertSubtree(subtree('restored'), stamp);
-      expect((await restored.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
-        'restored',
-        'sentinel',
-      ]);
-      expect(await restored.stores.estimates.listByProject('p1')).toEqual([
+      expect((await restored.stores.workItems.listByWorkPackage('p1')).map(({ id }) => id)).toEqual(
+        ['restored', 'sentinel'],
+      );
+      expect(await restored.stores.estimates.listByWorkPackage('p1')).toEqual([
         ...subtree('restored').estimates,
         ...subtree('sentinel').estimates,
       ]);
@@ -283,6 +285,7 @@ describe('SQLite conformance fault controls', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sqlite-fault-'));
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
+    seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
     const control = sqliteLateWriteControl('saved-plan-schedule-body');
     const source = openSqliteSourceWithFault(
       { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
@@ -293,7 +296,11 @@ describe('SQLite conformance fault controls', () => {
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
         stamp,
       );
-      await source.stores.projects.create(projectRow({ id: 'p1', ownerId: 'owner' }), [], stamp);
+      await source.stores.workPackages.create(
+        workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
+        [],
+        stamp,
+      );
       await source.history.savedPlans.write(savedPlan('sentinel'), () => Promise.resolve(null));
       control.arm();
 

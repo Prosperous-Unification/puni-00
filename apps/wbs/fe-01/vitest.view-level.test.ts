@@ -46,10 +46,10 @@ describe('View level collection', () => {
     if (command === undefined) throw new Error(`${target} has no command`);
     const scratchRoot = mkdtempSync(join(tmpdir(), 'fe-level-failure-'));
     try {
-      const projectRoot = join(scratchRoot, 'apps/wbs/fe-01');
+      const workPackageRoot = join(scratchRoot, 'apps/wbs/fe-01');
       const reportRoot = join(scratchRoot, 'tmp/junit');
       const binRoot = join(scratchRoot, 'bin');
-      mkdirSync(projectRoot, { recursive: true });
+      mkdirSync(workPackageRoot, { recursive: true });
       mkdirSync(reportRoot, { recursive: true });
       mkdirSync(binRoot);
       writeFileSync(join(reportRoot, first), '<testsuite name="stale-first"/>');
@@ -57,7 +57,7 @@ describe('View level collection', () => {
       writeFileSync(join(binRoot, 'bunx'), '#!/bin/sh\nexit 67\n');
       chmodSync(join(binRoot, 'bunx'), 0o755);
       const invocation = spawnSync('sh', ['-c', command], {
-        cwd: projectRoot,
+        cwd: workPackageRoot,
         env: { ...process.env, PATH: `${binRoot}:${process.env['PATH'] ?? ''}` },
         encoding: 'utf8',
       });

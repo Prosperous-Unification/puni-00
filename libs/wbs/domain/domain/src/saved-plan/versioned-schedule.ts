@@ -1,3 +1,5 @@
+import {readSavedConnectedScheduleBody as readLegacySchedule2} from './legacy-schedule2';
+import {upgradeConnectedEvidence2,upgradeLegacyPlacement2} from './upgrade-schedule2';
 import { type } from 'arktype';
 
 import { buildScheduleBody } from '../saved-plan-schedule-body';
@@ -21,14 +23,14 @@ import {
   serializeHistory,
 } from './history-json';
 
-/** Connected schedule2 adds captured selection evidence; schedule1's writer remains unchanged. */
-export const CONNECTED_SCHEDULE_BODY_VERSION = 2 as const;
+/** Current connected4 carries renamed host fields; published connected2 remains independently readable. */
+export const CONNECTED_SCHEDULE_BODY_VERSION = 4 as const;
 
 /** The component selection procedure owns this identity, independently of any target objective. */
 export const CONNECTED_SCHEDULE_ALGORITHM_ID = `connected-selection-v1:${SCHEDULE_ALGORITHM_ID}`;
 
 /**
- * Prepare an immutable schedule2 body from the already selected target and detached component evidence.
+ * Prepare an immutable schedule4 body from the already selected target and detached component evidence.
  * Calendar projection uses the ordinary timing builder; historical validators check both bodies
  * before this value may reach hashing or writer admission. No scheduling or IO occurs here.
  * @throws for inconsistent target membership, calendar, placement or selection evidence.
@@ -39,6 +41,7 @@ export function buildConnectedScheduleBody(
   history: SavedConnectedDependencyHistory,
   connection: SavedConnectedScheduleEvidence,
 ): SavedConnectedScheduleBody {
+  requireHistory(connection.stages.every(stage=>stage.format==='connected-stage-v2'),'fresh_stage_format','$.connection.stages');
   const body = readSavedConnectedScheduleBody({
     ...buildScheduleBody(planned, startDate, CONNECTED_SCHEDULE_ALGORITHM_ID),
     version: CONNECTED_SCHEDULE_BODY_VERSION,
@@ -71,19 +74,19 @@ const targetSlice = type({
   stepId: 'string | null',
   personId: 'string | null',
   boundBy:
-    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'elsewhere' | 'optimizer'",
+    "'workPackageStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'elsewhere' | 'optimizer'",
   resourcePredecessorId: 'string | null',
   capacityPredecessorIds: 'string[]',
   capacityTeamId: 'string | null',
   width: 'number',
   effort: 'number',
   lateBy: 'number | null',
-  'elsewhereHolder?': { '+': 'reject', projectId: 'string', workItemId: 'string' },
+  'elsewhereHolder?': { '+': 'reject', workPackageId: 'string', workItemId: 'string' },
   'capacityResource?': { '+': 'reject', resourceId: 'string', units: 'number' },
 });
 const connectedBody = type({
   '[string]': 'unknown',
-  version: '2',
+  version: '4',
   algorithmId: 'string',
   workItems: { '[string]': timing },
   slices: { '[string]': targetSlice },
@@ -97,20 +100,25 @@ export type SavedConnectedScheduleBody = Historical<typeof connectedBody.infer> 
   readonly connection: SavedConnectedScheduleEvidence;
 };
 
-/** Canonical schedule2 bytes sort unordered idle members while retaining exact stage execution order. */
+/** Current schedule4 serialization sorts unordered idle members while retaining exact stage execution order. */
 export function serializeSavedConnectedScheduleBody(body: SavedConnectedScheduleBody): string {
   return serializeHistory({
     ...body,
     connection: {
       ...body.connection,
       // Proof: removing idle sorting fails `canonicalizes reversed idle members without changing stage execution order`; mounted save proof remains pending.
-      idleProjects: [...body.connection.idleProjects].sort(compareHistoryKeys),
+      idleWorkPackages: [...body.connection.idleWorkPackages].sort(compareHistoryKeys),
     },
   });
 }
 
-/** Frozen connected body reader validates shape and captured evidence without running any engine. */
+/** Read current4 or project an explicitly tagged legacy2 through its frozen reader; no live engine or rehashing occurs. */
 export function readSavedConnectedScheduleBody(raw: unknown): SavedConnectedScheduleBody {
+  if(typeof raw==='object'&&raw!==null&&'version' in raw&&raw.version===2) {
+    const legacy=readLegacySchedule2(raw);
+    return readSavedConnectedScheduleBody({...legacy,version:4,slices:upgradeLegacyPlacement2({workItems:legacy.workItems,slices:legacy.slices,waitingForPerson:legacy.waitingForPerson,waitingForCapacity:legacy.waitingForCapacity,...(legacy.waitingElsewhere===undefined?{}:{waitingElsewhere:legacy.waitingElsewhere})}).slices,connection:upgradeConnectedEvidence2(legacy.connection)});
+  }
+
   requireHistory(
     typeof raw === 'object' && raw !== null && 'connection' in raw,
     'shape',
@@ -136,7 +144,7 @@ function readAnchorOrdinal(anchor: string): number {
       Number.isFinite(at.getTime()) &&
       at.toISOString().slice(0, 10) === anchor,
     'target_calendar',
-    '$.project.startDate',
+    '$.workPackage.startDate',
   );
   const weekday = at.getUTCDay();
   const next = weekday === 6 ? 2 : weekday === 0 ? 1 : 0;
@@ -208,15 +216,21 @@ export function validateSavedConnectedTarget(
   body: SavedConnectedScheduleBody,
   capturedAnchor: string | null,
 ): void {
-  const project = history.projects.find((member) => member.projectId === history.targetProjectId);
-  requireHistory(project?.startDate === capturedAnchor, 'target_anchor', '$.project.startDate');
+  const workPackage = history.workPackages.find(
+    (member) => member.workPackageId === history.targetWorkPackageId,
+  );
+  requireHistory(
+    workPackage?.startDate === capturedAnchor,
+    'target_anchor',
+    '$.workPackage.startDate',
+  );
   const ownership = new Map(history.ownership);
   const common = body.connection.composite;
   const workItems = Object.entries(common.workItems).filter(
-    ([id]) => ownership.get(id) === project.projectId,
+    ([id]) => ownership.get(id) === workPackage.workPackageId,
   );
   const slices = Object.entries(common.slices).filter(
-    ([, slice]) => ownership.get(slice.workItemId) === project.projectId,
+    ([, slice]) => ownership.get(slice.workItemId) === workPackage.workPackageId,
   );
   const sameKeys = (expected: readonly string[], actual: readonly string[]) => {
     const keys = new Set(actual);
@@ -272,7 +286,9 @@ export function validateSavedConnectedTarget(
   const shift = anchorOrdinal - originOrdinal;
   for (const stage of body.connection.stages) {
     const packet = readSavedCanonicalStage(stage.format, stage.stageBytes);
-    const member = packet.projects.find((entry) => entry.projectId === project.projectId);
+    const member = packet.workPackages.find(
+      (entry) => entry.workPackageId === workPackage.workPackageId,
+    );
     requireHistory(member?.anchorOrdinal === anchorOrdinal, 'target_anchor', '$.connection.stages');
   }
   for (const [id, span] of workItems)

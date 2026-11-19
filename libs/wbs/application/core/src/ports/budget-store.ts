@@ -16,8 +16,8 @@ export type { BudgetKey, StoredBudget } from '@wbs/domain';
  * Derived budgets are computed on read and never stored here.
  */
 export interface BudgetStore {
-  /** Every stated budget in the project, in work item then key order. */
-  listByProject(projectId: string): Promise<StoredBudget[]>;
+  /** Every stated budget in the work package, in work item then key order. */
+  listByWorkPackage(workPackageId: string): Promise<StoredBudget[]>;
   /**
    * Writes one work item's budget in one key, replacing any earlier one there.
    *

@@ -110,14 +110,14 @@ function seed(dbPath: string): void {
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
     );
     sqlite.run(
-      'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+      'INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
         " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
     );
     sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
     sqlite.run("INSERT INTO service_team (id, name) VALUES ('t2', 'Mobile')");
     sqlite.run("INSERT INTO service (id, name) VALUES ('s1', 'Payments')");
     sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision, service_team_id, service_id)' +
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name, notes, priority, max_parallel, revision, service_team_id, service_id)' +
         " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0, 't1', 's1')",
     );
   } finally {
@@ -201,7 +201,7 @@ describe('the retired schema, across the full migration chain', () => {
       const c2 = openDatabase(db.path);
       try {
         c2.run(
-          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision, service_id)' +
+          'INSERT INTO work_item (id, work_package_id, parent_id, position, name, notes, priority, max_parallel, revision, service_id)' +
             " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0, 's1')",
         );
         c2.run("INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w1', 't1')");

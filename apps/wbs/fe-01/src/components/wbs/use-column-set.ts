@@ -16,30 +16,36 @@ import { hideableColumnIds } from './table-frame';
 /**
  * Which columns this reader has hidden, and which the table offers to hide.
  *
- * The hide-list is remembered per project and per browser, so a column the
+ * The hide-list is remembered per work package and per browser, so a column the
  * table learns to draw later is on screen by default without anybody's storage
- * being touched. Steps join and leave the offered set as the project's do.
+ * being touched. Steps join and leave the offered set as the work package's do.
  */
-export function useColumnSet({ projectId, steps }: { projectId: string; steps: StepView[] }) {
+export function useColumnSet({
+  workPackageId,
+  steps,
+}: {
+  workPackageId: string;
+  steps: StepView[];
+}) {
   /**
    * This reader's answers about measure columns, by definition key — see
-   * {@link rememberedMeasureColumns}. Held with the project they were read
-   * for: the table is not remounted when the project changes, so another
-   * project's answers are read afresh rather than carried over.
+   * {@link rememberedMeasureColumns}. Held with the work package they were read
+   * for: the table is not remounted when the work package changes, so another
+   * work package's answers are read afresh rather than carried over.
    */
   const [storedMeasureToggles, setStoredMeasureToggles] = useState<{
-    projectId: string;
+    workPackageId: string;
     toggles: MeasureToggles;
-  }>(() => ({ projectId, toggles: rememberedMeasureColumns(projectId) }));
-  // Proof: answering the held toggles whatever project they were read for,
-  // `reads another project’s measure columns afresh` (measure-panel.test.tsx)
+  }>(() => ({ workPackageId, toggles: rememberedMeasureColumns(workPackageId) }));
+  // Proof: answering the held toggles whatever work package they were read for,
+  // `reads another workPackage’s measure columns afresh` (measure-panel.test.tsx)
   // showed p1's tokens columns on p2; watched 2026-10-23.
   const measureToggles = useMemo(
     () =>
-      storedMeasureToggles.projectId === projectId
+      storedMeasureToggles.workPackageId === workPackageId
         ? storedMeasureToggles.toggles
-        : rememberedMeasureColumns(projectId),
-    [projectId, storedMeasureToggles],
+        : rememberedMeasureColumns(workPackageId),
+    [workPackageId, storedMeasureToggles],
   );
   /**
    * Steps whose columns are unfolded — the three points, next to the final
@@ -69,17 +75,17 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
   const [unfoldedSteps, setUnfoldedSteps] = useState<readonly string[]>([]);
 
   /**
-   * The hide-list as this browser remembers it for this project, whole — see
+   * The hide-list as this browser remembers it for this work package, whole — see
    * {@link rememberedHiddenColumns} for why it is not judged on read.
    */
   const [storedHiddenColumns, setStoredHiddenColumns] = useState<readonly string[]>(
-    () => rememberedHiddenColumns(projectId).value,
+    () => rememberedHiddenColumns(workPackageId).value,
   );
 
   /**
    * The columns this reader has hidden **and this table could show**: the
    * stored list less any id that is neither a hideable column nor one of this
-   * project's steps. A typo in storage, or a step since deleted, hides nothing
+   * work package's steps. A typo in storage, or a step since deleted, hides nothing
    * and is never handed to `foldedTableMinWidth`, which throws on it by design.
    *
    * A memo on the two things it reads, so its identity moves only when one of
@@ -111,7 +117,7 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
    * Hides a shown column, or shows a hidden one — and writes the list, which is
    * the one moment it is written (see {@link rememberedHiddenColumns}). Written
    * from the sanitised list rather than the stored one, as a drag writes the
-   * widths in force: an id for a step this project no longer holds is dropped
+   * widths in force: an id for a step this work package no longer holds is dropped
    * the first time the reader touches the control.
    */
   function toggleColumn(columnId: string): void {
@@ -119,7 +125,7 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
       ? hiddenColumnIds.filter((hidden) => hidden !== columnId)
       : [...hiddenColumnIds, columnId];
     setStoredHiddenColumns(next);
-    rememberHiddenColumns(projectId, next);
+    rememberHiddenColumns(workPackageId, next);
   }
 
   /**
@@ -153,15 +159,15 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
       ...measureToggles,
       [definition.key]: !isMeasureShown(definition, measureToggles),
     };
-    setStoredMeasureToggles({ projectId, toggles: next });
-    rememberMeasureColumns(projectId, next);
+    setStoredMeasureToggles({ workPackageId, toggles: next });
+    rememberMeasureColumns(workPackageId, next);
   }
 
-  /** Forgets every measure answer for this project: Reset layout's measure half. */
+  /** Forgets every measure answer for this work package: Reset layout's measure half. */
   const forgetMeasureToggles = useCallback(() => {
-    setStoredMeasureToggles({ projectId, toggles: {} });
-    forgetMeasureColumns(projectId);
-  }, [projectId]);
+    setStoredMeasureToggles({ workPackageId, toggles: {} });
+    forgetMeasureColumns(workPackageId);
+  }, [workPackageId]);
 
   /**
    * The scheduling measure's columns are the step columns and Days
@@ -175,7 +181,7 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
       ? [...hiddenColumnIds, ...timeColumnIds.filter((id) => !hiddenColumnIds.includes(id))]
       : hiddenColumnIds.filter((id) => !timeColumnIds.includes(id));
     setStoredHiddenColumns(next);
-    rememberHiddenColumns(projectId, next);
+    rememberHiddenColumns(workPackageId, next);
   }
 
   return {

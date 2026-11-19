@@ -22,28 +22,28 @@ import type { PlanInputReads } from './saved-plan-capture-values';
  */
 export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
   const rule: EstimateRule = {
-    method: reads.project.estimateMethod,
-    pertWeights: reads.project.pertWeights,
-    rounding: reads.project.estimateRounding,
+    method: reads.workPackage.estimateMethod,
+    pertWeights: reads.workPackage.pertWeights,
+    rounding: reads.workPackage.estimateRounding,
   };
   const captured = capturedDirectory(reads);
   return {
-    project: {
-      id: reads.project.id,
-      name: reads.project.name,
-      restricted: reads.project.restricted,
-      ownerId: reads.project.ownerId,
-      solutionSlug: reads.project.solutionRef?.slug ?? null,
-      solutionUrl: reads.project.solutionRef?.url ?? null,
-      estimateMethod: reads.project.estimateMethod,
-      depReach: reads.project.depReach,
-      estimateRounding: reads.project.estimateRounding,
-      startDate: reads.project.startDate,
-      pertWeightOptimistic: reads.project.pertWeights.optimistic,
-      pertWeightRealistic: reads.project.pertWeights.realistic,
-      pertWeightPessimistic: reads.project.pertWeights.pessimistic,
-      timezone: reads.project.timezone,
-      budgetFactor: reads.project.budgetFactor,
+    workPackage: {
+      id: reads.workPackage.id,
+      name: reads.workPackage.name,
+      restricted: reads.workPackage.restricted,
+      projectId: reads.workPackage.projectId,
+      solutionSlug: reads.workPackage.solutionRef?.slug ?? null,
+      solutionUrl: reads.workPackage.solutionRef?.url ?? null,
+      estimateMethod: reads.workPackage.estimateMethod,
+      depReach: reads.workPackage.depReach,
+      estimateRounding: reads.workPackage.estimateRounding,
+      startDate: reads.workPackage.startDate,
+      pertWeightOptimistic: reads.workPackage.pertWeights.optimistic,
+      pertWeightRealistic: reads.workPackage.pertWeights.realistic,
+      pertWeightPessimistic: reads.workPackage.pertWeights.pessimistic,
+      timezone: reads.workPackage.timezone,
+      budgetFactor: reads.workPackage.budgetFactor,
     },
     // Proof: spreading the captured row leaked live resources and failed
     // `drops live node resources before canonical saved-plan persistence and
@@ -221,7 +221,7 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
  * an early plan and is exactly the row a saved plan must not lose. The key is
  * the pair, and every read contributes keys to it.
  *
- * `derived` is `combinedFigure` under the project's own rule — the *unrounded*
+ * `derived` is `combinedFigure` under the work package's own rule — the *unrounded*
  * figure, which is what {@link CanonicalStepValue} names and what a reader
  * asking "what does this estimate mean" wants; everything that schedules uses
  * the rounded one and derives it again from the same three points. It is `null`
@@ -268,12 +268,12 @@ function stepValuesOf(reads: PlanInputReads, rule: EstimateRule): CanonicalStepV
  * read unfiltered.
  *
  * The reads are the whole directory — `listPeople`, `listTeams` and
- * `listServices` take no project — and storing all of it would put every account
+ * `listServices` take no work package — and storing all of it would put every account
  * in the company into every saved plan's bytes and its hash, so two saves of an
  * unchanged plan would differ because somebody else hired a designer.
  *
  * **Teams** are the ones the plan names: through `work_item_team`, and through
- * the capacity map, whose keys are teams a project stated a number for and which
+ * the capacity map, whose keys are teams a work package stated a number for and which
  * `saved-plan-capture.ts` records as nameable by nothing else.
  *
  * **People** are the assigned plus every member of a captured team — the spec's

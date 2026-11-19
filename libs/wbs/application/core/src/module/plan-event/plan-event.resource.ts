@@ -4,9 +4,9 @@ import type { PlanEvent, PlanEventFilter, PlanEventStore } from '../../ports/pla
 export class PlanEventService {
   constructor(private readonly events: PlanEventStore) {}
 
-  /** Read a project's events using the repository's ordering and filtering. */
-  readHistory(projectId: string, filter: PlanEventFilter): Promise<PlanEvent[]> {
-    return this.events.listFor(projectId, filter);
+  /** Read a work package's events using the repository's ordering and filtering. */
+  readHistory(workPackageId: string, filter: PlanEventFilter): Promise<PlanEvent[]> {
+    return this.events.listFor(workPackageId, filter);
   }
 
   /** Remove events older than the requested number of whole days. */

@@ -1,0 +1,88 @@
+{
+  "format": "puni-resource-use-117-merged-acquisition",
+  "version": 1,
+  "source": {
+    "path": "/tmp/puni-merged117-producer-live-v1/source-pins.json",
+    "sha256": "527df5a083b71e5a71608316ff9b3ae1a7fc4522495f3ee08b84df0fbb38128f",
+    "bytes": 5181829,
+    "mode": 384
+  },
+  "producerManifest": {
+    "path": "/tmp/puni-resource-merged-fixture-producer-v1/manifest.json",
+    "sha256": "e66a05e242a09305bf5569621995da322d5d9375db0983b48526c759d00d78eb",
+    "bytes": 3793,
+    "mode": 436
+  },
+  "producer": {
+    "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/resource-use-117-merged-producer.test.ts",
+    "sha256": "1ebab1380d7538bc3b76aa6bda5fd856b40e4ce0cfca60b9283ddca71c6d79cc",
+    "bytes": 14560,
+    "mode": 436
+  },
+  "receipt": {
+    "schema": "activation-protected-native-v1",
+    "prefix": "/tmp/puni-merged117-producer-live-v1/freezeMerged117/native",
+    "command": {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "libs/wbs/adapters/store-sqlite/src/testing/resource-use-117-merged-producer.test.ts",
+        "--test-name-pattern=^freeze genuine merged117 resource binding with original immutable loser identity$",
+        "--timeout=30000"
+      ],
+      "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+      "deadlineMs": 180000
+    },
+    "environment": {
+      "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/home/df",
+      "TMPDIR": "/tmp",
+      "TZ": "UTC",
+      "LANG": "C.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "NODE_ENV": "test",
+      "NO_COLOR": "1",
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false"
+    },
+    "startedAt": "2026-11-18T13:54:29.283Z",
+    "endedAt": "2026-11-18T13:54:32.626Z",
+    "exitCode": 0,
+    "signal": null,
+    "originalObserved": true,
+    "launched": true,
+    "primary": null,
+    "cleanup": [],
+    "ownerState": "stopped-and-reaped",
+    "descriptorState": "closed",
+    "output": {
+      "state": "acquired",
+      "stdoutFd": 5,
+      "stderrFd": 5,
+      "sameNumericFd": true
+    },
+    "transcript": {
+      "state": "owned",
+      "path": "/tmp/puni-merged117-producer-live-v1/freezeMerged117/native.log",
+      "sha256": "94581487dbc0e148be8dd44a62e6a5a71babae93a0c7285f7293fd7c99b33426",
+      "bytes": 380
+    },
+    "settled": true
+  },
+  "log": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/resource-use-117-merged-producer.test.ts:\nFrozen merged resource fixture: /tmp/puni-resource-use-117-merged-frozen-native-v1/manifest.json\n(pass) freeze genuine merged117 resource binding with original immutable loser identity [751.98ms]\n\n 1 pass\n 0 fail\n 17 expect() calls\nRan 1 test across 1 file. [3.30s]\n",
+  "before117": {
+    "database": {
+      "path": "/tmp/puni-resource-use-117-merged-frozen-native-v1/before117.db",
+      "sha256": "07f422a873696f8a79cbf81bd2eda96b38a4254e6f4af4e97016d0e3feaab6a8",
+      "bytes": 1835008,
+      "mode": 420
+    },
+    "report": {
+      "path": "/tmp/puni-resource-use-117-merged-frozen-native-v1/before117.window.json",
+      "sha256": "1490a7edf82bb3a32eaadea6c2861a12622df83331c11050f19e5d501811de7a",
+      "bytes": 14654,
+      "mode": 384
+    }
+  },
+  "qualification": "Historical116 seed plus actual current broad registration/claim/runtime-binding APIs, known Source close, guarded117 automatic merge and full immutable-row/readback checks. Original output staging paths remain untouched. No migration118/alias-continuity or runtime authorization claim."
+}

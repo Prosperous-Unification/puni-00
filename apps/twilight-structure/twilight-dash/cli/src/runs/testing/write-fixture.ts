@@ -5,6 +5,7 @@ import {
 } from '@wbs/contracts';
 
 import type { WriteFacts } from '../plan-writes';
+import { mapCurrentScope, mapLocalScope } from '../runtime-codecs';
 import { executionCommandId } from '../value-codecs';
 import type { WriteCompletion, WriteStageCommand } from '../write-records';
 import { type OutcomeFixture, prepareTurn } from './fixtures';
@@ -45,7 +46,7 @@ async function prepareWriteTarget(
     'application/json',
   );
   if (retained.kind !== 'retained') throw new Error('fixture write state refused');
-  const canonicalRequest = canonicalRuntimeRequest(setup.scope, {
+  const canonicalRequest = canonicalRuntimeRequest(mapCurrentScope(setup.scope), {
     schemaVersion: 1,
     commandId: 'wire-write' + setup.suffix,
     expectedLedgerId: state.ledgerId,
@@ -89,7 +90,7 @@ async function prepareWriteTarget(
     observation: {
       version: 1,
       evidence: retained.reference,
-      scope: state.scope,
+      scope: mapLocalScope(state.scope),
       ledgerId: state.ledgerId,
       basis: state.basis,
       workItemId: snapshot.run.workItemId,

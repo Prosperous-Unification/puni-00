@@ -1,17 +1,17 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
 import type { PlanRead } from '../src/lib/wbs-api';
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 async function datedPlan(page: Page): Promise<{ refuseNextRead: () => void }> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
   await page.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
 
   let unavailable = false;
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.continue();
       return;

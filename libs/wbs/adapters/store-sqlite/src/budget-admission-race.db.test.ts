@@ -1,9 +1,10 @@
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { PlanCommand, Scope, ScopedBatchOutcome, StepNodeAttemptStore } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -64,7 +65,7 @@ const roomOf = (model: Readonly<Model>): number =>
   Math.max(0, Math.floor((CAP - model.spent) / HOLD) - model.running.size);
 
 /**
- * A project P with `LEAVES` leaves that start attempts and one spender leaf
+ * A work package P with `LEAVES` leaves that start attempts and one spender leaf
  * that only records facts (so no fact ever lands on a node whose attempt it
  * could release), a strict tokens budget of 1000 holding 300 per attempt on P,
  * and a runner whose batches read attempts from `attempts.source`.
@@ -75,6 +76,7 @@ async function openWorld(attempts: {
   const directory = mkdtempSync(join(tmpdir(), 'budget-admission-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
+  seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -83,22 +85,22 @@ async function openWorld(attempts: {
   source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = expectCreated(await graph.projects.create('Race', 'dany'));
-  const projectId = created.project.id;
-  let stale: Awaited<ReturnType<StepNodeAttemptStore['listByProject']>> = [];
+  const created = expectCreated(await graph.workPackages.create('Race', 'fixture-project', 'dany'));
+  const workPackageId = created.workPackage.id;
+  let stale: Awaited<ReturnType<StepNodeAttemptStore['listByWorkPackage']>> = [];
   const sourced = (store: StepNodeAttemptStore): StepNodeAttemptStore => {
-    const listByProject = store.listByProject.bind(store);
+    const listByWorkPackage = store.listByWorkPackage.bind(store);
     // Every other method is the store's own, through the prototype.
     return Object.assign(Object.create(store) as StepNodeAttemptStore, {
-      listByProject: (id: string) =>
-        attempts.source === 'stale' ? Promise.resolve(stale) : listByProject(id),
+      listByWorkPackage: (id: string) =>
+        attempts.source === 'stale' ? Promise.resolve(stale) : listByWorkPackage(id),
     });
   };
   const runner = createPlanCommandRunner({
@@ -116,7 +118,7 @@ async function openWorld(attempts: {
         },
       ),
   });
-  const run = (commands: PlanCommand[]) => runner.run(projectId, 'dany', commands);
+  const run = (commands: PlanCommand[]) => runner.run(workPackageId, 'dany', commands);
   const built = await run([
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'S', name: 'S', parentRef: 'P', parentId: null, afterId: null },
@@ -137,7 +139,7 @@ async function openWorld(attempts: {
   };
   const parentId = idOf('P');
   const stepId = source.db.get<{ id: string }>(
-    sql`SELECT id FROM step WHERE project_id = ${projectId} ORDER BY position LIMIT 1`,
+    sql`SELECT id FROM step WHERE work_package_id = ${workPackageId} ORDER BY position LIMIT 1`,
   ).id;
   const budget = await run([
     {
@@ -158,7 +160,7 @@ async function openWorld(attempts: {
     spenderId: idOf('S'),
     stepId,
     readBeforeQueueing: async () => {
-      stale = await source.stores.attempts.listByProject(projectId);
+      stale = await source.stores.attempts.listByWorkPackage(workPackageId);
     },
     running: () =>
       new Set(

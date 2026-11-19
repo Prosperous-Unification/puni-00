@@ -116,7 +116,7 @@ describe('effectiveTeamsOf', () => {
   });
 
   it('answers for a row whose parent is not in the list', () => {
-    // A parent from another project, or one that has been removed: the walk
+    // A parent from another work package, or one that has been removed: the walk
     // runs out of rows rather than throwing, and the row is simply unlabelled.
     const rows = [row('orphan', 'elsewhere')];
 

@@ -12,7 +12,7 @@ import type { MeasureEstimateReading, NumberedWorkItem } from '../../service/num
 /**
  * The row read's rows with `measureEstimates` attached (`wbs-measure-budgets`
  * task 2.2): per definition key held by any trio, the one-measure fold
- * {@link rollUpMeasureEstimates} under the project's `weights` and the
+ * {@link rollUpMeasureEstimates} under the work package's `weights` and the
  * definition's scale, and beside each figure the variance against the row's
  * own rolled-up fact in that measure ({@link factMetricOf}: `token_actual`
  * for tokens).
@@ -36,7 +36,9 @@ export function withMeasureEstimates<Row extends NumberedWorkItem>(
   const folds = keys.map((key) => {
     const definition = definitions.find((each) => each.key === key);
     if (definition === undefined)
-      throw new Error(`a measure estimate names ${key}, which no definition of its project holds`);
+      throw new Error(
+        `a measure estimate names ${key}, which no definition of its work package holds`,
+      );
     return [key, rollUpMeasureEstimates(rows, estimates, key, weights, definition.scale)] as const;
   });
   return rows.map((row) => {

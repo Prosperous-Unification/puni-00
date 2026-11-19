@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 import {
   IMPORT_WITH_AI_GUIDE_URL,

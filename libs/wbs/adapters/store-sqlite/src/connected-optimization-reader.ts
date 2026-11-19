@@ -47,7 +47,7 @@ export interface ConnectedOptimizationReaderOptions {
   };
 }
 
-function projectOutcome(
+function workPackageOutcome(
   question: ConnectedOptimizationQuestion,
   outcome: ConnectedSolverOutcome,
 ): {
@@ -139,14 +139,18 @@ export function connectedOptimizationReaderOf(
             candidate: null,
           };
         if (prepared.kind === 'boundary-infeasible')
-          return projectOutcome(questions[objective], prepareConnectedBoundaryOutcome(prepared));
+          return workPackageOutcome(
+            questions[objective],
+            prepareConnectedBoundaryOutcome(prepared),
+          );
         const entry = captured.variants[objective];
-        if (entry.kind === 'durable') return projectOutcome(questions[objective], entry.outcome);
+        if (entry.kind === 'durable')
+          return workPackageOutcome(questions[objective], entry.outcome);
         if (entry.kind === 'idle' || entry.kind === 'pending' || entry.kind === 'retrying')
           return { state: { state: entry.kind }, candidate: null };
         if (entry.kind === 'corrupt')
           return { state: { state: 'corrupt' as const, message: entry.message }, candidate: null };
-        return projectOutcome(
+        return workPackageOutcome(
           questions[objective],
           evaluateConnectedSolverOutcome(stage, prepared.request, entry),
         );

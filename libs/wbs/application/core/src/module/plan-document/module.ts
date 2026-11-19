@@ -1,6 +1,5 @@
 import { DiBag } from 'di-bag';
 
-import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
 import { PLAN_DOCUMENT_LABEL } from './contract';
 import { PlanDocumentService, type PlanDocumentServiceOptions } from './plan-document.resource';
@@ -15,36 +14,18 @@ import { PlanDocumentService, type PlanDocumentServiceOptions } from './plan-doc
  * than against an anonymous binding.
  *
  * The module registers no disposer: `PlanDocumentService` holds borrowed
- * reads and a clock and no timer, socket or handle of its own.
+ * clock and no timer, socket or handle of its own. The supplied evidence is detached.
  */
 export const planDocumentModule = DiBag.createBuilder()
   .withServices({
     planDocumentOptions: DiBag.createProvider(
-      ({
-        directory,
-        stepParallels,
-        markers,
-        clock,
-        resourceFacts,
-        measureFacts,
-      }: {
-        directory: PlanDocumentServiceOptions['directory'];
-        stepParallels: PlanDocumentServiceOptions['stepParallels'];
-        markers: CalendarMarkerReader;
-        clock: Pick<Clock, 'now'>;
-        resourceFacts: PlanDocumentServiceOptions['resourceFacts'];
-        measureFacts: PlanDocumentServiceOptions['measureFacts'];
+      ({ clock }: { clock: Pick<Clock, 'now'> }): PlanDocumentServiceOptions => {
         // Proof (2026-09-23): handing the feature `clock: { now: () => 0 }` instead of the supplied
-        // clock left `exports a project with its markers over the graph installPlanDocument wires`
+        // clock left `exports a workPackage with its markers over the graph installPlanDocument wires`
         // failing (4 pass, 1 fail): `exportedAt` read "1970-01-01T00:00:00.000Z".
-      }): PlanDocumentServiceOptions => ({
-        directory,
-        markers,
-        clock,
-        stepParallels,
-        resourceFacts,
-        measureFacts,
-      }),
+
+        return { clock };
+      },
       { factoryReturnKind: 'sync-value' },
     ),
   })

@@ -12,8 +12,8 @@ import { type LoadWindow, placeInWindow } from './load-window';
 const PEOPLE_SHAPES = [readPersonLoad] as const;
 
 type PersonLoad = Extract<ClientReply<typeof readPersonLoad>, { kind: 'success' }>['body'];
-type ProjectLoad = PersonLoad['projects'][number];
-type Booking = ProjectLoad['bookings'][number];
+type WorkPackageLoad = PersonLoad['workPackages'][number];
+type Booking = WorkPackageLoad['bookings'][number];
 type UnavailableReason = PersonLoad['unavailable'][number]['reason'];
 
 type View =
@@ -23,7 +23,7 @@ type View =
   | { kind: 'ready'; load: PersonLoad };
 
 /**
- * Why a project's bookings could not be read, in the reader's words. Keyed by
+ * Why a work package's bookings could not be read, in the reader's words. Keyed by
  * the contract's closed reason list: a reason the contract does not name never
  * reaches this page, because the shared shape refuses the response and the
  * page shows its query-failure state instead.
@@ -37,12 +37,12 @@ const REASON_WORDS: Readonly<Record<UnavailableReason, string>> = {
   cycle: 'its dependencies run in a circle',
   calendar_range: 'its dates run past the calendar',
   // Proof: omitting this key rendered a valid connected calendar refusal as "Platform could not be read: ." in the mounted page test.
-  dependency_calendar_missing: 'a connected project has no scheduling calendar',
+  dependency_calendar_missing: 'a connected work package has no scheduling calendar',
 };
 
 /** The key that names one booking in an overlap and in a lane alike. */
-function bookingKey(projectId: string, workItemId: string, stepId: string | null): string {
-  return `${projectId}\u0000${workItemId}\u0000${stepId ?? ''}`;
+function bookingKey(workPackageId: string, workItemId: string, stepId: string | null): string {
+  return `${workPackageId}\u0000${workItemId}\u0000${stepId ?? ''}`;
 }
 
 export interface PersonLoadPageProps {
@@ -53,9 +53,9 @@ export interface PersonLoadPageProps {
 }
 
 /**
- * One person's bookings across every project the reader can open, one lane
- * per project on a shared workday axis, with the stretches where two
- * bookings run at once hatched (`openspec/changes/share-people-across-projects`,
+ * One person's bookings across every work package the reader can open, one lane
+ * per work package on a shared workday axis, with the stretches where two
+ * bookings run at once hatched (`openspec/changes/share-people-across-work-packages`,
  * slice 2).
  *
  * Reads only. Which bookings overlap is be-01's answer, never recomputed from
@@ -143,12 +143,12 @@ function Ready({ load, window }: { load: PersonLoad; window: LoadWindow }): Reac
   const overlapping = new Set(
     load.overlaps.flatMap((overlap) =>
       overlap.bookings.map((booking) =>
-        bookingKey(booking.projectId, booking.workItemId, booking.stepId),
+        bookingKey(booking.workPackageId, booking.workItemId, booking.stepId),
       ),
     ),
   );
   const nothing =
-    load.projects.length === 0 && load.undated.length === 0 && load.unavailable.length === 0;
+    load.workPackages.length === 0 && load.undated.length === 0 && load.unavailable.length === 0;
   return (
     <Card>
       <CardHeader>
@@ -173,20 +173,20 @@ function Ready({ load, window }: { load: PersonLoad; window: LoadWindow }): Reac
             .
           </p>
         ) : null}
-        {load.projects.length > 0 ? (
-          <ul aria-label="Projects" className="flex flex-col gap-2">
-            {load.projects.map((project) => (
-              <li key={project.projectId} className="flex flex-col gap-1">
+        {load.workPackages.length > 0 ? (
+          <ul aria-label="Work packages" className="flex flex-col gap-2">
+            {load.workPackages.map((workPackage) => (
+              <li key={workPackage.workPackageId} className="flex flex-col gap-1">
                 <span className="text-sm font-medium">
-                  {project.name}
-                  {project.engine === 'optimized' ? ' (optimized)' : ''}
+                  {workPackage.name}
+                  {workPackage.engine === 'optimized' ? ' (optimized)' : ''}
                 </span>
                 <Lane
-                  project={project}
+                  workPackage={workPackage}
                   window={window}
                   isOverlapping={(booking) =>
                     overlapping.has(
-                      bookingKey(project.projectId, booking.workItemId, booking.stepId),
+                      bookingKey(workPackage.workPackageId, booking.workItemId, booking.stepId),
                     )
                   }
                 />
@@ -197,14 +197,14 @@ function Ready({ load, window }: { load: PersonLoad; window: LoadWindow }): Reac
         {load.undated.length > 0 ? (
           <p className="text-sm">
             No start date, so nothing booked yet:{' '}
-            {load.undated.map((project) => project.name).join(', ')}.
+            {load.undated.map((workPackage) => workPackage.name).join(', ')}.
           </p>
         ) : null}
         {load.unavailable.length > 0 ? (
-          <ul aria-label="Unavailable projects" className="text-sm">
-            {load.unavailable.map((project) => (
-              <li key={project.projectId}>
-                {project.name} could not be read: {REASON_WORDS[project.reason]}.
+          <ul aria-label="Unavailable work packages" className="text-sm">
+            {load.unavailable.map((workPackage) => (
+              <li key={workPackage.workPackageId}>
+                {workPackage.name} could not be read: {REASON_WORDS[workPackage.reason]}.
               </li>
             ))}
           </ul>
@@ -215,7 +215,7 @@ function Ready({ load, window }: { load: PersonLoad; window: LoadWindow }): Reac
 }
 
 /**
- * One project's bookings as bars across the window. A bar is hatched when
+ * One work package's bookings as bars across the window. A bar is hatched when
  * be-01 named it in an overlap, and only then.
  *
  * Proof: hatching by whole-day intersection (`a.startsOn <= b.endsOn &&
@@ -224,21 +224,21 @@ function Ready({ load, window }: { load: PersonLoad; window: LoadWindow }): Reac
  * watched 2026-09-29.
  */
 function Lane({
-  project,
+  workPackage,
   window,
   isOverlapping,
 }: {
-  project: ProjectLoad;
+  workPackage: WorkPackageLoad;
   window: LoadWindow;
   isOverlapping: (booking: Booking) => boolean;
 }): React.JSX.Element {
   return (
     <div
       role="list"
-      aria-label={`Bookings in ${project.name}`}
+      aria-label={`Bookings in ${workPackage.name}`}
       className="bg-muted relative h-7 rounded"
     >
-      {project.bookings.map((booking) => {
+      {workPackage.bookings.map((booking) => {
         const place = placeInWindow(window, booking.startsOn, booking.endsOn);
         if (place === null) return null;
         const hatched = isOverlapping(booking);

@@ -38,7 +38,7 @@ function checkOptimization(tree: WorkItemTree): StandardSchemaV1.Issue[] {
     if (variant.state === 'boundary-infeasible') {
       const { question } = variant.certificate;
       const expected = {
-        projectId: scope.projectId,
+        workPackageId: scope.workPackageId,
         objective,
         inputHash: optimization.inputHash,
         contractVersion: optimization.contractVersion,
@@ -51,7 +51,7 @@ function checkOptimization(tree: WorkItemTree): StandardSchemaV1.Issue[] {
       // `connected terminal rejects semantic question mismatch` generated-client
       // test return success for the altered projected certificate (2026-10-22).
       for (const field of [
-        'projectId',
+        'workPackageId',
         'objective',
         'inputHash',
         'contractVersion',

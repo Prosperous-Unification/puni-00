@@ -80,7 +80,7 @@ describe('a calendar day, printed as somebody reads one', () => {
     // The fault this function exists to avoid, run in the zone that produces
     // it. `new Date('2026-06-01')` is midnight **UTC** and `getDate()` answers
     // locally, so a formatter that parsed its input would print the day before
-    // for everybody west of Greenwich. A project's dates are calendar days —
+    // for everybody west of Greenwich. A work package's dates are calendar days —
     // no time, no zone, nothing to convert.
     //
     // The first half of the answer is the precondition: without it this is a

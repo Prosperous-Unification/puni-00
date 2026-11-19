@@ -5,7 +5,7 @@ import type { LivePlanRead } from '../ports/shared-people-values';
 import { deriveConnectedPlan } from '../service/connected-plan';
 import type { ConnectedPlanCapture } from '../service/connected-plan-values';
 import { deriveConnectedReadiness } from '../service/connected-readiness';
-import { projectConnectedTree } from '../service/connected-tree';
+import { workPackageConnectedTree } from '../service/connected-tree';
 import { connectedCapture, connectedReads } from './connected-plan-fixture';
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const deriveRead = (capture: ConnectedPlanCapture = connectedCapture()): ConnectedRead => {
@@ -16,19 +16,22 @@ const deriveRead = (capture: ConnectedPlanCapture = connectedCapture()): Connect
     readiness: deriveConnectedReadiness(
       capture,
       projection.authored,
-      new Map(capture.projects.map((member) => [member.projectId, []])),
+      new Map(capture.workPackages.map((member) => [member.workPackageId, []])),
     ),
-    metadataByProject: new Map(
-      capture.projects.map((member) => [
-        member.projectId,
+    metadataByWorkPackage: new Map(
+      capture.workPackages.map((member) => [
+        member.workPackageId,
         {
-          project: {
-            ...member.reads.project,
+          workPackage: {
+            ...member.reads.workPackage,
             abbreviation: member.abbreviation,
             revision: 7,
             createdAt: 0,
           },
-          steps: member.reads.steps.map((step) => ({ ...step, projectId: member.projectId })),
+          steps: member.reads.steps.map((step) => ({
+            ...step,
+            workPackageId: member.workPackageId,
+          })),
           workItems: member.reads.workItems.map((row) => ({
             ...row,
             externalRefs: row.externalRefs.map((reference) => ({
@@ -71,18 +74,18 @@ export function createConnectedBlockageRead(
   );
   const captured = deriveRead({
     ...base,
-    projects: [
-      ...base.projects,
-      { projectId: 'C', abbreviation: 'C', rank: 2, reads: connectedReads('C') },
+    workPackages: [
+      ...base.workPackages,
+      { workPackageId: 'C', abbreviation: 'C', rank: 2, reads: connectedReads('C') },
     ],
     relationships: [
       ...base.relationships,
       {
         id: 'bc',
-        projectId: 'C',
+        workPackageId: 'C',
         type: 'FS',
-        predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-        successor: { projectId: 'C', scope: 'whole', workItemId: 'c' },
+        predecessor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
+        successor: { workPackageId: 'C', scope: 'whole', workItemId: 'c' },
       },
     ],
   });
@@ -97,7 +100,7 @@ export function createConnectedBlockageTree(
 ) {
   return {
     ...presentConnectedTree(
-      projectConnectedTree(createConnectedBlockageRead(kind, unavailable, name), 'C'),
+      workPackageConnectedTree(createConnectedBlockageRead(kind, unavailable, name), 'C'),
     ),
     undoable: false,
     redoable: false,

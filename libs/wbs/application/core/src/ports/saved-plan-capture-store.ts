@@ -3,14 +3,14 @@ export type {
   CapturedDependency,
   CapturedNamedValue,
   CapturedPerson,
-  CapturedProject,
+  CapturedWorkPackage,
   CapturedStep,
   CapturedTeam,
   CapturedWorkItem,
   PlanInputReads,
 } from './saved-plan-capture-values';
 
-/** A coherent source snapshot of one project's saved-plan input. */
+/** A coherent source snapshot of one work package's saved-plan input. */
 export interface SavedPlanCaptureStore {
-  readPlanInput(projectId: string): Promise<PlanInputReads | null>;
+  readPlanInput(workPackageId: string): Promise<PlanInputReads | null>;
 }

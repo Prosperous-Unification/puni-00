@@ -1,23 +1,24 @@
 import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixture';
-import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { testCalendarMarkerService } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import type { CalendarMarker } from '../../index';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { createLegacyWorkPackageFixture } from '../../testing/legacy-work-package-fixture';
 import type {
   CalendarMarkerOutcome,
   CalendarMarkerRefusal,
   CalendarMarkerService,
 } from './calendar-marker.resource';
 
-const PROJECT = 'proj-1';
+const WORK_PACKAGE = 'proj-1';
 const OWNER = 'owner';
 const STRANGER = 'somebody-else';
 
 const SEEDED: CalendarMarker = {
   id: 'marker-1',
-  projectId: PROJECT,
+  workPackageId: WORK_PACKAGE,
   date: '2026-09-06',
   name: 'Launch',
   color: '#ff0000',
@@ -25,14 +26,19 @@ const SEEDED: CalendarMarker = {
 };
 
 async function harness(restricted = false) {
-  const projects = inMemoryProjects();
-  await projects.create(projectRow({ id: PROJECT, ownerId: OWNER, restricted }), [], {
-    at: 1,
-    by: OWNER,
-  });
+  const workPackages = (await createLegacyWorkPackageFixture(OWNER, 'route-legacy', 'route-parent'))
+    .workPackages;
+  await workPackages.create(
+    workPackageRow({ id: WORK_PACKAGE, projectId: 'route-parent', restricted }),
+    [],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   const broadcast = recordingBroadcaster();
   const service = testCalendarMarkerService(
-    projects,
+    workPackages,
     inMemoryCalendarMarkers([SEEDED]),
     undefined,
     broadcast,
@@ -42,13 +48,13 @@ async function harness(restricted = false) {
 
 type Write = (
   service: CalendarMarkerService,
-  projectId: string,
+  workPackageId: string,
   actor: string,
 ) => Promise<CalendarMarkerOutcome>;
 
 /**
  * The four writes twice over: once in the shape that succeeds against
- * {@link SEEDED}, once in the shape the **store** refuses after the project
+ * {@link SEEDED}, once in the shape the **store** refuses after the work package
  * gate has already passed.
  *
  * The second column is the half worth having. A gate refusal never reaches the
@@ -61,42 +67,42 @@ const WRITES: Record<
   { succeeds: Write; refusedByStore: Write; storeReason: CalendarMarkerRefusal }
 > = {
   create: {
-    succeeds: (service, projectId, actor) =>
-      service.create(projectId, actor, { id: 'marker-2', date: '2026-09-07', name: 'Freeze' }),
+    succeeds: (service, workPackageId, actor) =>
+      service.create(workPackageId, actor, { id: 'marker-2', date: '2026-09-07', name: 'Freeze' }),
     // The seeded marker's own id, which the store holds already.
-    refusedByStore: (service, projectId, actor) =>
-      service.create(projectId, actor, { id: SEEDED.id, date: '2026-09-07', name: 'Freeze' }),
+    refusedByStore: (service, workPackageId, actor) =>
+      service.create(workPackageId, actor, { id: SEEDED.id, date: '2026-09-07', name: 'Freeze' }),
     storeReason: 'taken',
   },
   rename: {
-    succeeds: (service, projectId, actor) =>
-      service.rename(projectId, SEEDED.id, actor, 'Deployed'),
-    refusedByStore: (service, projectId, actor) =>
-      service.rename(projectId, 'no-such-marker', actor, 'Deployed'),
+    succeeds: (service, workPackageId, actor) =>
+      service.rename(workPackageId, SEEDED.id, actor, 'Deployed'),
+    refusedByStore: (service, workPackageId, actor) =>
+      service.rename(workPackageId, 'no-such-marker', actor, 'Deployed'),
     storeReason: 'not_found',
   },
   recolor: {
-    succeeds: (service, projectId, actor) =>
-      service.recolor(projectId, SEEDED.id, actor, '#00ff00'),
-    refusedByStore: (service, projectId, actor) =>
-      service.recolor(projectId, 'no-such-marker', actor, '#00ff00'),
+    succeeds: (service, workPackageId, actor) =>
+      service.recolor(workPackageId, SEEDED.id, actor, '#00ff00'),
+    refusedByStore: (service, workPackageId, actor) =>
+      service.recolor(workPackageId, 'no-such-marker', actor, '#00ff00'),
     storeReason: 'not_found',
   },
   remove: {
-    succeeds: (service, projectId, actor) => service.remove(projectId, SEEDED.id, actor),
-    refusedByStore: (service, projectId, actor) =>
-      service.remove(projectId, 'no-such-marker', actor),
+    succeeds: (service, workPackageId, actor) => service.remove(workPackageId, SEEDED.id, actor),
+    refusedByStore: (service, workPackageId, actor) =>
+      service.remove(workPackageId, 'no-such-marker', actor),
     storeReason: 'not_found',
   },
 };
 
 /**
  * Annotated rather than inferred: an unannotated literal widens `type` to
- * `string`, which is not a `ProjectEvent` and which `toEqual` rejects against
+ * `string`, which is not a `WorkPackageEvent` and which `toEqual` rejects against
  * the recorder's own element type.
  */
 const ANNOUNCED: RecordingBroadcaster['published'] = [
-  { projectId: PROJECT, event: { type: 'calendar_markers_changed' } },
+  { workPackageId: WORK_PACKAGE, event: { type: 'calendar_markers_changed' } },
 ];
 
 /**
@@ -113,33 +119,33 @@ describe('CalendarMarkerService announcements', () => {
   for (const [name, write] of Object.entries(WRITES)) {
     it(`publishes exactly one calendar_markers_changed for a successful ${name}`, async () => {
       const { broadcast, service } = await harness();
-      expect((await write.succeeds(service, PROJECT, OWNER)).ok).toBe(true);
+      expect((await write.succeeds(service, WORK_PACKAGE, OWNER)).ok).toBe(true);
       expect(broadcast.published).toEqual(ANNOUNCED);
     });
 
-    it(`announces nothing when ${name} names a project that does not exist`, async () => {
+    it(`announces nothing when ${name} names a work package that does not exist`, async () => {
       const { broadcast, service } = await harness();
-      expect(await write.succeeds(service, 'no-such-project', OWNER)).toEqual({
+      expect(await write.succeeds(service, 'no-such-work-package', OWNER)).toEqual({
         ok: false,
         reason: 'not_found',
-        about: 'project',
+        about: 'work_package',
       });
       expect(broadcast.published).toEqual([]);
     });
 
     it(`announces nothing when ${name} is refused as forbidden`, async () => {
       const { broadcast, service } = await harness(true);
-      expect(await write.succeeds(service, PROJECT, STRANGER)).toEqual({
+      expect(await write.succeeds(service, WORK_PACKAGE, STRANGER)).toEqual({
         ok: false,
         reason: 'forbidden',
-        about: 'project',
+        about: 'work_package',
       });
       expect(broadcast.published).toEqual([]);
     });
 
     it(`announces nothing when the store refuses ${name} after the gate passed`, async () => {
       const { broadcast, service } = await harness();
-      expect(await write.refusedByStore(service, PROJECT, OWNER)).toEqual({
+      expect(await write.refusedByStore(service, WORK_PACKAGE, OWNER)).toEqual({
         ok: false,
         reason: write.storeReason,
         about: 'marker',
@@ -155,10 +161,15 @@ describe('CalendarMarkerService announcements', () => {
     // nothing. Nothing in this file — or in any marker suite — can catch the
     // missing argument; `services.db.test.ts` builds the real `buildServices`
     // and reads the event back, which is the only place that can.
-    const projects = inMemoryProjects();
-    await projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], { at: 1, by: OWNER });
-    const service = testCalendarMarkerService(projects, inMemoryCalendarMarkers([SEEDED]));
+    const workPackages = (
+      await createLegacyWorkPackageFixture(OWNER, 'route-legacy', 'route-parent')
+    ).workPackages;
+    await workPackages.create(workPackageRow({ id: WORK_PACKAGE, projectId: 'route-parent' }), [], {
+      at: 1,
+      by: OWNER,
+    });
+    const service = testCalendarMarkerService(workPackages, inMemoryCalendarMarkers([SEEDED]));
 
-    expect((await service.rename(PROJECT, SEEDED.id, OWNER, 'Deployed')).ok).toBe(true);
+    expect((await service.rename(WORK_PACKAGE, SEEDED.id, OWNER, 'Deployed')).ok).toBe(true);
   });
 });

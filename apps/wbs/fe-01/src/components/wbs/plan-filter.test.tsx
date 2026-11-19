@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
+import type { WorkPackageApi, WorkItemView } from '@/lib/wbs-api';
+import { DEV, fakeWorkPackageApi as fakeApi, QA } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type * as TableFrameModule from './table-frame';
@@ -84,7 +84,7 @@ const takeRowAction = (number: string, label: string) => {
   fireEvent.click(screen.getByRole('menuitem', { name: label }));
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -94,12 +94,12 @@ beforeEach(() => {
  * Every column on screen, for a describe whose tests read the Teams or
  * Services cells: both are hidden by default since `configurable-columns`, and
  * those tests are about the cells, not about the default column set. Stored as
- * the reader would have stored it — an empty hide-list — under both project ids
+ * the reader would have stored it — an empty hide-list — under both work package ids
  * the file renders. The tests that ARE about the default never call this.
  */
 const showEveryColumn = (): void => {
-  for (const projectId of ['p1', 'p2']) {
-    localStorage.setItem(`wbs.hiddenColumns.${projectId}`, '[]');
+  for (const workPackageId of ['p1', 'p2']) {
+    localStorage.setItem(`wbs.hiddenColumns.${workPackageId}`, '[]');
   }
 };
 
@@ -125,7 +125,7 @@ describe('finding a work item in the tree', () => {
    *  020.1   Undercoat
    * ```
    */
-  async function decorating(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+  async function decorating(): Promise<WorkPackageApi & { rows: WorkItemView[] }> {
     const api = fakeApi();
     const strip = await api.createWorkItem('p1', {
       parentId: null,
@@ -151,9 +151,11 @@ describe('finding a work item in the tree', () => {
   const EVERY_ROW = ['010', '010.1', '010.1.1', '010.2', '020', '020.1'];
 
   /** Renders the plan above and waits for it to be on screen. */
-  async function shownPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+  async function shownPlan(): Promise<WorkPackageApi & { rows: WorkItemView[] }> {
     const api = await decorating();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(EVERY_ROW);
     });
@@ -166,26 +168,31 @@ describe('finding a work item in the tree', () => {
     fireEvent.change(findBox(), { target: { value: typed } });
   };
 
-  itDom('a project switch cannot show or apply the previous project’s query', async () => {
-    const api = await decorating();
-    const view = render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
-    );
-    await waitFor(() => {
-      expect(numbersOnScreen()).toEqual(EVERY_ROW);
-    });
-    find('skirting');
-    await waitFor(() => {
-      expect(numbersOnScreen()).toEqual(['010', '010.2']);
-    });
+  itDom(
+    'a work package switch cannot show or apply the previous work package’s query',
+    async () => {
+      const api = await decorating();
+      const view = render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
+      await waitFor(() => {
+        expect(numbersOnScreen()).toEqual(EVERY_ROW);
+      });
+      find('skirting');
+      await waitFor(() => {
+        expect(numbersOnScreen()).toEqual(['010', '010.2']);
+      });
 
-    view.rerender(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
+      view.rerender(
+        <WbsTableOverClient workPackageId="p2" workPackageServices={workPackageServicesOf(api)} />,
+      );
 
-    expect(findBox().value).toBe('');
-    await waitFor(() => {
-      expect(numbersOnScreen()).toEqual(EVERY_ROW);
-    });
-  });
+      expect(findBox().value).toBe('');
+      await waitFor(() => {
+        expect(numbersOnScreen()).toEqual(EVERY_ROW);
+      });
+    },
+  );
 
   itDom('keeps the rows that place a match, and drops everything else', async () => {
     await shownPlan();
@@ -335,23 +342,27 @@ describe('finding a work item in the tree', () => {
     expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
 
     cleanup();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
     });
   });
 
-  itDom('remembers each project separately', async () => {
+  itDom('remembers each work package separately', async () => {
     const api = await shownPlan();
     click('Collapse all');
     expect(numbersOnScreen()).toEqual(['010', '020']);
 
     cleanup();
-    render(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p2" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
-    // A different project has its own memory, and no memory means everything
-    // open — not the shape the last project was left in.
+    // A different work package has its own memory, and no memory means everything
+    // open — not the shape the last work package was left in.
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(EVERY_ROW);
     });
@@ -364,7 +375,9 @@ describe('finding a work item in the tree', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.createWorkItem('p1', { parentId: null, afterId: 'w1', name: 'Paint' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     const saved = localStorage.getItem('wbs.expanded.p1');
 
@@ -382,7 +395,9 @@ describe('finding a work item in the tree', () => {
     });
 
     cleanup();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
     });
@@ -393,13 +408,17 @@ describe('finding a work item in the tree', () => {
     // peer or an import is judged by the saved expansion alone.
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     click('Collapse all');
     await api.createWorkItem('p1', { parentId: 'w1', afterId: null, name: 'Sockets' });
     cleanup();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1']);
@@ -437,7 +456,7 @@ describe('narrowing the plan by facet', () => {
    * question a facet control gets wrong is which of them it offers: the
    * directory holds every team in the deployment and this is one plan.
    */
-  // The fake's own type rather than `ProjectApi & { rows }`: `labelWithTag` is
+  // The fake's own type rather than `WorkPackageApi & { rows }`: `labelWithTag` is
   // one of the writes this fixture models directly, and a narrowed return type
   // would hide it from the tag facet's case.
   async function aFacetedPlan(): Promise<ReturnType<typeof fakeApi>> {
@@ -477,7 +496,9 @@ describe('narrowing the plan by facet', () => {
     await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
     await api.setEstimate(paint.id, QA.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
 
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
     });
@@ -578,7 +599,9 @@ describe('narrowing the plan by facet', () => {
     const ready = await api.addTag('Ready');
     api.labelWithTag(strip.id, [risk.id]);
     api.labelWithTag(sockets.id, [ready.id]);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
     });
@@ -741,7 +764,9 @@ describe('narrowing the plan by facet', () => {
     expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
 
     cleanup();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
@@ -840,8 +865,10 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
   }
 
   /** Draw it, and wait for the six rows the fixture builds. */
-  async function shown(api: ProjectApi): Promise<void> {
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  async function shown(api: WorkPackageApi): Promise<void> {
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
     });
@@ -917,7 +944,9 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       // feature is broken.
       const api = fakeApi();
       await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await waitFor(() => {
         expect(numbersOnScreen()).toEqual(['010']);
       });
@@ -957,7 +986,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     // undefined (reading 'length')` on all of them — a white screen for the
     // length of a deploy, in the render, not in a test-only shape.
     const api = await aServicedPlan();
-    const older: ProjectApi = {
+    const older: WorkPackageApi = {
       ...api,
       listTeams: () =>
         Promise.resolve([
@@ -1185,14 +1214,14 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -1245,7 +1274,7 @@ describe('saved views, per browser', () => {
    * One team on one row, which is enough to ask what a saved view stores and
    * what happens once the team it named is gone.
    */
-  async function aPlanWithATeam(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+  async function aPlanWithATeam(): Promise<WorkPackageApi & { rows: WorkItemView[] }> {
     const api = fakeApi();
     const strip = await api.createWorkItem('p1', {
       parentId: null,
@@ -1256,7 +1285,9 @@ describe('saved views, per browser', () => {
     const billing = await api.addTeam('Billing');
     await api.patchWorkItem(strip.id, { serviceTeamId: billing.id });
 
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -1285,7 +1316,7 @@ describe('saved views, per browser', () => {
 
   itDom('offers no Save while nothing is filtered', async () => {
     // A view of the whole plan has nothing to be picked back to, since
-    // opening the project already shows it — the same bargain `Clear
+    // opening the work package already shows it — the same bargain `Clear
     // filters` makes over in `FilterFacets`.
     await aPlanWithATeam();
     openViews();
@@ -1435,7 +1466,9 @@ describe('saved views, per browser', () => {
     find('');
 
     cleanup();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -1495,7 +1528,12 @@ describe('saved views, per browser', () => {
 
     localStorage.removeItem(HIDDEN_KEY);
     cleanup();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(fakeApi())} />);
+    render(
+      <WbsTableOverClient
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(fakeApi())}
+      />,
+    );
     await waitFor(() => {
       expect(columnsOnScreen()).not.toContain('refs');
     });
@@ -1659,7 +1697,7 @@ describe('what the filter says it dropped, and what it exports', () => {
    * A team on each, so one tick keeps one row and hides the other end of the
    * only stored edge on the plan — which is the whole state F3 is about.
    */
-  async function twoTeamsOneEdge(): Promise<ProjectApi> {
+  async function twoTeamsOneEdge(): Promise<WorkPackageApi> {
     const api = fakeApi();
     const strip = await api.createWorkItem('p1', {
       parentId: null,
@@ -1681,9 +1719,9 @@ describe('what the filter says it dropped, and what it exports', () => {
 
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
       />,
     );
     await waitFor(() => {
@@ -1942,8 +1980,10 @@ describe('narrowing the plan by resource (wbs-resources 3.4)', () => {
     return api;
   }
 
-  async function shown(api: ProjectApi): Promise<void> {
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  async function shown(api: WorkPackageApi): Promise<void> {
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1', '020.2']);
     });
@@ -1984,7 +2024,9 @@ describe('narrowing the plan by resource (wbs-resources 3.4)', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Gate' });
     api.resources.push({ ...RAM, providerId: null });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010']);
     });

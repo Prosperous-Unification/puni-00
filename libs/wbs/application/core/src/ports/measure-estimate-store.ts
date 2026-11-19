@@ -24,10 +24,10 @@ export type { MeasureEstimateKey, StoredMeasureEstimate } from '@wbs/domain';
  */
 export interface MeasureEstimateStore {
   /**
-   * Every trio in the project, single-point tokens trios included, in work
+   * Every trio in the work package, single-point tokens trios included, in work
    * item, step order and key order.
    */
-  listByProject(projectId: string): Promise<StoredMeasureEstimate[]>;
+  listByWorkPackage(workPackageId: string): Promise<StoredMeasureEstimate[]>;
   /**
    * Writes one step node's trio in one measure, replacing any earlier one in
    * that measure and leaving its other measures alone.

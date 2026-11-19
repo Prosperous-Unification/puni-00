@@ -11,8 +11,8 @@ export const resourceUse = type({
   id: 'string',
   source: "'reported' | 'runtime'",
   organizationId: 'string | null',
-  projectId: 'string',
-  projectName: 'string',
+  workPackageId: 'string',
+  workPackageName: 'string',
   resourceId: 'string',
   resourceName: 'string',
   unitLabel: 'string',
@@ -123,8 +123,8 @@ const page = { 'cursor?': 'string', 'limit?': 'string' } as const;
 /** Registers a reported use; each physical copy is a separate registration request. */
 export const registerResourceUse = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/resource-uses',
-  operationId: 'postApiProjectsByIdResourceUses',
+  path: '/api/work-packages/:id/resource-uses',
+  operationId: 'postApiWorkPackagesByIdResourceUses',
   policies: writes,
   params,
   body: requestSchema(registration),
@@ -136,8 +136,8 @@ export const registerResourceUse = defineEndpointShape({
 });
 export const listResourceUses = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/resource-uses',
-  operationId: 'getApiProjectsByIdResourceUses',
+  path: '/api/work-packages/:id/resource-uses',
+  operationId: 'getApiWorkPackagesByIdResourceUses',
   policies: reads,
   params,
   query: requestSchema(type({ ...page, 'workItemId?': 'string', 'state?': state })),
@@ -156,8 +156,8 @@ export const listResourceUses = defineEndpointShape({
 });
 export const appendResourceUseEvent = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/resource-uses/:useId/events',
-  operationId: 'postApiProjectsByIdResourceUsesByUseIdEvents',
+  path: '/api/work-packages/:id/resource-uses/:useId/events',
+  operationId: 'postApiWorkPackagesByIdResourceUsesByUseIdEvents',
   policies: writes,
   params: useParams,
   body: requestSchema(event),
@@ -170,8 +170,8 @@ export const appendResourceUseEvent = defineEndpointShape({
 });
 export const readResourceUseHistory = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/resource-uses/:useId/history',
-  operationId: 'getApiProjectsByIdResourceUsesByUseIdHistory',
+  path: '/api/work-packages/:id/resource-uses/:useId/history',
+  operationId: 'getApiWorkPackagesByIdResourceUsesByUseIdHistory',
   policies: reads,
   params: useParams,
   query: requestSchema(type(page)),

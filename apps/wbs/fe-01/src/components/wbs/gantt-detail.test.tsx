@@ -151,7 +151,7 @@ describe('the detail switch, over the runtime the page publishes', () => {
   });
 
   /**
-   * Links that become unknown again belong to another plan: a project switch
+   * Links that become unknown again belong to another plan: a work package switch
    * hands the chart generation 0 before the next plan's first read. The
    * never-said default is then decided again, both ways (ui-review F-088).
    *

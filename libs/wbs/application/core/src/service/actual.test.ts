@@ -1,28 +1,30 @@
 import type { Days } from '@wbs/domain';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   ActualStore,
   CommandJournalStore,
-  Project,
-  ProjectStore,
   StoredActual,
+  WorkPackage,
+  WorkPackageStore,
 } from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
 const DEV = 'step-dev';
 const QA = 'step-qa';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let actuals: ActualStore;
 let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 
 beforeEach(async () => {
   const store = inMemoryCommandJournal();
@@ -40,20 +42,22 @@ beforeEach(async () => {
   };
   // Only the journal is this suite's own: it wraps the real one to keep the
   // history rows where a case can read them.
-  const harness = inMemoryServices({ journal });
-  ({ projects, actuals } = harness.stores);
-  service = harness.service;
-  const project: Project = projectRow({
-    id: crypto.randomUUID(),
-    ownerId: OWNER,
-    restricted: true,
+  const harness = createTestServices((await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID)).source, {
+journal,
   });
-  await projects.create(
-    project,
+  ({ workPackages, actuals } = harness.stores);
+  service = harness.service;
+  const workPackage: WorkPackage = workPackageRow({
+    id: crypto.randomUUID(),
+    projectId: PROJECT_ID,
+    restricted: false,
+  });
+  await workPackages.create(
+    workPackage,
     [
       {
         id: DEV,
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -62,7 +66,7 @@ beforeEach(async () => {
       },
       {
         id: QA,
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'QA',
         position: 20,
         code: 'qa',
@@ -72,7 +76,7 @@ beforeEach(async () => {
     ],
     { at: 1, by: OWNER },
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
 });
 
 const days = (optimistic: number, realistic: number, pessimistic: number): Days => ({
@@ -93,7 +97,7 @@ function stored(
 }
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -106,8 +110,8 @@ async function add(name: string, parentId: string | null = null): Promise<string
  * difference between a step that is absent and one that is zero.
  */
 async function shown(): Promise<Map<string, Record<string, number>>> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.actuals]));
 }
 
@@ -122,7 +126,7 @@ describe('recording actual days', () => {
     // The estimate is untouched: the two are separate facts about one pair, and
     // recording what happened must never rewrite what was expected — which is
     // the evidence R5's snapshots exist to preserve.
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree?.workItems.find((w) => w.name === 'Strip')?.estimates[DEV]).toEqual(days(1, 2, 3));
   });
 
@@ -160,7 +164,7 @@ describe('recording actual days', () => {
     expect((await shown()).get('Strip')).toEqual({});
   });
 
-  it('refuses a step this project does not hold, and writes nothing', async () => {
+  it('refuses a step this work package does not hold, and writes nothing', async () => {
     const strip = await add('Strip');
 
     const outcome = await service.setActual(strip, OWNER, 'step-design', 4);
@@ -176,6 +180,7 @@ describe('recording actual days', () => {
       ok: false,
       reason: 'not_found',
     });
+    await workPackages.update(workPackageId, { restricted: true }, { at: 2, by: OWNER });
     expect(await service.setActual(strip, OTHER, DEV, 4)).toEqual({
       ok: false,
       reason: 'forbidden',
@@ -247,7 +252,7 @@ describe('recording actual days', () => {
     const strip = await add('Strip');
     await service.setActual(strip, OWNER, DEV, 8);
 
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
     expect((await shown()).get('Strip')).toEqual({});
@@ -258,10 +263,10 @@ describe('recording actual days', () => {
     await service.setActual(strip, OWNER, DEV, 8);
     await service.setActual(strip, OWNER, DEV, 13);
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 8 });
 
-    await service.redo(projectId, OWNER);
+    await service.redo(workPackageId, OWNER);
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 13 });
   });
 
@@ -270,7 +275,7 @@ describe('recording actual days', () => {
     await service.setActual(strip, OWNER, DEV, 8);
     await service.clearActual(strip, OWNER, DEV);
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
 
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 8 });
   });
@@ -293,14 +298,14 @@ describe('actuals through the structural commands', () => {
     // The parent still reports 8 — as a sum now rather than as its own row,
     // which is what makes the move invisible to whoever typed it.
     expect(moved.get('Strip')).toEqual({ [DEV]: 8 });
-    expect(stored(await actuals.listByProject(projectId))).toEqual([
+    expect(stored(await actuals.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: sockets, stepId: DEV, days: 8 },
     ]);
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
 
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 8 });
-    expect(stored(await actuals.listByProject(projectId))).toEqual([
+    expect(stored(await actuals.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, days: 8 },
     ]);
   });
@@ -338,7 +343,7 @@ describe('actuals through the structural commands', () => {
     const copied = await service.duplicate(strip, OWNER);
     expect(copied.ok).toBe(true);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     const copy = tree?.workItems.find((w) => w.name !== 'Strip' && w.name.includes('Strip'));
     expect(copy?.estimates[DEV]).toEqual(days(1, 2, 3));
     expect(copy?.actuals).toEqual({});
@@ -352,20 +357,20 @@ describe('what recording days does not do', () => {
     // nothing below it reads this table. The model has no completion state, so
     // it could not tell "took 8 days, finished" from "8 days so far" even if it
     // wanted to — see design.md D3.
-    await projects.update(projectId, { startDate: '2026-09-01' }, { at: 1, by: OWNER });
+    await workPackages.update(workPackageId, { startDate: '2026-09-01' }, { at: 1, by: OWNER });
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, DEV, days(2, 2, 2));
     await service.setEstimate(sand, OWNER, DEV, days(3, 3, 3));
     await service.addDependency(sand, OWNER, strip);
 
-    const before = await service.tree(projectId);
+    const before = await service.tree(workPackageId);
 
     // Wildly over the estimate, on the predecessor, which is where a scheduling
     // actual would move every date downstream of it.
     await service.setActual(strip, OWNER, DEV, 40);
 
-    const after = await service.tree(projectId);
+    const after = await service.tree(workPackageId);
     expect(
       after?.workItems.map((w) => ({ name: w.name, schedule: w.schedule, dates: w.dates })),
     ).toEqual(

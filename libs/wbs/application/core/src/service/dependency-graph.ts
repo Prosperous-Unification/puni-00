@@ -1,5 +1,5 @@
 import {
-  type ConnectedProjectGraph,
+  type ConnectedWorkPackageGraph,
   DEFAULT_ESTIMATE_RULE,
   type DependencyReach,
   expandToLeaves,
@@ -22,8 +22,8 @@ import { slicesOf } from './schedule-slices';
 
 /**
  * Everything the combined step-node graph is built from: the tree, the
- * project's steps, which step nodes carry an estimate, both kinds of
- * dependency and the project's reach.
+ * work package's steps, which step nodes carry an estimate, both kinds of
+ * dependency and the work package's reach.
  *
  * Only an estimate's **presence** is read. It decides where a legacy link's
  * `anchor-slice` reach lands, and nothing else about the graph depends on a
@@ -31,7 +31,7 @@ import { slicesOf } from './schedule-slices';
  */
 export interface DependencyGraphState {
   readonly rows: readonly Omit<WorkItem, 'factStart' | 'factEnd'>[];
-  /** The project's steps in step order; an estimate on any other step throws in `slicesOf`. */
+  /** The work package's steps in step order; an estimate on any other step throws in `slicesOf`. */
   readonly steps: readonly StepPolicy[];
   readonly estimates: readonly Pick<StoredEstimate, 'workItemId' | 'stepId'>[];
   readonly legacy: readonly Pick<StoredDependency, 'predecessorId' | 'successorId'>[];
@@ -73,29 +73,29 @@ export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGra
 }
 
 /**
- * Prepares one unreduced project context using the graph guard's existing
+ * Prepares one unreduced work package context using the graph guard's existing
  * slicing. Estimate placeholders answer presence only, never scheduling days.
- * Local typed endpoints acquire the supplied stable project identity.
+ * Local typed endpoints acquire the supplied stable work package identity.
  */
 export function resolveDependencyGraphContext(
-  projectId: string,
+  workPackageId: string,
   state: DependencyGraphState,
-): ConnectedProjectGraph {
+): ConnectedWorkPackageGraph {
   return {
-    projectId,
+    workPackageId,
     ...prepareDependencyGraph(state),
     relationships: state.typed.map((dependency) => ({
       ...dependency,
-      predecessor: { ...dependency.predecessor, projectId },
-      successor: { ...dependency.successor, projectId },
+      predecessor: { ...dependency.predecessor, workPackageId },
+      successor: { ...dependency.successor, workPackageId },
     })),
   };
 }
 
-/** Resolves the shared local slicing without manufacturing a project identity. */
+/** Resolves the shared local slicing without manufacturing a work package identity. */
 function prepareDependencyGraph(
   state: DependencyGraphState,
-): Omit<ConnectedProjectGraph, 'projectId' | 'relationships'> {
+): Omit<ConnectedWorkPackageGraph, 'workPackageId' | 'relationships'> {
   const index = indexTree(state.rows);
   const rowIds = new Set(state.rows.map((row) => row.id));
   // Proof: this endpoint validation absent and `refuses legacy endpoints absent
@@ -153,7 +153,7 @@ function prepareDependencyGraph(
         // Proof: returning an empty leaf set for absent typed owner made the
         // graph negative fail: it received a later "not a leaf" error instead
         // of this missing-work-item refusal; watched 2026-10-13.
-        if (found === undefined) throw new Error(`no work item ${workItemId} in this project`);
+        if (found === undefined) throw new Error(`no work item ${workItemId} in this work package`);
         return found;
       },
     },
@@ -169,43 +169,43 @@ export interface DependencyGraphChange extends Partial<Omit<DependencyGraphState
 
 /**
  * The service facade over fresh connected transaction evidence. Every call
- * follows both incident directions, including projects with no owned links.
+ * follows both incident directions, including work packages with no owned links.
  * Overrides replace only this graph owner's facts, never remote state.
  */
 export class DependencyGraphGuard {
   constructor(
     private readonly reader: ConnectedDependencyGraphReader,
-    private readonly projectId: string | null,
+    private readonly workPackageId: string | null,
     private readonly assertActive: () => void,
   ) {}
 
-  private assertOwner(projectId: string): void {
+  private assertOwner(workPackageId: string): void {
     this.assertActive();
-    if (projectId !== this.projectId) throw new Error('dependency graph owner mismatch');
+    if (workPackageId !== this.workPackageId) throw new Error('dependency graph owner mismatch');
   }
 
   async findCycle(
-    projectId: string,
+    workPackageId: string,
     change: DependencyGraphChange = {},
   ): Promise<StepNodeCycle | null> {
-    this.assertOwner(projectId);
+    this.assertOwner(workPackageId);
     const { withoutStepId, ...replacement } = change;
-    const captured = await this.reader.read([projectId], [{ ...replacement, projectId }]);
-    this.assertOwner(projectId);
+    const captured = await this.reader.read([workPackageId], [{ ...replacement, workPackageId }]);
+    this.assertOwner(workPackageId);
     const proposed =
       withoutStepId === undefined
         ? captured
         : {
             ...captured,
-            projects: captured.projects.map((project) =>
-              project.projectId !== projectId
-                ? project
+            workPackages: captured.workPackages.map((workPackage) =>
+              workPackage.workPackageId !== workPackageId
+                ? workPackage
                 : {
-                    ...project,
+                    ...workPackage,
                     state: {
-                      ...project.state,
-                      steps: project.state.steps.filter((step) => step.id !== withoutStepId),
-                      estimates: project.state.estimates.filter(
+                      ...workPackage.state,
+                      steps: workPackage.state.steps.filter((step) => step.id !== withoutStepId),
+                      estimates: workPackage.state.estimates.filter(
                         (estimate) => estimate.stepId !== withoutStepId,
                       ),
                     },
@@ -213,23 +213,25 @@ export class DependencyGraphGuard {
             ),
           };
     const cycle = findStepNodeCycle(resolveConnectedDependencyGraph(proposed).graph);
-    this.assertOwner(projectId);
+    this.assertOwner(workPackageId);
     return cycle;
   }
 
   /** Modeled endpoint defects in the owner tree a structural write would leave. */
   async findEndpointConflict(
-    projectId: string,
+    workPackageId: string,
     change: DependencyGraphChange = {},
   ): Promise<{
     reason: 'node_on_parent' | 'descendant_step_on_leaf';
     dependencyIds: string[];
   } | null> {
-    this.assertOwner(projectId);
+    this.assertOwner(workPackageId);
     const { withoutStepId: _withoutStepId, ...replacement } = change;
-    const captured = await this.reader.read([projectId], [{ ...replacement, projectId }]);
-    this.assertOwner(projectId);
-    const owner = captured.projects.find((project) => project.projectId === projectId);
+    const captured = await this.reader.read([workPackageId], [{ ...replacement, workPackageId }]);
+    this.assertOwner(workPackageId);
+    const owner = captured.workPackages.find(
+      (workPackage) => workPackage.workPackageId === workPackageId,
+    );
     if (owner === undefined) throw new Error('structural graph owner evidence is missing');
     const held = new Set(owner.state.rows.map((row) => row.id));
     const parents = new Set(
@@ -239,14 +241,14 @@ export class DependencyGraphGuard {
       ...captured.external,
       ...owner.state.typed.map((relationship) => ({
         ...relationship,
-        predecessor: { ...relationship.predecessor, projectId },
-        successor: { ...relationship.successor, projectId },
+        predecessor: { ...relationship.predecessor, workPackageId },
+        successor: { ...relationship.successor, workPackageId },
       })),
     ];
     const defects = new Map<'node_on_parent' | 'descendant_step_on_leaf', string[]>();
     for (const relationship of relationships)
       for (const endpoint of [relationship.predecessor, relationship.successor]) {
-        if (endpoint.projectId !== projectId) continue;
+        if (endpoint.workPackageId !== workPackageId) continue;
         if (!held.has(endpoint.workItemId))
           throw new Error(
             'external dependency endpoint lifecycle requires incident transfer admission',
@@ -263,17 +265,17 @@ export class DependencyGraphGuard {
               : null;
         if (reason !== null) defects.set(reason, [...(defects.get(reason) ?? []), relationship.id]);
       }
-    this.assertOwner(projectId);
+    this.assertOwner(workPackageId);
     for (const [reason, dependencyIds] of defects)
       return { reason, dependencyIds: [...new Set(dependencyIds)].sort() };
     return null;
   }
 
-  /** Incident node/descendant endpoints naming this exact project's step. */
-  async findStepReferences(projectId: string, stepId: string): Promise<string[]> {
-    this.assertOwner(projectId);
-    const references = await this.reader.findStepReferences(projectId, stepId);
-    this.assertOwner(projectId);
+  /** Incident node/descendant endpoints naming this exact work package's step. */
+  async findStepReferences(workPackageId: string, stepId: string): Promise<string[]> {
+    this.assertOwner(workPackageId);
+    const references = await this.reader.findStepReferences(workPackageId, stepId);
+    this.assertOwner(workPackageId);
     return references;
   }
 }

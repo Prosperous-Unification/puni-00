@@ -1,3 +1,8 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { refusingWorkPackageObservation } from '../testing/work-package-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -50,14 +55,15 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { testProjectService } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { testWorkPackageService } from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -119,6 +125,7 @@ describe('the OIDC callback after activation', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-oidc-identity-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
     exchanges = 0;
     transactionClock = now;
     linkAuthorization = null;
@@ -278,7 +285,10 @@ describe('the OIDC callback after activation', () => {
     });
     return buildApp(
       {
-        projectAddressSearch: refusingProjectAddressSearch,
+        projects: refusingProjects,
+        planExports: refusingPlanExports,
+        workPackageObservation: refusingWorkPackageObservation,
+        workPackageAddressSearch: refusingWorkPackageAddressSearch,
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -288,7 +298,7 @@ describe('the OIDC callback after activation', () => {
         invitations: refusingInvitations,
         joinRequests: refusingJoinRequests,
         spaces: refusingSpaces,
-        projectRanks: refusingProjectRanks,
+        workPackageRanks: refusingWorkPackageRanks,
         emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         loginThrottle: testLoginThrottle(5),
@@ -301,7 +311,7 @@ describe('the OIDC callback after activation', () => {
         stepParallels: testStepParallels(),
         calendarMarkers: testCalendarMarkerService(),
         internalAuthSecret: 'x'.repeat(32),
-        writes: testWrites(),
+        writes: testWrites(undefined,{workItems:testWorkItemService(openTestSource())}),
         migrationsApplied: true,
         ...(mode === 'oidc' ? { oidc } : {}),
         ...(!omitBrowserSession &&
@@ -324,10 +334,10 @@ describe('the OIDC callback after activation', () => {
         priorityBands: testPriorityBandService(),
         admitDependencyClient: () => null,
         probeDatabase: () => 'ok',
-        projects: testProjectService(),
+        workPackages: testWorkPackageService(),
         replay: testReplay().replay,
         steps: testStepService(),
-        workItems: testWorkItemService(),
+        workItems: testWorkItemService(openTestSource()),
         savedPlans: testSavedPlanService(),
       },
       (options) =>

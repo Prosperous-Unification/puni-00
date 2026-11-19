@@ -1,0 +1,2491 @@
+{
+  "parent": "7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf",
+  "sources": [
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/shared-people-backup.ts",
+      "sha256": "769d05cc7c6100d8b2ad8ff13e21df6469475ad6752c6a0e882774254b20e975",
+      "bytes": 4053
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/project-rank-rollback.ts",
+      "sha256": "5d859b2eccebfb724c5fcc50a50cc879e58b04670e2c1c2f3c614a8dc302e539",
+      "bytes": 6532
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/shared-people-rollback.ts",
+      "sha256": "bc97dc7bb0351e7e3e5a99c27d1ebc9a6ec26bac146d774dbcc2f32e73f06e7c",
+      "bytes": 7245
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/shared-people-restore.ts",
+      "sha256": "d1e0982867f4799c6437b458466425b41223fb245b47477f2d40e9bf9ffdd094",
+      "bytes": 11102
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.ts",
+      "sha256": "7daec87d64b75ae89a07558c8fb64dad4a342ba3a3114cd6b5ccb0c5bde5d490",
+      "bytes": 4024
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/shared-people-restore-diagnostics.ts",
+      "sha256": "1cf216705ed1a481d11faac9c811563bd71636de45a71e71b4a83eecf51559bd",
+      "bytes": 3240
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/schema.ts",
+      "sha256": "2030ce249930fcb3e4205ffcd23ced1cabcd3ee90497e654c96e2716f1dcf5d3",
+      "bytes": 213739
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/db.ts",
+      "sha256": "22410c12f79c2f251c0b07ad3d249d69831efa00e9b251c98d72acd3aa1cbef5",
+      "bytes": 27240
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/security-transaction.ts",
+      "sha256": "0d7ba18acc88c023ba28eccfd7a8645854fc2b7fbf60b2acae315003f966492c",
+      "bytes": 4958
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/access-decisions.ts",
+      "sha256": "43d4f702910eca4b3c41fa234cf61bda0bc1e53e54636dcf39fb0051b5179e8f",
+      "bytes": 21461
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/gate.ts",
+      "sha256": "150d9593b2ef6489cafeff68789dcfd543510bcaf282c67dfabc13976b7b5a6a",
+      "bytes": 2859
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/migrate.ts",
+      "sha256": "029cd9f29f1b555175c4fe6d758e2921c2d6abe320210b9b5f7cd079cace9f8f",
+      "bytes": 8962
+    },
+    {
+      "path": "apps/wbs/be-01/src/testing/organization-harness.ts",
+      "sha256": "33d4ccf3a645305fd04296cad286e8d681a96ee550fae1e90e9e9899f2e1566a",
+      "bytes": 66162
+    },
+    {
+      "path": "libs/wbs/application/core/src/http/shared-people-restore.routes.ts",
+      "sha256": "a3b7be2797cb9d800cd82b7b6c52bfa2ee08a490d0914c6d0d7713657cb21e40",
+      "bytes": 2869
+    },
+    {
+      "path": "libs/wbs/domain/domain/src/access-role.ts",
+      "sha256": "b76265d2f5724b654a18fdfb65297e353aa2123dacf361da235e662498262f66",
+      "bytes": 25960
+    }
+  ],
+  "migrationSources": [
+    {
+      "name": "20260426171432_talented_smiling_tiger",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "3a526cf9a1bf19be7f22690e780f6de8696055561f4e5e4c4e41cbefc577b950",
+          "bytes": 554
+        },
+        {
+          "file": "down.sql",
+          "sha256": "2c56c145867cca586afb0ad89d53d94d628ccc2a1e18d10f9f73aa8087926001",
+          "bytes": 577
+        }
+      ]
+    },
+    {
+      "name": "20260804194845_add_users",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "fb97d07303d5603f17d92bbd0597cd2943a35409f4c82c8a49df87b60593663c",
+          "bytes": 226
+        },
+        {
+          "file": "down.sql",
+          "sha256": "4d248abc188d6df31fdb2369bb0cb5817eff1adedc0a6cd6af57ce3abcea1f72",
+          "bytes": 360
+        }
+      ]
+    },
+    {
+      "name": "20260805154500_add_wbs_domain",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "a9c17e34c9015c9008d9f653cb89b74a7de324c4ef311e5866526b8f73e7f7b5",
+          "bytes": 1647
+        },
+        {
+          "file": "down.sql",
+          "sha256": "02d2b0dcdf1cf86f268bb3846105eef87ac4ccba1aea88216e737f0344292aa0",
+          "bytes": 980
+        }
+      ]
+    },
+    {
+      "name": "20260806084828_add_dependencies",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "7fd56541e4285bb46b93c6ad21d6c61381a772474342fbddb7adefaacb73ea16",
+          "bytes": 730
+        },
+        {
+          "file": "down.sql",
+          "sha256": "38286df861a84e890f646c354ca4e2abd8282409edc44b14914ab57ca7b95028",
+          "bytes": 638
+        }
+      ]
+    },
+    {
+      "name": "20260806160000_add_project_access",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "01af7a477d5621fb3b01e3a7c1b14d419f6de0d82fd811d9b5659b8ebcd89971",
+          "bytes": 378
+        },
+        {
+          "file": "down.sql",
+          "sha256": "24ef9d0dc5b82f7bf0f1e03bf3d120d1a79a2a892f6152f5d4671f20411522c3",
+          "bytes": 385
+        }
+      ]
+    },
+    {
+      "name": "20260806170000_add_estimate_method",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "63162949d4419d11e973b547eabc465aaeb18c379cbdf9793c396cb9bf74e7cf",
+          "bytes": 74
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d140057a5ff1c106316a43efeb955da7d741c0c231c9a44f9c8003cac78a8b94",
+          "bytes": 513
+        }
+      ]
+    },
+    {
+      "name": "20260806180000_add_calendar_dates",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "adb6c01264d3bb069b9322f66d45a19a076437b0a48a8fedceed7a26e2a81a4a",
+          "bytes": 127
+        },
+        {
+          "file": "down.sql",
+          "sha256": "de47278e5265f8fa48388aa55e2f36953f6a4fcd5863990f2235a752273c1f1c",
+          "bytes": 557
+        }
+      ]
+    },
+    {
+      "name": "20260806190000_add_teams_and_assignees",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "e3331e0c72e0fac06678d32689832eb9e7a8080bc7f5d8799fe69f40e427efe8",
+          "bytes": 1443
+        },
+        {
+          "file": "down.sql",
+          "sha256": "49e9ee35f2762f162a600aed84c4fbc7b144e7c6920ff4fe46d58947b8c6a24c",
+          "bytes": 894
+        }
+      ]
+    },
+    {
+      "name": "20260807090000_add_revisions",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "21303bda83d6d3c57756a60415e8725af5f99af608ac83f1624add496977dfc4",
+          "bytes": 156
+        },
+        {
+          "file": "down.sql",
+          "sha256": "b07bfd7530228c28530f726eeddc3cae94d01a40e17418278a940dfdb64b65a3",
+          "bytes": 821
+        }
+      ]
+    },
+    {
+      "name": "20260807180000_add_command_journal",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "d2075b792402cad2fe99a03cd914e623dcd9e8a44480ae36422ec5f916effe35",
+          "bytes": 690
+        },
+        {
+          "file": "down.sql",
+          "sha256": "e50fefffc36d550f215245646e83276d61328ff3ad564a0962562d2a18eadafb",
+          "bytes": 775
+        }
+      ]
+    },
+    {
+      "name": "20260809090000_add_role_position",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "2f3212bffad6c5560e10dbc2a1c7c4cae18a01d442607ff9e62dca241a3a244e",
+          "bytes": 1067
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d85054d7d6cad85676735ae44c321592c8c95a014e9abb51864449ed2db5129b",
+          "bytes": 582
+        }
+      ]
+    },
+    {
+      "name": "20260811100000_add_priority",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "dab3352ebf184c50e916eb987d022b2102a3ec338b774807fb6690cc505d449d",
+          "bytes": 1093
+        },
+        {
+          "file": "down.sql",
+          "sha256": "b15d041d91a9f5c13b78a1e0bf2afc602bd52e2d8cb8f34b462f82e1c4a3fba8",
+          "bytes": 576
+        }
+      ]
+    },
+    {
+      "name": "20260812100000_add_team_slots",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "cd72488098fc326124f3fcf39d090363405375a2f842405bf2e31f18e80145fa",
+          "bytes": 1309
+        },
+        {
+          "file": "down.sql",
+          "sha256": "91c7154c7d364a99bcdb2c61ce82f4f3e85fcbdfc25d55e202125e7622ddcf3f",
+          "bytes": 759
+        }
+      ]
+    },
+    {
+      "name": "20260812100001_add_max_parallel",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "9badcfd2f08a539da55826cc40097a165f87456f20e7a108a78d788f5dc207e0",
+          "bytes": 995
+        },
+        {
+          "file": "down.sql",
+          "sha256": "f2589687be3a88c0c679f8c224635dc6ed0db8168cd9194fbe583340f65b7999",
+          "bytes": 879
+        }
+      ]
+    },
+    {
+      "name": "20260813120000_add_project_team_capacity",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "21e2ff6c52fed2f25f1841d7d089adbd0de0d1cc8ed800ca1b17b7351ad52e61",
+          "bytes": 4364
+        },
+        {
+          "file": "down.sql",
+          "sha256": "995906c8c5da05d9693848a172ed1db23c6618bde4882bee449aaba2d453088c",
+          "bytes": 1474
+        }
+      ]
+    },
+    {
+      "name": "20260814100000_add_work_item_team",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "213751cc58b0007c09df678cb8906813640a4c24a32b4ddf019ea75505f1535e",
+          "bytes": 3533
+        },
+        {
+          "file": "down.sql",
+          "sha256": "9ad33d7ea0ae6042c23a1db3f8b581dacb7338335fdf4a7d9676689f185b0b51",
+          "bytes": 928
+        }
+      ]
+    },
+    {
+      "name": "20260814110000_add_priority_band",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "2572713ae71fa3dc12d9b4111131912c70af95cc91f610b0e0f5cf3aa871013f",
+          "bytes": 4553
+        },
+        {
+          "file": "down.sql",
+          "sha256": "e6c8e144f13c1c2bbbf5a676a8c68e5271ce0c0bbbb856b70f9acc516c26a243",
+          "bytes": 1007
+        }
+      ]
+    },
+    {
+      "name": "20260817120000_add_plan_event",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "7d0e6b0f6ad91fd9e377a8c8b64f8777d527532d84bf1d4d73f16f864f49643f",
+          "bytes": 3915
+        },
+        {
+          "file": "down.sql",
+          "sha256": "18a124ed46079cc2ab69d062e957536658316fb42a9b416b3a99c84369faa903",
+          "bytes": 1544
+        }
+      ]
+    },
+    {
+      "name": "20260817130000_add_actual",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "4fe0c95e8e932a63e0963a89d86d14bfb79fc3ecb81e513baa0d9d6b898cc754",
+          "bytes": 4841
+        },
+        {
+          "file": "down.sql",
+          "sha256": "301d39d028df09dc30ce7086a7cfbaf27e7811ba6bce4974f4bcafbbb37e10e6",
+          "bytes": 2094
+        }
+      ]
+    },
+    {
+      "name": "20260818010000_add_role_progress",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "82b8e3f61c233f5ff9f00baf4c5f98cab9415243a4e2fc117d1c41da74abe105",
+          "bytes": 7225
+        },
+        {
+          "file": "down.sql",
+          "sha256": "15e3131ce0f9b86eb45a37f751b411aaf25270a6b4ea6e7e1d66a23f64969d06",
+          "bytes": 2601
+        }
+      ]
+    },
+    {
+      "name": "20260818090000_add_not_before_reason",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "1c77364332adfe7be4897b8e9aca4dc3a11054e449406d7f0a0f01787165c0c9",
+          "bytes": 5503
+        },
+        {
+          "file": "down.sql",
+          "sha256": "385df375eb1068a497fad8cc35aec620c7206b0d4bc1813cf30521da9f4c2167",
+          "bytes": 2670
+        }
+      ]
+    },
+    {
+      "name": "20260819120000_add_tag",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "266b249901314f78e5c2b48e53a2890ca1849c94a10ffbf8ee0df57b347396a8",
+          "bytes": 6572
+        },
+        {
+          "file": "down.sql",
+          "sha256": "26b662eb5739ffbd012dc13bc6b7e12be212a8ff16abd2959b9d144ad1d943d8",
+          "bytes": 3272
+        }
+      ]
+    },
+    {
+      "name": "20260821000000_add_service",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "0f9fa812b452c54a2efdd343683abff4bccb3a9b2ca85a9f778ee6d5e6083dfc",
+          "bytes": 7938
+        },
+        {
+          "file": "down.sql",
+          "sha256": "3a29bb64888e678e4d0b44aee2775f304d7c7c4873afc3077a5a1c8673144c5b",
+          "bytes": 3917
+        }
+      ]
+    },
+    {
+      "name": "20260821080000_add_work_item_service",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "bf9c5afdc5e384d03474fff0c7ec87b39d1b3de27d69a522d9280cd48b6305b3",
+          "bytes": 4028
+        },
+        {
+          "file": "down.sql",
+          "sha256": "fa8d31c7006ce29b2ec504dba0252289711bcac0e8c1eb187abfb855a7efbea5",
+          "bytes": 2453
+        }
+      ]
+    },
+    {
+      "name": "20260821140000_add_role_measure",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "3c2be539fbba782f07f1cb8b7906e92bd9c85d0d935c6c897964789b99a32df3",
+          "bytes": 7176
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d4a8511b8cdeb78ab3121518ca9755c23774f05d9a10185bc3827cad8712ccfe",
+          "bytes": 2221
+        }
+      ]
+    },
+    {
+      "name": "20260821150000_add_person_kind",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "73a774234a8a182cc3ce3c97afb4942637bfc75fe1dcdd1da622fef95b216b2c",
+          "bytes": 4726
+        },
+        {
+          "file": "down.sql",
+          "sha256": "c44fdb4bd965b492e604e1f9d0d387544d05fd4672b4abc6245769e6426b5bfa",
+          "bytes": 2599
+        }
+      ]
+    },
+    {
+      "name": "20260824010000_add_oidc_identity",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "1d0e6fe26146b5877ebadc84ca0fd5411257f2cfffd651481d2353e0cf52aecd",
+          "bytes": 1392
+        },
+        {
+          "file": "down.sql",
+          "sha256": "3e7f0d5bf16298755b3173b2f3f2e2979261717422c546da0b4cdc42a9d1d3ce",
+          "bytes": 1785
+        }
+      ]
+    },
+    {
+      "name": "20260824020000_add_solution_ref",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "65817337d7efdd8b7974914ad92d6813e61157c15b3fbe5308aa9aba292d30ec",
+          "bytes": 600
+        },
+        {
+          "file": "down.sql",
+          "sha256": "5657f4e1bd562aad48f42e98379762934948b1efff6ce9b98593561d043bc6d9",
+          "bytes": 187
+        }
+      ]
+    },
+    {
+      "name": "20260830010000_add_work_item_type",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "37d574e14ba75ce90ca9ec5092e7c3a071a638720584634b12eada45be077d46",
+          "bytes": 4954
+        },
+        {
+          "file": "down.sql",
+          "sha256": "255484e1e85ace1c80d76540f7409b870221b5f4a876fb0b9a387b0d310030ab",
+          "bytes": 2716
+        }
+      ]
+    },
+    {
+      "name": "20260830020000_add_external_ref",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "eeffdeaed54093acd3b5d87108e05f6d1817a8e6dbd4919902f09f1da4ea51c4",
+          "bytes": 6128
+        },
+        {
+          "file": "down.sql",
+          "sha256": "c9981511430437b84acd4831bbff378cd6fa473d0b6b9e1775d7d33a824a6f08",
+          "bytes": 2560
+        }
+      ]
+    },
+    {
+      "name": "20260830120000_add_dep_reach",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "57ba12192d26cc7815401188ab7fa5cecc512615f6b830e8ddecf99e188387a0",
+          "bytes": 607
+        },
+        {
+          "file": "down.sql",
+          "sha256": "77e9a1f49720018689a190dfc396b10e52a5da84ffcbd4b6f367006fbf5e2de5",
+          "bytes": 47
+        }
+      ]
+    },
+    {
+      "name": "20260830130000_add_estimate_weights_and_rounding",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "9cfc31278c7ee4ed78aa5817715ed9baed464fc1cd9375d4b01db02e120f436a",
+          "bytes": 1221
+        },
+        {
+          "file": "down.sql",
+          "sha256": "1031d141edcc2372a661afb376284486b35425dc4f0472ca7d7dcc37c1bdb703",
+          "bytes": 772
+        }
+      ]
+    },
+    {
+      "name": "20260831120000_rename_role_to_step",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "90eb52642a42328f00edf2511343d80814ff183f42d065dff1de5bb604e57ae0",
+          "bytes": 5161
+        },
+        {
+          "file": "down.sql",
+          "sha256": "db7b9633beeb696342a077bffbaee21f9ae94f4e9c7991d0ba5d563a79091e4f",
+          "bytes": 2585
+        }
+      ]
+    },
+    {
+      "name": "20260901120000_add_audit_columns",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "b1f9479bbce96ef6ec3d09e4b4cddeeffa9891e3119c1bdb6f6e7218b6443e01",
+          "bytes": 8237
+        },
+        {
+          "file": "down.sql",
+          "sha256": "1d648d13449a8e45fa8ac8e737d2655e2324c086c931530593f6170f22e631ee",
+          "bytes": 6239
+        }
+      ]
+    },
+    {
+      "name": "20260902120000_add_lookup_indexes",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "eafe4b007446e774b9a2550bcd5518feda2da69272f4ea3ab89c3e05834d685e",
+          "bytes": 1855
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d93f4203a600faa184e43fca4ef78d637e714af95a7c75598d00df9ac3dd0f13",
+          "bytes": 491
+        }
+      ]
+    },
+    {
+      "name": "20260903190000_add_saved_plan",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "594745a4ffa123524ff0d58438447350be803f049b5a5b78d2f48c588290a307",
+          "bytes": 3799
+        },
+        {
+          "file": "down.sql",
+          "sha256": "79cf069ad1a82b9a0de8c7c2bccb71b6bac54a612f5fcc6ca0660291b37be621",
+          "bytes": 1813
+        }
+      ]
+    },
+    {
+      "name": "20260904020000_add_saved_plan_created_by_id",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "99d7cb0791e293e7839535ec9b479e0c5c1bf25f0452f8851ca51bc438e1176e",
+          "bytes": 2939
+        },
+        {
+          "file": "down.sql",
+          "sha256": "72424a328bf5fd73f6bb2bc95e225b005e94edd562bbad81f678580f773156eb",
+          "bytes": 1853
+        }
+      ]
+    },
+    {
+      "name": "20260904100000_add_optimizer_tables",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "1abff2c53fcc3f8e833aa6a3dec90eb55c14282b51d118ccf0366713cea11e6a",
+          "bytes": 4579
+        },
+        {
+          "file": "down.sql",
+          "sha256": "3ac8f85c0e066b3a87b2cafe7c5f80acacd71f44f84c8f3d52fdfe4e296ae964",
+          "bytes": 1021
+        }
+      ]
+    },
+    {
+      "name": "20260904140000_add_project_settings",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "d1263a899883560bb6f26c0987865cf5b45460e66c66fd90c4542d7b1f529c77",
+          "bytes": 2384
+        },
+        {
+          "file": "down.sql",
+          "sha256": "c792f225ba884b4d6b621f6f04525cfbb008043f8a219d809319038ebcab7b4e",
+          "bytes": 952
+        }
+      ]
+    },
+    {
+      "name": "20260905090000_add_calendar_marker",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "5277f807ffd32d88990308297c4a2ca6a1f844f1907cfa7b2d7fe28134ccff8f",
+          "bytes": 2879
+        },
+        {
+          "file": "down.sql",
+          "sha256": "ee2b4d9b4313db7642b6cda2e4eb24721a41831df4c6d166cdb594c5b5c836bf",
+          "bytes": 1675
+        }
+      ]
+    },
+    {
+      "name": "20260906003000_add_work_item_read_order_index",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "929008aa571464d6db0d6ab687f086293621b4df95e9ab04e0e1faed8257762f",
+          "bytes": 1430
+        },
+        {
+          "file": "down.sql",
+          "sha256": "b6ece8eaee2af863ca357618a5ba4fb2ab21b8f50e74480596cb8699369da3e0",
+          "bytes": 412
+        }
+      ]
+    },
+    {
+      "name": "20260906090000_add_work_item_deadline",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "777937e68b938358582289328ddba2bc7f99ef406e7a6c718ead65bd1e617413",
+          "bytes": 3888
+        },
+        {
+          "file": "down.sql",
+          "sha256": "6c702c6d42ee56d727477fc77d0c12786415f033eac1bca0ad4858aa04831c84",
+          "bytes": 2677
+        }
+      ]
+    },
+    {
+      "name": "20260909120000_add_external_ref_name",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "0b48975a90c2c16948ef5fe37317a1c83c6a3e5b55e620245241f69a4e364801",
+          "bytes": 2530
+        },
+        {
+          "file": "down.sql",
+          "sha256": "4ec545bec31ca06a8a7f26da7d93001c33325dda44b1cced1adda5503b56e80c",
+          "bytes": 1957
+        }
+      ]
+    },
+    {
+      "name": "20260912120000_add_work_item_facts",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "ebb51785be3611f78d97b6b40b6cdbfc2cdcdc852da52fed4dd6037f5a0bfa3c",
+          "bytes": 2791
+        },
+        {
+          "file": "down.sql",
+          "sha256": "2341a0391f9c121faa6e44865e016417d0713757e824d40869591ecb1bc7497d",
+          "bytes": 2091
+        }
+      ]
+    },
+    {
+      "name": "20260927120000_add_organization_records",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "58fc49ee7930ef1755de9257d2cdc21c9d4fc19570313eb055395f8cf3fb1f03",
+          "bytes": 8324
+        },
+        {
+          "file": "down.sql",
+          "sha256": "fc0a2c4144197a553173d0d6a614c707c06688bb01efabaa704d07eb67e98e71",
+          "bytes": 916
+        }
+      ]
+    },
+    {
+      "name": "20260927130000_add_organization_ownership",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "499f5dcdaa1bec4699590c0032e0f671fe140910621c1dfa234683fb6b49ba7b",
+          "bytes": 4827
+        },
+        {
+          "file": "down.sql",
+          "sha256": "6e0a1f13a25b1dd1ad704d08999864d6c6071aa8c16fd5b4705ca103a6b74fa1",
+          "bytes": 839
+        }
+      ]
+    },
+    {
+      "name": "20260927150000_add_step_code",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "ca295cb1c1e67fd5ee4ef7748b86d61590eefbe67779785ad3e1e952d52b163f",
+          "bytes": 1274
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d03a24b277471da24d1c6fa75ea9be2ea456ec20317d8d85bfde8838ce46e7fe",
+          "bytes": 1104
+        }
+      ]
+    },
+    {
+      "name": "20260927170000_add_step_allowance",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "f76716017deae9912e0bec1c47784ad7c377dbc4e3aa23f6d405285f42aed2a4",
+          "bytes": 1662
+        },
+        {
+          "file": "down.sql",
+          "sha256": "b9ed93e79febb8c7aabfc399c6d2a44da59d45037e525a79a4ba4d13c3a84107",
+          "bytes": 1328
+        }
+      ]
+    },
+    {
+      "name": "20260927180000_add_organization_activation",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "6ce290b0a7b1d51440d7c8855f79a885057296b4f4f6b85b495d36c92909eac5",
+          "bytes": 2460
+        },
+        {
+          "file": "down.sql",
+          "sha256": "524ba4a4c9aaee68f1037b0a7346b7cc8e0c86d99f2c5c690e920a9c53d263e2",
+          "bytes": 1643
+        }
+      ]
+    },
+    {
+      "name": "20260927190000_add_organization_bridge",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "8f45016088634d57ecbfdc896bd2b735d37c376710ee5aae324acdeba9df37ab",
+          "bytes": 11847
+        },
+        {
+          "file": "down.sql",
+          "sha256": "f7b31080932accae9822f213b2185b9faf9c67b5ec8b9c6e93938c7de4ceaf97",
+          "bytes": 1142
+        }
+      ]
+    },
+    {
+      "name": "20260927200000_freeze_organization_ownership",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "9dc7ca1fb26c5bb23786dae5c958941d6a346255e207bec91dff338c514a6079",
+          "bytes": 13098
+        },
+        {
+          "file": "down.sql",
+          "sha256": "0696b7203bb8b0d9682245a35f425fde876cdb12d0e019dc6eace13f38e065db",
+          "bytes": 2413
+        }
+      ]
+    },
+    {
+      "name": "20260927213000_add_typed_dependency",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "21a3295854b8a2d5d70682ee7370899f262516eea58b205fbeb893bff8c57b05",
+          "bytes": 2301
+        },
+        {
+          "file": "down.sql",
+          "sha256": "5ed887bb4e1bbfc96afbe0e601253e6e56d64b784ff216be2fd9ce1daeac0ef4",
+          "bytes": 1196
+        }
+      ]
+    },
+    {
+      "name": "20260927220000_add_organization_audit",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "ce670f1949910782fdf60404ce2c1ede13591f275f48d7f061d6ef1d90062b39",
+          "bytes": 1419
+        },
+        {
+          "file": "down.sql",
+          "sha256": "317a5197772bea270168881134757702b3267376395d0d6e5e3ebccc41e1b1fd",
+          "bytes": 967
+        }
+      ]
+    },
+    {
+      "name": "20260928010000_add_project_solution",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "cc30d8242e7a90b5b0b7108d2f073139358723a239a194f5dcb2b83c91748b58",
+          "bytes": 1970
+        },
+        {
+          "file": "down.sql",
+          "sha256": "4b4b0002468dc52a95590ecbf18f7be1538ad20a7a7c0c98df906c64eabb2da2",
+          "bytes": 1715
+        }
+      ]
+    },
+    {
+      "name": "20260928020000_add_email_verification",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "78f83f763172c75681817516ce23b57c6c1f6fb20f87e15e2fbbeab257a8fcaa",
+          "bytes": 552
+        },
+        {
+          "file": "down.sql",
+          "sha256": "0d83268485fa33b1734444182126458bc11a83bfd680659eecb7921541e601f3",
+          "bytes": 906
+        }
+      ]
+    },
+    {
+      "name": "20260928030000_add_delegation_use",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "dac497a90adca30b02e9fe901db35534459bc0eeee79082b32213880e7ca591c",
+          "bytes": 247
+        },
+        {
+          "file": "down.sql",
+          "sha256": "94d619d71e22e03916e13838ed05ca1774b084837d44a366daa28016d3b96832",
+          "bytes": 1111
+        }
+      ]
+    },
+    {
+      "name": "20260928040000_add_email_challenge",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "422e0d8ce3a010693dc3e03d294b80609d15b35189ebb1b0524f37ee4034e891",
+          "bytes": 774
+        },
+        {
+          "file": "down.sql",
+          "sha256": "9db990fc40fa1bf7504f398db7ebfb721a99d0e228b4cf5c276a54d82be99c40",
+          "bytes": 852
+        }
+      ]
+    },
+    {
+      "name": "20260928200000_add_work_item_status_facts",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "448db832ec04f17dba9ff1c8a19921d22c06374929458046a8b510c725c87f5f",
+          "bytes": 798
+        },
+        {
+          "file": "down.sql",
+          "sha256": "70e3b43cbca99a780fd5966eb798a2bc9cd99922455c73f77dd3faa1ea374533",
+          "bytes": 1332
+        }
+      ]
+    },
+    {
+      "name": "20260929100000_add_spaces",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "bc261eaa594cbc56f00998040ddf7fb1f31008a0ef6fed5806e6469531ee6e94",
+          "bytes": 2451
+        },
+        {
+          "file": "down.sql",
+          "sha256": "5ee8ad398b62c0cbe0fd9facd2d38384cac46ef96e91377c45e0bcad07956a0d",
+          "bytes": 1588
+        }
+      ]
+    },
+    {
+      "name": "20260929180000_add_project_rank",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "03bebda4450b20637a92041e15ae280304769bdcdbac48f840c95a39ebf13539",
+          "bytes": 1430
+        },
+        {
+          "file": "down.sql",
+          "sha256": "95fbec35af07951651ff49cc1b4a26fbc3b972f1fdf4e23821c7ad3f37f2df8b",
+          "bytes": 1429
+        }
+      ]
+    },
+    {
+      "name": "20261001010000_add_browser_credential_revocations",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "efa642ed7832f045b5b65b5bb61b55914f6e8d47ad785a2f76410956d9937e25",
+          "bytes": 461
+        },
+        {
+          "file": "down.sql",
+          "sha256": "741fcbc2c24d5f3eeda191907e2821cded1f236ba050594a70d70d612d361023",
+          "bytes": 570
+        }
+      ]
+    },
+    {
+      "name": "20261005110000_add_shared_people",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "5d73daa66c8320b178e3c079107f3cc1320dd765a0ea38b8a30ce013c5d04075",
+          "bytes": 233
+        },
+        {
+          "file": "down.sql",
+          "sha256": "2f7ecbce062f8b7794fb03e89b3f403d8bb0959bbbaf07d26d6d2c1722132783",
+          "bytes": 899
+        }
+      ]
+    },
+    {
+      "name": "20261011120000_add_browser_auth_lifecycle",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "baa890bbbe2fd947486664fc5f5e27a4b621df6a2c9a7987b7f006a72674742c",
+          "bytes": 1126
+        },
+        {
+          "file": "down.sql",
+          "sha256": "22363b5a72a2fb116fa26b33d48f90b8f67372f8b471aa4cee1b04eaff62ad69",
+          "bytes": 636
+        }
+      ]
+    },
+    {
+      "name": "20261011200000_add_shared_people_audit",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "7af8a3768f56222ada1eb233ad0a2484437177622e27ae401a6a37d6e23024dc",
+          "bytes": 1195
+        },
+        {
+          "file": "down.sql",
+          "sha256": "4bbd33d650ee008ec09d3a8bef98e10ccb7330481a76783443c87c7846ed1e09",
+          "bytes": 1171
+        }
+      ]
+    },
+    {
+      "name": "20261012090000_add_enterprise_sso_records",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "86bc171961fef9b5698faacc2256879d754fb9e51c1fbbac2e3da4eadb2836b2",
+          "bytes": 5192
+        },
+        {
+          "file": "down.sql",
+          "sha256": "4c5b12d10ff7ddc53c5f83e2066e78bd4eb1463f0031c58de69241c54ccf21f4",
+          "bytes": 2070
+        }
+      ]
+    },
+    {
+      "name": "20261012090100_add_browser_auth_times",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "b090df8f4d9ccbb5042e3d3cd324e6fca6037c35c61cef37358c21e37bf2f192",
+          "bytes": 732
+        },
+        {
+          "file": "down.sql",
+          "sha256": "ab7b0a1cf2e43604770a2b84965d8b3effa6e50ecef50b9f91ed26c22427f719",
+          "bytes": 1098
+        }
+      ]
+    },
+    {
+      "name": "20261012090200_widen_organization_audit",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "87d5cd7e214f7614850e94cb86fddc6436223c88b0e10dc581bb336b4642022c",
+          "bytes": 3361
+        },
+        {
+          "file": "down.sql",
+          "sha256": "3aa0d8e52ed22345f0bed8a5d276c70e82ca1f46c4453efeb0e7024370b35b78",
+          "bytes": 2935
+        }
+      ]
+    },
+    {
+      "name": "20261012120000_add_step_node_attempts",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "03622184aab08a28d2aea905e53ed56a94836c52c306b083cc73c57540d776a8",
+          "bytes": 3905
+        },
+        {
+          "file": "down.sql",
+          "sha256": "30d77d6fb34737ba126adba02d284c816137b28b8bd6a77aee8378ca5c3c99ba",
+          "bytes": 2119
+        }
+      ]
+    },
+    {
+      "name": "20261012130000_add_step_estimate_unit",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "4e9193392175077ee74d53864a8f7f11f7b33720c026352a96cf8912e8b44348",
+          "bytes": 260
+        },
+        {
+          "file": "down.sql",
+          "sha256": "e78d3c78e5c72f9a4bf8c9709f72594cc7e32276613df6f4b01b73be0bfbf851",
+          "bytes": 1695
+        }
+      ]
+    },
+    {
+      "name": "20261013140000_add_step_node_blockages",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "4b26fb3d6e3503d4db2cd54c4bff16cad6b07d5a256bae84d2bec40052ea170a",
+          "bytes": 1873
+        },
+        {
+          "file": "down.sql",
+          "sha256": "28707675874ac52d6e47d10d5b907f33e4615266de0202e7b9655cc58fb97eba",
+          "bytes": 885
+        }
+      ]
+    },
+    {
+      "name": "20261014120000_add_shared_people_restore_approvals",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "9f5654bdafd6aabf820f46b0989c2069a8343ad6763156af25711d998658c6b7",
+          "bytes": 1240
+        },
+        {
+          "file": "down.sql",
+          "sha256": "52a740aba7d227a4ec7c1a1e9f7ec688ca2f73435cf408b2b5aee4d8c60933ca",
+          "bytes": 839
+        }
+      ]
+    },
+    {
+      "name": "20261014130000_add_shared_people_restore_receipts",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "6ee43ae8058a30383fd8f3ebc611d508d93f6dcccdcb9b9a21084f6642e5c25f",
+          "bytes": 2085
+        },
+        {
+          "file": "down.sql",
+          "sha256": "b91cbb3cd68e7ef03a5ca030e2930156f0731a15dd56f44636249678d90acff7",
+          "bytes": 1312
+        }
+      ]
+    },
+    {
+      "name": "20261014140000_add_step_blockage_activation",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "b2fc7485f5428cf67447b057ba1be910dd6f5f70146e5103e8219770f310556b",
+          "bytes": 1715
+        },
+        {
+          "file": "down.sql",
+          "sha256": "9959724c2fd1e055eb9bd4fa2e9ac9b02294e3782b3d7cd511a7d6386ca9ada5",
+          "bytes": 1526
+        }
+      ]
+    },
+    {
+      "name": "20261015100000_add_step_blockage_activation_receipt",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "3171a3eb3640e34ad87a1950818b52e47293355ed14cba917095e9d524b60d7f",
+          "bytes": 311
+        },
+        {
+          "file": "down.sql",
+          "sha256": "ce4588cf394d8d7e0d017498486733fbf6ad55728bb52d13b713d01143cc51db",
+          "bytes": 876
+        }
+      ]
+    },
+    {
+      "name": "20261015110000_add_step_node_parallelism",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "60edd648330bc0505aa25c96e64daf1b12c938e96e04d78ce7c2f147af2a93b4",
+          "bytes": 1854
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d3737017138ad902f4085c6a9431d277e6f22bbc74756952f5bd950306759c2e",
+          "bytes": 856
+        }
+      ]
+    },
+    {
+      "name": "20261019120000_add_claim",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "369f09216a17a5ffe5905fc44dbecf545ff06548eecc7177e7c5d1ffe15d247d",
+          "bytes": 2056
+        },
+        {
+          "file": "down.sql",
+          "sha256": "3f7a56a8172b3c9eaeeaa314095f38ba6f25be5c6028708f5fb0e77c6f27a5e7",
+          "bytes": 979
+        }
+      ]
+    },
+    {
+      "name": "20261019130000_add_person_account",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "73a33a314a874750b5a3e2a3ee287a34d642836a3e0d667ba64e3fbabcb503cd",
+          "bytes": 495
+        },
+        {
+          "file": "down.sql",
+          "sha256": "518133e5e86fd0247b3bd2e80e72af964a63bf010f13ece9a94226c5b9ec541f",
+          "bytes": 1287
+        }
+      ]
+    },
+    {
+      "name": "20261019130100_add_external_identity_person",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "39f207e42095747d48b96f141565ad0ba20bbebb443decc323ee1831fb5c9f50",
+          "bytes": 460
+        },
+        {
+          "file": "down.sql",
+          "sha256": "f0117aba5cdd3bf852a4d3b203faf6ac5eda303035562a58df852933110344df",
+          "bytes": 1295
+        }
+      ]
+    },
+    {
+      "name": "20261020120000_add_resources",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "6f5c0166252b6484090aac1674d389ea3b7b4f2a949d036c6a62b4dc46831736",
+          "bytes": 6049
+        },
+        {
+          "file": "down.sql",
+          "sha256": "ecc11c551c8b1925d67562e873eac6cd5be04e0097c55ad00e7830f3c4f65b2d",
+          "bytes": 1917
+        }
+      ]
+    },
+    {
+      "name": "20261020130000_add_claim_occupancy",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "395098a8e87c1bc81af2052e5f9a650a93228807f81027e44e4d3340d69d14b3",
+          "bytes": 1687
+        },
+        {
+          "file": "down.sql",
+          "sha256": "a0a2908a4c22c702707b134ff90c6507782e5dabf722fe9079fff58a0ea87cf7",
+          "bytes": 989
+        }
+      ]
+    },
+    {
+      "name": "20261022100000_add_machine_credential",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "70ec5068bc593912922d328242bf7dc3fd5d093f960a629a78e389883567d408",
+          "bytes": 4962
+        },
+        {
+          "file": "down.sql",
+          "sha256": "36a97eb36b6ecb19df32c907ee0d977998867df035a7c5c4a8b0da22eb0007ca",
+          "bytes": 1845
+        }
+      ]
+    },
+    {
+      "name": "20261022110000_widen_organization_audit_machine_credentials",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "67203236b68714ddf289a71b5d5e6e49efbebf8272d615f4628072dba33c7f57",
+          "bytes": 3250
+        },
+        {
+          "file": "down.sql",
+          "sha256": "e6b836a29f4d3b873305fb9dd2626e7cf10e28dc642736b48187c46085458219",
+          "bytes": 3974
+        }
+      ]
+    },
+    {
+      "name": "20261022110100_check_machine_credential_id",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "110ba1a53347a94f3aa8dbcbc8c22f43a30774f036b3e3cc4d13c02b7aa35db5",
+          "bytes": 1947
+        },
+        {
+          "file": "down.sql",
+          "sha256": "3882db9cfa1c57d1dedb4274ce419497f64024c115c653143f921f5ea2519560",
+          "bytes": 266
+        }
+      ]
+    },
+    {
+      "name": "20261022120000_scope_trusted_issuer_audience",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "04d7cfe649d212d8128d2205a02875c41d39f426c8b25f7b8362d29e756f93af",
+          "bytes": 2189
+        },
+        {
+          "file": "down.sql",
+          "sha256": "fa1aecaa9b3a5db921a533fa5581b2fdfddad375b9302ba39e5db40e1a73376f",
+          "bytes": 1606
+        }
+      ]
+    },
+    {
+      "name": "20261022121000_add_runtime_commands",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "ef8f1b818cb1e2d98f6f933f3e7125ac00cd1c428124afd5619c254cccaba00d",
+          "bytes": 5293
+        },
+        {
+          "file": "down.sql",
+          "sha256": "f746030705887823048439ac61e3f892d9f57e675b298f11533b87b649ea0775",
+          "bytes": 1119
+        }
+      ]
+    },
+    {
+      "name": "20261022130000_add_organization_limits",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "a84625236b32d10ba7a425e7e11d31469c0a089b9b65b627bbbc01aaef2176fb",
+          "bytes": 1549
+        },
+        {
+          "file": "down.sql",
+          "sha256": "38a63165ad061b185bf6fc7cbc05d99e6ed6bf4767f7743c6eb82242bdf16e0c",
+          "bytes": 1038
+        }
+      ]
+    },
+    {
+      "name": "20261022130100_widen_organization_audit_organization_limits",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "93d65f622c2823df43e050a538ae834396d26d2f81e90096bf16a0ec592774b2",
+          "bytes": 3470
+        },
+        {
+          "file": "down.sql",
+          "sha256": "e8e51655d03b09754e599f469f4b7fc902c1c56cb20973f79a835cf3b4a77e54",
+          "bytes": 4160
+        }
+      ]
+    },
+    {
+      "name": "20261022140000_add_resource_provider",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "6abaae224dc60292137303b82ac27afcc43c38d4217ac41ea9891a01393de2e1",
+          "bytes": 3300
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d8964a290a71eed699a70dd726333233e6991ed420a0ab57230792e10f5b7c06",
+          "bytes": 1847
+        }
+      ]
+    },
+    {
+      "name": "20261022140100_widen_organization_audit_compute_providers",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "64a8c56fd3f64963d497c7534903086f274766ee10da82386936f9c7cd0c21e2",
+          "bytes": 3855
+        },
+        {
+          "file": "down.sql",
+          "sha256": "135c3489c913f86b2d2729e0ded24eb4657dae52f0da47441b2c1330744dcab3",
+          "bytes": 4298
+        }
+      ]
+    },
+    {
+      "name": "20261022210000_add_project_abbreviations",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "8e120c421e84771cc65912537c522a7126943c3a3dfce87d89cfcbf2bd3244d9",
+          "bytes": 6064
+        },
+        {
+          "file": "down.sql",
+          "sha256": "0bb535251d1a2eaef1e6d5fa2a5951d5c86faaa963e1c70ec8f36ca7efdaac5d",
+          "bytes": 645
+        }
+      ]
+    },
+    {
+      "name": "20261022211000_add_external_dependencies",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "318b66d6eb443b83a4c75c9297e6e67cb62c91ba691cbeb38fdf51b98757f07f",
+          "bytes": 11101
+        },
+        {
+          "file": "down.sql",
+          "sha256": "308a374e99eb013735e5343ffb82de97ca00a776b3739a0172fe4e56dc02dc48",
+          "bytes": 1607
+        }
+      ]
+    },
+    {
+      "name": "20261022212000_add_cross_project_dependency_activation",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "7a609fe739a2ea1e53bb04c0d15f3403b7a9eeb7a73e7c872f2aef96d553b9a1",
+          "bytes": 4195
+        },
+        {
+          "file": "down.sql",
+          "sha256": "51e02f01f02587d0924b38a2ad4b986b9413cc41f37f26e65321f2c3ca8d8f32",
+          "bytes": 2290
+        }
+      ]
+    },
+    {
+      "name": "20261022213000_add_optimization_boundary_certificates",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "713337f7d9f7d778ba971580607185d1bd612b262cdd0bbc8943a1c3331749e1",
+          "bytes": 467
+        },
+        {
+          "file": "down.sql",
+          "sha256": "90e63fd82ac68a039527bb269a8914518ace71f54d350b84e18968fa0c2f2c29",
+          "bytes": 1393
+        }
+      ]
+    },
+    {
+      "name": "20261023100000_add_claim_lease",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "97d0b35d583b1f0f9a6ea284a8bd4603b96de017d910850f1836df15462c3517",
+          "bytes": 861
+        },
+        {
+          "file": "down.sql",
+          "sha256": "81bb4fffdfc022ce7ffc7bd9b64bd212f9f47d49784890107dbf119b80346623",
+          "bytes": 410
+        }
+      ]
+    },
+    {
+      "name": "20261023140000_add_measure",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "312f05c762707c64ef2af8f354499fd4809a94884b202a6983ab7dd872391d6d",
+          "bytes": 7430
+        },
+        {
+          "file": "down.sql",
+          "sha256": "fb78b1c7f38e224e2a42a5298c1c3e47b08cc4ba27c23cef597084cca2c988ee",
+          "bytes": 2507
+        }
+      ]
+    },
+    {
+      "name": "20261023150000_key_step_measure",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "01c7779df46f77d744c06348ac7fb084ee8868fcc8e03d77da9a25b2993b44f9",
+          "bytes": 5977
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d88f203c22ef8c858881f9152c6b915a50203d2d8453219f158d920b2bf0145a",
+          "bytes": 2634
+        }
+      ]
+    },
+    {
+      "name": "20261023160000_add_measure_estimate",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "7743198fbda1033e9ec0e0116957afc3f85c96263c17a15d3364411df2d59aed",
+          "bytes": 7207
+        },
+        {
+          "file": "down.sql",
+          "sha256": "fb0fd1fa56b1bd1adf75e2bd557db01300cebc5211b283deaac801826ab5679e",
+          "bytes": 2090
+        }
+      ]
+    },
+    {
+      "name": "20261023170000_add_work_item_budget",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "4c82572a733ff24927ea3a12db225c71a1a0b07a5ece7c45f6f6329c50d3692d",
+          "bytes": 3279
+        },
+        {
+          "file": "down.sql",
+          "sha256": "13031da96e55a97e57a8eef1a794909503ced366322ce2c1298988d16efb2810",
+          "bytes": 2094
+        }
+      ]
+    },
+    {
+      "name": "20261025120000_add_resource_use",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "8dee665434e29b5cd2c5401ed2c3db90223acd5998000015362ba4e3755cc5ba",
+          "bytes": 1798
+        },
+        {
+          "file": "down.sql",
+          "sha256": "0fe86b80bb1e7777d47ae1119df9cba6d8d46a47403c764258176ed17f1886c5",
+          "bytes": 744
+        }
+      ]
+    },
+    {
+      "name": "20261025130000_add_resource_runtime",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "f873f5b5e0dd8fd38d69873c9bbdcd9d885f5c4bd3d898eee35d8bd5c788e90b",
+          "bytes": 1718
+        },
+        {
+          "file": "down.sql",
+          "sha256": "a746dd98c6e3fec686c2aa0d50fd0452321ac9018b44fcd420fdeb16f92696a1",
+          "bytes": 723
+        }
+      ]
+    },
+    {
+      "name": "20261026120000_add_command_journal_person",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "d13aabc415043f0a115d72569a07643acc065d60e57c9b703335b3a6aa29d646",
+          "bytes": 1030
+        },
+        {
+          "file": "down.sql",
+          "sha256": "7c541b1e07b04cf3f9c9986066874bf88f417019311643b948108359070873cc",
+          "bytes": 958
+        }
+      ]
+    },
+    {
+      "name": "20261026130000_widen_organization_audit_machine_tokens",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "7be4354b51b58f19db28be94e98a2ef8f78411a6d99496e4326a39688af75d2a",
+          "bytes": 4516
+        },
+        {
+          "file": "down.sql",
+          "sha256": "d0741ade362ce791253523cb4a0784dfff986229cb805579ae781c8d2e4d5a27",
+          "bytes": 4142
+        }
+      ]
+    },
+    {
+      "name": "20261028100000_add_agent_pool",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "1eec00f1c8b271f6f7d660daf42f51e1b0a82c9cbc5da7a1cc461c1bcfc54eb5",
+          "bytes": 1766
+        },
+        {
+          "file": "down.sql",
+          "sha256": "8618965123af7b7f102a72eb0325896fe204c881588e422d53bf2c119a2d23cf",
+          "bytes": 1323
+        }
+      ]
+    },
+    {
+      "name": "20261028100100_widen_organization_audit_agent_pools",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "6c5fef01fff700bfac8ad9e52909fce3f60452cbaa5bdc6c6fb25e23b9bd1476",
+          "bytes": 4586
+        },
+        {
+          "file": "down.sql",
+          "sha256": "e97671381079e4fd25dd1481cc17a9062db87a7ea102921a3c2cff8c594ca962",
+          "bytes": 5261
+        }
+      ]
+    },
+    {
+      "name": "20261101100000_widen_organization_audit_directory_capacity",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "2f5e7561c68fe0dc5dc07048e42727cac2bf742ec92fe700f0942b310074a72c",
+          "bytes": 4639
+        },
+        {
+          "file": "down.sql",
+          "sha256": "b884d8a141f2b2cae47ecdb1dc002f2fe854a2fa06ef6280851565aa5315df82",
+          "bytes": 5424
+        }
+      ]
+    },
+    {
+      "name": "20261101100100_add_resource_directory_capacity",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "e007286e2e2f3ad5e202b6f2760f1961fe184112536b1f6f9bfe6c288d291bf1",
+          "bytes": 1017
+        },
+        {
+          "file": "down.sql",
+          "sha256": "2da91755a5ee1fbc83cdd5625afa07db9b0882ed071d7f0e1f8fc6b8d394cf53",
+          "bytes": 1094
+        }
+      ]
+    },
+    {
+      "name": "20261101120000_add_host_job_projection",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "15a7bf9f9a25fa2483833386c4cc6f2676bda7dac16b6f5b912c74d17aeefcde",
+          "bytes": 2487
+        },
+        {
+          "file": "down.sql",
+          "sha256": "4006c21df9ebf251b8cf61a3c1ac3590544734eae3c9b03261a79fc50e7be23e",
+          "bytes": 1536
+        }
+      ]
+    },
+    {
+      "name": "20261102120000_add_access_grants",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "73e7f971820864c82cc1895e44b627fdefb92a8dc96f6c4ab14ac3ba314c0d83",
+          "bytes": 16218
+        },
+        {
+          "file": "down.sql",
+          "sha256": "4d068e1219b5af3a50fe7843a5f273bdf7a086c35b1fbdaba16831a0a05f40aa",
+          "bytes": 3207
+        }
+      ]
+    },
+    {
+      "name": "20261102130000_widen_organization_audit_access",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "a6ebb6bc966243d9f916c8bca3ad993621b260c17354e17816c9916fab295dfd",
+          "bytes": 5300
+        },
+        {
+          "file": "down.sql",
+          "sha256": "68f0cb2495f48d0971be4854c07edc0b68b33ba1431ba66c82edc469f5c83df5",
+          "bytes": 4881
+        }
+      ]
+    },
+    {
+      "name": "20261103110000_add_initial_access_offers",
+      "files": [
+        {
+          "file": "migration.sql",
+          "sha256": "f9b37ea43a0a4e170217fd3ab12c33e0bf7de4b5e55e3848859da8ad209b1ebb",
+          "bytes": 2013
+        },
+        {
+          "file": "down.sql",
+          "sha256": "65f33e277f292311f7d99fb76d3f60a9868f809e8851ebc66d691486327032e8",
+          "bytes": 4175
+        }
+      ]
+    }
+  ],
+  "helper": {
+    "path": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/apps/wbs/be-01/src/controller/capture-genuine-backup-task-698-backup-outgoing-6SVpgQ.test.ts",
+    "sha256": "11c5cc858a6f2bacfb790b5088e0131e98b7f0fdd0cce546473b2fd4f4ae8b9e",
+    "bytes": 5504
+  },
+  "command": {
+    "argv": [
+      "bun",
+      "test",
+      "/tmp/task-698-1.5-legacy-source-TbbgKF/source/apps/wbs/be-01/src/controller/capture-genuine-backup-task-698-backup-outgoing-6SVpgQ.test.ts",
+      "--test-name-pattern",
+      "^captures genuine outgoing version1 backup personal approvals and completed cold receipt on110$"
+    ],
+    "cwd": "/tmp/task-698-1.5-legacy-source-TbbgKF/source",
+    "environment": {
+      "FORCE_COLOR": "0",
+      "TZ": "UTC"
+    },
+    "startedAt": "2026-11-11T18:51:20.454Z",
+    "endedAt": "2026-11-11T18:51:23.141Z",
+    "exitCode": 0,
+    "signal": null,
+    "log": {
+      "path": "/tmp/task-698-backup-outgoing-capture1.log",
+      "sha256": "f4b2767f8b459328d761aa7cc70d53580071f651f613c4e866a29017ccd441da",
+      "bytes": 1525
+    },
+    "helper": {
+      "path": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/apps/wbs/be-01/src/controller/capture-genuine-backup-task-698-backup-outgoing-6SVpgQ.test.ts",
+      "sha256": "11c5cc858a6f2bacfb790b5088e0131e98b7f0fdd0cce546473b2fd4f4ae8b9e",
+      "bytes": 5504
+    },
+    "parent": "7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf"
+  },
+  "saved": {
+    "format": "shared-people-save",
+    "version": 1,
+    "organizations": [
+      {
+        "organizationId": "org-a",
+        "mode": "shared"
+      },
+      {
+        "organizationId": "org-b",
+        "mode": "isolated"
+      }
+    ],
+    "ranks": [
+      {
+        "projectId": "1fffdaa9-ff27-4c12-bf11-4128f91f6c67",
+        "organizationId": "org-b",
+        "position": 7,
+        "createdAt": 1,
+        "updatedAt": null,
+        "createdBy": "74832e95-ee01-4b63-9657-4f954912e420"
+      },
+      {
+        "projectId": "fc3af5da-a52d-4c27-ba86-741d5d03c88e",
+        "organizationId": "org-a",
+        "position": 3,
+        "createdAt": 1,
+        "updatedAt": 2,
+        "createdBy": "74832e95-ee01-4b63-9657-4f954912e420"
+      }
+    ]
+  },
+  "digest": "394bcaa5d6c69881317bcb2813282cc3bf044aebf7cd42ce4c4b4f023e681f5c",
+  "binding": {
+    "operationId": "legacy-recovery-operation",
+    "approvalIds": ["ae0416cb-8800-4a4d-b545-52bef80c8984", "5134a364-a441-4382-901e-0a37cf22e926"]
+  },
+  "actorId": "74832e95-ee01-4b63-9657-4f954912e420",
+  "projects": ["fc3af5da-a52d-4c27-ba86-741d5d03c88e", "1fffdaa9-ff27-4c12-bf11-4128f91f6c67"],
+  "receipt": {
+    "operationId": "legacy-recovery-operation",
+    "backupDigest": "394bcaa5d6c69881317bcb2813282cc3bf044aebf7cd42ce4c4b4f023e681f5c",
+    "completedAt": 60,
+    "organizations": 2,
+    "ranks": 2,
+    "modeChanges": 1,
+    "events": 1,
+    "approvalIds": ["5134a364-a441-4382-901e-0a37cf22e926", "ae0416cb-8800-4a4d-b545-52bef80c8984"]
+  },
+  "ledger": [
+    {
+      "name": "20260426171432_talented_smiling_tiger",
+      "hash": "3a526cf9a1bf19be7f22690e780f6de8696055561f4e5e4c4e41cbefc577b950"
+    },
+    {
+      "name": "20260804194845_add_users",
+      "hash": "fb97d07303d5603f17d92bbd0597cd2943a35409f4c82c8a49df87b60593663c"
+    },
+    {
+      "name": "20260805154500_add_wbs_domain",
+      "hash": "a9c17e34c9015c9008d9f653cb89b74a7de324c4ef311e5866526b8f73e7f7b5"
+    },
+    {
+      "name": "20260806084828_add_dependencies",
+      "hash": "7fd56541e4285bb46b93c6ad21d6c61381a772474342fbddb7adefaacb73ea16"
+    },
+    {
+      "name": "20260806160000_add_project_access",
+      "hash": "01af7a477d5621fb3b01e3a7c1b14d419f6de0d82fd811d9b5659b8ebcd89971"
+    },
+    {
+      "name": "20260806170000_add_estimate_method",
+      "hash": "63162949d4419d11e973b547eabc465aaeb18c379cbdf9793c396cb9bf74e7cf"
+    },
+    {
+      "name": "20260806180000_add_calendar_dates",
+      "hash": "adb6c01264d3bb069b9322f66d45a19a076437b0a48a8fedceed7a26e2a81a4a"
+    },
+    {
+      "name": "20260806190000_add_teams_and_assignees",
+      "hash": "e3331e0c72e0fac06678d32689832eb9e7a8080bc7f5d8799fe69f40e427efe8"
+    },
+    {
+      "name": "20260807090000_add_revisions",
+      "hash": "21303bda83d6d3c57756a60415e8725af5f99af608ac83f1624add496977dfc4"
+    },
+    {
+      "name": "20260807180000_add_command_journal",
+      "hash": "d2075b792402cad2fe99a03cd914e623dcd9e8a44480ae36422ec5f916effe35"
+    },
+    {
+      "name": "20260809090000_add_role_position",
+      "hash": "2f3212bffad6c5560e10dbc2a1c7c4cae18a01d442607ff9e62dca241a3a244e"
+    },
+    {
+      "name": "20260811100000_add_priority",
+      "hash": "dab3352ebf184c50e916eb987d022b2102a3ec338b774807fb6690cc505d449d"
+    },
+    {
+      "name": "20260812100000_add_team_slots",
+      "hash": "cd72488098fc326124f3fcf39d090363405375a2f842405bf2e31f18e80145fa"
+    },
+    {
+      "name": "20260812100001_add_max_parallel",
+      "hash": "9badcfd2f08a539da55826cc40097a165f87456f20e7a108a78d788f5dc207e0"
+    },
+    {
+      "name": "20260813120000_add_project_team_capacity",
+      "hash": "21e2ff6c52fed2f25f1841d7d089adbd0de0d1cc8ed800ca1b17b7351ad52e61"
+    },
+    {
+      "name": "20260814100000_add_work_item_team",
+      "hash": "213751cc58b0007c09df678cb8906813640a4c24a32b4ddf019ea75505f1535e"
+    },
+    {
+      "name": "20260814110000_add_priority_band",
+      "hash": "2572713ae71fa3dc12d9b4111131912c70af95cc91f610b0e0f5cf3aa871013f"
+    },
+    {
+      "name": "20260817120000_add_plan_event",
+      "hash": "7d0e6b0f6ad91fd9e377a8c8b64f8777d527532d84bf1d4d73f16f864f49643f"
+    },
+    {
+      "name": "20260817130000_add_actual",
+      "hash": "4fe0c95e8e932a63e0963a89d86d14bfb79fc3ecb81e513baa0d9d6b898cc754"
+    },
+    {
+      "name": "20260818010000_add_role_progress",
+      "hash": "82b8e3f61c233f5ff9f00baf4c5f98cab9415243a4e2fc117d1c41da74abe105"
+    },
+    {
+      "name": "20260818090000_add_not_before_reason",
+      "hash": "1c77364332adfe7be4897b8e9aca4dc3a11054e449406d7f0a0f01787165c0c9"
+    },
+    {
+      "name": "20260819120000_add_tag",
+      "hash": "266b249901314f78e5c2b48e53a2890ca1849c94a10ffbf8ee0df57b347396a8"
+    },
+    {
+      "name": "20260821000000_add_service",
+      "hash": "0f9fa812b452c54a2efdd343683abff4bccb3a9b2ca85a9f778ee6d5e6083dfc"
+    },
+    {
+      "name": "20260821080000_add_work_item_service",
+      "hash": "bf9c5afdc5e384d03474fff0c7ec87b39d1b3de27d69a522d9280cd48b6305b3"
+    },
+    {
+      "name": "20260821140000_add_role_measure",
+      "hash": "3c2be539fbba782f07f1cb8b7906e92bd9c85d0d935c6c897964789b99a32df3"
+    },
+    {
+      "name": "20260821150000_add_person_kind",
+      "hash": "73a774234a8a182cc3ce3c97afb4942637bfc75fe1dcdd1da622fef95b216b2c"
+    },
+    {
+      "name": "20260824010000_add_oidc_identity",
+      "hash": "1d0e6fe26146b5877ebadc84ca0fd5411257f2cfffd651481d2353e0cf52aecd"
+    },
+    {
+      "name": "20260824020000_add_solution_ref",
+      "hash": "65817337d7efdd8b7974914ad92d6813e61157c15b3fbe5308aa9aba292d30ec"
+    },
+    {
+      "name": "20260830010000_add_work_item_type",
+      "hash": "37d574e14ba75ce90ca9ec5092e7c3a071a638720584634b12eada45be077d46"
+    },
+    {
+      "name": "20260830020000_add_external_ref",
+      "hash": "eeffdeaed54093acd3b5d87108e05f6d1817a8e6dbd4919902f09f1da4ea51c4"
+    },
+    {
+      "name": "20260830120000_add_dep_reach",
+      "hash": "57ba12192d26cc7815401188ab7fa5cecc512615f6b830e8ddecf99e188387a0"
+    },
+    {
+      "name": "20260830130000_add_estimate_weights_and_rounding",
+      "hash": "9cfc31278c7ee4ed78aa5817715ed9baed464fc1cd9375d4b01db02e120f436a"
+    },
+    {
+      "name": "20260831120000_rename_role_to_step",
+      "hash": "90eb52642a42328f00edf2511343d80814ff183f42d065dff1de5bb604e57ae0"
+    },
+    {
+      "name": "20260901120000_add_audit_columns",
+      "hash": "b1f9479bbce96ef6ec3d09e4b4cddeeffa9891e3119c1bdb6f6e7218b6443e01"
+    },
+    {
+      "name": "20260902120000_add_lookup_indexes",
+      "hash": "eafe4b007446e774b9a2550bcd5518feda2da69272f4ea3ab89c3e05834d685e"
+    },
+    {
+      "name": "20260903190000_add_saved_plan",
+      "hash": "594745a4ffa123524ff0d58438447350be803f049b5a5b78d2f48c588290a307"
+    },
+    {
+      "name": "20260904020000_add_saved_plan_created_by_id",
+      "hash": "99d7cb0791e293e7839535ec9b479e0c5c1bf25f0452f8851ca51bc438e1176e"
+    },
+    {
+      "name": "20260904100000_add_optimizer_tables",
+      "hash": "1abff2c53fcc3f8e833aa6a3dec90eb55c14282b51d118ccf0366713cea11e6a"
+    },
+    {
+      "name": "20260904140000_add_project_settings",
+      "hash": "d1263a899883560bb6f26c0987865cf5b45460e66c66fd90c4542d7b1f529c77"
+    },
+    {
+      "name": "20260905090000_add_calendar_marker",
+      "hash": "5277f807ffd32d88990308297c4a2ca6a1f844f1907cfa7b2d7fe28134ccff8f"
+    },
+    {
+      "name": "20260906003000_add_work_item_read_order_index",
+      "hash": "929008aa571464d6db0d6ab687f086293621b4df95e9ab04e0e1faed8257762f"
+    },
+    {
+      "name": "20260906090000_add_work_item_deadline",
+      "hash": "777937e68b938358582289328ddba2bc7f99ef406e7a6c718ead65bd1e617413"
+    },
+    {
+      "name": "20260909120000_add_external_ref_name",
+      "hash": "0b48975a90c2c16948ef5fe37317a1c83c6a3e5b55e620245241f69a4e364801"
+    },
+    {
+      "name": "20260912120000_add_work_item_facts",
+      "hash": "ebb51785be3611f78d97b6b40b6cdbfc2cdcdc852da52fed4dd6037f5a0bfa3c"
+    },
+    {
+      "name": "20260927120000_add_organization_records",
+      "hash": "58fc49ee7930ef1755de9257d2cdc21c9d4fc19570313eb055395f8cf3fb1f03"
+    },
+    {
+      "name": "20260927130000_add_organization_ownership",
+      "hash": "499f5dcdaa1bec4699590c0032e0f671fe140910621c1dfa234683fb6b49ba7b"
+    },
+    {
+      "name": "20260927150000_add_step_code",
+      "hash": "ca295cb1c1e67fd5ee4ef7748b86d61590eefbe67779785ad3e1e952d52b163f"
+    },
+    {
+      "name": "20260927170000_add_step_allowance",
+      "hash": "f76716017deae9912e0bec1c47784ad7c377dbc4e3aa23f6d405285f42aed2a4"
+    },
+    {
+      "name": "20260927180000_add_organization_activation",
+      "hash": "6ce290b0a7b1d51440d7c8855f79a885057296b4f4f6b85b495d36c92909eac5"
+    },
+    {
+      "name": "20260927190000_add_organization_bridge",
+      "hash": "8f45016088634d57ecbfdc896bd2b735d37c376710ee5aae324acdeba9df37ab"
+    },
+    {
+      "name": "20260927200000_freeze_organization_ownership",
+      "hash": "9dc7ca1fb26c5bb23786dae5c958941d6a346255e207bec91dff338c514a6079"
+    },
+    {
+      "name": "20260927213000_add_typed_dependency",
+      "hash": "21a3295854b8a2d5d70682ee7370899f262516eea58b205fbeb893bff8c57b05"
+    },
+    {
+      "name": "20260927220000_add_organization_audit",
+      "hash": "ce670f1949910782fdf60404ce2c1ede13591f275f48d7f061d6ef1d90062b39"
+    },
+    {
+      "name": "20260928010000_add_project_solution",
+      "hash": "cc30d8242e7a90b5b0b7108d2f073139358723a239a194f5dcb2b83c91748b58"
+    },
+    {
+      "name": "20260928020000_add_email_verification",
+      "hash": "78f83f763172c75681817516ce23b57c6c1f6fb20f87e15e2fbbeab257a8fcaa"
+    },
+    {
+      "name": "20260928030000_add_delegation_use",
+      "hash": "dac497a90adca30b02e9fe901db35534459bc0eeee79082b32213880e7ca591c"
+    },
+    {
+      "name": "20260928040000_add_email_challenge",
+      "hash": "422e0d8ce3a010693dc3e03d294b80609d15b35189ebb1b0524f37ee4034e891"
+    },
+    {
+      "name": "20260928200000_add_work_item_status_facts",
+      "hash": "448db832ec04f17dba9ff1c8a19921d22c06374929458046a8b510c725c87f5f"
+    },
+    {
+      "name": "20260929100000_add_spaces",
+      "hash": "bc261eaa594cbc56f00998040ddf7fb1f31008a0ef6fed5806e6469531ee6e94"
+    },
+    {
+      "name": "20260929180000_add_project_rank",
+      "hash": "03bebda4450b20637a92041e15ae280304769bdcdbac48f840c95a39ebf13539"
+    },
+    {
+      "name": "20261001010000_add_browser_credential_revocations",
+      "hash": "efa642ed7832f045b5b65b5bb61b55914f6e8d47ad785a2f76410956d9937e25"
+    },
+    {
+      "name": "20261005110000_add_shared_people",
+      "hash": "5d73daa66c8320b178e3c079107f3cc1320dd765a0ea38b8a30ce013c5d04075"
+    },
+    {
+      "name": "20261011120000_add_browser_auth_lifecycle",
+      "hash": "baa890bbbe2fd947486664fc5f5e27a4b621df6a2c9a7987b7f006a72674742c"
+    },
+    {
+      "name": "20261011200000_add_shared_people_audit",
+      "hash": "7af8a3768f56222ada1eb233ad0a2484437177622e27ae401a6a37d6e23024dc"
+    },
+    {
+      "name": "20261012090000_add_enterprise_sso_records",
+      "hash": "86bc171961fef9b5698faacc2256879d754fb9e51c1fbbac2e3da4eadb2836b2"
+    },
+    {
+      "name": "20261012090100_add_browser_auth_times",
+      "hash": "b090df8f4d9ccbb5042e3d3cd324e6fca6037c35c61cef37358c21e37bf2f192"
+    },
+    {
+      "name": "20261012090200_widen_organization_audit",
+      "hash": "87d5cd7e214f7614850e94cb86fddc6436223c88b0e10dc581bb336b4642022c"
+    },
+    {
+      "name": "20261012120000_add_step_node_attempts",
+      "hash": "03622184aab08a28d2aea905e53ed56a94836c52c306b083cc73c57540d776a8"
+    },
+    {
+      "name": "20261012130000_add_step_estimate_unit",
+      "hash": "4e9193392175077ee74d53864a8f7f11f7b33720c026352a96cf8912e8b44348"
+    },
+    {
+      "name": "20261013140000_add_step_node_blockages",
+      "hash": "4b26fb3d6e3503d4db2cd54c4bff16cad6b07d5a256bae84d2bec40052ea170a"
+    },
+    {
+      "name": "20261014120000_add_shared_people_restore_approvals",
+      "hash": "9f5654bdafd6aabf820f46b0989c2069a8343ad6763156af25711d998658c6b7"
+    },
+    {
+      "name": "20261014130000_add_shared_people_restore_receipts",
+      "hash": "6ee43ae8058a30383fd8f3ebc611d508d93f6dcccdcb9b9a21084f6642e5c25f"
+    },
+    {
+      "name": "20261014140000_add_step_blockage_activation",
+      "hash": "b2fc7485f5428cf67447b057ba1be910dd6f5f70146e5103e8219770f310556b"
+    },
+    {
+      "name": "20261015100000_add_step_blockage_activation_receipt",
+      "hash": "3171a3eb3640e34ad87a1950818b52e47293355ed14cba917095e9d524b60d7f"
+    },
+    {
+      "name": "20261015110000_add_step_node_parallelism",
+      "hash": "60edd648330bc0505aa25c96e64daf1b12c938e96e04d78ce7c2f147af2a93b4"
+    },
+    {
+      "name": "20261019120000_add_claim",
+      "hash": "369f09216a17a5ffe5905fc44dbecf545ff06548eecc7177e7c5d1ffe15d247d"
+    },
+    {
+      "name": "20261019130000_add_person_account",
+      "hash": "73a33a314a874750b5a3e2a3ee287a34d642836a3e0d667ba64e3fbabcb503cd"
+    },
+    {
+      "name": "20261019130100_add_external_identity_person",
+      "hash": "39f207e42095747d48b96f141565ad0ba20bbebb443decc323ee1831fb5c9f50"
+    },
+    {
+      "name": "20261020120000_add_resources",
+      "hash": "6f5c0166252b6484090aac1674d389ea3b7b4f2a949d036c6a62b4dc46831736"
+    },
+    {
+      "name": "20261020130000_add_claim_occupancy",
+      "hash": "395098a8e87c1bc81af2052e5f9a650a93228807f81027e44e4d3340d69d14b3"
+    },
+    {
+      "name": "20261022100000_add_machine_credential",
+      "hash": "70ec5068bc593912922d328242bf7dc3fd5d093f960a629a78e389883567d408"
+    },
+    {
+      "name": "20261022110000_widen_organization_audit_machine_credentials",
+      "hash": "67203236b68714ddf289a71b5d5e6e49efbebf8272d615f4628072dba33c7f57"
+    },
+    {
+      "name": "20261022110100_check_machine_credential_id",
+      "hash": "110ba1a53347a94f3aa8dbcbc8c22f43a30774f036b3e3cc4d13c02b7aa35db5"
+    },
+    {
+      "name": "20261022120000_scope_trusted_issuer_audience",
+      "hash": "04d7cfe649d212d8128d2205a02875c41d39f426c8b25f7b8362d29e756f93af"
+    },
+    {
+      "name": "20261022121000_add_runtime_commands",
+      "hash": "ef8f1b818cb1e2d98f6f933f3e7125ac00cd1c428124afd5619c254cccaba00d"
+    },
+    {
+      "name": "20261022130000_add_organization_limits",
+      "hash": "a84625236b32d10ba7a425e7e11d31469c0a089b9b65b627bbbc01aaef2176fb"
+    },
+    {
+      "name": "20261022130100_widen_organization_audit_organization_limits",
+      "hash": "93d65f622c2823df43e050a538ae834396d26d2f81e90096bf16a0ec592774b2"
+    },
+    {
+      "name": "20261022140000_add_resource_provider",
+      "hash": "6abaae224dc60292137303b82ac27afcc43c38d4217ac41ea9891a01393de2e1"
+    },
+    {
+      "name": "20261022140100_widen_organization_audit_compute_providers",
+      "hash": "64a8c56fd3f64963d497c7534903086f274766ee10da82386936f9c7cd0c21e2"
+    },
+    {
+      "name": "20261022210000_add_project_abbreviations",
+      "hash": "8e120c421e84771cc65912537c522a7126943c3a3dfce87d89cfcbf2bd3244d9"
+    },
+    {
+      "name": "20261022211000_add_external_dependencies",
+      "hash": "318b66d6eb443b83a4c75c9297e6e67cb62c91ba691cbeb38fdf51b98757f07f"
+    },
+    {
+      "name": "20261022212000_add_cross_project_dependency_activation",
+      "hash": "7a609fe739a2ea1e53bb04c0d15f3403b7a9eeb7a73e7c872f2aef96d553b9a1"
+    },
+    {
+      "name": "20261022213000_add_optimization_boundary_certificates",
+      "hash": "713337f7d9f7d778ba971580607185d1bd612b262cdd0bbc8943a1c3331749e1"
+    },
+    {
+      "name": "20261023100000_add_claim_lease",
+      "hash": "97d0b35d583b1f0f9a6ea284a8bd4603b96de017d910850f1836df15462c3517"
+    },
+    {
+      "name": "20261023140000_add_measure",
+      "hash": "312f05c762707c64ef2af8f354499fd4809a94884b202a6983ab7dd872391d6d"
+    },
+    {
+      "name": "20261023150000_key_step_measure",
+      "hash": "01c7779df46f77d744c06348ac7fb084ee8868fcc8e03d77da9a25b2993b44f9"
+    },
+    {
+      "name": "20261023160000_add_measure_estimate",
+      "hash": "7743198fbda1033e9ec0e0116957afc3f85c96263c17a15d3364411df2d59aed"
+    },
+    {
+      "name": "20261023170000_add_work_item_budget",
+      "hash": "4c82572a733ff24927ea3a12db225c71a1a0b07a5ece7c45f6f6329c50d3692d"
+    },
+    {
+      "name": "20261025120000_add_resource_use",
+      "hash": "8dee665434e29b5cd2c5401ed2c3db90223acd5998000015362ba4e3755cc5ba"
+    },
+    {
+      "name": "20261025130000_add_resource_runtime",
+      "hash": "f873f5b5e0dd8fd38d69873c9bbdcd9d885f5c4bd3d898eee35d8bd5c788e90b"
+    },
+    {
+      "name": "20261026120000_add_command_journal_person",
+      "hash": "d13aabc415043f0a115d72569a07643acc065d60e57c9b703335b3a6aa29d646"
+    },
+    {
+      "name": "20261026130000_widen_organization_audit_machine_tokens",
+      "hash": "7be4354b51b58f19db28be94e98a2ef8f78411a6d99496e4326a39688af75d2a"
+    },
+    {
+      "name": "20261028100000_add_agent_pool",
+      "hash": "1eec00f1c8b271f6f7d660daf42f51e1b0a82c9cbc5da7a1cc461c1bcfc54eb5"
+    },
+    {
+      "name": "20261028100100_widen_organization_audit_agent_pools",
+      "hash": "6c5fef01fff700bfac8ad9e52909fce3f60452cbaa5bdc6c6fb25e23b9bd1476"
+    },
+    {
+      "name": "20261101100000_widen_organization_audit_directory_capacity",
+      "hash": "2f5e7561c68fe0dc5dc07048e42727cac2bf742ec92fe700f0942b310074a72c"
+    },
+    {
+      "name": "20261101100100_add_resource_directory_capacity",
+      "hash": "e007286e2e2f3ad5e202b6f2760f1961fe184112536b1f6f9bfe6c288d291bf1"
+    },
+    {
+      "name": "20261101120000_add_host_job_projection",
+      "hash": "15a7bf9f9a25fa2483833386c4cc6f2676bda7dac16b6f5b912c74d17aeefcde"
+    },
+    {
+      "name": "20261102120000_add_access_grants",
+      "hash": "73e7f971820864c82cc1895e44b627fdefb92a8dc96f6c4ab14ac3ba314c0d83"
+    },
+    {
+      "name": "20261102130000_widen_organization_audit_access",
+      "hash": "a6ebb6bc966243d9f916c8bca3ad993621b260c17354e17816c9916fab295dfd"
+    },
+    {
+      "name": "20261103110000_add_initial_access_offers",
+      "hash": "f9b37ea43a0a4e170217fd3ab12c33e0bf7de4b5e55e3848859da8ad209b1ebb"
+    }
+  ],
+  "pendingTables": [
+    {
+      "table": "organization",
+      "rows": [
+        {
+          "id": "org-a",
+          "name": "org-a",
+          "legacy": 0,
+          "created_at": 1,
+          "updated_at": null,
+          "created_by": null,
+          "shared_people": 0
+        },
+        {
+          "id": "org-b",
+          "name": "org-b",
+          "legacy": 0,
+          "created_at": 1,
+          "updated_at": null,
+          "created_by": null,
+          "shared_people": 0
+        }
+      ]
+    },
+    {
+      "table": "project_rank",
+      "rows": []
+    },
+    {
+      "table": "shared_people_audit",
+      "rows": []
+    },
+    {
+      "table": "event_log",
+      "rows": []
+    },
+    {
+      "table": "event_sequencer",
+      "rows": []
+    },
+    {
+      "table": "shared_people_restore_operation",
+      "rows": [
+        {
+          "id": "legacy-recovery-operation",
+          "backup_digest": "394bcaa5d6c69881317bcb2813282cc3bf044aebf7cd42ce4c4b4f023e681f5c",
+          "created_at": 1794423083056
+        }
+      ]
+    },
+    {
+      "table": "shared_people_restore_approval",
+      "rows": [
+        {
+          "id": "ae0416cb-8800-4a4d-b545-52bef80c8984",
+          "operation_id": "legacy-recovery-operation",
+          "organization_id": "org-a",
+          "actor_id": "74832e95-ee01-4b63-9657-4f954912e420",
+          "created_at": 1794423083056
+        },
+        {
+          "id": "5134a364-a441-4382-901e-0a37cf22e926",
+          "operation_id": "legacy-recovery-operation",
+          "organization_id": "org-b",
+          "actor_id": "74832e95-ee01-4b63-9657-4f954912e420",
+          "created_at": 1794423083059
+        }
+      ]
+    },
+    {
+      "table": "shared_people_restore_receipt",
+      "rows": []
+    },
+    {
+      "table": "shared_people_restore_consumption",
+      "rows": []
+    }
+  ],
+  "completedTables": [
+    {
+      "table": "organization",
+      "rows": [
+        {
+          "id": "org-a",
+          "name": "org-a",
+          "legacy": 0,
+          "created_at": 1,
+          "updated_at": 60,
+          "created_by": null,
+          "shared_people": 1
+        },
+        {
+          "id": "org-b",
+          "name": "org-b",
+          "legacy": 0,
+          "created_at": 1,
+          "updated_at": null,
+          "created_by": null,
+          "shared_people": 0
+        }
+      ]
+    },
+    {
+      "table": "project_rank",
+      "rows": [
+        {
+          "project_id": "1fffdaa9-ff27-4c12-bf11-4128f91f6c67",
+          "organization_id": "org-b",
+          "position": 7,
+          "created_at": 1,
+          "updated_at": null,
+          "created_by": "74832e95-ee01-4b63-9657-4f954912e420"
+        },
+        {
+          "project_id": "fc3af5da-a52d-4c27-ba86-741d5d03c88e",
+          "organization_id": "org-a",
+          "position": 3,
+          "created_at": 1,
+          "updated_at": 2,
+          "created_by": "74832e95-ee01-4b63-9657-4f954912e420"
+        }
+      ]
+    },
+    {
+      "table": "shared_people_audit",
+      "rows": [
+        {
+          "id": "restore:[\"legacy-recovery-operation\",\"org-a\"]",
+          "organization_id": "org-a",
+          "actor_id": "74832e95-ee01-4b63-9657-4f954912e420",
+          "shared_people": 1,
+          "created_at": 60
+        }
+      ]
+    },
+    {
+      "table": "event_log",
+      "rows": [
+        {
+          "id": 1,
+          "subscription": "project:fc3af5da-a52d-4c27-ba86-741d5d03c88e",
+          "seq": 0,
+          "message": "{\"type\":\"elsewhere_changed\",\"projectId\":\"fc3af5da-a52d-4c27-ba86-741d5d03c88e\",\"causeProjectId\":null}",
+          "created_at": 60
+        }
+      ]
+    },
+    {
+      "table": "event_sequencer",
+      "rows": [
+        {
+          "subscription": "project:fc3af5da-a52d-4c27-ba86-741d5d03c88e",
+          "next_seq": 1
+        }
+      ]
+    },
+    {
+      "table": "shared_people_restore_operation",
+      "rows": [
+        {
+          "id": "legacy-recovery-operation",
+          "backup_digest": "394bcaa5d6c69881317bcb2813282cc3bf044aebf7cd42ce4c4b4f023e681f5c",
+          "created_at": 1794423083056
+        }
+      ]
+    },
+    {
+      "table": "shared_people_restore_approval",
+      "rows": [
+        {
+          "id": "ae0416cb-8800-4a4d-b545-52bef80c8984",
+          "operation_id": "legacy-recovery-operation",
+          "organization_id": "org-a",
+          "actor_id": "74832e95-ee01-4b63-9657-4f954912e420",
+          "created_at": 1794423083056
+        },
+        {
+          "id": "5134a364-a441-4382-901e-0a37cf22e926",
+          "operation_id": "legacy-recovery-operation",
+          "organization_id": "org-b",
+          "actor_id": "74832e95-ee01-4b63-9657-4f954912e420",
+          "created_at": 1794423083059
+        }
+      ]
+    },
+    {
+      "table": "shared_people_restore_receipt",
+      "rows": [
+        {
+          "operation_id": "legacy-recovery-operation",
+          "backup_digest": "394bcaa5d6c69881317bcb2813282cc3bf044aebf7cd42ce4c4b4f023e681f5c",
+          "completed_at": 60,
+          "organizations": 2,
+          "ranks": 2,
+          "mode_changes": 1,
+          "events": 1
+        }
+      ]
+    },
+    {
+      "table": "shared_people_restore_consumption",
+      "rows": [
+        {
+          "approval_id": "5134a364-a441-4382-901e-0a37cf22e926",
+          "operation_id": "legacy-recovery-operation",
+          "organization_id": "org-b"
+        },
+        {
+          "approval_id": "ae0416cb-8800-4a4d-b545-52bef80c8984",
+          "operation_id": "legacy-recovery-operation",
+          "organization_id": "org-a"
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "pending",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-pending1.sqlite.gz",
+      "sha256": "d999be742dea682c861c127c58aa3d06e1101f86552d7c98d38e30778af10351",
+      "bytes": 59693,
+      "uncompressedSha256": "dea9628390640c15c09e76f1aa4181f50f3961c16d908a499ea86728c4e211c1",
+      "uncompressedBytes": 1773568
+    },
+    {
+      "name": "completed",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-completed1.sqlite.gz",
+      "sha256": "6bc9cd11e35ebe23230f6a6573c5f6beea55f0660ac1a84d4a6ff38944f66f96",
+      "bytes": 60222,
+      "uncompressedSha256": "55cb8edb73bfb10d68d0ffa588223d630cb78da6c06cec7c6a7919c504e93b00",
+      "uncompressedBytes": 1773568
+    }
+  ],
+  "qualification": "Actual outgoing7b save owner, authenticated personal HTTP approval owners and settled offline restore/cold retry on exact110 schema. Shared state is a controlled fixture; no live release/host capability or deployment claim. VACUUM runs after each async owner settles. Original test DB directory retained for evidence; no token/plaintext key is serialized. Logical database/evidence preservation only; no byte equality after111 or general backup/deploy certification. Fixed ea65189d codec fixture is independently pinned and not replaced by this dynamic capture."
+}

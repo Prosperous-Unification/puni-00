@@ -17,7 +17,7 @@ import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { StoredAttempt } from '../ports/step-node-attempt-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { ConnectedPlanCapture } from './connected-plan-values';
-import { type NodeReadingProjection, projectNodeReadings } from './node-readings';
+import { type NodeReadingProjection, workPackageNodeReadings } from './node-readings';
 import { workItemStatusesOf } from './work-item-statuses';
 
 /** Live component facts independent of calendar placement and optimizer availability. */
@@ -31,54 +31,55 @@ export interface ConnectedReadiness {
 }
 
 /**
- * Fold each project's own progress and attempts, then project the complete authored
- * graph once. Required live attempts are explicit; sparse statements remain unknown.
- * Throws for absent project evidence and facts naming another project's steps or rows.
+ * Fold each work package's own progress and attempts, then derive readiness over the complete
+ * authored graph once. Required live attempts are explicit; sparse statements remain unknown.
+ * Throws for absent work package evidence and facts naming another work package's steps or rows.
  */
 export function deriveConnectedReadiness(
   capture: ConnectedPlanCapture,
   authored: ConnectedGraph,
-  attemptsByProject: ReadonlyMap<string, readonly StoredAttempt[]>,
+  attemptsByWorkPackage: ReadonlyMap<string, readonly StoredAttempt[]>,
 ): ConnectedReadiness {
   return deriveExecutionReadiness(
-    [...capture.projects].sort(
-      (left, right) => left.rank - right.rank || left.projectId.localeCompare(right.projectId),
+    [...capture.workPackages].sort(
+      (left, right) =>
+        left.rank - right.rank || left.workPackageId.localeCompare(right.workPackageId),
     ),
     capture.relationships,
     authored,
-    attemptsByProject,
+    attemptsByWorkPackage,
   );
 }
 
-/** Project-owned live evidence required by the scheduler-free execution reading. */
-export interface ExecutionProject {
-  readonly projectId: string;
+/** WorkPackage-owned live evidence required by the scheduler-free execution reading. */
+export interface ExecutionWorkPackage {
+  readonly workPackageId: string;
   readonly reads: Pick<
     PlanInputReads,
     'workItems' | 'steps' | 'progress' | 'stepBlockages' | 'estimates' | 'actuals' | 'dependencies'
   >;
 }
 
-/** Fold complete authorized live evidence without scheduling or fabricated project metadata. */
+/** Fold complete authorized live evidence without scheduling or fabricated work package metadata. */
 export function deriveExecutionReadiness(
-  members: readonly ExecutionProject[],
+  members: readonly ExecutionWorkPackage[],
   relationships: readonly StoredTypedDependency[],
   authored: ConnectedGraph,
-  attemptsByProject: ReadonlyMap<string, readonly StoredAttempt[]>,
+  attemptsByWorkPackage: ReadonlyMap<string, readonly StoredAttempt[]>,
 ): ConnectedReadiness {
   const progress = new Map<string, 'unknown' | 'in_progress' | 'done'>();
   const attempts: StoredAttempt[] = [];
   const orderByWorkItem = new Map<string, number>();
   for (const member of members) {
     const { reads } = member;
-    const capturedAttempts = attemptsByProject.get(member.projectId);
+    const capturedAttempts = attemptsByWorkPackage.get(member.workPackageId);
     if (capturedAttempts === undefined)
-      throw new Error(`missing live attempts for ${member.projectId}`);
+      throw new Error(`missing live attempts for ${member.workPackageId}`);
     const rows = new Set(reads.workItems.map((row) => row.id));
     const steps = new Set(reads.steps.map((step) => step.id));
     for (const fact of [...reads.progress, ...reads.stepBlockages, ...capturedAttempts]) {
       if (!rows.has(fact.workItemId) || !steps.has(fact.stepId))
-        throw new Error(`live evidence outside own project ${member.projectId}`);
+        throw new Error(`live evidence outside own work package ${member.workPackageId}`);
     }
     const folded = rollUpWorkItemStatuses(
       reads.workItems,
@@ -101,7 +102,7 @@ export function deriveExecutionReadiness(
     typed: relationships,
   };
   const statuses = workItemStatusesOf(rows, progress, dependencies);
-  const nodes = projectNodeReadings({
+  const nodes = workPackageNodeReadings({
     graph: authored.graph,
     // Proof: replacing captured holds with null made the mounted `remote hold changes the connected proxy reading` read unknown instead of blocked_by_proxy.
     holdOf: new Map(rows.map((row) => [row.id, row.hold])),

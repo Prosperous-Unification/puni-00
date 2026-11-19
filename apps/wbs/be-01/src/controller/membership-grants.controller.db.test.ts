@@ -303,9 +303,9 @@ it('does not require organization-role permission for authority held only throug
 });
 
 it('counts group and member-wide grants once and omits package-only organization roles', async () => {
-  const created = await h.call('owner', 'POST', '/api/projects', { name: 'Private address' });
+  const created = await h.call('owner', 'POST', '/api/work-packages', { name: 'Private address' });
   expect(created.status).toBe(200);
-  const packageId = (created.body as { project: { id: string } }).project.id;
+  const packageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   h.grant('org', 'target', 'package-viewer', 'work_package', packageId);
   h.sqlite.run(
     "INSERT INTO access_group(id,organization_id,name,created_at) VALUES('group','org','Group',1)",
@@ -577,7 +577,7 @@ for (const fault of ['missing', 'kind', 'permission', 'empty', 'flag', 'breadth'
       if (fault === 'flag')
         h.sqlite.run("UPDATE access_role SET reaches_restricted=2 WHERE id='org-viewer'");
       if (fault === 'breadth')
-        h.sqlite.run("UPDATE access_role SET object_kind='project' WHERE id='org-viewer'");
+        h.sqlite.run("UPDATE access_role SET object_kind='work_package' WHERE id='org-viewer'");
       h.sqlite.run('PRAGMA foreign_keys=ON');
       h.sqlite.run('PRAGMA ignore_check_constraints=OFF');
       const snapshot = () =>

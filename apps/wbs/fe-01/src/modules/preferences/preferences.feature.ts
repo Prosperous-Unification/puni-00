@@ -1,8 +1,8 @@
 import type { Preferences, Remembered, RememberedPreferences } from './contract';
 import {
   GANTT_DETAIL_KEY,
-  PROJECT_KEY,
-  projectSettingsSectionKey,
+  WORK_PACKAGE_KEY,
+  workPackageSettingsSectionKey,
   RETIRED_GANTT_ARROWS_KEY,
   THEME_KEY,
 } from './preference-keys';
@@ -27,10 +27,10 @@ export function createRememberedPreferences(preferences: Preferences): Remembere
       preferences.json(THEME_KEY, isValid),
     ganttDetail: preferences.json(GANTT_DETAIL_KEY, holdsBoolean),
     retiredGanttArrows: preferences.unchecked(RETIRED_GANTT_ARROWS_KEY),
-    lastOpenedProject: preferences.unchecked(PROJECT_KEY),
-    projectSettingsSection: <T extends string>(
-      projectId: string,
+    lastOpenedWorkPackage: preferences.unchecked(WORK_PACKAGE_KEY),
+    workPackageSettingsSection: <T extends string>(
+      workPackageId: string,
       isValid: (stored: string) => stored is T,
-    ): Remembered<T> => preferences.text(projectSettingsSectionKey(projectId), isValid),
+    ): Remembered<T> => preferences.text(workPackageSettingsSectionKey(workPackageId), isValid),
   };
 }

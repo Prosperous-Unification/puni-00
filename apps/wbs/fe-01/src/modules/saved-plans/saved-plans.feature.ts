@@ -23,7 +23,7 @@ import {
 export type ShelfDeps = Pick<SavedPlanRoutes, 'available' | 'list'>;
 
 /**
- * One read of a project's shelf, from the capability question to the rows.
+ * One read of a work package's shelf, from the capability question to the rows.
  *
  * **The order is the point, and it is the half of 6.4 that neither the probe nor
  * the surface can hold on its own.** `savedPlansAvailable()` and the
@@ -36,7 +36,10 @@ export type ShelfDeps = Pick<SavedPlanRoutes, 'available' | 'list'>;
  * A failed probe and a failed read are both `error` and carry the code, because
  * by then the reader has a fault to report rather than a node to upgrade.
  */
-export async function readShelf(deps: ShelfDeps, projectId: string): Promise<SavedPlanListState> {
+export async function readShelf(
+  deps: ShelfDeps,
+  workPackageId: string,
+): Promise<SavedPlanListState> {
   let available: boolean;
   try {
     available = await deps.available();
@@ -48,7 +51,7 @@ export async function readShelf(deps: ShelfDeps, projectId: string): Promise<Sav
   // would make the second reachable only by accident.
   if (!available) return { kind: 'unavailable' };
   try {
-    const reply = await deps.list(projectId);
+    const reply = await deps.list(workPackageId);
     switch (reply.kind) {
       case 'success':
         return { kind: 'ready', rows: reply.body.savedPlans };
@@ -96,7 +99,7 @@ const codeOf = (fault: unknown): string => (fault instanceof Error ? fault.messa
 /**
  * The broadcast, narrowed to the two things a shelf watch uses.
  *
- * `subscribeToProject` takes an options object and hands back a stream with
+ * `subscribeToWorkPackage` takes an options object and hands back a stream with
  * `seen` as well as `unsubscribe`; sequence reporting belongs to whoever reads
  * the *plan*, not to this. Naming only what is used keeps the fake in the cases
  * two lines long and keeps this file from acquiring an opinion about sequences.
@@ -104,9 +107,9 @@ const codeOf = (fault: unknown): string => (fault instanceof Error ? fault.messa
 export type ShelfWatchDeps = ShelfDeps & Pick<SavedPlanRoutes, 'subscribe'>;
 
 /**
- * A project's shelf, read now and re-read whenever the project changes.
+ * A work package's shelf, read now and re-read whenever the work package changes.
  *
- * **The payload is ignored, exactly as `subscribeToProject` ignores it.** A
+ * **The payload is ignored, exactly as `subscribeToWorkPackage` ignores it.** A
  * saved plan is immutable, but the *list* is not: another collaborator saving or
  * deleting one changes it, and re-reading is one request and always right.
  *
@@ -116,7 +119,7 @@ export type ShelfWatchDeps = ShelfDeps & Pick<SavedPlanRoutes, 'subscribe'>;
  * that can never render is a reconnect loop nobody can see.
  *
  * Returns the stop. Call it and no further state arrives — including from a read
- * already in flight, which is the trap `project-stream.ts` names in its own
+ * already in flight, which is the trap `work-package-stream.ts` names in its own
  * `unsubscribe`: the loop that outlived its subscriber.
  *
  * **It also returns `refresh`, and the reason is a hole in the broadcast rather
@@ -131,7 +134,7 @@ export type ShelfWatchDeps = ShelfDeps & Pick<SavedPlanRoutes, 'subscribe'>;
  */
 export function watchShelf(
   deps: ShelfWatchDeps,
-  projectId: string,
+  workPackageId: string,
   onState: (state: SavedPlanListState) => void,
 ): { stop: () => void; refresh: () => void } {
   let stopped = false;
@@ -140,7 +143,7 @@ export function watchShelf(
 
   const read = (): void => {
     const mine = ++generation;
-    void readShelf(deps, projectId).then((state) => {
+    void readShelf(deps, workPackageId).then((state) => {
       // Two guards, and they are different facts. `stopped` is "nobody is
       // listening any more"; `mine !== generation` is "somebody is, but they
       // have since asked a newer question". A broadcast that lands while the
@@ -150,7 +153,7 @@ export function watchShelf(
       if (stopped || mine !== generation) return;
       onState(state);
       if (state.kind === 'unavailable') return;
-      stream ??= deps.subscribe(projectId, read);
+      stream ??= deps.subscribe(workPackageId, read);
     });
   };
 
@@ -175,25 +178,25 @@ export function watchShelf(
 }
 
 /**
- * Opens one project's saved plans over their private port: reads its shelf now,
+ * Opens one work package's saved plans over their private port: reads its shelf now,
  * watches it until {@link OpenedSavedPlans.close}, and answers requests only while
- * the project runtime that opened them is current.
+ * the work package runtime that opened them is current.
  *
- * Called once per project runtime, by `runtime/project-runtime.ts`, which
+ * Called once per work package runtime, by `runtime/work-package-runtime.ts`, which
  * publishes {@link SavedPlans} and gives the watch back when it retires the
- * project. A new project is a new runtime and so a new shelf starting from
- * `loading`: the rows of the project just left are never shown under the next
+ * work package. A new work package is a new runtime and so a new shelf starting from
+ * `loading`: the rows of the work package just left are never shown under the next
  * one's name.
  *
  * `isCurrent` is asked synchronously when anything happens. After the runtime
- * is withdrawn the shelf does not change again — a read the old project still
+ * is withdrawn the shelf does not change again — a read the old work package still
  * had in flight lands nowhere — and every request rejects with
  * {@link SavedPlansWithdrawnError} and sends nothing, and a refresh reads
  * nothing. A broadcast that arrives between the withdrawal and the close may
  * still read once; its answer is dropped by the same guard.
  */
 export function openSavedPlans({
-  projectId,
+  workPackageId,
   routes,
   isCurrent,
 }: SavedPlansReader & { readonly routes: SavedPlanRoutes }): OpenedSavedPlans {
@@ -214,7 +217,7 @@ export function openSavedPlans({
         onChange(changed);
       }),
   };
-  const watch = watchShelf(watched, projectId, (next) => {
+  const watch = watchShelf(watched, workPackageId, (next) => {
     // Proof: on 2026-09-27, publishing regardless here (s1) failed `changes nothing once its
     // runtime is withdrawn, not even with the read it had in flight` on `expected { kind: 'ready',
     // rows: [ { …(7) } ] } to deeply equal { kind: 'loading' }`.
@@ -241,11 +244,11 @@ export function openSavedPlans({
     },
     save: (name) =>
       whileCurrent(() =>
-        name === undefined ? routes.save(projectId) : routes.save(projectId, name),
+        name === undefined ? routes.save(workPackageId) : routes.save(workPackageId, name),
       ),
     rename: (savedPlanId, name) => whileCurrent(() => routes.rename(savedPlanId, name)),
     remove: (savedPlanId) => whileCurrent(() => routes.remove(savedPlanId)),
-    compare: (left, right) => whileCurrent(() => routes.compare(projectId, left, right)),
+    compare: (left, right) => whileCurrent(() => routes.compare(workPackageId, left, right)),
   };
   // Proof: on 2026-09-27, a close that stops nothing (s3) failed `stops watching when it is closed`
   // on `expected "vi.fn()" to be called 1 times, but got 0 times` and `throws what its stream threw

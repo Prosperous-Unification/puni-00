@@ -82,14 +82,14 @@ export async function runPingSmoke(opts: PingOptions): Promise<PingResult> {
 /**
  * The subscription the backend-hop probe resumes on.
  *
- * A zero UUID: it satisfies gw-01's `project:<uuid>` subscription shape, and
- * `crypto.randomUUID()` cannot produce it, so no real project can ever be behind
+ * A zero UUID: it satisfies gw-01's `work-package:<uuid>` subscription shape, and
+ * `crypto.randomUUID()` cannot produce it, so no real work package can ever be behind
  * it. be-01's `event_sequencer` therefore has no row for it, `latestSeq` answers
  * `-1`, and resuming from `0` is out of range — the *deterministic* refusal this
  * probe is built on. be-01 reads its database to say so, which is the point: the
  * answer cannot be produced by a gateway that never reached be-01.
  */
-const PROBE_SUBSCRIPTION = 'project:00000000-0000-0000-0000-000000000000';
+const PROBE_SUBSCRIPTION = 'work-package:00000000-0000-0000-0000-000000000000';
 
 /** How long to keep listening for a late forward failure after `resume_ack`. */
 const FORWARD_DRAIN_MS = 500;
@@ -115,7 +115,7 @@ const frames = (seen: readonly string[]): string =>
  *    a forward that works answers nothing at all.
  * 2. `{"type":"resume"}` on {@link PROBE_SUBSCRIPTION}, sent once the forward
  *    has drained. gw-01 first asks be-01 whether the socket's principal may
- *    read that project, forwarding the smoke cookie behind the same secret.
+ *    read that work package, forwarding the smoke cookie behind the same secret.
  *    The outcomes are distinguishable at the client: be-01 refusing the smoke
  *    principal closes the socket 1008 `unauthenticated` (gw-01 verified the
  *    token at the upgrade, so only be-01 can refuse it now), and an
@@ -124,7 +124,7 @@ const frames = (seen: readonly string[]): string =>
  *    unreachable or rejecting be-01 produces.
  *
  * What the 1008 outcome no longer proves, compared with the `out_of_range`
- * answer this probe relied on before gw-01 checked project access: that
+ * answer this probe relied on before gw-01 checked work package access: that
  * be-01's `/internal/resume` route works, or that it reads the event log for a
  * real principal. The refusal comes from the browser-access check before any
  * replay, and a be-01 holding a wrong session key refuses the smoke token in
@@ -186,7 +186,10 @@ export async function runBackendHopSmoke(opts: PingOptions): Promise<PingResult>
         return;
       }
       if (e.code === 1013) {
-        stop(false, `gw-01 could not reach be-01 to check project access (1013 ${e.reason ?? ''})`);
+        stop(
+          false,
+          `gw-01 could not reach be-01 to check work package access (1013 ${e.reason ?? ''})`,
+        );
         return;
       }
       stop(

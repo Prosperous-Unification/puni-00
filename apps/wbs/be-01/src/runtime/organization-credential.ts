@@ -97,7 +97,7 @@ export function organizationCredentialEvidence(
     // answered evidence for this token, and asking it made every data route
     // wait on, and fail with, issuer discovery (issue #669 F5). Skipping it
     // can only narrow: `verifyNative` still re-verifies and binds the token.
-    // Proof: with this condition removed, `answers /api/projects 200…` and
+    // Proof: with this condition removed, `answers /api/work-packages 200…` and
     // `answers /api/people 200…` (boot.db.test.ts, "a native session under a
     // verifier outage") answered 500 for cookie and Bearer; watched 2026-10-24.
     if (upstream !== undefined && principal.authentication?.kind !== 'first_party') {

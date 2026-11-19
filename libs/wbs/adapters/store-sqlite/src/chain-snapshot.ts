@@ -1,4 +1,5 @@
 import type {
+  CapturedLocalPlan,
   CapturedScheduleAsk,
   ChainAccess,
   ChainSnapshot,
@@ -10,16 +11,19 @@ import type {
   OptimizedScheduleAdapter,
   OrganizationPrincipal,
   PlanInputReads,
-  Project,
   ResourceAccess,
   Scheduler,
   ScheduleRead,
   SharedPeopleRead,
   StoredAttempt,
+  WorkPackage,
 } from '@wbs/core';
 import { deriveConnectedPlan, deriveConnectedReadiness, readChain } from '@wbs/core';
-import { eq } from 'drizzle-orm';
+import { authorizePackage } from '@wbs/core/service/authorize';
+import { selectInfluencers } from '@wbs/core/service/shared-people';
+import { and, eq } from 'drizzle-orm';
 
+import { AccessDecisionRepository } from './access-decisions';
 import { CalendarMarkerRepository } from './calendar-marker';
 import type { CaptureReadSeam } from './capture-read-seam';
 import type { CapturedOptimizationReaderOptions } from './captured-optimization-reader';
@@ -42,13 +46,11 @@ import {
   SqliteOrganizationAccess,
 } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
-import { ProjectRepository } from './project';
-import { ProjectRankRepository } from './project-rank';
 import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { readPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
-import { projectOrganization } from './schema';
+import { organization, project, workPackageOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
@@ -56,6 +58,8 @@ import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepParallelRepository } from './step-parallel';
 import { WorkItemRepository } from './work-item';
 import { WorkItemBudgetRepository } from './work-item-budget';
+import { WorkPackageRepository } from './work-package';
+import { WorkPackageRankRepository } from './work-package-rank';
 
 export interface ChainSnapshotOptions {
   /** Optional diagnostic seam; it never substitutes captured values or authority. */
@@ -74,7 +78,7 @@ export interface ChainSnapshotOptions {
 }
 
 /** Private derivation options; only explicit fixtures opt in before coordinator integration. */
-type LiveCaptureOptions = Pick<
+export type LiveCaptureOptions = Pick<
   ChainSnapshotOptions,
   'schedulerOf' | 'optimization' | 'captureRead'
 > & {
@@ -93,7 +97,7 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
 
   async withSnapshot(
     principal: OrganizationPrincipal,
-    projectId: string,
+    workPackageId: string,
     read: (snapshot: ChainSnapshot) => SharedPeopleRead | Promise<SharedPeopleRead>,
   ) {
     const connection = this.options.openConnection();
@@ -115,30 +119,30 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
           return resolved;
         }
         const access = resolved.access;
-        const projects = new ProjectRepository(db, OPEN);
+        const workPackages = new WorkPackageRepository(db, OPEN);
         // Proof: reading mode on a fresh connection failed the authority-bound concurrent-mode test.
         const mode =
           access.kind === 'legacy' ? 'isolated' : readCapacityMode(db, access.scope.organizationId);
-        let readable: readonly Project[];
+        let readable: readonly WorkPackage[];
         // Proof: removing target selection failed `never materializes upstream assignments for isolated or legacy targets`.
         if (mode === 'isolated') {
-          const project =
+          const workPackage =
             access.kind === 'scoped'
-              ? await projects.findInOrganization(projectId, access.scope.organizationId)
-              : await projects.findById(projectId);
-          readable = project === null ? [] : [project];
+              ? await workPackages.findInOrganization(workPackageId, access.scope.organizationId)
+              : await workPackages.findById(workPackageId);
+          readable = workPackage === null ? [] : [workPackage];
         } else {
           readable =
             access.kind === 'scoped'
-              ? await projects.listForInOrganization(principal.id, access.scope.organizationId)
-              : await projects.listFor(principal.id);
+              ? await workPackages.listForInOrganization(principal.id, access.scope.organizationId)
+              : await workPackages.listFor(principal.id);
         }
         const value = await read(
           await readChainSnapshotIn(
             db,
             access,
             readable,
-            projectId,
+            workPackageId,
             this.options,
             lifetime,
             this.captureRead ?? this.options.captureRead,
@@ -158,8 +162,8 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
       connection.close();
     }
   }
-  async withProjectSnapshot(
-    projectId: string,
+  async withWorkPackageSnapshot(
+    workPackageId: string,
     read: (snapshot: ChainSnapshot) => SharedPeopleRead | Promise<SharedPeopleRead>,
   ): Promise<SharedPeopleRead> {
     const connection = this.options.openConnection();
@@ -170,16 +174,16 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
       const transaction = drizzleReadTransaction(db);
       transaction.begin();
       try {
-        const projects = new ProjectRepository(db, OPEN);
-        const target = await projects.findById(projectId);
+        const workPackages = new WorkPackageRepository(db, OPEN);
+        const target = await workPackages.findById(workPackageId);
         let value: SharedPeopleRead;
         if (target === null) value = { kind: 'not_found' };
         else {
           const activation = readOrganizationActivation(db);
           const owner = db
-            .select({ organizationId: projectOrganization.organizationId })
-            .from(projectOrganization)
-            .where(eq(projectOrganization.resourceId, projectId))
+            .select({ organizationId: workPackageOrganization.organizationId })
+            .from(workPackageOrganization)
+            .where(eq(workPackageOrganization.resourceId, workPackageId))
             .get();
           const access: ChainAccess =
             activation === 'pre_activation'
@@ -189,29 +193,30 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
             access.kind === 'legacy'
               ? 'isolated'
               : readCapacityMode(db, access.scope.organizationId);
-          // Proof: disabling target selection failed `never lists organization projects or ranks for isolated or legacy targets` after the human read succeeded.
+          // Proof: disabling target selection failed `never lists organization workPackages or ranks for isolated or legacy targets` after the human read succeeded.
           const readable =
             mode === 'isolated'
               ? [target]
               : await Promise.all(
-                  (await new ProjectRankRepository(db, OPEN).orderIn(requireOwnership(owner))).map(
-                    async (each) => {
-                      const project = await projects.findInOrganization(
-                        each.projectId,
-                        requireOwnership(owner),
-                      );
-                      // Proof: removing this guard failed `refuses a broken project-owned readable dependency`.
-                      if (project === null) throw new Error('rank names an unreadable project');
-                      return project;
-                    },
-                  ),
+                  (
+                    await new WorkPackageRankRepository(db, OPEN).orderIn(requireOwnership(owner))
+                  ).map(async (each) => {
+                    const workPackage = await workPackages.findInOrganization(
+                      each.workPackageId,
+                      requireOwnership(owner),
+                    );
+                    // Proof: removing this guard failed `refuses a broken work-package-owned readable dependency`.
+                    if (workPackage === null)
+                      throw new Error('rank names an unreadable work package');
+                    return workPackage;
+                  }),
                 );
           value = await read(
             await readChainSnapshotIn(
               db,
               access,
               readable,
-              projectId,
+              workPackageId,
               this.options,
               lifetime,
               this.captureRead ?? this.options.captureRead,
@@ -250,8 +255,8 @@ export function createChainSnapshotStore(
 export async function readChainSnapshotIn(
   db: Drizzle,
   access: ChainAccess,
-  readable: readonly Project[],
-  projectId: string,
+  readable: readonly WorkPackage[],
+  workPackageId: string,
   options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
   captureRead?: CaptureReadSeam,
@@ -261,29 +266,29 @@ export async function readChainSnapshotIn(
   const directory = new DirectoryRepository(db, OPEN);
   const mode =
     access.kind === 'legacy' ? 'isolated' : readCapacityMode(db, access.scope.organizationId);
-  // Proof: bypassing isolated rank selection failed `never lists organization projects or ranks for isolated or legacy targets`.
+  // Proof: bypassing isolated rank selection failed `never lists organization workPackages or ranks for isolated or legacy targets`.
   const order =
     mode === 'shared' && access.kind === 'scoped'
-      ? (await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId)).map(
-          (each) => each.projectId,
+      ? (await new WorkPackageRankRepository(db, OPEN).orderIn(access.scope.organizationId)).map(
+          (each) => each.workPackageId,
         )
-      : readable.filter((each) => each.id === projectId).map((each) => each.id);
+      : readable.filter((each) => each.id === workPackageId).map((each) => each.id);
   const visible = new Map(
     readable
-      .filter((each) => mode === 'shared' || each.id === projectId)
+      .filter((each) => mode === 'shared' || each.id === workPackageId)
       .map((each) => [each.id, each]),
   );
   const connected = new Map<string, ConnectedPlanCapture>();
   let capturing: Promise<ConnectedPlanCapture> | undefined;
-  const candidates: ChainSnapshot['projects'][number][] = [];
-  for (const projectId of order) {
+  const candidates: ChainSnapshot['workPackages'][number][] = [];
+  for (const workPackageId of order) {
     lifetime.assertOpen();
-    const project = visible.get(projectId);
+    const workPackage = visible.get(workPackageId);
     // Proof: removing this check made the broken readable-list negative accept inconsistent rank.
-    if (project === undefined) throw new Error('rank names an unreadable project');
+    if (workPackage === undefined) throw new Error('rank names an unreadable work package');
     candidates.push({
-      project,
-      assignments: (await directory.assignmentsInProject(projectId)).assignments,
+      workPackage,
+      assignments: (await directory.assignmentsInWorkPackage(workPackageId)).assignments,
     });
   }
   lifetime.assertOpen();
@@ -291,7 +296,7 @@ export async function readChainSnapshotIn(
   return {
     access,
     mode,
-    projects: candidates,
+    workPackages: candidates,
     captureConnected: async (targetId) => {
       lifetime.assertOpen();
       // Proof: concurrent component requests read a1/a2 twice without serialization.
@@ -306,20 +311,22 @@ export async function readChainSnapshotIn(
       try {
         const captured = await fresh;
         lifetime.assertOpen();
-        for (const project of captured.projects) connected.set(project.projectId, captured);
+        for (const workPackage of captured.workPackages)
+          connected.set(workPackage.workPackageId, captured);
         return captured;
       } finally {
         capturing = undefined;
       }
     },
-    capturePlan: async (projectId) => {
+    capturePlan: async (workPackageId) => {
       lifetime.assertOpen();
-      // Proof: removing this guard failed the borrowed foreign-project capture negative.
-      if (!visible.has(projectId)) throw new Error('chain capture names an unreadable project');
-      const captured = await readPlanInputIn(db, projectId, lifetime, captureRead, access);
+      // Proof: removing this guard failed the borrowed foreign-work-package capture negative.
+      if (!visible.has(workPackageId))
+        throw new Error('chain capture names an unreadable work package');
+      const captured = await readPlanInputIn(db, workPackageId, lifetime, captureRead, access);
       lifetime.assertOpen();
-      // Proof: removing this guard made the missing captured-project negative lose its trusted-state refusal.
-      if (captured === null) throw new Error('ranked project disappeared inside its snapshot');
+      // Proof: removing this guard made the missing captured-work-package negative lose its trusted-state refusal.
+      if (captured === null) throw new Error('ranked work package disappeared inside its snapshot');
       return captured;
     },
     scheduler,
@@ -328,7 +335,7 @@ export async function readChainSnapshotIn(
 
 function requireOwnership(owner: { organizationId: string } | undefined): string {
   // Proof: removing this guard failed `refuses corrupt mode and broken background ownership`.
-  if (owner === undefined) throw new Error('project ownership is absent');
+  if (owner === undefined) throw new Error('work package ownership is absent');
   return owner.organizationId;
 }
 
@@ -390,24 +397,83 @@ export function createLivePlanStore(
     }
   }
   return {
-    readExecution: (projectId, access, teamId) =>
-      observe((db, lifetime) => readExecutionIn(db, projectId, access, teamId, lifetime)),
-    read: (projectId, access) =>
-      observe((db, lifetime) => readLivePlanIn(db, projectId, access, options, lifetime)),
+    readExecution: (workPackageId, access, teamId) =>
+      observe((db, lifetime) => readExecutionIn(db, workPackageId, access, teamId, lifetime)),
+    read: (workPackageId, access) =>
+      observe((db, lifetime) => readLivePlanIn(db, workPackageId, access, options, lifetime)),
     // Proof: bypassing this observation transaction for aggregate reads made the mounted
     // concurrent-write test combine A's old start with B's new chain (10-05/10-05).
     readAggregate: (actorId, access) =>
       observe((db, lifetime) => readLiveAggregateIn(db, actorId, access, options, lifetime)),
-    readExport: (projectId, access) =>
-      observe(async (db, lifetime) => {
-        const captured = await readLivePlanIn(db, projectId, access, options, lifetime);
+    readExport: (workPackageId, caller) => {
+      const access = structuredClone(caller);
+      return observe(async (db, lifetime) => {
+        const target = await readExportTargetIn(db, workPackageId, access, lifetime);
+        lifetime.assertOpen();
+        if ('kind' in target) return target;
+        if (
+          access.kind === 'scoped' &&
+          !(await readableExportMembersIn(db, target, access, lifetime))
+        )
+          return { kind: 'not_found' as const };
+        const observed = await readLivePlanIn(db, workPackageId, access, options, lifetime);
+        lifetime.assertOpen();
+        if (observed.kind === 'access_refused' || observed.kind === 'not_found') return observed;
+        const ownership = db
+          .select({ id: organization.id, legacy: organization.legacy })
+          .from(workPackageOrganization)
+          .innerJoin(organization, eq(organization.id, workPackageOrganization.organizationId))
+          .where(eq(workPackageOrganization.resourceId, workPackageId))
+          .get();
+        if (ownership === undefined)
+          throw new Error('export package organization is absent or inconsistent');
+        if (access.kind === 'scoped' && ownership.id !== access.scope.organizationId)
+          throw new Error('export package organization changed inside observation');
+        let captured: Exclude<typeof observed, { kind: 'isolated' }> | CapturedLocalPlan;
+        if (observed.kind === 'isolated') {
+          const snapshot = await readChainSnapshotIn(
+            db,
+            access,
+            [target],
+            workPackageId,
+            options,
+            lifetime,
+            options.captureRead,
+          );
+          const chain = await readChain(snapshot, workPackageId);
+          lifetime.assertOpen();
+          if (chain.kind === 'not_found')
+            throw new Error('export target disappeared inside snapshot');
+          captured = {
+            kind: 'local',
+            organizationId: ownership.id,
+            chain,
+            workPackage: target,
+            ...(await readLiveMetadataIn(db, workPackageId, lifetime)),
+          };
+        } else captured = observed;
+        lifetime.assertOpen();
+        const parent = db
+          .select({ id: project.id, name: project.name, organizationId: project.organizationId })
+          .from(project)
+          .where(and(eq(project.id, target.projectId), eq(project.organizationId, ownership.id)))
+          .get();
+        if (
+          parent === undefined ||
+          typeof parent.id !== 'string' ||
+          parent.id === '' ||
+          typeof parent.name !== 'string' ||
+          parent.name === '' ||
+          parent.organizationId !== ownership.id
+        )
+          throw new Error('export parent is absent or malformed');
         // Proof: removing this check made `export sequence continuation` issue 13 expired SQL queries.
         lifetime.assertOpen();
-        if (captured.kind !== 'shared' && captured.kind !== 'connected') return captured;
+
         const organizationId =
-          captured.kind === 'shared'
-            ? captured.organizationId
-            : captured.projection.capture.organizationId;
+          captured.kind === 'connected'
+            ? captured.projection.capture.organizationId
+            : captured.organizationId;
         const directory = new DirectoryRepository(db, OPEN);
         // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
         const [
@@ -427,35 +493,51 @@ export function createLivePlanStore(
           estimates,
           budgets,
         ] = await Promise.all([
-          directory.listInOrganization('teams', organizationId),
-          directory.listInOrganization('people', organizationId),
-          directory.listInOrganization('tags', organizationId),
-          directory.listInOrganization('services', organizationId),
-          directory.listInOrganization('workItemTypes', organizationId),
-          directory.listInOrganization('externalSystems', organizationId),
-          new CalendarMarkerRepository(db, OPEN).listFor(projectId),
+          access.kind === 'legacy'
+            ? directory.listTeams()
+            : directory.listInOrganization('teams', organizationId),
+          access.kind === 'legacy'
+            ? directory.listPeople()
+            : directory.listInOrganization('people', organizationId),
+          access.kind === 'legacy'
+            ? directory.listTags()
+            : directory.listInOrganization('tags', organizationId),
+          access.kind === 'legacy'
+            ? directory.listServices()
+            : directory.listInOrganization('services', organizationId),
+          access.kind === 'legacy'
+            ? directory.listWorkItemTypes()
+            : directory.listInOrganization('workItemTypes', organizationId),
+          access.kind === 'legacy'
+            ? directory.listExternalSystems()
+            : directory.listInOrganization('externalSystems', organizationId),
+          new CalendarMarkerRepository(db, OPEN).listFor(workPackageId),
           // Proof: empty/omitted capture failed mounted shared exports; post-snapshot reread failed both concurrent races (mutation-capture-{empty,missing}.txt and mutation-post-snapshot-reread.txt).
-          new StepParallelRepository(db, OPEN).listByProject(projectId),
+          new StepParallelRepository(db, OPEN).listByWorkPackage(workPackageId),
           // Read in the same snapshot as the tree, so the document's demands
           // and capacities name the rows and resources it carries.
-          directory.listInOrganization('resources', organizationId),
-          new ResourceCapacityRepository(db, OPEN).listFor(projectId),
-          new DemandRepository(db, OPEN).listByProject(projectId),
+          access.kind === 'legacy'
+            ? directory.listResources()
+            : directory.listInOrganization('resources', organizationId),
+          new ResourceCapacityRepository(db, OPEN).listFor(workPackageId),
+          new DemandRepository(db, OPEN).listByWorkPackage(workPackageId),
           // The measures version 11 carries, on the tree's snapshot
           // (`wbs-measure-budgets` design D63).
           // Proof: with these four read as empty, the shared `round-trips a
           // version-11 plan byte for byte into an organization lacking a
           // measure` (measure-export.controller.db.test.ts) failed; watched
           // 2026-10-23.
-          new StepMeasureRepository(db, OPEN).definitionsFor(projectId),
-          new StepMeasureRepository(db, OPEN).listByProject(projectId),
-          new MeasureEstimateRepository(db, OPEN).listByProject(projectId),
-          new WorkItemBudgetRepository(db, OPEN).listByProject(projectId),
+          new StepMeasureRepository(db, OPEN).definitionsFor(workPackageId),
+          new StepMeasureRepository(db, OPEN).listByWorkPackage(workPackageId),
+          new MeasureEstimateRepository(db, OPEN).listByWorkPackage(workPackageId),
+          new WorkItemBudgetRepository(db, OPEN).listByWorkPackage(workPackageId),
         ]);
+        lifetime.assertOpen();
         return {
           ...captured,
-          projectId,
+          workPackageId,
           document: {
+            project: { id: parent.id, name: parent.name },
             directory: { teams, people, tags, services, types, externalSystems },
             markers,
             // Proof: aliasing adapter rows failed copies-sparse-adapter after retained-row mutation (mutation-capture-alias.txt, 2026-10-17).
@@ -468,10 +550,110 @@ export function createLivePlanStore(
             measures: { definitions, facts, estimates, budgets },
           },
         };
-      }),
-    readProject: (projectId) =>
-      observe((db, lifetime) => readLiveProjectIn(db, projectId, undefined, options, lifetime)),
+      });
+    },
+    readWorkPackage: (workPackageId) =>
+      observe((db, lifetime) =>
+        readLiveWorkPackageIn(db, workPackageId, undefined, options, lifetime),
+      ),
   };
+}
+
+/** Rechecks the authenticated export target before topology or private document reads. */
+async function readExportTargetIn(
+  db: Drizzle,
+  id: string,
+  access: ResourceAccess,
+  lifetime: ReadSnapshotLifetime,
+): Promise<
+  | WorkPackage
+  | { kind: 'not_found' }
+  | { kind: 'access_refused'; refusal: 'no_active_organization' | 'not_a_member' }
+> {
+  const activation = readOrganizationActivation(db);
+  if ((access.kind === 'legacy') !== (activation === 'pre_activation'))
+    return { kind: 'access_refused', refusal: 'no_active_organization' };
+  if (access.kind === 'scoped') {
+    if (access.principal.id !== access.scope.userId)
+      throw new Error('package permission principal differs from the acting account');
+    if (readMembershipIn(db, access.scope.organizationId, access.scope.userId) === null)
+      return { kind: 'access_refused', refusal: 'not_a_member' };
+  }
+  const repository = new WorkPackageRepository(db, OPEN);
+  const target =
+    access.kind === 'legacy'
+      ? await repository.findById(id)
+      : await repository.findInOrganization(id, access.scope.organizationId);
+  lifetime.assertOpen();
+  if (target === null) return { kind: 'not_found' };
+  if (access.kind === 'scoped') {
+    const authority = await authorizePackage(
+      new AccessDecisionRepository(db),
+      access,
+      target,
+      access.scope.userId,
+      'package.read',
+    );
+    lifetime.assertOpen();
+    if (!authority.ok) return { kind: 'not_found' };
+  }
+  return target;
+}
+
+/** Complete scoped evidence is opaque unless every retained member is readable in this observation. */
+async function readableExportMembersIn(
+  db: Drizzle,
+  target: WorkPackage,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  lifetime: ReadSnapshotLifetime,
+): Promise<boolean> {
+  const mode = readCapacityMode(db, access.scope.organizationId);
+  const topology = discoverConnectedTopologyIn(db, target.id, mode, lifetime);
+  let members: readonly string[];
+  if (topology.hasExternal) members = [...topology.workPackages];
+  else if (mode === 'shared') {
+    const ranks = await new WorkPackageRankRepository(db, OPEN).orderIn(
+      access.scope.organizationId,
+    );
+    lifetime.assertOpen();
+    const repository = new WorkPackageRepository(db, OPEN),
+      directory = new DirectoryRepository(db, OPEN);
+    const candidates = [];
+    for (const rank of ranks) {
+      const workPackage = await repository.findInOrganization(
+        rank.workPackageId,
+        access.scope.organizationId,
+      );
+      lifetime.assertOpen();
+      if (workPackage === null) throw new Error('rank names an unreadable work package');
+      candidates.push({
+        workPackage,
+        assignments: (await directory.assignmentsInWorkPackage(workPackage.id)).assignments,
+      });
+      lifetime.assertOpen();
+    }
+    members = selectInfluencers(candidates, target.id).map(({ workPackage }) => workPackage.id);
+  } else members = [target.id];
+  for (const id of members) {
+    if (id === target.id) continue;
+    const member = await new WorkPackageRepository(db, OPEN).findInOrganization(
+      id,
+      access.scope.organizationId,
+    );
+    lifetime.assertOpen();
+    if (member === null) throw new Error('export member organization is inconsistent');
+    const authority = await authorizePackage(
+      new AccessDecisionRepository(db),
+      access,
+      member,
+      access.scope.userId,
+      'package.read',
+    );
+    lifetime.assertOpen();
+    if (!authority.ok) return false;
+  }
+  lifetime.assertOpen();
+  return true;
 }
 
 /** One read transaction owns access, rank, captures, cache selection and detached projections. */
@@ -501,8 +683,8 @@ async function readLiveAggregateIn(
   if (readCapacityMode(db, access.scope.organizationId) === 'isolated')
     return readIsolatedAggregateIn(db, actorId, access, options, lifetime);
 
-  const projects = new ProjectRepository(db, OPEN);
-  const readable = await projects.listForInOrganization(actorId, access.scope.organizationId);
+  const workPackages = new WorkPackageRepository(db, OPEN);
+  const readable = await workPackages.listForInOrganization(actorId, access.scope.organizationId);
   lifetime.assertOpen();
   const snapshot = await readChainSnapshotIn(
     db,
@@ -518,7 +700,7 @@ async function readLiveAggregateIn(
   function readSchedule(request: CapturedScheduleAsk): ScheduleRead {
     // Proof: removing this check made `aggregate cached schedule` return 1 cached value after expiry.
     lifetime.assertOpen();
-    const key = `${request.projectId}:${scheduleInputHash(request.input)}:${request.engine}:${request.objective}:${String(request.enabled)}`;
+    const key = `${request.workPackageId}:${scheduleInputHash(request.input)}:${request.engine}:${request.objective}:${String(request.enabled)}`;
     const held = scheduling.get(key);
     if (held !== undefined) return held;
     const scheduled = snapshot.scheduler.read(request);
@@ -527,12 +709,12 @@ async function readLiveAggregateIn(
   }
   const shared: ChainSnapshot = {
     ...snapshot,
-    capturePlan: async (projectId) => {
+    capturePlan: async (workPackageId) => {
       lifetime.assertOpen();
-      const captured = captures.get(projectId);
+      const captured = captures.get(workPackageId);
       if (captured !== undefined) return captured;
-      const fresh = await snapshot.capturePlan(projectId);
-      captures.set(projectId, fresh);
+      const fresh = await snapshot.capturePlan(workPackageId);
+      captures.set(workPackageId, fresh);
       return fresh;
     },
     scheduler: {
@@ -541,44 +723,50 @@ async function readLiveAggregateIn(
       read: readSchedule,
     },
   };
-  const connectedByProject = new Map<string, Extract<LivePlanRead, { kind: 'connected' }>>();
-  const externalByProject = new Map<string, boolean>();
+  const connectedByWorkPackage = new Map<string, Extract<LivePlanRead, { kind: 'connected' }>>();
+  const externalByWorkPackage = new Map<string, boolean>();
   const entries: Extract<LivePlanAggregate, { kind: 'shared' }>['entries'][number][] = [];
-  for (const [index, { project }] of snapshot.projects.entries()) {
+  for (const [index, { workPackage }] of snapshot.workPackages.entries()) {
     // Proof: bypassing this component memo failed both aggregate capture-count tests.
-    let connected = connectedByProject.get(project.id);
+    let connected = connectedByWorkPackage.get(workPackage.id);
     if (connected === undefined) {
-      let hasExternal = externalByProject.get(project.id);
+      let hasExternal = externalByWorkPackage.get(workPackage.id);
       if (hasExternal === undefined) {
-        const topology = discoverConnectedTopologyIn(db, project.id, 'shared', lifetime);
+        const topology = discoverConnectedTopologyIn(db, workPackage.id, 'shared', lifetime);
         hasExternal = topology.hasExternal;
-        for (const memberId of topology.projects) externalByProject.set(memberId, hasExternal);
+        for (const memberId of topology.workPackages)
+          externalByWorkPackage.set(memberId, hasExternal);
       }
       // Proof: forcing rank-only routing failed mounted warm-cache load with 500 instead of dependency dates.
       if (hasExternal) {
-        connected = await readConnectedLivePlanIn(db, access, project.id, options, lifetime);
-        for (const member of connected.projection.capture.projects)
-          connectedByProject.set(member.projectId, connected);
+        connected = await readConnectedLivePlanIn(db, access, workPackage.id, options, lifetime);
+        for (const member of connected.projection.capture.workPackages)
+          connectedByWorkPackage.set(member.workPackageId, connected);
       }
     }
     if (connected !== undefined) {
       // Proof: substituting the old empty-calendar basis failed mounted foreign-only refresh with stale target dates.
-      entries.push({ projectId: project.id, rank: index + 1, basis: null, plan: connected });
+      entries.push({
+        workPackageId: workPackage.id,
+        rank: index + 1,
+        basis: null,
+        plan: connected,
+      });
       continue;
     }
-    const chain = await readChain(shared, project.id);
+    const chain = await readChain(shared, workPackage.id);
     if (chain.kind === 'not_found')
       throw new Error('ranked target disappeared inside aggregate snapshot');
-    const metadata = await readLiveMetadataIn(db, project.id, lifetime);
+    const metadata = await readLiveMetadataIn(db, workPackage.id, lifetime);
     entries.push({
-      projectId: project.id,
+      workPackageId: workPackage.id,
       rank: index + 1,
       basis: chain.kind === 'scheduled' ? incomingCalendarHash(chain.input.elsewhere) : null,
       plan: {
         kind: 'shared',
         organizationId: access.scope.organizationId,
         chain,
-        project,
+        workPackage,
         ...metadata,
       },
     });
@@ -594,66 +782,76 @@ async function readIsolatedAggregateIn(
   options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
 ): Promise<Extract<LivePlanAggregate, { kind: 'isolated' | 'isolated-connected' }>> {
-  const projects = await new ProjectRepository(db, OPEN).listForInOrganization(
+  const workPackages = await new WorkPackageRepository(db, OPEN).listForInOrganization(
     actorId,
     access.scope.organizationId,
   );
   lifetime.assertOpen();
-  const externalByProject = new Map<string, boolean>();
-  for (const project of projects) {
-    if (externalByProject.has(project.id)) continue;
-    const topology = discoverConnectedTopologyIn(db, project.id, 'isolated', lifetime);
-    for (const memberId of topology.projects) externalByProject.set(memberId, topology.hasExternal);
+  const externalByWorkPackage = new Map<string, boolean>();
+  for (const workPackage of workPackages) {
+    if (externalByWorkPackage.has(workPackage.id)) continue;
+    const topology = discoverConnectedTopologyIn(db, workPackage.id, 'isolated', lifetime);
+    for (const memberId of topology.workPackages)
+      externalByWorkPackage.set(memberId, topology.hasExternal);
   }
-  if (![...externalByProject.values()].some((external) => external)) return { kind: 'isolated' };
-  const ranks = await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId);
+  if (![...externalByWorkPackage.values()].some((external) => external))
+    return { kind: 'isolated' };
+  const ranks = await new WorkPackageRankRepository(db, OPEN).orderIn(access.scope.organizationId);
   lifetime.assertOpen();
-  const place = new Map(ranks.map(({ projectId, rank }) => [projectId, rank]));
-  const ordered = [...projects]
+  const place = new Map(ranks.map(({ workPackageId, rank }) => [workPackageId, rank]));
+  const ordered = [...workPackages]
     .sort(
       (left, right) =>
         left.createdAt - right.createdAt || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
     )
-    .map((project, index) => ({ project, rank: place.get(project.id) ?? place.size + index + 1 }))
+    .map((workPackage, index) => ({
+      workPackage,
+      rank: place.get(workPackage.id) ?? place.size + index + 1,
+    }))
     .sort((left, right) => left.rank - right.rank);
-  const connectedByProject = new Map<string, Extract<LivePlanRead, { kind: 'connected' }>>();
+  const connectedByWorkPackage = new Map<string, Extract<LivePlanRead, { kind: 'connected' }>>();
   const entries: Extract<LivePlanAggregate, { kind: 'isolated-connected' }>['entries'][number][] =
     [];
-  for (const [index, { project }] of ordered.entries()) {
+  for (const [index, { workPackage }] of ordered.entries()) {
     lifetime.assertOpen();
-    if (externalByProject.get(project.id)) {
+    if (externalByWorkPackage.get(workPackage.id)) {
       // Proof: bypassing this memo captured each member twice and derived twice with optimization disabled (puni-task84-fault-memo.log).
-      let connected = connectedByProject.get(project.id);
+      let connected = connectedByWorkPackage.get(workPackage.id);
       if (connected === undefined) {
-        connected = await readConnectedLivePlanIn(db, access, project.id, options, lifetime);
-        for (const member of connected.projection.capture.projects)
-          connectedByProject.set(member.projectId, connected);
+        connected = await readConnectedLivePlanIn(db, access, workPackage.id, options, lifetime);
+        for (const member of connected.projection.capture.workPackages)
+          connectedByWorkPackage.set(member.workPackageId, connected);
       }
-      entries.push({ projectId: project.id, rank: index + 1, basis: null, plan: connected });
+      entries.push({
+        workPackageId: workPackage.id,
+        rank: index + 1,
+        basis: null,
+        plan: connected,
+      });
       continue;
     }
     const snapshot = await readChainSnapshotIn(
       db,
       access,
-      [project],
-      project.id,
+      [workPackage],
+      workPackage.id,
       options,
       lifetime,
       options.captureRead,
     );
-    const chain = await readChain(snapshot, project.id);
+    const chain = await readChain(snapshot, workPackage.id);
     if (chain.kind === 'not_found')
       throw new Error('isolated target disappeared inside aggregate snapshot');
-    const metadata = await readLiveMetadataIn(db, project.id, lifetime);
+    const metadata = await readLiveMetadataIn(db, workPackage.id, lifetime);
     entries.push({
-      projectId: project.id,
+      workPackageId: workPackage.id,
       rank: index + 1,
       basis: null,
       plan: {
         kind: 'local',
         organizationId: access.scope.organizationId,
         chain,
-        project,
+        workPackage,
         ...metadata,
       },
     });
@@ -663,7 +861,7 @@ async function readIsolatedAggregateIn(
 
 async function readLivePlanIn(
   db: Drizzle,
-  projectId: string,
+  workPackageId: string,
   admitted: ResourceAccess,
   options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
@@ -681,25 +879,36 @@ async function readLivePlanIn(
     // Proof: ignoring this refusal failed mounted six-route revocation (403 became 200 with updated upstream rows).
     if (resolved === null) return { kind: 'access_refused', refusal: 'not_a_member' };
   }
-  return readLiveProjectIn(db, projectId, admitted, options, lifetime);
+  return readLiveWorkPackageIn(db, workPackageId, admitted, options, lifetime);
 }
 
 /** Captures and derives a whole component while borrowing the caller's observation. */
 async function readConnectedLivePlanIn(
   db: Drizzle,
   access: Extract<ChainAccess, { kind: 'scoped' }>,
-  projectId: string,
+  workPackageId: string,
   options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
 ): Promise<Extract<LivePlanRead, { kind: 'connected' }>> {
-  const projects = new ProjectRepository(db, OPEN);
   const capture = await captureConnectedPlanIn(
     db,
     access,
-    projectId,
+    workPackageId,
     lifetime,
     options.captureRead,
   );
+  return await projectConnectedPlanIn(db, access, capture, options, lifetime);
+}
+
+/** Derives and labels an explicitly captured component on the caller's existing loan. */
+export async function projectConnectedPlanIn(
+  db: Drizzle,
+  access: Extract<ChainAccess, { kind: 'scoped' }>,
+  capture: ConnectedPlanCapture,
+  options: LiveCaptureOptions,
+  lifetime: ReadSnapshotLifetime,
+): Promise<Extract<LivePlanRead, { kind: 'connected' }>> {
+  const workPackages = new WorkPackageRepository(db, OPEN);
   lifetime.assertOpen();
   // Proof: omitting this binding failed both `private connected capture` modes (unavailable instead of scheduled).
   const { scheduler, connected } = capturedSchedulerIn(db, options, lifetime, options.connected);
@@ -712,39 +921,42 @@ async function readConnectedLivePlanIn(
     },
     connected ?? null,
   );
-  const metadataByProject = new Map<
+  const metadataByWorkPackage = new Map<
     string,
-    Awaited<ReturnType<typeof readLiveMetadataIn>> & { project: Project }
+    Awaited<ReturnType<typeof readLiveMetadataIn>> & { workPackage: WorkPackage }
   >();
-  const attemptsByProject = new Map<string, readonly StoredAttempt[]>();
-  for (const member of capture.projects) {
+  const attemptsByWorkPackage = new Map<string, readonly StoredAttempt[]>();
+  for (const member of capture.workPackages) {
     lifetime.assertOpen();
-    const memberProject = await projects.findInOrganization(
-      member.projectId,
+    const memberWorkPackage = await workPackages.findInOrganization(
+      member.workPackageId,
       access.scope.organizationId,
     );
-    if (memberProject === null)
-      throw new Error(`connected project ${member.projectId} disappeared`);
-    const metadata = await readLiveMetadataIn(db, member.projectId, lifetime);
-    metadataByProject.set(member.projectId, { project: memberProject, ...metadata });
-    attemptsByProject.set(member.projectId, metadata.attempts);
+    if (memberWorkPackage === null)
+      throw new Error(`connected work package ${member.workPackageId} disappeared`);
+    const metadata = await readLiveMetadataIn(db, member.workPackageId, lifetime);
+    metadataByWorkPackage.set(member.workPackageId, {
+      workPackage: memberWorkPackage,
+      ...metadata,
+    });
+    attemptsByWorkPackage.set(member.workPackageId, metadata.attempts);
   }
-  const readiness = deriveConnectedReadiness(capture, projection.authored, attemptsByProject);
-  return { kind: 'connected', projection, readiness, metadataByProject };
+  const readiness = deriveConnectedReadiness(capture, projection.authored, attemptsByWorkPackage);
+  return { kind: 'connected', projection, readiness, metadataByWorkPackage };
 }
 
-async function readLiveProjectIn(
+async function readLiveWorkPackageIn(
   db: Drizzle,
-  projectId: string,
+  workPackageId: string,
   admitted: ChainAccess | undefined,
   options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
 ): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>> {
-  const projects = new ProjectRepository(db, OPEN);
-  const project = await projects.findById(projectId);
-  // Proof: removing this check made `live project first response` issue 4 expired SQL queries.
+  const workPackages = new WorkPackageRepository(db, OPEN);
+  const workPackage = await workPackages.findById(workPackageId);
+  // Proof: removing this check made `live workPackage first response` issue 4 expired SQL queries.
   lifetime.assertOpen();
-  if (project === null) return { kind: 'not_found' };
+  if (workPackage === null) return { kind: 'not_found' };
   const access: ChainAccess =
     admitted ??
     (readOrganizationActivation(db) === 'pre_activation'
@@ -754,41 +966,41 @@ async function readLiveProjectIn(
           scope: {
             organizationId: requireOwnership(
               db
-                .select({ organizationId: projectOrganization.organizationId })
-                .from(projectOrganization)
-                .where(eq(projectOrganization.resourceId, projectId))
+                .select({ organizationId: workPackageOrganization.organizationId })
+                .from(workPackageOrganization)
+                .where(eq(workPackageOrganization.resourceId, workPackageId))
                 .get(),
             ),
           },
         });
   if (access.kind === 'legacy') return { kind: 'isolated' };
-  const owned = await projects.findInOrganization(projectId, access.scope.organizationId);
-  // Proof: removing this check made `project owned continuation` issue 2 expired SQL queries.
+  const owned = await workPackages.findInOrganization(workPackageId, access.scope.organizationId);
+  // Proof: removing this check made `workPackage owned continuation` issue 2 expired SQL queries.
   lifetime.assertOpen();
   if (owned === null) return { kind: 'not_found' };
   const mode = readCapacityMode(db, access.scope.organizationId);
   // Proof: restoring the materializing listIncident scout made the mounted isolated
   // query-count test grow from 13 to 51 statements across 19 local edges.
-  const topology = discoverConnectedTopologyIn(db, projectId, mode, lifetime);
+  const topology = discoverConnectedTopologyIn(db, workPackageId, mode, lifetime);
   lifetime.assertOpen();
   // The legacy isolated path remains cheap when no foreign relationship exists.
   // Proof: bypassing this arm made `actual isolated live route captures remote readiness without a calendar`
   // return isolated, hiding the unfinished remote FS prerequisite.
   if (topology.hasExternal) {
-    return readConnectedLivePlanIn(db, access, projectId, options, lifetime);
+    return readConnectedLivePlanIn(db, access, workPackageId, options, lifetime);
   }
   if (mode === 'isolated') return { kind: 'isolated' };
-  const ranks = await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId);
-  // Proof: removing this check made `project rank continuation` issue 4 expired SQL queries.
+  const ranks = await new WorkPackageRankRepository(db, OPEN).orderIn(access.scope.organizationId);
+  // Proof: removing this check made `workPackage rank continuation` issue 4 expired SQL queries.
   lifetime.assertOpen();
   const readable = await Promise.all(
     ranks.map(async (ranked) => {
-      const visible = await projects.findInOrganization(
-        ranked.projectId,
+      const visible = await workPackages.findInOrganization(
+        ranked.workPackageId,
         access.scope.organizationId,
       );
-      // Proof: removing this guard failed the broken ranked-project live read with an unrelated null dereference.
-      if (visible === null) throw new Error('rank names an unreadable project');
+      // Proof: removing this guard failed the broken ranked-work-package live read with an unrelated null dereference.
+      if (visible === null) throw new Error('rank names an unreadable work package');
       return visible;
     }),
   );
@@ -796,42 +1008,48 @@ async function readLiveProjectIn(
     db,
     access,
     readable,
-    projectId,
+    workPackageId,
     options,
     lifetime,
     options.captureRead,
   );
-  const chain = await readChain(snapshot, projectId);
+  const chain = await readChain(snapshot, workPackageId);
   // Proof: removing this guard made the omitted-target rank dependency resolve instead of rejecting trusted state.
   if (chain.kind === 'not_found') throw new Error('live target disappeared inside its snapshot');
-  const metadata = await readLiveMetadataIn(db, projectId, lifetime);
+  const metadata = await readLiveMetadataIn(db, workPackageId, lifetime);
   return {
     kind: 'shared',
     organizationId: access.scope.organizationId,
     chain,
-    project: owned,
+    workPackage: owned,
     ...metadata,
   };
 }
 
 /** Sequential live metadata reads refuse expiry before moving to the next repository. */
-async function readLiveMetadataIn(db: Drizzle, projectId: string, lifetime: ReadSnapshotLifetime) {
-  // Proof: removing this check made `project chain continuation` issue 1 expired SQL query.
+async function readLiveMetadataIn(
+  db: Drizzle,
+  workPackageId: string,
+  lifetime: ReadSnapshotLifetime,
+) {
+  // Proof: removing this check made `workPackage chain continuation` issue 1 expired SQL query.
   lifetime.assertOpen();
-  const steps = await new ProjectRepository(db, OPEN).stepsOf(projectId);
-  // Proof: removing this check made `project steps continuation` issue 6 expired SQL queries.
+  const steps = await new WorkPackageRepository(db, OPEN).stepsOf(workPackageId);
+  // Proof: removing this check made `workPackage steps continuation` issue 6 expired SQL queries.
   lifetime.assertOpen();
-  const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
-  // Proof: removing this check made `project work-items continuation` issue 1 expired SQL query.
+  const workItems = await new WorkItemRepository(db, OPEN).listByWorkPackage(workPackageId);
+  // Proof: removing this check made `workPackage work-items continuation` issue 1 expired SQL query.
   lifetime.assertOpen();
-  const attempts = await new StepNodeAttemptRepository(db, OPEN).listByProject(projectId);
-  // Proof: removing this check made `project attempts continuation` issue 1 expired SQL query.
+  const attempts = await new StepNodeAttemptRepository(db, OPEN).listByWorkPackage(workPackageId);
+  // Proof: removing this check made `workPackage attempts continuation` issue 1 expired SQL query.
   lifetime.assertOpen();
   // Proof: replacing aggregate/direct blockage capture with [] failed their existing persisted blockage tests.
-  const blockages = await new StepBlockageRepository(db, OPEN).listByProject(projectId);
-  // Proof: removing this check made `project blockages continuation` issue 1 expired SQL query.
+  const blockages = await new StepBlockageRepository(db, OPEN).listByWorkPackage(workPackageId);
+  // Proof: removing this check made `workPackage blockages continuation` issue 1 expired SQL query.
   lifetime.assertOpen();
-  // Proof: reading the bare project ID failed mounted metadata cases with seq -1 instead of 11.
-  const seq = await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${projectId}`);
+  // Proof: reading the bare work package ID failed mounted metadata cases with seq -1 instead of 11.
+  // Proof: ws-shared-anchor-key injects reading the historical key makes the actual shared initial anchor0 instead of-1.
+  // Test: current shared backend anchor and readable replay isolate old transport zero from current zero and one
+  const seq = await new DrizzleEventLogStore(db, OPEN).latestSeq(`work-package:${workPackageId}`);
   return { steps, workItems, attempts, blockages, seq };
 }

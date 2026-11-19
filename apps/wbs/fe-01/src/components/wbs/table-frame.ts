@@ -13,16 +13,16 @@ import { isMeasureColumnId } from './measure-reading';
  * fact arrived on 2026-08-09 as a field — `columnWidthOverrides` — and every
  * consumer that already built this object carried it without being edited.
  *
- * The first question is deliberately about the **project** rather than about
+ * The first question is deliberately about the **work package** rather than about
  * the rows on screen: a column that narrowed because the one row with a day on
  * it was collapsed away would change width under a reader who was only
  * scrolling.
  */
 export interface FrameLayoutState {
-  /** Whether any row in the project sets an earliest start. */
+  /** Whether any row in the work package sets an earliest start. */
   hasAnyNotBefore: boolean;
   /**
-   * How many levels below a root the deepest row of the **project** sits: 0
+   * How many levels below a root the deepest row of the **work package** sits: 0
    * for a plan of roots alone, 1 where `170.1` is as deep as it goes, 2 at
    * `170.1.1`. Read off the numbers' dotted segments in `use-plan-layout.tsx`,
    * over every row and not the rows on screen, so a collapsed branch still
@@ -32,7 +32,7 @@ export interface FrameLayoutState {
   /** Whether any row's number is frozen, and so wears the lock the Number column has to hold. */
   numberingFrozen: boolean;
   /**
-   * The widest chip any Depends on cell of the project draws, by
+   * The widest chip any Depends on cell of the work package draws, by
    * {@link dependencyChipWidth} — over plain waits and typed dependencies
    * between whole rows — or `null` where no row waits for anything. The
    * Depends on column is sized to draw it whole ({@link dependsWidthFor}).
@@ -423,7 +423,7 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // reference here would read it before it is initialised).
   //
   // One width and not the floor's pair of them, because this column is in
-  // {@link INITIAL_HIDDEN_COLUMNS}: the floor narrows to 56 on a project that
+  // {@link INITIAL_HIDDEN_COLUMNS}: the floor narrows to 56 on a work package that
   // sets no day because it is on screen whether or not anybody wanted it, and a
   // column a reader turned on in `Columns` is one they mean to put dates in.
   // The default table is therefore the table it was, to the pixel, and the
@@ -527,7 +527,7 @@ const NUMBER_SHALLOW_WIDTH = 68;
 const NUMBER_DEEP_WIDTH = 98;
 
 /**
- * The earliest-start column's width where at least one row in the project sets
+ * The earliest-start column's width where at least one row in the work package sets
  * a day, in px.
  *
  * A short date and nothing else — `1 Jun`, or `1 Jun 2027` off the current
@@ -539,7 +539,7 @@ const NUMBER_DEEP_WIDTH = 98;
 const NOT_BEFORE_WITH_DAYS = 84;
 
 /**
- * The earliest-start column's width where no row in the project sets a day, in
+ * The earliest-start column's width where no row in the work package sets a day, in
  * px — an em-dash on every row under the heading `Not before`.
  *
  * 56 with the heading abbreviated to `Not bef.` until the UI review of
@@ -694,7 +694,7 @@ export const INITIAL_HIDDEN_COLUMNS: readonly string[] = [
   // table has 29px of slack at 1280 and this column is 84, so on by default it
   // would overflow the budget test measures — and a deadline is a thing a
   // minority of rows carry. `work-item-deadline` 9.1 asks for the cell, not for
-  // a column every project pays width for.
+  // a column every work package pays width for.
   'deadline',
   // Status and the two facts, hidden for deadline's reason: the folded table at
   // 1280 has no room for three more columns, and the rows they matter on are
@@ -714,7 +714,7 @@ export function resetHiddenColumns(hasAnyExternalRefs: boolean): readonly string
 }
 
 /**
- * The columns a project's table shows before anybody has hidden or shown one —
+ * The columns a work package's table shows before anybody has hidden or shown one —
  * the same set on every deployment, whatever its directory holds — and the
  * set the folded-width budget is measured over.
  */
@@ -850,7 +850,7 @@ export const FLEXIBLE_CAP = 420;
  * The widths of a step's columns, which have no fixed ids: a step is created at
  * runtime and its columns are named `<stepId>-final`, `<stepId>-<point>` and
  * `<stepId>-assignee`. Sized by suffix, because the step half of the id is
- * whatever the project called it.
+ * whatever the work package called it.
  *
  * The folded column is the one that grew: it shows the figure *and* who is
  * doing the work (`4.8 · Kat`) since the assignee stopped folding away with
@@ -1052,7 +1052,7 @@ export function clampColumnWidth(columnId: string, width: number, state: FrameLa
  * would throw out of the render that laid it out, and a preference about a
  * column that does not exist must not be able to take the table down.
  *
- * A step's column for a step the project no longer holds answers `true` and
+ * A step's column for a step the work package no longer holds answers `true` and
  * is then never looked at — the harmlessness a remembered expansion's deleted
  * row ids already have. A {@link FLEXIBLE_COLUMNS} member answers `true` since
  * `name-column-drag`: a dragged Name is stored like any other column, and the
@@ -1255,7 +1255,7 @@ export function pinnedGeometryFor(
  * `hiddenColumnIds`, plus Name's {@link FLEXIBLE_FLOOR}, plus one folded column
  * per step that is not itself hidden. The hidden list defaults to
  * {@link INITIAL_HIDDEN_COLUMNS}, so a caller with no reader in front of it —
- * the budget test, a fresh project — gets the default column set's figure, and
+ * the budget test, a fresh work package — gets the default column set's figure, and
  * the Steps dialog passes the reader's own list to quote the table actually on
  * screen. A hidden step's id is passed bare (`step-qa`, not `step-qa-final`),
  * exactly as it is stored.
@@ -1736,7 +1736,7 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
  * **It takes the remainder of the window, and it is told so rather than sent
  * to guess.** Until `H header-fits-a-row` the height was `calc(100vh - 16rem)`,
  * and the `16rem` was a guess at the chrome above: the page padding, the
- * heading, the signed-in line, the project picker and this toolbar. A guess is
+ * heading, the signed-in line, the work package picker and this toolbar. A guess is
  * wrong in both directions and it was wrong in both — the page scrolled
  * vertically at 1280×800 with the frame stopping 112px short of the window, and
  * a wider toolbar would have gone the other way. The whole chrome is now one
@@ -1745,7 +1745,7 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
  *
  * That works only while the whole chain is a column flex whose top is fixed to
  * the viewport — `app.tsx`'s `h-full` wrapper against the `html`/`body`/`#root`
- * height chain in `styles.css`, `ProjectPage`'s `<main>`, `WbsTable`'s
+ * height chain in `styles.css`, `WorkPackagePage`'s `<main>`, `WbsTable`'s
  * `<section>`, each `flex-1` with `min-h-0`. Break any link and
  * this basis has nothing to be a fraction of: the item falls back to its
  * content height and the frame stops being the thing that scrolls. The

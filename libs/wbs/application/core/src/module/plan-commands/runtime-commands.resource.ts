@@ -1,10 +1,10 @@
-import type { RuntimeAuthority, RuntimeClaim, RuntimeReceipt, RuntimeScope } from '@wbs/contracts';
+import type { RuntimeAuthority, RuntimeClaim, RuntimeReceipt2, RuntimeScope } from '@wbs/contracts';
 
 import type { RuntimeCommandStore } from '../../ports/runtime-command-store';
 import type { RuntimeLedger, StoredRuntimeAcceptance } from '../../ports/runtime-command-values';
 
 /**
- * Persistence operations fixed to one admitted organization/project/person.
+ * Persistence operations fixed to one admitted organization/work-package/person.
  * The borrowed store never escapes, and feature helpers retain all receiver guards.
  * Proof: exposing #store publicly made the unchanged production module audit reject RuntimeAdmission.commands.
  */
@@ -54,11 +54,11 @@ export class RuntimeCommands {
 
   insertAcceptance(
     accepted: Readonly<{
-      schemaVersion: 1;
+      schemaVersion: 2;
       commandId: string;
       canonicalRequest: string;
       requestDigest: string;
-      receipt: RuntimeReceipt;
+      receipt: RuntimeReceipt2;
     }>,
   ): Promise<void> {
     return this.#store.insertAcceptance({ ...accepted, scope: this.#scope });

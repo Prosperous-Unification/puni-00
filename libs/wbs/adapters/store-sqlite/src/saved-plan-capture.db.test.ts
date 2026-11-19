@@ -6,7 +6,7 @@ import type { WriteStamp } from '@wbs/core';
 import { planInputRowsOf } from '@wbs/core';
 import { bodySha256 } from '@wbs/core';
 import { canonicalisePlanInput, serialiseCanonicalPlanInput } from '@wbs/domain';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq, sql } from 'drizzle-orm';
@@ -18,18 +18,19 @@ import { openConnection, openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import type { PlanInputReads } from './saved-plan-capture';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
-import { person, project, step, tag, workItem, workItemTag } from './schema';
+import { person, step, tag, workItem, workItemTag, workPackage } from './schema';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
 import { StepParallelRepository } from './step-parallel';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { nodeDigest } from './testing/node-digest';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -127,7 +128,7 @@ const tracing = (
  * coverage: the capture-only reads exist because the live projection has two
  * holes, and both are seeded below rather than described.
  */
-describe('capturing a project’s plan input', () => {
+describe('capturing a work package’s plan input', () => {
   let dir: string;
   let path: string;
   let sqlite: Database;
@@ -137,6 +138,7 @@ describe('capturing a project’s plan input', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-capture-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     activateTestStepBlockages(path);
     sqlite = openDatabase(path);
     const seed = openConnection(path);
@@ -145,15 +147,20 @@ describe('capturing a project’s plan input', () => {
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
+    await new WorkPackageRepository(db, OPEN).create(
       // `name` and `estimateMethod` are generation markers for the torn-read
       // cases below: `before`/`pert` is the seeded state, and the one edit
       // committed mid-capture moves both.
-      projectRow({ id: 'p1', name: 'before', ownerId: 'owner', estimateMethod: 'pert' }),
+      workPackageRow({
+        id: 'p1',
+        name: 'before',
+        projectId: 'fixture-project',
+        estimateMethod: 'pert',
+      }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'before',
           position: 10,
           code: 'before',
@@ -176,7 +183,7 @@ describe('capturing a project’s plan input', () => {
     await items.insert(
       {
         id: 'wi-1',
-        projectId: 'p1',
+        workPackageId: 'p1',
         parentId: null,
         position: 10,
         name: 'before',
@@ -283,7 +290,7 @@ describe('capturing a project’s plan input', () => {
       await new StepRepository(writing.db, OPEN).add(
         {
           id: 'st-2',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Second',
           code: 'second',
           allowancePercent: 0,
@@ -294,9 +301,9 @@ describe('capturing a project’s plan input', () => {
       await new TypedDependencyRepository(writing.db, OPEN).add(
         {
           id: 'typed-1',
-          projectId: 'p1',
-          predecessor: { projectId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
-          successor: { projectId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
+          workPackageId: 'p1',
+          predecessor: { workPackageId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
+          successor: { workPackageId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
           type: 'FS',
         },
         wrote,
@@ -317,7 +324,7 @@ describe('capturing a project’s plan input', () => {
         .run();
       writing.db.update(step).set({ position: 5 }).where(eq(step.id, 'st-2')).run();
       expect(
-        (await new ProjectRepository(writing.db, OPEN).stepsOf('p1')).map(({ id }) => id),
+        (await new WorkPackageRepository(writing.db, OPEN).stepsOf('p1')).map(({ id }) => id),
       ).toEqual(['st-2', 'st-1']);
       await new TypedDependencyRepository(writing.db, OPEN).remove('typed-1', wrote);
       expect(captured?.typedDependencies[0]?.predecessor).toEqual({
@@ -381,7 +388,7 @@ describe('capturing a project’s plan input', () => {
     for (const [index, date] of ['2026-08-18', '2026-08-20', '2026-08-25'].entries()) {
       const written = await markers.create({
         id: `cm-${String(index)}`,
-        projectId: 'p1',
+        workPackageId: 'p1',
         date,
         name: `Marker ${String(index)}`,
         color: null,
@@ -390,7 +397,7 @@ describe('capturing a project’s plan input', () => {
       expect(written.ok).toBe(true);
     }
     // The rows really are there, so "the hash did not move" is a claim about a
-    // project with markers rather than about a failed write.
+    // work package with markers rather than about a failed write.
     expect(await new CalendarMarkerRepository(writing.db, OPEN).listFor('p1')).toHaveLength(3);
     writing.close();
 
@@ -399,7 +406,7 @@ describe('capturing a project’s plan input', () => {
 
   it('reads everything inside one deferred transaction and closes its connection', async () => {
     // Proof, watched 2026-09-03: with `tx.begin()` moved after the first read —
-    // the shape a maintainer writes when the project probe feels like it
+    // the shape a maintainer writes when the work package probe feels like it
     // belongs outside the block — `statements[0]` is `read`, not
     // `BEGIN DEFERRED`, and this fails on the first assertion. With the
     // transaction dropped altogether the first and last assertions both fail.
@@ -420,7 +427,7 @@ describe('capturing a project’s plan input', () => {
     // id, and the projection's people read is filtered to assigned ids, so both
     // of these rows are named by the plan and captured by nothing the projection
     // does. Proof, watched 2026-09-03: with `listTeams`/`listPeople` dropped from
-    // `readPlanInput` the project still captures, every other assertion in this
+    // `readPlanInput` the work package still captures, every other assertion in this
     // file still passes, and these two expectations go red.
     const read = await capture().readPlanInput('p1');
 
@@ -434,7 +441,7 @@ describe('capturing a project’s plan input', () => {
     expect(read?.workItemTypes.map((each) => each.id)).toContain('wit-1');
   });
 
-  it('answers null for a project it cannot find, and still closes the connection', async () => {
+  it('answers null for a work package it cannot find, and still closes the connection', async () => {
     expect(await capture().readPlanInput('nope')).toBeNull();
     expect(trace.statements.at(0)).toContain('BEGIN DEFERRED');
     expect(trace.statements.at(-1)).toContain('COMMIT');
@@ -527,7 +534,7 @@ describe('capturing a project’s plan input', () => {
    * capture's — the two connections standing in for blue and green.
    *
    * It is spread deliberately across the read order rather than aimed at one
-   * table: the project row (read 1), the work item and the `work_item_tag`
+   * table: the work package row (read 1), the work item and the `work_item_tag`
    * junction folded into it (read 2), a step (read 10), a person and the
    * `person_team` row that cascades with it (read 13), and the `tag` registry
    * (read 16). A capture that tore anywhere between the first read and the last
@@ -537,9 +544,9 @@ describe('capturing a project’s plan input', () => {
    */
   const commitTheEdit = (writer: Drizzle): void => {
     writer.transaction((tx) => {
-      tx.update(project)
+      tx.update(workPackage)
         .set({ name: 'after', estimateMethod: 'pessimistic' })
-        .where(eq(project.id, 'p1'))
+        .where(eq(workPackage.id, 'p1'))
         .run();
       tx.update(workItem).set({ name: 'after' }).where(eq(workItem.id, 'wi-1')).run();
       tx.delete(workItemTag).where(eq(workItemTag.workItemId, 'wi-1')).run();
@@ -565,9 +572,9 @@ describe('capturing a project’s plan input', () => {
     const side = (found: boolean, isBefore: boolean): string =>
       !found ? 'missing' : isBefore ? 'before' : 'after';
     return {
-      // read 1 — a rename and a settings change on the project row.
-      projectName: side(true, read.project.name === 'before'),
-      estimateMethod: side(true, read.project.estimateMethod === 'pert'),
+      // read 1 — a rename and a settings change on the work package row.
+      workPackageName: side(true, read.workPackage.name === 'before'),
+      estimateMethod: side(true, read.workPackage.estimateMethod === 'pert'),
       // read 2 — the item, and the junction the labelled row folds in.
       workItemName: side(item !== undefined, item?.name === 'before'),
       tagJunction: side(item !== undefined, item?.tagIds.includes('tag-1') === true),
@@ -612,7 +619,7 @@ describe('capturing a project’s plan input', () => {
       expect(new Set(Object.values(witness)).size).toBe(1);
       // Named separately so a failure says *which* side, and so a capture that
       // lost every marker at once cannot pass by being uniformly `missing`.
-      expect(['before', 'after']).toContain(witness['projectName']);
+      expect(['before', 'after']).toContain(witness['workPackageName']);
       // The edit really did land: the capture's snapshot is a snapshot, not a
       // write that never happened.
       expect(tagNameNow()).toBe('after');

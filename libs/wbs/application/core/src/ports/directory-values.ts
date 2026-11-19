@@ -5,13 +5,13 @@ import type { ExternalSystem, Service, Tag, WorkItemType } from './work-item-val
 export type { Assignment, Resource } from '@wbs/domain';
 
 /**
- * A service or team work can be labelled with. Global, shared by every project.
+ * A service or team work can be labelled with. Global, shared by every work package.
  *
  * **No `size`.** The column is still in the table — blue and green share one
  * SQLite file and the outgoing release still selects it, which is `design.md`
  * D4 — but nothing in this release reads it, and this type is where that claim
  * is enforced rather than asserted. A team's capacity is a fact about one
- * project now: {@link CapacityStore}.
+ * work package now: {@link CapacityStore}.
  *
  * It is also the shape `/api/teams` answers with, so leaving `size` here would
  * put the retired number back on the wire through an unqualified `select()`,
@@ -88,7 +88,7 @@ export interface PersonWithTeams extends Person {
 
 /**
  * The seven directory catalogs a client lists, each under its list route's name;
- * `resources` (`wbs-resources`) is read through the project resource read.
+ * `resources` (`wbs-resources`) is read through the work package resource read.
  */
 export interface DirectoryCatalogRows {
   people: PersonWithTeams[];

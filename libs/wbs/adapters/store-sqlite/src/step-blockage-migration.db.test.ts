@@ -28,13 +28,13 @@ beforeEach(() => {
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
     );
     sqlite.run(
-      "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
+      "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
     );
     sqlite.run(
-      "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('foreign','foreign','Dev',1)",
+      "INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1),('foreign','foreign','Dev',1)",
     );
     sqlite.run(
-      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
+      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
     );
   } finally {
     sqlite.close();
@@ -80,20 +80,20 @@ describe(MIGRATION, () => {
     });
   });
 
-  it('refuses duplicate pairs, missing references, cross-project steps and parent owners', () => {
+  it('refuses duplicate pairs, missing references, cross-work-package steps and parent owners', () => {
     withDatabase((sqlite) => {
       insert(sqlite);
       expect(() => insert(sqlite)).toThrow(/UNIQUE/);
       expect(() => insert(sqlite, 'gone')).toThrow(/FOREIGN KEY/);
       expect(() => insert(sqlite, 'b', 'gone')).toThrow(/FOREIGN KEY/);
-      expect(() => insert(sqlite, 'b', 'foreign')).toThrow(/step blockage project mismatch/);
+      expect(() => insert(sqlite, 'b', 'foreign')).toThrow(/step blockage workPackage mismatch/);
       expect(() =>
         sqlite.run(
           "INSERT INTO step_blockage (work_item_id,step_id,blocked_at,created_by) VALUES ('b','dev',1,'gone')",
         ),
       ).toThrow(/FOREIGN KEY/);
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','b','Child',1,0)",
+        "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','p','b','Child',1,0)",
       );
       expect(() => insert(sqlite, 'b')).toThrow(/step blockage owner is not a leaf/);
       expect(() =>
@@ -101,7 +101,7 @@ describe(MIGRATION, () => {
       ).toThrow(/step blockage owner is not a leaf/);
       expect(() =>
         sqlite.run("UPDATE step_blockage SET step_id = 'foreign' WHERE work_item_id = 'a'"),
-      ).toThrow(/step blockage project mismatch/);
+      ).toThrow(/step blockage workPackage mismatch/);
     });
   });
 

@@ -5696,7 +5696,7 @@
       "boundaryId": "boundary.application.project",
       "selector": {
         "kind": "prefix",
-        "value": "libs/wbs/application/core/src/module/project"
+        "value": "libs/wbs/application/core/src/module/work-package"
       },
       "sourceSelector": {
         "kind": "prefix",
@@ -5943,7 +5943,7 @@
       "boundaryId": "boundary.frontend.project",
       "selector": {
         "kind": "prefix",
-        "value": "apps/wbs/fe-01/src/modules/project"
+        "value": "apps/wbs/fe-01/src/modules/work-package"
       },
       "sourceSelector": {
         "kind": "prefix",

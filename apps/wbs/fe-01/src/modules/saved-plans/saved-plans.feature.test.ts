@@ -24,7 +24,7 @@ const listReply = (rows: readonly SavedPlanListEntryView[]) =>
     body: { savedPlans: [...rows] },
   });
 
-describe('reading a project’s shelf', () => {
+describe('reading a work package’s shelf', () => {
   it('does not ask for a list a node cannot answer', async () => {
     // **The case that closes 6.4.** The probe and the sentence were both written
     // before this function, and each is asserted against its own input — so a
@@ -117,7 +117,7 @@ describe('reading a project’s shelf', () => {
   });
 });
 
-describe('watching a project’s shelf', () => {
+describe('watching a work package’s shelf', () => {
   /** Resolves once everything already queued as a microtask has run. */
   const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -127,7 +127,7 @@ describe('watching a project’s shelf', () => {
     return {
       unsubscribe,
       broadcast: () => fire?.(),
-      subscribe: vi.fn((_projectId: string, onChange: () => void) => {
+      subscribe: vi.fn((_work_packageId: string, onChange: () => void) => {
         fire = onChange;
         return { unsubscribe };
       }),
@@ -153,8 +153,8 @@ describe('watching a project’s shelf', () => {
     expect(stream.subscribe).toHaveBeenCalledWith('p1', expect.any(Function));
   });
 
-  it('re-reads and emits again when the project changes', async () => {
-    // The payload is ignored on purpose, exactly as subscribeToProject ignores
+  it('re-reads and emits again when the work package changes', async () => {
+    // The payload is ignored on purpose, exactly as subscribeToWorkPackage ignores
     // it: a saved plan is immutable but the *list* is not, and re-reading is one
     // request and always right.
     const stream = fakeStream();
@@ -199,7 +199,7 @@ describe('watching a project’s shelf', () => {
   });
 
   it('emits nothing after the caller stops, including from a read in flight', async () => {
-    // The trap project-stream.ts names in its own unsubscribe: the loop that
+    // The trap work-package-stream.ts names in its own unsubscribe: the loop that
     // outlived its subscriber. Stopping between the request and its answer is
     // the ordinary case for a component that unmounts, not a rare one.
     const stream = fakeStream();
@@ -336,10 +336,10 @@ describe('watching a project’s shelf', () => {
 });
 
 /**
- * Task 10: the shelf's watch belongs to one project runtime, and nothing of a
+ * Task 10: the shelf's watch belongs to one work package runtime, and nothing of a
  * runtime that has been withdrawn reaches the page.
  */
-describe('one project’s saved plans', () => {
+describe('one work package’s saved plans', () => {
   /** Resolves once everything already queued as a microtask has run. */
   const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -354,12 +354,12 @@ describe('one project’s saved plans', () => {
     const refused = () => Promise.reject(new Error('not answered in this case'));
     const routes: SavedPlanRoutes = {
       available: () => Promise.resolve(true),
-      list: (projectId) => {
-        sent.push(`list:${projectId}`);
+      list: (workPackageId) => {
+        sent.push(`list:${workPackageId}`);
         return new Promise((answer) => reads.push(answer));
       },
-      save: (projectId, name) => {
-        sent.push(name === undefined ? `save:${projectId}` : `save:${projectId}:${name}`);
+      save: (workPackageId, name) => {
+        sent.push(name === undefined ? `save:${workPackageId}` : `save:${workPackageId}:${name}`);
         return refused();
       },
       rename: (savedPlanId, name) => {
@@ -370,11 +370,11 @@ describe('one project’s saved plans', () => {
         sent.push(`remove:${savedPlanId}`);
         return refused();
       },
-      compare: (projectId) => {
-        sent.push(`compare:${projectId}`);
+      compare: (workPackageId) => {
+        sent.push(`compare:${workPackageId}`);
         return refused();
       },
-      subscribe: (_projectId, onChange) => {
+      subscribe: (_work_packageId, onChange) => {
         fire = onChange;
         return { unsubscribe };
       },
@@ -392,7 +392,7 @@ describe('one project’s saved plans', () => {
     const held = heldRoutes();
     let current = true;
     const { savedPlans } = openSavedPlans({
-      projectId: 'p1',
+      workPackageId: 'p1',
       routes: held.routes,
       isCurrent: () => current,
     });
@@ -422,7 +422,11 @@ describe('one project’s saved plans', () => {
 
   it('starts from loading and shows the rows its first read answered', async () => {
     const held = heldRoutes();
-    const opened = openSavedPlans({ projectId: 'p1', routes: held.routes, isCurrent: () => true });
+    const opened = openSavedPlans({
+      workPackageId: 'p1',
+      routes: held.routes,
+      isCurrent: () => true,
+    });
     expect(opened.savedPlans.shelf.snapshot()).toEqual({ kind: 'loading' });
     const told = vi.fn();
     opened.savedPlans.shelf.subscribe(told);
@@ -439,7 +443,7 @@ describe('one project’s saved plans', () => {
     const held = heldRoutes();
     let current = true;
     const opened = openSavedPlans({
-      projectId: 'p1',
+      workPackageId: 'p1',
       routes: held.routes,
       isCurrent: () => current,
     });
@@ -456,7 +460,7 @@ describe('one project’s saved plans', () => {
     const held = heldRoutes();
     let current = true;
     const { savedPlans } = openSavedPlans({
-      projectId: 'p1',
+      workPackageId: 'p1',
       routes: held.routes,
       isCurrent: () => current,
     });
@@ -481,7 +485,7 @@ describe('one project’s saved plans', () => {
     const held = heldRoutes();
     let current = true;
     const { savedPlans } = openSavedPlans({
-      projectId: 'p1',
+      workPackageId: 'p1',
       routes: held.routes,
       isCurrent: () => current,
     });
@@ -496,10 +500,10 @@ describe('one project’s saved plans', () => {
     expect(held.sent).toEqual(['list:p1']);
   });
 
-  it('asks each request of its own project while current', async () => {
+  it('asks each request of its own work package while current', async () => {
     const held = heldRoutes();
     const { savedPlans } = openSavedPlans({
-      projectId: 'p1',
+      workPackageId: 'p1',
       routes: held.routes,
       isCurrent: () => true,
     });
@@ -525,7 +529,11 @@ describe('one project’s saved plans', () => {
 
   it('stops watching when it is closed', async () => {
     const held = heldRoutes();
-    const opened = openSavedPlans({ projectId: 'p1', routes: held.routes, isCurrent: () => true });
+    const opened = openSavedPlans({
+      workPackageId: 'p1',
+      routes: held.routes,
+      isCurrent: () => true,
+    });
     await settled();
     await listReply([ROW]).then(held.reads[0]);
     await settled();
@@ -543,7 +551,7 @@ describe('one project’s saved plans', () => {
   it('throws what its stream threw when it is closed', async () => {
     const held = heldRoutes();
     const opened = openSavedPlans({
-      projectId: 'p1',
+      workPackageId: 'p1',
       routes: {
         ...held.routes,
         subscribe: () => ({

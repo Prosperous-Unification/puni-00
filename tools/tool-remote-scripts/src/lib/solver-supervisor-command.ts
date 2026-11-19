@@ -55,7 +55,11 @@ export function buildManagedContainerArgs(
     '--label',
     `wbs-caller-id=${frame.callerId}`,
     '--label',
-    `wbs-project-id=${frame.projectId}`,
+    // Proof: the actual current-frame command test received wbs-project-id=undefined with the old frame.projectId read.
+    // The installed cohort still owns this external label; only the host field is renamed.
+    // Proof: supervisor-current-frame-authoring (outside backup42). Restoring frame.projectId produces wbs-project-id=undefined instead of the actual current owner.
+    // Observed test: the host-owned solver command builder > builds one fixed, hardened, digest-pinned container command.
+    `wbs-project-id=${frame.workPackageId}`,
     '--label',
     `wbs-objective=${frame.objective}`,
     '--network',

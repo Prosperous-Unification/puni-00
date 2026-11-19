@@ -14,6 +14,7 @@ import type { ConnectedPlanCapture } from '../../service/connected-plan-values';
 import { deriveConnectedReadiness } from '../../service/connected-readiness';
 import { connectedCapture, connectedReads } from '../../testing/connected-plan-fixture';
 import { captureConnectedHistory } from './connected-history';
+import { verifySavedPlanBodies } from './saved-plan-integrity';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const live = (
@@ -33,19 +34,22 @@ const live = (
     readiness: deriveConnectedReadiness(
       capture,
       projection.authored,
-      new Map(capture.projects.map((member) => [member.projectId, []])),
+      new Map(capture.workPackages.map((member) => [member.workPackageId, []])),
     ),
-    metadataByProject: new Map(
-      capture.projects.map((member) => [
-        member.projectId,
+    metadataByWorkPackage: new Map(
+      capture.workPackages.map((member) => [
+        member.workPackageId,
         {
-          project: {
-            ...member.reads.project,
+          workPackage: {
+            ...member.reads.workPackage,
             abbreviation: member.abbreviation,
             revision: 7,
             createdAt: 0,
           },
-          steps: member.reads.steps.map((step) => ({ ...step, projectId: member.projectId })),
+          steps: member.reads.steps.map((step) => ({
+            ...step,
+            workPackageId: member.workPackageId,
+          })),
           workItems: member.reads.workItems.map((row) => ({
             ...row,
             externalRefs: row.externalRefs.map((reference) => ({
@@ -68,18 +72,27 @@ const live = (
 test('retains complete detached connected history and selected target timing', () => {
   const captured = live();
   const history = captureConnectedHistory(captured, 'B');
-  expect(history.input.schemaVersion).toBe(10);
-  expect(readSavedPlanInput(history.input, 10)).toEqual(history.input);
+  expect(history.input.schemaVersion).toBe(12);
+  expect(readSavedPlanInput(history.input, 12)).toEqual(history.input);
   expect(history.input.dependencyHistory.kind).toBe('connected');
   if (history.input.dependencyHistory.kind !== 'connected') throw new Error('connected expected');
-  expect(history.input.dependencyHistory.projects.map((project) => project.projectId)).toEqual([
-    'A',
-    'B',
-  ]);
+  expect(
+    history.input.dependencyHistory.workPackages.map((workPackage) => workPackage.workPackageId),
+  ).toEqual(['A', 'B']);
   expect(history.input.dependencyHistory.relationships[0]?.predecessor.name).toBe('a');
   expect(history.schedule.present).toBe(true);
   if (!history.schedule.present) throw new Error('schedule expected');
   const body = history.schedule.body;
+  expect(
+    verifySavedPlanBodies(
+      'fresh',
+      'B',
+      { version: 12, bytes: JSON.stringify(history.input) },
+      { present: true, version: 4, bytes: JSON.stringify(body), algorithmId: body.algorithmId },
+    ),
+  ).toBeNull();
+  expect(body.version).toBe(4);
+  expect(body.connection.stages.every((stage) => stage.format === 'connected-stage-v2')).toBe(true);
   expect(readSavedConnectedScheduleBody(body)).toEqual(body);
   expect(body.slices[sliceKey('b', 'build')].earliestStart).toBe(1);
   const placement = captured.projection.placement;
@@ -112,12 +125,12 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
   const configured = {
     ...capture,
     relationships: [],
-    projects: capture.projects.map((member) => ({
+    workPackages: capture.workPackages.map((member) => ({
       ...member,
       reads: {
         ...member.reads,
-        project: {
-          ...member.reads.project,
+        workPackage: {
+          ...member.reads.workPackage,
           optimizationEnabled: true,
           scheduleEngine: 'optimized' as const,
           scheduleObjective: 'time' as const,
@@ -130,9 +143,9 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
     {
       readConnectedCaptured: ({ stage }) => {
         const question = {
-          projectId: stage.projectId,
-          inputHash: stage.projectId,
-          questionHash: `question-${stage.projectId}`,
+          workPackageId: stage.workPackageId,
+          inputHash: stage.workPackageId,
+          questionHash: `question-${stage.workPackageId}`,
           objective: 'time' as const,
           contractVersion: 'test',
           budgetMs: 100,
@@ -141,7 +154,7 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
           stageBytes: canonicalConnectedStageInput(stage),
         };
         return {
-          inputHash: stage.projectId,
+          inputHash: stage.workPackageId,
           generation: 7,
           contractVersion: 'test',
           budgetMs: 100,
@@ -153,7 +166,10 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
             time: {
               question,
               starts: new Map([
-                [sliceKey(stage.projectId.toLowerCase(), 'build'), stage.projectId === 'A' ? 0 : 5],
+                [
+                  sliceKey(stage.workPackageId.toLowerCase(), 'build'),
+                  stage.workPackageId === 'A' ? 0 : 5,
+                ],
               ]),
             },
           },
@@ -204,17 +220,20 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
   const capture = connectedCapture();
   const configured = {
     ...capture,
-    projects: capture.projects.map((member) => ({
+    workPackages: capture.workPackages.map((member) => ({
       ...member,
-      reads: { ...member.reads, project: { ...member.reads.project, optimizationEnabled: true } },
+      reads: {
+        ...member.reads,
+        workPackage: { ...member.reads.workPackage, optimizationEnabled: true },
+      },
     })),
   };
   const captured = live(configured, {
     readConnectedCaptured: ({ stage }) => {
       const question = {
-        projectId: stage.projectId,
-        inputHash: stage.projectId,
-        questionHash: `question-${stage.projectId}`,
+        workPackageId: stage.workPackageId,
+        inputHash: stage.workPackageId,
+        questionHash: `question-${stage.workPackageId}`,
         objective: 'time' as const,
         contractVersion: 'test',
         budgetMs: 100,
@@ -223,7 +242,7 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
         stageBytes: canonicalConnectedStageInput(stage),
       };
       return {
-        inputHash: stage.projectId,
+        inputHash: stage.workPackageId,
         generation: null,
         contractVersion: 'test',
         budgetMs: 100,
@@ -234,8 +253,8 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
             state: 'plan-infeasible',
             items: [
               {
-                ownerWorkItemId: stage.projectId.toLowerCase(),
-                boundWorkItemId: stage.projectId.toLowerCase(),
+                ownerWorkItemId: stage.workPackageId.toLowerCase(),
+                boundWorkItemId: stage.workPackageId.toLowerCase(),
                 effectiveDeadlineOffset: 0,
               },
             ],
@@ -265,7 +284,7 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
     certificate: {
       kind: 'boundary-infeasible',
       question: {
-        projectId: 'A',
+        workPackageId: 'A',
         inputHash: 'A',
         questionHash: 'question-A',
         objective: 'time',
@@ -290,12 +309,12 @@ test.each([
   const capture = connectedCapture();
   const configured = {
     ...capture,
-    projects: capture.projects.map((member) => ({
+    workPackages: capture.workPackages.map((member) => ({
       ...member,
       reads: {
         ...member.reads,
-        project: {
-          ...member.reads.project,
+        workPackage: {
+          ...member.reads.workPackage,
           optimizationEnabled: true,
           scheduleEngine: 'optimized' as const,
         },
@@ -335,7 +354,7 @@ test('keeps empty connected members idle without inventing a stage or origin', (
   const prepared = captureConnectedHistory(live(capture), 'B');
   if (!prepared.schedule.present) throw new Error('empty schedule expected');
   expect(prepared.schedule.body.connection.stages).toEqual([]);
-  expect(prepared.schedule.body.connection.idleProjects).toEqual(['A', 'B']);
+  expect(prepared.schedule.body.connection.idleWorkPackages).toEqual(['A', 'B']);
   expect(prepared.schedule.body.connection.originOrdinal).toBeNull();
   expect(prepared.schedule.body.slices).toEqual({});
 });
@@ -382,25 +401,29 @@ test('canonicalizes candidate starts regardless of captured map insertion order'
   const configured = {
     ...capture,
     relationships: [],
-    projects: capture.projects.map((member) => ({
+    workPackages: capture.workPackages.map((member) => ({
       ...member,
       reads: {
         ...member.reads,
-        project: { ...member.reads.project, optimizationEnabled: true },
+        workPackage: { ...member.reads.workPackage, optimizationEnabled: true },
         workItems: [
           ...member.reads.workItems,
-          { ...member.reads.workItems[0], id: `${member.projectId.toLowerCase()}2`, position: 10 },
+          {
+            ...member.reads.workItems[0],
+            id: `${member.workPackageId.toLowerCase()}2`,
+            position: 10,
+          },
         ],
         estimates: [
           ...member.reads.estimates,
-          { ...member.reads.estimates[0], workItemId: `${member.projectId.toLowerCase()}2` },
+          { ...member.reads.estimates[0], workItemId: `${member.workPackageId.toLowerCase()}2` },
         ],
       },
     })),
   };
   const captured = live(configured, {
     readConnectedCaptured: ({ stage }) => ({
-      inputHash: stage.projectId,
+      inputHash: stage.workPackageId,
       generation: 7,
       contractVersion: 'test',
       budgetMs: 100,
@@ -411,9 +434,9 @@ test('canonicalizes candidate starts regardless of captured map insertion order'
         pri: null,
         time: {
           question: {
-            projectId: stage.projectId,
-            inputHash: stage.projectId,
-            questionHash: `question-${stage.projectId}`,
+            workPackageId: stage.workPackageId,
+            inputHash: stage.workPackageId,
+            questionHash: `question-${stage.workPackageId}`,
             objective: 'time',
             contractVersion: 'test',
             budgetMs: 100,
@@ -422,8 +445,8 @@ test('canonicalizes candidate starts regardless of captured map insertion order'
             stageBytes: canonicalConnectedStageInput(stage),
           },
           starts: new Map([
-            [sliceKey(stage.projectId.toLowerCase(), 'build'), 0],
-            [sliceKey(`${stage.projectId.toLowerCase()}2`, 'build'), 0],
+            [sliceKey(stage.workPackageId.toLowerCase(), 'build'), 0],
+            [sliceKey(`${stage.workPackageId.toLowerCase()}2`, 'build'), 0],
           ]),
         },
       },

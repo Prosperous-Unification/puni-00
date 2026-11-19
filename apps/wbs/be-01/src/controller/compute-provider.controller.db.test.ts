@@ -1,4 +1,4 @@
-import { readProjectResources, validateSchema } from '@wbs/contracts';
+import { readWorkPackageResources, validateSchema } from '@wbs/contracts';
 import { computeProvidersOver } from '@wbs/store-sqlite';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
@@ -37,7 +37,7 @@ const PATH = '/api/organization/compute-providers';
 
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectA: string;
+let workPackageA: string;
 let leaf: string;
 let ram: string;
 let staging: string;
@@ -78,10 +78,10 @@ async function setUp(): Promise<void> {
   h.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('dany-p', 'org-a', 'dany-p')",
   );
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
+  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectA = (created.body as { project: { id: string } }).project.id;
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+  workPackageA = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
@@ -173,11 +173,11 @@ async function storeRefusal(resourceIds: string[]): Promise<string> {
   }
 }
 
-/** The project resources read, through its own contract. */
+/** The work package resources read, through its own contract. */
 async function readResources(username: string) {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectA}/resources`);
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageA}/resources`);
   expect(answer.status).toBe(200);
-  const [success] = readProjectResources.responses;
+  const [success] = readWorkPackageResources.responses;
   const parsed = await validateSchema(success.schema, answer.body);
   if (parsed.issues !== undefined)
     throw new Error(`the resources read failed its contract: ${JSON.stringify(parsed.issues)}`);
@@ -464,7 +464,7 @@ describe("a resource's provider reference", () => {
   // and the two report reads below found no providerId; watched 2026-10-22.
   it('sets, reads and clears the reference, and the schedule input does not move', async () => {
     const h4claw = await registered('dany', 'h4claw');
-    const before = await h.optimizationHash(projectA);
+    const before = await h.optimizationHash(workPackageA);
     h.grantPermissions('org-a', 'mem', ['organization.manage_directory']);
     expect((await reference('mem', ram, { providerId: h4claw })).status).toBe(200);
     expect(providerOf(ram)).toBe(h4claw);
@@ -494,7 +494,7 @@ describe("a resource's provider reference", () => {
       computeProviders: { resources: number }[];
     };
     expect(listed.computeProviders[0]?.resources).toBe(1);
-    expect(await h.optimizationHash(projectA)).toBe(before);
+    expect(await h.optimizationHash(workPackageA)).toBe(before);
     expect((await reference('dany', ram, { providerId: null })).status).toBe(200);
     expect(providerOf(ram)).toBeNull();
   });
@@ -517,7 +517,7 @@ describe("a resource's provider reference", () => {
     h.sqlite.run('DELETE FROM compute_provider');
     h.sqlite.run('PRAGMA foreign_keys = ON');
     expect(await storeRefusal([ram])).toMatch(/is not registered/);
-    const answer = await h.call('mem', 'GET', `/api/projects/${projectA}/resources`);
+    const answer = await h.call('mem', 'GET', `/api/work-packages/${workPackageA}/resources`);
     expect(answer.status).toBe(500);
   });
 
@@ -529,7 +529,7 @@ describe("a resource's provider reference", () => {
     h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
     // The store itself, since the route's response contract would also refuse `vm`.
     expect(await storeRefusal([ram])).toMatch(/malformed kind/);
-    const answer = await h.call('mem', 'GET', `/api/projects/${projectA}/resources`);
+    const answer = await h.call('mem', 'GET', `/api/work-packages/${workPackageA}/resources`);
     expect(answer.status).toBe(500);
   });
 
@@ -570,7 +570,7 @@ describe("a resource's provider reference", () => {
   it("names the resource's instance when its removal is refused in_use", async () => {
     const h4claw = await registered('dany', 'h4claw');
     await reference('dany', ram, { providerId: h4claw });
-    await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setResourceCapacity', resourceId: ram, units: 15 },
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
@@ -743,7 +743,7 @@ describe('a capacity report', () => {
     );
   }
   it('stores h4claw at 15 GB with 8 in use, idempotently, beside the declared 32', async () => {
-    await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 32 }],
     });
     const observedAt = Date.now() - 240_000;
@@ -1001,11 +1001,11 @@ describe('a capacity report', () => {
   // 2026-10-22.
   it('changes no schedule and no claim: 15 GB declared, 8 measured, a 12 GB leaf claims', async () => {
     const steps = (
-      (await h.call('dany', 'GET', `/api/projects/${projectA}`)).body as {
+      (await h.call('dany', 'GET', `/api/work-packages/${workPackageA}`)).body as {
         steps: { id: string }[];
       }
     ).steps;
-    const setUpPlan = await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    const setUpPlan = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setResourceCapacity', resourceId: ram, units: 15 },
         { kind: 'setDemand', workItemId: leaf, resourceId: ram, units: 12 },
@@ -1018,10 +1018,14 @@ describe('a capacity report', () => {
       ],
     });
     expect(setUpPlan.status).toBe(200);
-    const before = await h.optimizationHash(projectA);
-    const startableBefore = await h.call('dany', 'GET', `/api/projects/${projectA}/startable`);
+    const before = await h.optimizationHash(workPackageA);
+    const startableBefore = await h.call(
+      'dany',
+      'GET',
+      `/api/work-packages/${workPackageA}/startable`,
+    );
     expect((await report(agent, h4claw, ram, measured(Date.now() - 2000, 8, 8))).status).toBe(200);
-    expect(await h.optimizationHash(projectA)).toBe(before);
+    expect(await h.optimizationHash(workPackageA)).toBe(before);
     // Reserved units are no planning input either (`dash-host-jobs` 5.1): all 15 reserved.
     expect(
       (
@@ -1037,24 +1041,30 @@ describe('a capacity report', () => {
         })
       ).status,
     ).toBe(200);
-    expect(await h.optimizationHash(projectA)).toBe(before);
-    expect(await h.call('dany', 'GET', `/api/projects/${projectA}/startable`)).toEqual(
+    expect(await h.optimizationHash(workPackageA)).toBe(before);
+    expect(await h.call('dany', 'GET', `/api/work-packages/${workPackageA}/startable`)).toEqual(
       startableBefore,
     );
     const readyStep = steps.at(0)?.id;
-    if (readyStep === undefined) throw new Error('project has no first step');
-    const claimed = await callForwarded(h, agent, 'POST', `/api/projects/${projectA}/commands`, {
-      commands: [
-        {
-          kind: 'claimWorkItem',
-          workItemId: leaf,
-          personId: 'dash-a',
-          // A whole-leaf claim also asks for blocked later workflow steps.
-          steps: [readyStep],
-          resources: [{ resourceId: ram, units: 12 }],
-        },
-      ],
-    });
+    if (readyStep === undefined) throw new Error('work package has no first step');
+    const claimed = await callForwarded(
+      h,
+      agent,
+      'POST',
+      `/api/work-packages/${workPackageA}/commands`,
+      {
+        commands: [
+          {
+            kind: 'claimWorkItem',
+            workItemId: leaf,
+            personId: 'dash-a',
+            // A whole-leaf claim also asks for blocked later workflow steps.
+            steps: [readyStep],
+            resources: [{ resourceId: ram, units: 12 }],
+          },
+        ],
+      },
+    );
     expect(claimed.status).toBe(200);
   });
 });
@@ -1062,11 +1072,15 @@ describe('a capacity report', () => {
 describe('the plan export', () => {
   /**
    * The JSON export of A's plan without its export instant and its realtime
-   * sequence: setting a reference announces to the projects naming the
+   * sequence: setting a reference announces to the work packages naming the
    * resource, which moves `seq` and nothing of the plan.
    */
   async function exported(): Promise<string> {
-    const answer = await h.call('dany', 'GET', `/api/projects/${projectA}/export?format=json`);
+    const answer = await h.call(
+      'dany',
+      'GET',
+      `/api/work-packages/${workPackageA}/export?format=json`,
+    );
     expect(answer.status).toBe(200);
     const {
       seq: _seq,
@@ -1084,7 +1098,7 @@ describe('the plan export', () => {
   // the document's resource rows spread whole, the export after the reference
   // differed from the one before; watched 2026-10-22.
   it('is byte-identical with and without a reference and a report, and imports unreferenced', async () => {
-    await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setResourceCapacity', resourceId: ram, units: 15 },
         { kind: 'setDemand', workItemId: leaf, resourceId: ram, units: 4 },
@@ -1099,9 +1113,10 @@ describe('the plan export', () => {
     expect(after).toBe(before);
     expect(after).not.toContain(h4claw);
     expect(after).not.toContain('providerId');
-    const document = (await h.call('dany', 'GET', `/api/projects/${projectA}/export?format=json`))
-      .body as object;
-    const imported = await h.call('bob', 'POST', '/api/projects/import', document);
+    const document = (
+      await h.call('dany', 'GET', `/api/work-packages/${workPackageA}/export?format=json`)
+    ).body as object;
+    const imported = await h.call('bob', 'POST', '/api/work-packages/import', document);
     expect(imported.status).toBe(201);
     expect(
       rows<{ n: number }>(

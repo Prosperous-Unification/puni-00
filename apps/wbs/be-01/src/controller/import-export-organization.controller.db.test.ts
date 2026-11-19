@@ -45,9 +45,9 @@ function entry(root: string, side: string, id: string, org: 'a' | 'b', name: str
 }
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const projectId = (answer.body as { project: { id: string } }).project.id;
+  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
   if (
     h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
       ?.state === 'activated'
@@ -57,35 +57,35 @@ async function create(username: string, name: string): Promise<string> {
       username,
       'package-manager',
       'work_package',
-      projectId,
+      workPackageId,
     );
-  return projectId;
+  return workPackageId;
 }
 
-async function firstStep(username: string, projectId: string): Promise<string> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}`);
+async function firstStep(username: string, workPackageId: string): Promise<string> {
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageId}`);
   const step = (answer.body as { steps: { id: string }[] }).steps.at(0);
-  if (step === undefined) throw new Error('the project started with no step');
+  if (step === undefined) throw new Error('the work package started with no step');
   return step.id;
 }
 
-/** A's project whose one row is assigned A's person, a member of A's team that owns A's service. */
-async function assignedProject(): Promise<string> {
+/** A's work package whose one row is assigned A's person, a member of A's team that owns A's service. */
+async function assignedWorkPackage(): Promise<string> {
   entry('person', 'person_organization', 'pe-a', 'a', 'Kat');
   entry('service_team', 'service_team_organization', 'tm-a', 'a', 'Billing');
   entry('service', 'service_organization', 'sv-a', 'a', 'Billing API');
   h.sqlite.run("INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-a', 'tm-a')");
   h.sqlite.run("INSERT INTO team_service (team_id, service_id) VALUES ('tm-a', 'sv-a')");
-  const project = await create('ada', 'A plan');
-  const step = await firstStep('ada', project);
-  const answer = await h.call('ada', 'POST', `/api/projects/${project}/commands`, {
+  const workPackage = await create('ada', 'A plan');
+  const step = await firstStep('ada', workPackage);
+  const answer = await h.call('ada', 'POST', `/api/work-packages/${workPackage}/commands`, {
     commands: [
       { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' },
       { kind: 'setAssignee', workItemRef: 'w', stepId: step, personId: 'pe-a' },
     ],
   });
   if (answer.status !== 200) throw new Error(`batch refused: ${JSON.stringify(answer)}`);
-  return project;
+  return workPackage;
 }
 
 /** A one-day dated import whose existing Ana assignment participates in shared capacity. */
@@ -134,16 +134,16 @@ function sharedAnaDocument(name: string) {
   };
 }
 
-async function seedAssignedProject(name: string, rowId: string): Promise<string> {
-  const projectId = await create('ada', name);
-  const stepId = await firstStep('ada', projectId);
+async function seedAssignedWorkPackage(name: string, rowId: string): Promise<string> {
+  const workPackageId = await create('ada', name);
+  const stepId = await firstStep('ada', workPackageId);
   h.sqlite.run(
-    "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-    [projectId],
+    "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+    [workPackageId],
   );
-  h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
+  h.sqlite.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
     rowId,
-    projectId,
+    workPackageId,
     name,
   ]);
   h.sqlite.run(
@@ -154,7 +154,7 @@ async function seedAssignedProject(name: string, rowId: string): Promise<string>
     rowId,
     stepId,
   ]);
-  return projectId;
+  return workPackageId;
 }
 
 function sqliteState(): Record<string, unknown[]> {
@@ -179,7 +179,7 @@ for (const seeded of [false, true]) {
       seedDependencyAuthority(main.file);
     }
     const document = planDocumentFixture();
-    document.document.version = 12;
+    document.document.version = 14;
     Reflect.set(document.workItems[0] ?? {}, 'attempts', {});
     document.typedDependencies = [
       {
@@ -188,10 +188,10 @@ for (const seeded of [false, true]) {
         predecessor: {
           kind: 'external',
           scope: 'whole',
-          projectId: 'source-project',
+          workPackageId: 'source-work-package',
           workItemId: 'stable-row',
           display: {
-            projectName: 'Source',
+            workPackageName: 'Source',
             abbreviation: 'SRC',
             workItemName: 'Prerequisite',
             address: 'SRC.1',
@@ -201,7 +201,7 @@ for (const seeded of [false, true]) {
       },
     ];
     const before = sqliteState();
-    const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+    const answer = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(answer).toMatchObject(
       seeded
         ? {
@@ -230,10 +230,10 @@ for (const version of [1, 2, 3] as const) {
         predecessor: {
           kind: 'external',
           scope: 'whole',
-          projectId: 'source-project',
+          workPackageId: 'source-work-package',
           workItemId: 'stable-row',
           display: {
-            projectName: 'Source',
+            workPackageName: 'Source',
             abbreviation: 'SRC',
             workItemName: 'Prerequisite',
             address: 'SRC.1',
@@ -243,7 +243,7 @@ for (const version of [1, 2, 3] as const) {
       },
     ];
     const before = sqliteState();
-    const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+    const answer = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(answer).toMatchObject({
       status: 400,
       body: { error: 'invalid_typed_dependency', path: 'typedDependencies[0]' },
@@ -254,8 +254,12 @@ for (const version of [1, 2, 3] as const) {
 
 describe('the JSON export', () => {
   it("exports only the organization's own directory, under its local names", async () => {
-    const project = await assignedProject();
-    const exported = await h.call('ada', 'GET', `/api/projects/${project}/export?format=json`);
+    const workPackage = await assignedWorkPackage();
+    const exported = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackage}/export?format=json`,
+    );
     expect(exported.status).toBe(200);
     const directory = (exported.body as { directory: unknown }).directory;
     expect(directory).toMatchObject({
@@ -267,10 +271,14 @@ describe('the JSON export', () => {
   });
 
   it('fails the JSON export closed over a person in a foreign team', async () => {
-    const project = await assignedProject();
+    const workPackage = await assignedWorkPackage();
     entry('service_team', 'service_team_organization', 'tm-b', 'b', 'Theirs');
     h.sqlite.run("INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-a', 'tm-b')");
-    const exported = await h.call('ada', 'GET', `/api/projects/${project}/export?format=json`);
+    const exported = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackage}/export?format=json`,
+    );
     expect(exported.status).toBe(500);
   });
 });
@@ -290,10 +298,15 @@ describe('the import', () => {
     }
     entry('tag', 'tag_organization', 'tg-a', 'a', 'Release');
     const before = await h.call('grace', 'GET', '/api/tags');
-    const imported = await h.call('ada', 'POST', '/api/projects/import', planDocumentFixture());
+    const imported = await h.call(
+      'ada',
+      'POST',
+      '/api/work-packages/import',
+      planDocumentFixture(),
+    );
     expect(imported.status).toBe(201);
-    const { projectId, created } = imported.body as {
-      projectId: string;
+    const { workPackageId, created } = imported.body as {
+      workPackageId: string;
       created: Record<string, string[]>;
     };
     expect(created).toEqual({
@@ -304,15 +317,15 @@ describe('the import', () => {
       types: ['Milestone'],
       externalSystems: ['Tracker'],
     });
-    const listed = (await h.call('ada', 'GET', '/api/projects')).body as {
-      projects: { id: string }[];
+    const listed = (await h.call('ada', 'GET', '/api/work-packages')).body as {
+      workPackages: { id: string }[];
     };
-    expect(listed.projects.map((each) => each.id)).toContain(projectId);
-    const theirs = (await h.call('grace', 'GET', '/api/projects')).body as {
-      projects: { id: string }[];
+    expect(listed.workPackages.map((each) => each.id)).toContain(workPackageId);
+    const theirs = (await h.call('grace', 'GET', '/api/work-packages')).body as {
+      workPackages: { id: string }[];
     };
-    expect(theirs.projects.map((each) => each.id)).not.toContain(projectId);
-    const tree = await h.call('ada', 'GET', `/api/projects/${projectId}/work-items`);
+    expect(theirs.workPackages.map((each) => each.id)).not.toContain(workPackageId);
+    const tree = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/work-items`);
     expect(tree.status).toBe(200);
     const row = (
       tree.body as { workItems: { tagIds: string[]; teamIds: string[] }[] }
@@ -321,7 +334,7 @@ describe('the import', () => {
     expect(row.tagIds).toEqual(['tg-a']);
     expect(row.teamIds).not.toContain('tm-b');
     expect(await h.call('grace', 'GET', '/api/tags')).toEqual(before);
-    expect(await h.call('grace', 'GET', `/api/projects/${projectId}`)).toEqual({
+    expect(await h.call('grace', 'GET', `/api/work-packages/${workPackageId}`)).toEqual({
       status: 404,
       body: { error: 'not_found' },
     });
@@ -330,13 +343,13 @@ describe('the import', () => {
   it('keeps a slug only another organization holds', async () => {
     const held = await create('grace', 'B plan');
     h.sqlite.run(
-      "UPDATE project SET solution_slug = 'shared', solution_url = 'https://x.example/shared' WHERE id = ?",
+      "UPDATE work_package SET solution_slug = 'shared', solution_url = 'https://x.example/shared' WHERE id = ?",
       [held],
     );
     const answers = [];
     for (const slug of ['shared', 'shared', 'free']) {
       const document = planDocumentFixture();
-      const imported = await h.call('ada', 'POST', '/api/projects/import', {
+      const imported = await h.call('ada', 'POST', '/api/work-packages/import', {
         ...document,
         settings: { ...document.settings, solutionRef: { slug, url: `https://x.example/${slug}` } },
       });
@@ -346,31 +359,31 @@ describe('the import', () => {
     expect(answers).toEqual(['kept', 'left-off', 'kept']);
     expect((await h.call('ada', 'GET', '/plans/by-solution/shared')).status).toBe(200);
     expect((await h.call('grace', 'GET', '/plans/by-solution/shared')).body).toMatchObject({
-      project: { id: held },
+      workPackage: { id: held },
     });
   });
 
   it('refuses an empty solution slug or url as input, importing nothing', async () => {
-    const before = await h.call('ada', 'GET', '/api/projects');
+    const before = await h.call('ada', 'GET', '/api/work-packages');
     for (const solutionRef of [
       { slug: '', url: 'https://x.example/empty' },
       { slug: 'empty', url: '' },
     ]) {
       const document = planDocumentFixture();
-      const refused = await h.call('ada', 'POST', '/api/projects/import', {
+      const refused = await h.call('ada', 'POST', '/api/work-packages/import', {
         ...document,
         settings: { ...document.settings, solutionRef },
       });
       expect(refused.status).toBe(400);
     }
-    expect(await h.call('ada', 'GET', '/api/projects')).toEqual(before);
+    expect(await h.call('ada', 'GET', '/api/work-packages')).toEqual(before);
   });
 
-  it("tells only the organization's projects that its directory changed", async () => {
+  it("tells only the organization's work packages that its directory changed", async () => {
     const mine = await create('ada', 'A plan');
     const theirs = await create('grace', 'B plan');
     expect(
-      (await h.call('ada', 'POST', '/api/projects/import', planDocumentFixture())).status,
+      (await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture())).status,
     ).toBe(201);
     const told = h.sqlite
       .query<{ subscription: string }, []>(
@@ -382,7 +395,7 @@ describe('the import', () => {
     expect(told.some((subscription) => subscription.includes(theirs))).toBe(false);
   });
 
-  it('records the imported earlier project displacing a tied lower project', async () => {
+  it('records the imported earlier work package displacing a tied lower work package', async () => {
     const originalNow = Date.now.bind(Date);
     const originalUuid = crypto.randomUUID.bind(crypto);
     const createdAt = Date.UTC(2026, 9, 5);
@@ -396,11 +409,11 @@ describe('the import', () => {
       const lower = await create('ada', 'B lower');
       const lowerStep = await firstStep('ada', lower);
       h.sqlite.run(
-        "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+        "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
         [lower],
       );
       h.sqlite.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('lower-row', ?, 10, 'Lower')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('lower-row', ?, 10, 'Lower')",
         [lower],
       );
       h.sqlite.run(
@@ -412,7 +425,7 @@ describe('the import', () => {
         [lowerStep],
       );
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-      const before = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      const before = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
       expect(before.status).toBe(200);
       expect(before.body).toMatchObject({ workItems: [{ schedule: { earliestStart: 0 } }] });
 
@@ -421,27 +434,27 @@ describe('the import', () => {
       const imported = await h.call(
         'ada',
         'POST',
-        '/api/projects/import',
+        '/api/work-packages/import',
         sharedAnaDocument('Earlier A'),
       );
       expect(imported.status).toBe(201);
-      const earlier = (imported.body as { projectId: string }).projectId;
+      const earlier = (imported.body as { workPackageId: string }).workPackageId;
       expect(earlier < lower).toBe(true);
-      const order = await h.call('ada', 'GET', '/api/organization/project-rank');
+      const order = await h.call('ada', 'GET', '/api/organization/work-package-rank');
       expect(order.status).toBe(200);
       expect(
-        (order.body as { projects: { projectId: string }[] }).projects.map(
-          ({ projectId }) => projectId,
+        (order.body as { workPackages: { workPackageId: string }[] }).workPackages.map(
+          ({ workPackageId }) => workPackageId,
         ),
       ).toEqual([earlier, lower]);
-      const after = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      const after = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
       expect(after.status).toBe(200);
       expect(after.body).toMatchObject({ workItems: [{ schedule: { earliestStart: 1 } }] });
       const events = h.sqlite
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all(`project:${lower}`)
+        .all(`work-package:${lower}`)
         .map(({ message }) => JSON.parse(message) as unknown)
         .filter((event) =>
           typeof event === 'object' && event !== null && 'type' in event
@@ -449,7 +462,7 @@ describe('the import', () => {
             : false,
         );
       expect(events).toEqual([
-        { type: 'elsewhere_changed', projectId: lower, causeProjectId: earlier },
+        { type: 'elsewhere_changed', workPackageId: lower, causeWorkPackageId: earlier },
       ]);
     } finally {
       Date.now = originalNow;
@@ -465,11 +478,11 @@ describe('the import', () => {
       const higher = await create('ada', 'Higher B');
       const step = await firstStep('ada', higher);
       h.sqlite.run(
-        "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+        "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
         [higher],
       );
       h.sqlite.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('higher-row', ?, 10, 'Higher')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('higher-row', ?, 10, 'Higher')",
         [higher],
       );
       h.sqlite.run(
@@ -485,15 +498,15 @@ describe('the import', () => {
       const imported = await h.call(
         'ada',
         'POST',
-        '/api/projects/import',
+        '/api/work-packages/import',
         sharedAnaDocument('Tail A'),
       );
       expect(imported.status).toBe(201);
-      const tail = (imported.body as { projectId: string }).projectId;
-      const order = await h.call('ada', 'GET', '/api/organization/project-rank');
+      const tail = (imported.body as { workPackageId: string }).workPackageId;
+      const order = await h.call('ada', 'GET', '/api/organization/work-package-rank');
       expect(
-        (order.body as { projects: { projectId: string }[] }).projects.map(
-          ({ projectId }) => projectId,
+        (order.body as { workPackages: { workPackageId: string }[] }).workPackages.map(
+          ({ workPackageId }) => workPackageId,
         ),
       ).toEqual([higher, tail]);
       const rows = h.sqlite
@@ -501,11 +514,15 @@ describe('the import', () => {
         .all()
         .map(
           ({ message }) =>
-            JSON.parse(message) as { type: string; projectId: string; causeProjectId?: string },
+            JSON.parse(message) as {
+              type: string;
+              workPackageId: string;
+              causeWorkPackageId?: string;
+            },
         )
         .filter(({ type }) => type === 'elsewhere_changed');
       expect(rows).toEqual([
-        { type: 'elsewhere_changed', projectId: tail, causeProjectId: higher },
+        { type: 'elsewhere_changed', workPackageId: tail, causeWorkPackageId: higher },
       ]);
     } finally {
       Date.now = originalNow;
@@ -522,31 +539,35 @@ describe('the import', () => {
       `${prefix}0000000-0000-4000-8000-${(++nextId).toString(16).padStart(12, '0')}`;
     try {
       entry('person', 'person_organization', 'ana', 'a', 'Ana');
-      const first = await seedAssignedProject('B lower', 'lower-b');
-      const second = await seedAssignedProject('C lower', 'lower-c');
+      const first = await seedAssignedWorkPackage('B lower', 'lower-b');
+      const second = await seedAssignedWorkPackage('C lower', 'lower-c');
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       prefix = '0';
       nextId = 0;
       const imported = await h.call(
         'ada',
         'POST',
-        '/api/projects/import',
+        '/api/work-packages/import',
         sharedAnaDocument('Earlier A'),
       );
       expect(imported.status).toBe(201);
-      const earlier = (imported.body as { projectId: string }).projectId;
+      const earlier = (imported.body as { workPackageId: string }).workPackageId;
       const rows = h.sqlite
         .query<{ message: string }, []>('SELECT message FROM event_log ORDER BY subscription, seq')
         .all()
         .map(
           ({ message }) =>
-            JSON.parse(message) as { type: string; projectId: string; causeProjectId?: string },
+            JSON.parse(message) as {
+              type: string;
+              workPackageId: string;
+              causeWorkPackageId?: string;
+            },
         )
         .filter(({ type }) => type === 'elsewhere_changed');
       expect(rows).toEqual([
-        { type: 'elsewhere_changed', projectId: first, causeProjectId: earlier },
-        { type: 'elsewhere_changed', projectId: second, causeProjectId: earlier },
-        { type: 'elsewhere_changed', projectId: second, causeProjectId: first },
+        { type: 'elsewhere_changed', workPackageId: first, causeWorkPackageId: earlier },
+        { type: 'elsewhere_changed', workPackageId: second, causeWorkPackageId: earlier },
+        { type: 'elsewhere_changed', workPackageId: second, causeWorkPackageId: first },
       ]);
     } finally {
       Date.now = originalNow;
@@ -575,12 +596,12 @@ describe('the import', () => {
       `${prefix}0000000-0000-4000-8000-${(++nextId).toString(16).padStart(12, '0')}`;
     try {
       entry('person', 'person_organization', 'ana', 'a', 'Ana');
-      const first = await seedAssignedProject('B lower', 'lower-b');
-      const second = await seedAssignedProject('C lower', 'lower-c');
+      const first = await seedAssignedWorkPackage('B lower', 'lower-b');
+      const second = await seedAssignedWorkPackage('C lower', 'lower-c');
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       h.sqlite.run(`CREATE TRIGGER fail_later_import_event BEFORE INSERT ON event_log
-        WHEN NEW.subscription = 'project:${second}'
-          AND (SELECT COUNT(*) FROM event_log WHERE subscription = 'project:${first}'
+        WHEN NEW.subscription = 'work-package:${second}'
+          AND (SELECT COUNT(*) FROM event_log WHERE subscription = 'work-package:${first}'
             AND message LIKE '%elsewhere_changed%') > 0
         BEGIN SELECT RAISE(ABORT, 'later recipient insert'); END`);
       const before = sqliteState();
@@ -589,7 +610,7 @@ describe('the import', () => {
       const refused = await h.call(
         'ada',
         'POST',
-        '/api/projects/import',
+        '/api/work-packages/import',
         sharedAnaDocument('Earlier A'),
       );
       expect(refused.status).toBe(500);
@@ -628,7 +649,8 @@ describe('the import', () => {
     const before = sqliteState();
     failCapture = true;
     expect(
-      (await h.call('ada', 'POST', '/api/projects/import', sharedAnaDocument('Unwritten'))).status,
+      (await h.call('ada', 'POST', '/api/work-packages/import', sharedAnaDocument('Unwritten')))
+        .status,
     ).toBe(500);
     expect(sqliteState()).toEqual(before);
     expect(pushes).toBe(0);
@@ -661,7 +683,7 @@ describe('the import', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const before = sqliteState();
     expect(
-      (await h.call('ada', 'POST', '/api/projects/import', planDocumentFixture())).status,
+      (await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture())).status,
     ).toBe(500);
     expect(captures).toBe(2);
     expect(sqliteState()).toEqual(before);
@@ -694,7 +716,7 @@ describe('the import', () => {
     h.sqlite.run(`CREATE TRIGGER lose_import_tag AFTER INSERT ON work_item
       BEGIN DELETE FROM tag; END`);
     const before = sqliteState();
-    const refused = await h.call('ada', 'POST', '/api/projects/import', planDocumentFixture());
+    const refused = await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture());
     expect(refused.status).toBe(409);
     expect(refused.body).toEqual({
       error: 'source_refused',
@@ -731,29 +753,33 @@ describe('the import', () => {
     h.bind('ada', 'org-a');
     h.activate();
     entry('person', 'person_organization', 'ana', 'a', 'Ana');
-    const higher = await seedAssignedProject('Higher B', 'higher-row');
-    h.sqlite.run('UPDATE project SET created_at = 1 WHERE id = ?', [higher]);
+    const higher = await seedAssignedWorkPackage('Higher B', 'higher-row');
+    h.sqlite.run('UPDATE work_package SET created_at = 1 WHERE id = ?', [higher]);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const imported = await h.call(
       'ada',
       'POST',
-      '/api/projects/import',
+      '/api/work-packages/import',
       sharedAnaDocument('Tail A'),
     );
     expect(imported.status).toBe(201);
-    const tail = (imported.body as { projectId: string }).projectId;
-    expect(h.sqlite.query('SELECT id FROM project WHERE id = ?').all(tail)).toHaveLength(1);
+    const tail = (imported.body as { workPackageId: string }).workPackageId;
+    expect(h.sqlite.query('SELECT id FROM work_package WHERE id = ?').all(tail)).toHaveLength(1);
     const events = h.sqlite
       .query<{ message: string }, [string]>('SELECT message FROM event_log WHERE subscription = ?')
-      .all(`project:${tail}`)
+      .all(`work-package:${tail}`)
       .map(
         ({ message }) =>
-          JSON.parse(message) as { type: string; projectId: string; causeProjectId?: string },
+          JSON.parse(message) as {
+            type: string;
+            workPackageId: string;
+            causeWorkPackageId?: string;
+          },
       );
     expect(events).toContainEqual({
       type: 'elsewhere_changed',
-      projectId: tail,
-      causeProjectId: higher,
+      workPackageId: tail,
+      causeWorkPackageId: higher,
     });
     expect(eventPushes).toBe(1);
   });
@@ -789,7 +815,7 @@ describe('the import', () => {
     let imported;
     try {
       imported = await Promise.race([
-        h.call('ada', 'POST', '/api/projects/import', planDocumentFixture()),
+        h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture()),
         overdue.promise,
       ]);
     } finally {
@@ -806,7 +832,7 @@ describe('the import', () => {
     const imported = await h.call(
       'ada',
       'POST',
-      '/api/projects/import',
+      '/api/work-packages/import',
       sharedAnaDocument('Unconnected'),
     );
     expect(imported.status).toBe(201);
@@ -819,7 +845,7 @@ describe('the import', () => {
   });
 
   for (const refusal of ['viewer', 'removed', 'corrupt'] as const)
-    it(`refuses a queued import after membership becomes ${refusal} before capture`, async () => {
+    it(`refuses a queued import after current admission becomes ${refusal} before capture`, async () => {
       h.close();
       let captures = 0;
       const enteredImport = Promise.withResolvers<undefined>();
@@ -849,7 +875,7 @@ describe('the import', () => {
         enteredTurn.resolve(undefined);
       });
       await enteredTurn.promise;
-      const pending = h.call('ada', 'POST', '/api/projects/import', planDocumentFixture());
+      const pending = h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture());
       await enteredImport.promise;
       if (refusal === 'removed')
         h.sqlite.run(
@@ -861,12 +887,19 @@ describe('the import', () => {
           h.sqlite.run("UPDATE access_grant SET role_id = 'project-viewer' WHERE subject_id = ?", [
             h.userId('ada'),
           ]);
-        if (refusal === 'corrupt') h.sqlite.run('PRAGMA ignore_check_constraints = ON');
-        h.sqlite.run(
-          "UPDATE organization_membership SET role = ? WHERE organization_id = 'org-a' AND user_id = ?",
-          [refusal === 'corrupt' ? 'unreadable' : 'viewer', h.userId('ada')],
-        );
-        if (refusal === 'corrupt') h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+        if (refusal === 'corrupt') {
+          h.sqlite.run('PRAGMA ignore_check_constraints = ON');
+          try {
+            h.sqlite.run("UPDATE access_role SET object_kind='unreadable' WHERE id='org-admin'");
+          } finally {
+            h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+          }
+        } else {
+          h.sqlite.run(
+            "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id=?",
+            [h.userId('ada')],
+          );
+        }
       }
       release.resolve(undefined);
       await held;
@@ -882,36 +915,42 @@ describe('the import', () => {
             },
       );
       expect(captures).toBe(0);
-      expect(h.sqlite.query('SELECT id FROM project').all()).toEqual([]);
+      expect(h.sqlite.query('SELECT id FROM work_package').all()).toEqual([]);
       expect(h.sqlite.query('SELECT id FROM event_log').all()).toEqual([]);
     });
 
   it("refuses a viewer's import", async () => {
-    expect(await h.call('vic', 'POST', '/api/projects/import', planDocumentFixture())).toEqual({
-      status: 403,
-      body: { error: 'forbidden', permission: 'organization.create_project' },
-    });
+    expect(await h.call('vic', 'POST', '/api/work-packages/import', planDocumentFixture())).toEqual(
+      {
+        status: 403,
+        body: { error: 'forbidden', permission: 'organization.create_project' },
+      },
+    );
     expect(
-      (await h.call('ada', 'GET', '/api/projects')).body as {
-        projects: unknown[];
+      (await h.call('ada', 'GET', '/api/work-packages')).body as {
+        workPackages: unknown[];
         nextCursor: string | null;
       },
     ).toEqual({
-      projects: [],
+      workPackages: [],
       nextCursor: null,
     });
   });
 
   it('refuses an unbound session and a removed member before any import', async () => {
-    expect(await h.call('nell', 'POST', '/api/projects/import', planDocumentFixture())).toEqual({
+    expect(
+      await h.call('nell', 'POST', '/api/work-packages/import', planDocumentFixture()),
+    ).toEqual({
       status: 403,
       body: { error: 'no_active_organization' },
     });
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
-    expect(await h.call('ada', 'POST', '/api/projects/import', planDocumentFixture())).toEqual({
-      status: 403,
-      body: { error: 'not_a_member' },
-    });
+    expect(await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture())).toEqual(
+      {
+        status: 403,
+        body: { error: 'not_a_member' },
+      },
+    );
   });
 });
 
@@ -919,7 +958,7 @@ describe('the solution lookup', () => {
   it('answers a foreign solution slug as an absent one, even when its row is unreadable', async () => {
     const held = await create('grace', 'B plan');
     h.sqlite.run(
-      "UPDATE project SET solution_slug = 'broken', solution_url = 'https://x.example/broken', estimate_method = 'broken' WHERE id = ?",
+      "UPDATE work_package SET solution_slug = 'broken', solution_url = 'https://x.example/broken', estimate_method = 'broken' WHERE id = ?",
       [held],
     );
     expect(await h.call('ada', 'GET', '/plans/by-solution/broken')).toEqual({
@@ -932,7 +971,7 @@ describe('the solution lookup', () => {
   it('answers a foreign solution slug as an absent one', async () => {
     const held = await create('grace', 'B plan');
     h.sqlite.run(
-      "UPDATE project SET solution_slug = 'theirs', solution_url = 'https://x.example/theirs' WHERE id = ?",
+      "UPDATE work_package SET solution_slug = 'theirs', solution_url = 'https://x.example/theirs' WHERE id = ?",
       [held],
     );
     const absent = await h.call('ada', 'GET', '/plans/by-solution/nobody');
@@ -966,30 +1005,39 @@ it('round-trips minute units through the composed import/export and refuses malf
           ? { optimistic: 1.5, realistic: 2, pessimistic: 3 }
           : { optimistic: 21_474_836_161, realistic: 21_474_836_161, pessimistic: 21_474_836_161 },
       );
-    const before = h.sqlite.query('SELECT * FROM project').all();
-    const refused = await h.call('ada', 'POST', '/api/projects/import', damaged);
+    const before = h.sqlite.query('SELECT * FROM work_package').all();
+    const refused = await h.call('ada', 'POST', '/api/work-packages/import', damaged);
     expect(refused.status).toBe(400);
     expect(refused.body).toMatchObject({ error: 'invalid_body' });
-    expect(h.sqlite.query('SELECT * FROM project').all()).toEqual(before);
+    expect(h.sqlite.query('SELECT * FROM work_package').all()).toEqual(before);
   }
-  const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+  const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
   if (imported.status !== 201)
     throw new Error(`minute import refused: ${JSON.stringify(imported.body)}`);
   expect(imported.status).toBe(201);
-  const { projectId } = imported.body as { projectId: string };
+  const { workPackageId } = imported.body as { workPackageId: string };
   expect(
-    h.sqlite.query('SELECT estimate_unit FROM step WHERE project_id = ?').all(projectId),
+    h.sqlite.query('SELECT estimate_unit FROM step WHERE work_package_id = ?').all(workPackageId),
   ).toEqual([{ estimate_unit: 'minutes' }, { estimate_unit: 'minutes' }]);
-  const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+  const exported = await h.call(
+    'ada',
+    'GET',
+    `/api/work-packages/${workPackageId}/export?format=json`,
+  );
   expect(exported.status).toBe(200);
   expect(exported.body).toMatchObject({
-    document: { version: 11 },
+    document: { version: 13 },
     steps: [{ estimateUnit: 'minutes' }, { estimateUnit: 'minutes' }],
   });
-  const stepId = await firstStep('ada', projectId);
-  const unitRefusal = await h.call('ada', 'PATCH', `/api/projects/${projectId}/steps/${stepId}`, {
-    estimateUnit: 'workdays',
-  });
+  const stepId = await firstStep('ada', workPackageId);
+  const unitRefusal = await h.call(
+    'ada',
+    'PATCH',
+    `/api/work-packages/${workPackageId}/steps/${stepId}`,
+    {
+      estimateUnit: 'workdays',
+    },
+  );
   expect(unitRefusal.status).toBe(409);
 });
 
@@ -1000,15 +1048,19 @@ describe('v9 direct blockage transfer', () => {
     document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
     document.stepBlockages = [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 }];
     const before = sqliteState();
-    const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+    const refused = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(refused.status).toBe(409);
     expect(refused.body).toEqual({ error: 'step_blockage_inactive' });
     expect(sqliteState()).toEqual(before);
     document.stepBlockages = [];
-    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(imported.status).toBe(201);
-    const projectId = (imported.body as { projectId: string }).projectId;
-    const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+    const workPackageId = (imported.body as { workPackageId: string }).workPackageId;
+    const exported = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackageId}/export?format=json`,
+    );
     expect(exported.status).toBe(200);
     expect(exported.body).toMatchObject({ stepBlockages: [] });
   });
@@ -1019,10 +1071,14 @@ describe('v9 direct blockage transfer', () => {
     document.document.version = 9;
     document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
     document.stepBlockages = [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 }];
-    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(imported.status).toBe(201);
-    const projectId = (imported.body as { projectId: string }).projectId;
-    const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+    const workPackageId = (imported.body as { workPackageId: string }).workPackageId;
+    const exported = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackageId}/export?format=json`,
+    );
     expect(exported.status).toBe(200);
     const body = exported.body as {
       document: { version: number };
@@ -1030,7 +1086,7 @@ describe('v9 direct blockage transfer', () => {
       workItems: { id: string; name: string; blockages?: unknown; blockageCauses?: unknown }[];
       steps: { id: string; name: string }[];
     };
-    expect(body.document.version).toBe(11);
+    expect(body.document.version).toBe(13);
     const owner = body.workItems.find(({ name }) => name === 'Ship');
     const step = body.steps.find(({ name }) => name === 'Build');
     if (owner === undefined || step === undefined)
@@ -1059,7 +1115,7 @@ describe('v9 direct blockage transfer', () => {
       WHEN (SELECT COUNT(*) FROM step_blockage) > 0
       BEGIN SELECT RAISE(ABORT, 'second blockage insert'); END`);
     const before = sqliteState();
-    const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+    const refused = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(refused.status).toBe(500);
     expect(sqliteState()).toEqual(before);
   });
@@ -1074,7 +1130,7 @@ describe('v9 direct blockage transfer', () => {
       document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
       document.stepBlockages = [{ workItemId: owner, stepId: step, blockedAt: 1 }];
       const before = sqliteState();
-      const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+      const refused = await h.call('ada', 'POST', '/api/work-packages/import', document);
       expect(refused.status).toBe(400);
       expect(refused.body).toEqual({ error: 'invalid_body', path, detail: null });
       expect(sqliteState()).toEqual(before);
@@ -1084,16 +1140,20 @@ describe('v9 direct blockage transfer', () => {
 
 for (const mode of ['isolated', 'shared'] as const) {
   it(`v9 sparse export fence refuses authored equality without mutation (${mode})`, async () => {
-    const projectId = await assignedProject();
-    const stepId = await firstStep('ada', projectId);
+    const workPackageId = await assignedWorkPackage();
+    const stepId = await firstStep('ada', workPackageId);
     const owner = h.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id = ?')
-      .get(projectId);
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id = ?')
+      .get(workPackageId);
     if (owner === null) throw new Error('missing export owner');
     if (mode === 'shared') {
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     }
-    const empty = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+    const empty = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackageId}/export?format=json`,
+    );
     expect(empty.status).toBe(200);
     h.sqlite.run(
       'INSERT INTO step_parallel (work_item_id, step_id, max_parallel, created_at, updated_at) VALUES (?, ?, 1, 1, 1)',
@@ -1101,7 +1161,11 @@ for (const mode of ['isolated', 'shared'] as const) {
     );
     const before = sqliteState();
     for (const actor of ['ada', 'vic']) {
-      const answer = await h.call(actor, 'GET', `/api/projects/${projectId}/export?format=json`);
+      const answer = await h.call(
+        actor,
+        'GET',
+        `/api/work-packages/${workPackageId}/export?format=json`,
+      );
       expect(answer).toMatchObject({
         status: 409,
         body: { error: 'unsupported_step_parallelism' },
@@ -1109,7 +1173,8 @@ for (const mode of ['isolated', 'shared'] as const) {
       expect(answer.body).toEqual({ error: 'unsupported_step_parallelism' });
     }
     expect(
-      (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=markdown`)).status,
+      (await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/export?format=markdown`))
+        .status,
     ).toBe(200);
     expect(sqliteState()).toEqual(before);
     h.sqlite.run('DELETE FROM step_parallel WHERE work_item_id = ? AND step_id = ?', [
@@ -1117,31 +1182,35 @@ for (const mode of ['isolated', 'shared'] as const) {
       stepId,
     ]);
     expect(
-      (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+      (await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/export?format=json`)).status,
     ).toBe(200);
   });
 }
 
 for (const mode of ['isolated', 'shared'] as const) {
   it(`v9 sparse export authorizes before reading sparse facts (${mode})`, async () => {
-    const projectId = await assignedProject();
+    const workPackageId = await assignedWorkPackage();
     if (mode === 'shared')
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    const unavailable = spyOn(StepParallelRepository.prototype, 'listByProject').mockRejectedValue(
-      new Error('sparse authority must not be read'),
-    );
+    const unavailable = spyOn(
+      StepParallelRepository.prototype,
+      'listByWorkPackage',
+    ).mockRejectedValue(new Error('sparse authority must not be read'));
     try {
       expect(
-        (await h.call('grace', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+        (await h.call('grace', 'GET', `/api/work-packages/${workPackageId}/export?format=json`))
+          .status,
       ).toBe(404);
-      expect((await h.call('ada', 'GET', '/api/projects/missing/export?format=json')).status).toBe(
-        404,
-      );
       expect(
-        (await h.call('nell', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+        (await h.call('ada', 'GET', '/api/work-packages/missing/export?format=json')).status,
+      ).toBe(404);
+      expect(
+        (await h.call('nell', 'GET', `/api/work-packages/${workPackageId}/export?format=json`))
+          .status,
       ).toBe(403);
       expect(
-        (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+        (await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/export?format=json`))
+          .status,
       ).toBe(500);
     } finally {
       unavailable.mockRestore();
@@ -1150,11 +1219,11 @@ for (const mode of ['isolated', 'shared'] as const) {
 }
 
 it('v9 sparse export retains uncoded refusal for valid shared evidence', async () => {
-  const projectId = await assignedProject();
-  const stepId = await firstStep('ada', projectId);
+  const workPackageId = await assignedWorkPackage();
+  const stepId = await firstStep('ada', workPackageId);
   const owner = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id = ?')
-    .get(projectId);
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id = ?')
+    .get(workPackageId);
   if (owner === null) throw new Error('missing export owner');
   h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
   h.sqlite.run('INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES (?, ?, 1)', [
@@ -1162,7 +1231,11 @@ it('v9 sparse export retains uncoded refusal for valid shared evidence', async (
     stepId,
   ]);
   h.sqlite.run('UPDATE step SET code = NULL WHERE id = ?', [stepId]);
-  const answer = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+  const answer = await h.call(
+    'ada',
+    'GET',
+    `/api/work-packages/${workPackageId}/export?format=json`,
+  );
   expect(answer).toMatchObject({
     status: 409,
     body: {
@@ -1171,12 +1244,12 @@ it('v9 sparse export retains uncoded refusal for valid shared evidence', async (
       command: 'bun run src/backfill-step-codes-cli.ts',
     },
   });
-  const unreadable = spyOn(StepParallelRepository.prototype, 'listByProject').mockRejectedValue(
+  const unreadable = spyOn(StepParallelRepository.prototype, 'listByWorkPackage').mockRejectedValue(
     new Error('unreadable sparse evidence'),
   );
   try {
     expect(
-      (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+      (await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/export?format=json`)).status,
     ).toBe(500);
   } finally {
     unreadable.mockRestore();

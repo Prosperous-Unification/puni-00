@@ -1,33 +1,34 @@
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import { deriveNumbers } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore } from '../repository';
+import type { WorkPackage, WorkPackageStore } from '../repository';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryServices } from '../testing/harness';
-import { projectRow } from '../testing/project-fixture';
+import { createTestServices } from '../testing/harness';
+import { workPackageRow } from '../testing/work-package-fixture';
 
 const OWNER = 'owner-account';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 
-async function newProject(name: string): Promise<string> {
-  const project: Project = projectRow({
+async function newWorkPackage(name: string): Promise<string> {
+  const workPackage: WorkPackage = workPackageRow({
     id: crypto.randomUUID(),
     name,
-    ownerId: OWNER,
+    projectId: 'backend-unit-parent',
   });
   // Seeded with the step the estimates below name. The service refuses a step
-  // the project does not hold, and production's foreign key refuses it harder.
-  await projects.create(
-    project,
+  // the work package does not hold, and production's foreign key refuses it harder.
+  await workPackages.create(
+    workPackage,
     [
       {
         id: 'step-dev',
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -37,25 +38,25 @@ async function newProject(name: string): Promise<string> {
     ],
     { at: 1, by: OWNER },
   );
-  return project.id;
+  return workPackage.id;
 }
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects } = harness.stores);
+  const harness = createTestServices((await createLegacyWorkPackageFixture(OWNER, 'backend-unit-legacy', 'backend-unit-parent')).source);
+  ({ workPackages } = harness.stores);
   broadcast = harness.broadcast;
   service = harness.service;
-  projectId = await newProject('Rewire the shed');
+  workPackageId = await newWorkPackage('Rewire the shed');
 });
 
 async function add(name: string, parentId: string | null = null, afterId: string | null = null) {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
 
 async function numbersByName(): Promise<Record<string, string>> {
-  const tree = await service.tree(projectId);
+  const tree = await service.tree(workPackageId);
   if (tree === null) throw new Error('gone');
   return Object.fromEntries(tree.workItems.map((w) => [w.name, w.number]));
 }
@@ -65,7 +66,7 @@ describe('review finding: a frozen number must survive its parent moving', () =>
     const first = await add('First');
     const parent = await add('Parent', null, first);
     await add('Child', parent);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
     // Child is frozen at 020.1. Now unfreeze the parent alone and move it first.
     await service.unfreeze(parent, OWNER);
 
@@ -82,7 +83,7 @@ describe('review finding: promote must not duplicate a frozen number', () => {
     await add('MidChildOne', mid);
     await add('MidChildTwo', mid);
     await add('Second', root, mid);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
     await service.unfreeze(mid, OWNER);
 
     await service.remove(mid, OWNER, 'promote', { kind: 'legacy' });
@@ -105,7 +106,7 @@ describe('review finding: a last child carries its descendants’ estimates up',
 
     await service.remove(onlyChild, OWNER, 'cascade', { kind: 'legacy' });
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree?.workItems.find((w) => w.name === 'Parent')?.estimates['step-dev']).toEqual({
       optimistic: 1,
       realistic: 2,
@@ -114,17 +115,17 @@ describe('review finding: a last child carries its descendants’ estimates up',
   });
 });
 
-describe('review finding: a parent must belong to the same project', () => {
-  it('refuses a parent from another project', async () => {
-    const otherProject = await newProject('Someone else');
-    const foreign = await service.create(otherProject, OWNER, {
+describe('review finding: a parent must belong to the same work package', () => {
+  it('refuses a parent from another work package', async () => {
+    const otherWorkPackage = await newWorkPackage('Someone else');
+    const foreign = await service.create(otherWorkPackage, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Theirs',
     });
     if (!foreign.ok) throw new Error('setup failed');
 
-    const outcome = await service.create(projectId, OWNER, {
+    const outcome = await service.create(workPackageId, OWNER, {
       parentId: foreign.value.id,
       afterId: null,
       name: 'Smuggled',
@@ -134,13 +135,13 @@ describe('review finding: a parent must belong to the same project', () => {
   });
 });
 
-describe('review finding: unfreezing a project tells the other clients', () => {
-  it('broadcasts the tree after a project unfreeze', async () => {
+describe('review finding: unfreezing a work package tells the other clients', () => {
+  it('broadcasts the tree after a work package unfreeze', async () => {
     await add('Strip');
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
     broadcast.published.length = 0;
 
-    await service.unfreezeProject(projectId, OWNER);
+    await service.unfreezeWorkPackage(workPackageId, OWNER);
 
     expect(broadcast.published.at(-1)?.event.type).toBe('tree_replaced');
   });

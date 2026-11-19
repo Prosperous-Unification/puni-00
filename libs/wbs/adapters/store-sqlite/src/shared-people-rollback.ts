@@ -3,21 +3,25 @@ import { asc, eq, sql } from 'drizzle-orm';
 
 import { auditOnUpdate } from './audit';
 import { type Drizzle, openReadOnlyConnection } from './db';
-import { restoreProjectRanks, saveProjectRanks } from './project-rank-rollback';
 import {
   organization,
-  projectRank,
   sharedPeopleAudit,
   sharedPeopleRestoreApproval,
   sharedPeopleRestoreOperation,
+  workPackageRank,
 } from './schema';
-import { readSharedPeopleBackup, type SavedSharedPeople } from './shared-people-backup';
+import {
+  projectSharedPeople,
+  readSharedPeopleBackup,
+  type SavedSharedPeopleV2,
+} from './shared-people-backup';
 import { decodeSharedPeople } from './shared-people-mode';
+import { restoreWorkPackageRanks, saveWorkPackageRanks } from './work-package-rank-rollback';
 export type { SavedSharedPeople } from './shared-people-backup';
 
 type Reader = Pick<Drizzle, 'select'>;
 
-function currentState(db: Reader): SavedSharedPeople {
+function currentState(db: Reader): SavedSharedPeopleV2 {
   const organizations = db
     .select({ organizationId: organization.id, sharedPeople: organization.sharedPeople })
     .from(organization)
@@ -29,15 +33,17 @@ function currentState(db: Reader): SavedSharedPeople {
         decodeSharedPeople(each.sharedPeople) === 0 ? ('isolated' as const) : ('shared' as const),
     }));
   return {
+    // Proof: backup-shared-writer2. Emitting version1 fails the actual combined writer version2 assertion; later fact assertions are not credited.
+    // Observed test: new combined recovery saves emit only shared-save2 while preserving every current rank fact.
     format: 'shared-people-save',
-    version: 1,
+    version: 2,
     organizations,
-    ranks: saveProjectRanks(db).ranks,
+    ranks: saveWorkPackageRanks(db).ranks,
   };
 }
 
 /** Captures all modes and ranks on a dedicated read-only snapshot; closes on success and throw. */
-export function saveSharedPeople(dbPath: string): SavedSharedPeople {
+export function saveSharedPeople(dbPath: string): SavedSharedPeopleV2 {
   // Proof: a mutable opener permits the injected write; removing the transaction tears concurrent mode/rank capture.
   const connection = openReadOnlyConnection(dbPath);
   try {
@@ -90,11 +96,17 @@ export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
         );
       const current = currentState(tx);
       // Proof: bypassing equality makes each stale mode/rank/organization test mutate state.
-      if (JSON.stringify(current) !== JSON.stringify(saved))
+      if (
+        // Proof: backup-complete-removal-comparison. Bypassing complete equality returns removal counts for stale mode, rank and organization identity; later unchanged-state assertions are not credited.
+        // Observed test: combined shared people recovery > refuses a stale mode change without mutation.
+        // Observed test: combined shared people recovery > refuses a stale rank change without mutation.
+        // Observed test: combined shared people recovery > refuses a stale organization identity change without mutation.
+        JSON.stringify(projectSharedPeople(current)) !== JSON.stringify(projectSharedPeople(saved))
+      )
         throw new Error(
           'shared people save does not match current modes and ranks; save again first',
         );
-      tx.delete(projectRank)
+      tx.delete(workPackageRank)
         .where(sql`1`)
         .run();
       // Proof: removing this audit stamp fails the fixed-instant partial recovery test.
@@ -150,7 +162,13 @@ export function restoreSharedPeople(db: Drizzle, backup: unknown, at: number) {
           .set({ sharedPeople: each.mode === 'isolated' ? 0 : 1, ...auditOnUpdate({ at }) })
           .where(eq(organization.id, each.organizationId))
           .run();
-      restoreProjectRanks(tx, { format: 'project-rank-save', version: 1, ranks: saved.ranks });
+      restoreWorkPackageRanks(tx, {
+        format: 'work-package-rank-save',
+        version: 2,
+        // Proof: backup-legacy-isolated-restore-projection. Passing legacy rows as current2 reaches the exact invalid standalone-save error at the existing recovery consumer.
+        // Observed test: removes and restores a validated legacy shared-save1 using complete current facts.
+        ranks: projectSharedPeople(saved).ranks,
+      });
       return { organizations: saved.organizations.length, ranks: saved.ranks.length };
     },
     { behavior: 'immediate' },

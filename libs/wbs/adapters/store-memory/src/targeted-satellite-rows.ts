@@ -11,12 +11,12 @@ interface TargetedSatelliteRows<Row> {
 }
 
 /**
- * Admits requested memory satellite rows through their project boundary.
+ * Admits requested memory satellite rows through their work package boundary.
  *
  * Stored rows are trusted state, so a requested row whose work item is missing
- * is an invariant failure. A valid row owned by another project is filtered as
- * the complete project reader filters it; only admitted rows then have their
- * step reference and family-specific value validated. The returned project
+ * is an invariant failure. A valid row owned by another work package is filtered as
+ * the complete work package reader filters it; only admitted rows then have their
+ * step reference and family-specific value validated. The returned work package
  * steps are the same read used for validation and subsequent ordering.
  *
  * @throws When a requested row has an invalid reference or stored value.
@@ -24,7 +24,7 @@ interface TargetedSatelliteRows<Row> {
 export async function readTargetedSatelliteRows<Row extends SatelliteRow>(
   family: 'actual' | 'estimate' | 'measure' | 'progress',
   stored: readonly Row[],
-  projectId: string,
+  workPackageId: string,
   workItemIds: readonly string[],
   workItems: WorkItemStore,
   steps: StepStore | undefined,
@@ -40,12 +40,12 @@ export async function readTargetedSatelliteRows<Row extends SatelliteRow>(
     if (workItem === null) {
       throw new Error(`targeted ${family} has an invalid work-item reference`);
     }
-    owners.set(workItemId, workItem.projectId);
+    owners.set(workItemId, workItem.workPackageId);
   }
-  const admitted = rows.filter(({ workItemId }) => owners.get(workItemId) === projectId);
-  const projectSteps = await steps?.listByProject(projectId);
-  if (projectSteps !== undefined) {
-    const stepIds = new Set(projectSteps.map(({ id }) => id));
+  const admitted = rows.filter(({ workItemId }) => owners.get(workItemId) === workPackageId);
+  const workPackageSteps = await steps?.listByWorkPackage(workPackageId);
+  if (workPackageSteps !== undefined) {
+    const stepIds = new Set(workPackageSteps.map(({ id }) => id));
     for (const row of admitted) {
       if (!stepIds.has(row.stepId)) {
         throw new Error(`${family} ${row.workItemId}/${row.stepId} has an invalid step reference`);
@@ -53,5 +53,5 @@ export async function readTargetedSatelliteRows<Row extends SatelliteRow>(
     }
   }
   admitted.forEach(validate);
-  return { rows: admitted, steps: projectSteps };
+  return { rows: admitted, steps: workPackageSteps };
 }

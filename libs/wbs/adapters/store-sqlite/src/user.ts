@@ -70,7 +70,7 @@ export class UserRepository implements UserStore {
   }
 
   /**
-   * Makes the fixed local-mode identity a real owner before any project write
+   * Makes the fixed local-mode identity a real owner before any work package write
    * can use it.
    *
    * Takes its own stamp rather than reading a clock here, which is the rule the

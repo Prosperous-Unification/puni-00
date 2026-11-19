@@ -11,7 +11,7 @@ import {
 import { resolveStepNodeGraph, type StepNodeGraph } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
 
-/** Placement facts already resolved under each project's own dependency rules, in one workday coordinate system. */
+/** Placement facts already resolved under each work package's own dependency rules, in one workday coordinate system. */
 export interface ResolvedScheduleInput {
   readonly rows: readonly PlannedRow[];
   readonly slices: readonly Slice[];
@@ -25,8 +25,8 @@ export interface ResolvedScheduleInput {
     | { readonly kind: 'local' }
     | {
         readonly kind: 'connected';
-        readonly projectIdByWorkItem: ReadonlyMap<string, string>;
-        readonly rankByProject: ReadonlyMap<string, number>;
+        readonly workPackageIdByWorkItem: ReadonlyMap<string, string>;
+        readonly rankByWorkPackage: ReadonlyMap<string, number>;
       };
 }
 

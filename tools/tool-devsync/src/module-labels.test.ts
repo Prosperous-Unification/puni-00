@@ -8,8 +8,8 @@ import { DiBag } from 'di-bag';
 const WORKSPACE = fileURLToPath(new URL('../../..', import.meta.url));
 
 /**
- * The directories whose subdirectories are modules, and the identifier segment each location
- * implies: a library module carries its ring, a module under an app its runtime word. The
+ * The directories whose subdirectories are modules, and the default identifier segment each
+ * location implies: a library module carries its ring, a module under an app its runtime word. The
  * frontend's runtimes under `apps/wbs/fe-01/src/runtime` own lifetimes rather than modules and
  * carry no index block, so they are not a root.
  */
@@ -65,7 +65,7 @@ const SHIM_FORWARD =
 /** Where a `@wbs/core/service/<file>` forwarding row's file lives. */
 const CORE_SERVICES = 'libs/wbs/application/core/src/service';
 
-/** One module directory and the identity its location implies. */
+/** One current module directory, its stable wiki identity and its location-derived DI label. */
 interface ModuleDirectory {
   readonly directory: string;
   readonly moduleId: string;
@@ -93,9 +93,16 @@ async function discoverModuleDirectories(): Promise<readonly ModuleDirectory[]> 
     // `libs/wbs/application/core/src/module holds no module directory` (0 pass, 5 fail).
     if (names.length === 0) throw new Error(`${root} holds no module directory`);
     for (const name of names) {
+      // Published wiki identities survive these two WBS directory moves; DI labels follow location.
+      const moduleId =
+        root === 'libs/wbs/application/core/src/module' && name === 'work-package'
+          ? 'module.application.project'
+          : root === 'apps/wbs/fe-01/src/modules' && name === 'work-package'
+            ? 'module.frontend.project'
+            : `module.${segment}.${name}`;
       modules.push({
         directory: `${root}/${name}`,
-        moduleId: `module.${segment}.${name}`,
+        moduleId,
         label: `${segment}.${name}`,
       });
     }
@@ -308,7 +315,7 @@ test('seals every module under the label its location implies', async () => {
   expect(mismatches).toEqual([]);
 });
 
-test('indexes every module under the identifier its location implies', async () => {
+test('indexes every module under its stable identifier', async () => {
   const mismatches: string[] = [];
   for (const { directory, moduleId } of await discoverModuleDirectories()) {
     const indexed = await indexedModuleId(directory);
@@ -330,10 +337,11 @@ test('registers every module in the pilot under that identifier', async () => {
   const boundaries = await recordsOf('docs/wiki-policy/policy.json', 'boundaries');
   const mismatches: string[] = [];
   const unregistered: string[] = [];
-  for (const { directory, moduleId, label } of modules) {
+  for (const { directory, moduleId } of modules) {
+    const boundaryId = `boundary.${moduleId.slice('module.'.length)}`;
     const row = rows.filter((candidate) => textOf(candidate, 'moduleId') === moduleId);
     const boundary = boundaries.filter(
-      (candidate) => textOf(candidate, 'boundaryId') === `boundary.${label}`,
+      (candidate) => textOf(candidate, 'boundaryId') === boundaryId,
     );
     if (row.length === 0 && boundary.length === 0) {
       unregistered.push(moduleId);
@@ -354,7 +362,7 @@ test('registers every module in the pilot under that identifier', async () => {
       JSON.stringify(boundary[0]['selector']) !==
         JSON.stringify({ kind: 'prefix', value: directory })
     ) {
-      mismatches.push(`${directory}: policy.json does not select it once as boundary.${label}`);
+      mismatches.push(`${directory}: policy.json does not select it once as ${boundaryId}`);
     }
   }
   for (const row of rows) {

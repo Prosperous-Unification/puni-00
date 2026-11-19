@@ -65,7 +65,7 @@ import {
   type PlacedBar,
   placeOnCalendar,
   placeOnWorkdays,
-  projectAttemptMarks,
+  workPackageAttemptMarks,
   routeArrow,
   ROW_MIDDLE,
   type ServiceTeamLabel,
@@ -497,7 +497,7 @@ const BAR_HEIGHT = 1 - 2 * BAR_INSET;
  * Five, and that axis holds no weekends, so every fifth line **is** a week
  * boundary — the rhythm a reader counts by without anything being written down.
  * It is not a `Date` question there: on a weekend-free axis, workday 5 is the
- * Monday whatever the project started on.
+ * Monday whatever the work package started on.
  *
  * It belongs to the no-start-date axis alone. On a calendar a week is **seven**
  * cells, every fifth one is a Saturday, and the week boundary is a Monday —
@@ -1691,7 +1691,7 @@ export interface AxisDay {
 /**
  * One calendar marker, as the chart draws it.
  *
- * The shape be-01's list route answers with, minus the `projectId` and
+ * The shape be-01's list route answers with, minus the `workPackageId` and
  * `createdAt` no mark on this chart reads — a view type rather than a re-export
  * so a column added to `calendar_marker` later reaches the panel only when
  * somebody names it here.
@@ -1756,15 +1756,15 @@ const randomMarkerId = (): string => crypto.randomUUID();
 /**
  * What an undated plan's axis cell says when it is operated.
  *
- * It names the **missing project start date** and not merely "this cannot be
+ * It names the **missing work package start date** and not merely "this cannot be
  * marked", because the refusal is only actionable if the reader learns which
  * thing to go and set. A marker's date is absolute, so the marker itself is
- * perfectly storable against an undated project (task 7.4) — what is missing
+ * perfectly storable against an undated work package (task 7.4) — what is missing
  * is the calendar this axis would have to draw it on, and saying that is the
  * difference between a dead control and a next step.
  */
 const UNDATED_REFUSAL =
-  'This plan has no project start date, so its days are workday numbers rather than calendar days and cannot carry a calendar marker. Set a project start date first.';
+  'This plan has no work package start date, so its days are workday numbers rather than calendar days and cannot carry a calendar marker. Set a work package start date first.';
 
 /**
  * The workday axis: one cell per whole workday the horizon reaches, printing
@@ -1783,11 +1783,11 @@ const UNDATED_REFUSAL =
  * test that calls it directly. The whole of §7's refusal hangs off it: a
  * calendar marker is an absolute date, an undated plan has none to offer, and
  * the cell says so by having no date rather than by anyone asking whether the
- * project has a start. Give these cells a synthesised date — the plausible
+ * work package has a start. Give these cells a synthesised date — the plausible
  * helpful change — and every refusal in section 7 becomes unreachable while
  * each of its tests keeps passing, because a live cell refuses nothing. Routed
  * through the panel the same assertion would go green the day some future
- * change gave every project a start date; asserted here it breaks loudly.
+ * change gave every work package a start date; asserted here it breaks loudly.
  */
 export function workdayAxis(horizon: number): AxisDay[] {
   return Array.from({ length: wholeDaysCovering(horizon) }, (_, workday) => ({
@@ -1811,7 +1811,7 @@ export function workdayAxis(horizon: number): AxisDay[] {
  * now stops at one two cells wide.
  *
  * The origin is `addWorkdays(startDate, 0)`, the same normalisation the Start
- * column and {@link calendarScale} make, so a project beginning on a weekend
+ * column and {@link calendarScale} make, so a work package beginning on a weekend
  * begins on the Monday. The dates come from the module be-01 prints the Start
  * column with, imported directly rather than through `libs/wbs/domain/domain`'s index,
  * which re-exports arktype-touching validators this bundle excludes
@@ -1867,7 +1867,7 @@ function calendarAxis(startDate: IsoDate, horizon: number, rangeStart = 0): Axis
  * The same two dates the row's Start and End columns print, computed the same
  * way rather than read off the row: this is the panel's own reading of the
  * engine's numbers, and a test comparing the two is what says they agree.
- * Without a project start date there are no days to name, so the workday
+ * Without a work package start date there are no days to name, so the workday
  * offsets stand in — the same fallback the axis above makes.
  *
  * **Workday arithmetic on the engine's own offsets, never the calendar scale's
@@ -2285,7 +2285,7 @@ export function barFacts(
  * `notBeforeOffsetOf` got the offset out of the stored date with that function's
  * own inverse, so this reads back the day that was typed.
  *
- * Without a project start date there is no date to name, and the axis is
+ * Without a work package start date there is no date to name, and the axis is
  * offsets: the sentence says the offset, exactly as {@link spanWords} does.
  */
 function notBeforeWords(startDate: IsoDate | null, offset: number): string {
@@ -2485,7 +2485,7 @@ interface StandaloneGanttSvgInput {
   monthCaption: string;
   theme: GanttSvgTheme;
   /**
-   * The project's markers, so the file's axis carries the same chips the band
+   * The work package's markers, so the file's axis carries the same chips the band
    * on screen does — slice 8.6.
    *
    * The whole list and not {@link markersDrawnInBand}'s answer: the band is
@@ -3435,8 +3435,8 @@ interface GanttProps {
    *
    * A prop and not this panel's own state, which is where it parts from the
    * detail switch beside it: the scale is **one plan's fit against one screen**,
-   * so it is remembered per project, and the caller is the only place that
-   * knows which project this is. The same bargain `heightPx` makes, for the
+   * so it is remembered per work package, and the caller is the only place that
+   * knows which work package this is. The same bargain `heightPx` makes, for the
    * same reason.
    *
    * **Optional, defaulting to {@link DAY_PX}** — the one prop pair here that is.
@@ -3447,7 +3447,7 @@ interface GanttProps {
    * so by passing a rung, which is also how it reads.
    */
   dayPx?: DayPx;
-  /** Explains a refused or unavailable rung; the layout owner clears it on picks, reset and project swap. */
+  /** Explains a refused or unavailable rung; the layout owner clears it on picks, reset and work package swap. */
   rungNotice?: string | null;
   /**
    * Says which rung the reader picked. The caller decides what remembering it
@@ -3462,7 +3462,7 @@ interface GanttProps {
   /**
    * Whether the row-name column is drawn beside the chart.
    *
-   * Remembered per project by the caller for `dayPx`'s reason and not a
+   * Remembered per work package by the caller for `dayPx`'s reason and not a
    * similar one: what the column costs is **this plan's names against this
    * screen**, and a 74-day plan on a 390px phone and a fortnight on a monitor
    * want different answers. That is the same argument the scale makes, one
@@ -3520,7 +3520,7 @@ interface GanttProps {
    */
   registerSvgDownload?: (download: (() => void) | null) => void;
   /**
-   * This project's calendar markers, in the total order be-01 answers them in
+   * This work package's calendar markers, in the total order be-01 answers them in
    * (`date`, then `createdAt`, then `id`).
    *
    * **Non-scheduling overlays**: nothing here reaches {@link layOutGantt} or
@@ -3544,7 +3544,7 @@ interface GanttProps {
    * again — or would have to keep a second copy, which is two sources of truth
    * for one list.
    *
-   * Rename and recolour stay **two** reports for `ProjectApi`'s reason: be-01
+   * Rename and recolour stay **two** reports for `WorkPackageApi`'s reason: be-01
    * refuses a `PATCH` body naming both, so a single edit callback here would be
    * a surface whose two-field call can only ever be refused.
    *
@@ -3586,7 +3586,7 @@ interface GanttProps {
    * The composer has been saved and wants this marker created.
    *
    * Reported upward for {@link GanttProps.onRenameMarker}'s reason. The shape
-   * is `ProjectApi`'s own `NewCalendarMarkerView` rather than three loose
+   * is `WorkPackageApi`'s own `NewCalendarMarkerView` rather than three loose
    * arguments, because the id is the load-bearing member (task 3.5) and a
    * positional `(date, name, markerId)` is exactly the call site where an
    * optional third argument gets dropped.
@@ -4384,7 +4384,7 @@ export function GanttRenderer({
   );
   const projection = useMemo(
     // Proof: substituting a date for absent startDate failed both missing-start panel states (2026-10-12).
-    () => projectAttemptMarks(plan, forecast, startDate, rung, now),
+    () => workPackageAttemptMarks(plan, forecast, startDate, rung, now),
     [plan, forecast, startDate, rung, now],
   );
   const placed = projection.forecast;
@@ -4622,7 +4622,7 @@ export function GanttRenderer({
     [horizon, startDate, projection.rangeStart],
   );
   /**
-   * This project's markers grouped by the day they stand on, in the order
+   * This work package's markers grouped by the day they stand on, in the order
    * `markers` arrives in — which is be-01's total order, so the sheet lists two
    * markers on one day the same way twice running.
    *
@@ -6663,7 +6663,7 @@ export function GanttRenderer({
                         // announced "button" and nothing else is worse than no
                         // stop, so a cell that cannot be marked has to say
                         // which cell it is and why — the workday it stands at,
-                        // and the project start date that is missing. That is
+                        // and the work package start date that is missing. That is
                         // 6.4a's own contract and two Sol rounds found it
                         // unasserted, not merely unimplemented.
                         //
@@ -6675,8 +6675,8 @@ export function GanttRenderer({
                         // reach this branch.
                         'aria-label':
                           day.workday === null
-                            ? 'No project start date'
-                            : `Workday ${String(day.workday)}, no project start date`,
+                            ? 'No work package start date'
+                            : `Workday ${String(day.workday)}, no work package start date`,
                       }
                     : {
                         'aria-haspopup': 'dialog' as const,
@@ -7627,8 +7627,8 @@ export function GanttRenderer({
             className="text-muted-foreground px-3 py-1 text-sm"
           >
             {missing === 'startDate'
-              ? 'Attempt marks unavailable: set a project start date'
-              : 'Attempt marks unavailable: project timezone is unavailable'}
+              ? 'Attempt marks unavailable: set a work package start date'
+              : 'Attempt marks unavailable: work package timezone is unavailable'}
           </p>
         ))}
       <div

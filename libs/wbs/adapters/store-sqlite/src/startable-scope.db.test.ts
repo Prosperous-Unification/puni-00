@@ -1,27 +1,22 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { AvailableWorkItemService as WorkItemService } from '@wbs/core/testing/available-work-item-service';
-import { inMemoryServices } from '@wbs/core/testing/harness';
+import { createTestServices } from '@wbs/core/testing/harness';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ClaimRepository } from './claim';
-import { openDatabase, openDrizzle } from './db';
+import { openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
+import {createScopePackage,openScopedServiceFixture} from './testing/scoped-service-fixture';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STAMP = { at: 1, by: 'owner' };
-let folder: string;
+let owned:ReturnType<typeof openScopedServiceFixture>;
 let path: string;
 let service: WorkItemService;
 let recorded: { sql: string; bindings: unknown[] }[];
@@ -34,26 +29,25 @@ let stores: {
 
 /**
  * The startable read under legacy access among 40 unrelated assigned people
- * (spec `project-assignment-reads`, applied to `wbs-team-claims` task 3.1):
- * one assignee and one claim holder in the project, so no person read may
+ * (spec `work-package-assignment-reads`, applied to `wbs-team-claims` task 3.1):
+ * one assignee and one claim holder in the work package, so no person read may
  * materialize anyone else.
  */
 beforeEach(async () => {
-  folder = mkdtempSync(join(tmpdir(), 'wbs-startable-scope-'));
-  path = join(folder, 'test.db');
-  runMigrations(path, FOLDER);
   recorded = [];
-  const db = openDrizzle(path, {
+  owned=openScopedServiceFixture('wbs-startable-scope-',{
     logQuery(sql, bindings) {
       recorded.push({ sql, bindings });
     },
   });
+  path=owned.path;
+  const db=owned.source.db;
   const directory = new DirectoryRepository(db, OPEN);
-  const projects = new ProjectRepository(db, OPEN);
+  const workPackages = new WorkPackageRepository(db, OPEN);
   const workItems = new WorkItemRepository(db, OPEN);
   const claims = new ClaimRepository(db, OPEN);
-  service = inMemoryServices({
-    projects,
+  service = createTestServices(owned.source,{
+    workPackages,
     workItems,
     directory,
     claims,
@@ -72,30 +66,20 @@ beforeEach(async () => {
   );
   const team = await directory.addTeam({ id: 'team', name: 'Shared team' }, STAMP);
   for (let index = 0; index < 41; index += 1) {
-    const projectId = `project-${String(index)}`;
+    const workPackageId = `work-package-${String(index)}`;
     const stepId = `step-${String(index)}`;
     const workItemId = `work-${String(index)}`;
     const personId = `person-${String(index)}`;
-    await projects.create(
-      projectRow({ id: projectId, ownerId: 'owner' }),
-      [
-        {
-          id: stepId,
-          projectId,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
-    await workItems.insert(workItemRow({ id: workItemId, projectId }), [], STAMP);
+    await createScopePackage(owned.source,workPackageRow({id:workPackageId,projectId:'fixture-project'}),{id:stepId,name:'Dev '+stepId,position:10,code:stepId,defaultAllowancePercent:0,defaultEstimateUnit:'workdays'},STAMP);
+    await workItems.insert(workItemRow({ id: workItemId, workPackageId }), [], STAMP);
     await personAdded(directory.addPerson({ id: personId, name: personId }, [team.id], STAMP));
     await directory.assign(workItemId, stepId, personId, STAMP);
   }
-  await workItems.insert(workItemRow({ id: 'claimed', projectId: 'project-0' }), [], STAMP);
+  await workItems.insert(
+    workItemRow({ id: 'claimed', workPackageId: 'work-package-0' }),
+    [],
+    STAMP,
+  );
   await personAdded(directory.addPerson({ id: 'holder', name: 'Holder' }, [], STAMP));
   expect(
     await claims.add(
@@ -118,8 +102,8 @@ beforeEach(async () => {
   recorded = [];
 });
 
-afterEach(() => {
-  rmSync(folder, { recursive: true, force: true });
+afterEach(async () => {
+  await owned.close();
 });
 
 /** Every person read the last call recorded, run again: the rows it materialized and its plan. */
@@ -188,7 +172,7 @@ describe('a refused claim under legacy access', () => {
 
 describe('the startable read under legacy access', () => {
   it('materializes only the assignee and the claim holder during a tiny startable read', async () => {
-    const startable = await service.startableWithin('project-0', { kind: 'legacy' }, null);
+    const startable = await service.startableWithin('work-package-0', { kind: 'legacy' }, null);
     if (startable === null || 'kind' in startable) throw new Error('the read did not answer');
     expect(startable.leaves.map(({ assignees }) => assignees)).toEqual([
       [{ stepId: 'step-0', personId: 'person-0', name: 'person-0' }],
@@ -228,7 +212,7 @@ describe('the startable read under legacy access', () => {
 /** The fit reads (`wbs-resources` R6) the last call recorded, by the table each reads. */
 const FIT_TABLES = [
   'claim_occupancy',
-  'project_resource_capacity',
+  'work_package_resource_capacity',
   'work_item_resource_demand',
   'resource',
 ];
@@ -242,11 +226,11 @@ describe('resource fit in the startable read', () => {
       STAMP,
     );
     if (!added.ok) throw new Error('the resource was refused');
-    expect(await stores.capacities.set('project-0', 'ram', 8, STAMP)).toEqual({ ok: true });
+    expect(await stores.capacities.set('work-package-0', 'ram', 8, STAMP)).toEqual({ ok: true });
     for (let index = 0; index < 30; index += 1) {
       const id = `leaf-${String(index)}`;
       await stores.workItems.insert(
-        workItemRow({ id, projectId: 'project-0', position: index + 2 }),
+        workItemRow({ id, workPackageId: 'work-package-0', position: index + 2 }),
         [],
         STAMP,
       );
@@ -259,7 +243,7 @@ describe('resource fit in the startable read', () => {
     );
     connection.close();
     recorded = [];
-    const startable = await service.startableWithin('project-0', { kind: 'legacy' }, null);
+    const startable = await service.startableWithin('work-package-0', { kind: 'legacy' }, null);
     if (startable === null || 'kind' in startable) throw new Error('the read did not answer');
     expect(startable.resources.map(({ occupied, free }) => ({ occupied, free }))).toEqual([
       { occupied: 4, free: 4 },
@@ -284,7 +268,7 @@ describe('resource fit in the startable read', () => {
             .map(({ detail }) => `${table}: ${detail}`),
         ),
       );
-      // Every fit read searches by the project's key; the one scan is the
+      // Every fit read searches by the work package's key; the one scan is the
       // root resource catalog, read once under legacy access (`listResources`).
       expect(plans.filter((detail) => detail.includes('SCAN'))).toEqual([
         'resource: SCAN resource USING INDEX resource_name',

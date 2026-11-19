@@ -29,13 +29,13 @@ beforeEach(() => {
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
   );
   connection.db.run(
-    "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
+    "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
   );
   connection.db.run(
-    "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','foreign','Other',1)",
+    "INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','foreign','Other',1)",
   );
   connection.db.run(
-    "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
+    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
   );
   connection.db.run(
     "INSERT INTO step_blockage (work_item_id,step_id,blocked_at,created_at,updated_at,created_by) VALUES ('a','dev',100,10,20,'u')",
@@ -142,7 +142,7 @@ describe('step blockage recovery', () => {
     expect(saveStepBlockages(connection.db).rows).toEqual([]);
   });
 
-  it('refuses lost owners, lost steps, parent owners and cross-project restore atomically', () => {
+  it('refuses lost owners, lost steps, parent owners and cross-work-package restore atomically', () => {
     const saved = saveStepBlockages(connection.db);
     removeSavedStepBlockages(connection.db, saved);
     for (const row of [
@@ -156,7 +156,7 @@ describe('step blockage recovery', () => {
       expect(saveStepBlockages(connection.db).rows).toEqual([]);
     }
     connection.db.run(
-      "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','a','Child',1,0)",
+      "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','p','a','Child',1,0)",
     );
     expect(() => restoreStepBlockages(connection.db, saved)).toThrow();
     expect(saveStepBlockages(connection.db).rows).toEqual([]);

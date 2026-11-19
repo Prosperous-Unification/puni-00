@@ -8,9 +8,9 @@ admitted batch, over that scope's own stores. `module.ts` seals the graph, `chec
 place that builds a bag, and `contract.ts` states the stores, the broadcaster and the clock a host
 must supply.
 
-`priority-band.resource.ts` (the moved `service/priority-band.service.ts`) reads a project's
-priority ladder and replaces it on a `canEditProject`-gated write, announcing
-`priority_bands_changed` to that project. Private bindings are named under the
+`priority-band.resource.ts` (the moved `service/priority-band.service.ts`) reads a work package's
+priority ladder and replaces it on a `canEditWorkPackage`-gated write, announcing
+`priority_bands_changed` to that work package. Private bindings are named under the
 `application.priority-band` label, so a DI failure says which module asked.
 
 ## Checks

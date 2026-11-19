@@ -49,7 +49,7 @@ test('reads the fit fields and refuses a leaf apart that claims to fit', async (
         free: 4,
       },
     ],
-    occupancyScope: 'project' as const,
+    occupancyScope: 'work_package' as const,
   };
   expect(await validateSchema(startable, current)).toEqual({ value: current });
   const contradicted = {

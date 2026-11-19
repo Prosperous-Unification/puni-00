@@ -1,10 +1,10 @@
 import { act, createEvent, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi } from '@/lib/wbs-api';
-import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import type { WorkPackageApi } from '@/lib/wbs-api';
+import { fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
@@ -108,7 +108,7 @@ const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -118,12 +118,12 @@ beforeEach(() => {
  * Every column on screen, for a describe whose tests read the Teams or
  * Services cells: both are hidden by default since `configurable-columns`, and
  * those tests are about the cells, not about the default column set. Stored as
- * the reader would have stored it — an empty hide-list — under both project ids
+ * the reader would have stored it — an empty hide-list — under both work package ids
  * the file renders. The tests that ARE about the default never call this.
  */
 const showEveryColumn = (): void => {
-  for (const projectId of ['p1', 'p2']) {
-    localStorage.setItem(`wbs.hiddenColumns.${projectId}`, '[]');
+  for (const workPackageId of ['p1', 'p2']) {
+    localStorage.setItem(`wbs.hiddenColumns.${workPackageId}`, '[]');
   }
 };
 
@@ -184,7 +184,9 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -675,7 +677,7 @@ describe('Tab moves between the fields, from every cell', () => {
       'Dev assignee for 010',
       'QA estimate for 010',
       // The two facts, editable with or without a calendar: a fact is an
-      // absolute day, so neither waits for a project start the way the two
+      // absolute day, so neither waits for a work package start the way the two
       // constraints above them do. Status is editable the same way and sits at
       // the row's head since `status-at-a-glance`, so the walk out of one row's
       // last fact lands on the next row's Status, and only then on its Name.
@@ -727,7 +729,7 @@ describe('Tab moves between the fields, from every cell', () => {
   });
 
   itDom('steps over the date cells until the plan is on a calendar', async () => {
-    // Without a project start date **both** date fields are disabled: a Tab
+    // Without a work package start date **both** date fields are disabled: a Tab
     // that stopped on one would take the key and land nothing, which is a dead
     // keystroke in the middle of every row. Two of them since
     // `work-item-deadline` 9.1 — the deadline cell is disabled by the same
@@ -752,7 +754,7 @@ describe('Tab moves between the fields, from every cell', () => {
     tab();
     expect(document.activeElement).toBe(screen.getByLabelText('Status of 020'));
 
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -785,7 +787,7 @@ describe('Tab moves between the fields, from every cell', () => {
     // `setSelectionRange` throws `InvalidStateError` on a date input, and the
     // arrows have one to land on: the folded QA estimate sits next to it.
     await threeRoots();
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -902,7 +904,7 @@ describe('moving rows with alt and the arrows', () => {
     fireEvent.keyDown(focusAt(label, caret), { key, altKey: true });
 
   /** Records every move asked for, and makes none of them happen. */
-  const watchMoves = (api: ProjectApi): unknown[][] => {
+  const watchMoves = (api: WorkPackageApi): unknown[][] => {
     const moved: unknown[][] = [];
     api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
@@ -1229,7 +1231,9 @@ describe('the command chords', () => {
     // The whole of R1's second half: a note is typed under the name, which
     // needs Enter to mean what it means in every other text box in the world.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const cell = await screen.findByLabelText('Name of 010');
 
@@ -1361,11 +1365,11 @@ describe('the command chords', () => {
     };
     const realCreate = api.createWorkItem.bind(api);
     api.createWorkItem = (
-      projectId: string,
+      workPackageId: string,
       input: { parentId: string | null; afterId: string | null },
     ) => {
       asked.push('create');
-      return realCreate(projectId, input);
+      return realCreate(workPackageId, input);
     };
 
     const cell = nameOf('030');
@@ -1445,11 +1449,11 @@ describe('the command chords', () => {
     };
     const realCreate = api.createWorkItem.bind(api);
     api.createWorkItem = (
-      projectId: string,
+      workPackageId: string,
       input: { parentId: string | null; afterId: string | null },
     ) => {
       asked.push('create');
-      return realCreate(projectId, input);
+      return realCreate(workPackageId, input);
     };
 
     const cell = nameOf(at);
@@ -1857,9 +1861,9 @@ describe('the command chords', () => {
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        subscribe={(_projectId, handlers) => {
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        subscribe={(_work_packageId, handlers) => {
           notify = handlers.onChange;
           return { seen: () => undefined, unsubscribe: () => undefined };
         }}
@@ -1937,13 +1941,13 @@ describe('the command chords', () => {
     };
     const realCreate = api.createWorkItem.bind(api);
     api.createWorkItem = async (
-      projectId: string,
+      workPackageId: string,
       input: { parentId: string | null; afterId: string | null },
     ) => {
       await new Promise<void>((resolve) => {
         letTheCreateLand = resolve;
       });
-      return realCreate(projectId, input);
+      return realCreate(workPackageId, input);
     };
 
     // The command, from the last row so nothing above it is renumbered.
@@ -2093,7 +2097,7 @@ describe('the command chords', () => {
   };
 
   /** Every `assign` and `addPerson` the table asked for, in order. */
-  const watchPeopleWrites = (api: ProjectApi): string[] => {
+  const watchPeopleWrites = (api: WorkPackageApi): string[] => {
     // One array across two methods, because what this is about is the **order**
     // the two arrive in; the projections do the recording and each method's own
     // returned array is not read.
@@ -2161,7 +2165,7 @@ describe('the command chords', () => {
     await createTeam('Platform', ['team1']);
     await createTeam('Release', ['team1', 'team2']);
 
-    // be-01 projects the stable first member for old readers; the set is the
+    // be-01 returns the stable first member for old readers; the set is the
     // source of truth and creating the second member must not replace it.
     expect(api.rows[1]?.serviceTeamId).toBe('team1');
     expect(patches.at(-1)).toMatchObject({
@@ -2223,7 +2227,7 @@ describe('the command chords', () => {
     await screen.findByRole('listbox', { name: 'Work items 020 can depend on' });
     const highlighted = box.getAttribute('aria-activedescendant');
     // The highlight must name the visible 010 endpoint; its DOM id includes
-    // the full endpoint identity because different projects can reuse row ids.
+    // the full endpoint identity because different work packages can reuse row ids.
     expect(highlighted).toBe(screen.getByRole('option', { name: /^010 / }).id);
 
     const event = chordInto(box, 'Enter', { meta: true });
@@ -2384,7 +2388,7 @@ describe('the command chords', () => {
 
   itDom('the date cell answers the chords, and keeps its own arrows', async () => {
     const api = await threeRoots();
-    typeIntoDate('Project start date', '2026-08-10');
+    typeIntoDate('Work package start date', '2026-08-10');
     const box = await screen.findByLabelText('Earliest start for 020');
     await waitFor(() => {
       expect(box).toHaveProperty('disabled', false);
@@ -2480,7 +2484,7 @@ describe('the chords reach the picker cells and the date cell', () => {
   /** A plan on a calendar, so the earliest-start cells are not disabled. */
   const datedThreeRoots = async () => {
     const api = await threeRoots();
-    typeIntoDate('Project start date', '2026-08-10');
+    typeIntoDate('Work package start date', '2026-08-10');
     await waitFor(() => {
       expect(screen.getByLabelText('Earliest start for 020')).toHaveProperty('disabled', false);
     });

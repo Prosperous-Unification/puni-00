@@ -24,8 +24,8 @@ const CONFIG: McpConfig = {
 };
 
 const READ: DerivedTool = {
-  name: 'getApiProjectsByIdWorkItems',
-  description: 'Read a project’s work items',
+  name: 'getApiWorkPackagesByIdWorkItems',
+  description: 'Read a work package’s work items',
   inputSchema: {
     type: 'object',
     properties: { id: { type: 'string' } },
@@ -33,7 +33,7 @@ const READ: DerivedTool = {
     additionalProperties: false,
   },
   method: 'get',
-  path: '/api/projects/{id}/work-items',
+  path: '/api/work-packages/{id}/work-items',
   locations: { id: 'path' },
 };
 

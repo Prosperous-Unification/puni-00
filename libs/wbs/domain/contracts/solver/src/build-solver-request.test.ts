@@ -112,7 +112,7 @@ describe('buildSolverRequest', () => {
   it('carries a plan whose people are booked elsewhere on wire 3', () => {
     const plan = planOf({
       elsewhere: new Map([
-        ['ann', [{ start: 0, end: 5, projectId: 'platform', workItemId: 'x1' }]],
+        ['ann', [{ start: 0, end: 5, workPackageId: 'platform', workItemId: 'x1' }]],
       ]),
     });
     expect(requestOf(plan).elsewhere).toEqual({ ann: [[0, 240]] });
@@ -136,7 +136,7 @@ describe('buildSolverRequest', () => {
     expect(request.contractVersion).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.4.0`);
   });
 
-  it('projects the slices, the graph and only the pools the request names', () => {
+  it('work packages the slices, the graph and only the pools the request names', () => {
     const request = requestOf(planOf());
     expect(request.slices.map((slice) => slice.key)).toEqual([
       sliceKey('A', 'design'),
@@ -149,7 +149,7 @@ describe('buildSolverRequest', () => {
       { predecessorKey: sliceKey('A', 'dev'), successorKey: sliceKey('B', 'dev'), type: 'FS' },
     ]);
     expect(request.pools).toEqual({ 'team-x': 2 });
-    // `team-y` is sized in the project and named by no slice, so it stays out:
+    // `team-y` is sized in the work package and named by no slice, so it stays out:
     // the request is hashed as a cache key, and shipping it would invalidate
     // this plan's cached result on an edit to a team the plan does not use.
     const sizedTwice = planOf({
@@ -273,7 +273,7 @@ describe('buildSolverRequest', () => {
     ).toThrow('which this request has no slice for');
   });
 
-  it('groups before it projects, so a slice for a parent is refused as a plan fault', () => {
+  it('groups before it work packages, so a slice for a parent is refused as a plan fault', () => {
     // Ordering, not a new rule: `groupSlicesByLeaf` owns this refusal. Run the
     // grouping after the projection and the same slice is keyed first and
     // refused later by a message about positions in a group.
@@ -284,7 +284,7 @@ describe('buildSolverRequest', () => {
         solverVersion: '0.4.0',
         budgetMs: 30_000,
       }),
-    ).toThrow('slice for P, which is not a leaf of this project');
+    ).toThrow('slice for P, which is not a leaf of this work package');
   });
 
   it('computes durations as Fast does — null days zero, real days divided', () => {

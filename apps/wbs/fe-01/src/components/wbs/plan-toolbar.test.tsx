@@ -2,11 +2,11 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { planDocumentRequestFromJson } from '@/lib/wbs-api';
-import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import mountedTransfer from '@/testing/fixtures/connected-transfer.json';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import type * as TableFrameModule from './table-frame';
 
@@ -97,7 +97,7 @@ const unfoldStep = (name: string) => {
   fireEvent.click(screen.getByRole('button', { name: `Unfold ${name} estimates` }));
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -114,7 +114,9 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -154,7 +156,9 @@ describe('the plan toolbar’s controls', () => {
     // the menu, this failed on `expected [ 'Freeze #', 'Unfreeze all' ] to
     // deeply equal [ 'Freeze #' ]`. Watched, 2026-08-29.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('button', { name: 'Add work item' });
 
     expect(toolbarControlNames().filter((name) => /freeze/i.test(name))).toEqual(['Freeze #']);
@@ -178,15 +182,17 @@ describe('the plan toolbar’s controls', () => {
     // and this one says the menu is wired to the two calls at all.
     const api = fakeApi();
     const asked: string[] = [];
-    api.freezeProject = () => {
+    api.freezeWorkPackage = () => {
       asked.push('freeze');
       return Promise.resolve();
     };
-    api.unfreezeProject = () => {
+    api.unfreezeWorkPackage = () => {
       asked.push('unfreeze-all');
       return Promise.resolve();
     };
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('button', { name: 'Add work item' });
 
     takeFreezeAction('Freeze numbering');
@@ -234,8 +240,8 @@ describe('the plan toolbar’s controls', () => {
   itDom('offers Arrange by schedule as a drawn icon, and issues the one command', async () => {
     const api = await threeRoots();
     const asked: string[] = [];
-    api.arrangeBySchedule = (projectId: string) => {
-      asked.push(projectId);
+    api.arrangeBySchedule = (workPackageId: string) => {
+      asked.push(workPackageId);
       return Promise.resolve();
     };
 
@@ -262,13 +268,15 @@ describe('the plan toolbar’s controls', () => {
   itDom('stands Arrange by schedule down when the plan is beyond the calendar', async () => {
     const api = fakeApi();
     const tree = api.tree.bind(api);
-    api.tree = (projectId) =>
-      tree(projectId).then((answer) => ({
+    api.tree = (workPackageId) =>
+      tree(workPackageId).then((answer) => ({
         ...answer,
         scheduleError: 'calendar_range' as const,
         slices: [],
       }));
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     const arrange = await screen.findByRole('button', { name: 'Arrange by schedule' });
 
@@ -320,12 +328,14 @@ describe('the plan toolbar’s controls', () => {
     // to find role="button" and name "Collapse all"` — and four cases that
     // were not touched at all failed with it, which is the half that matters:
     // `the expansion controls stand down while a search is on`, `collapses
-    // every branch and opens them all again`, `remembers each project
+    // every branch and opens them all again`, `remembers each work package
     // separately`, and `stands the expansion controls down while a facet is on
     // with nothing typed`. Two more in `plan-cards.test.tsx`. Watched,
     // 2026-08-29.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     const collapse = await screen.findByRole('button', { name: 'Collapse all' });
     const expand = screen.getByRole('button', { name: 'Expand all' });
 
@@ -352,7 +362,9 @@ describe('the plan toolbar’s controls', () => {
     // Proof: `⌨` put back as the button's child beside the icon, this failed on
     // `expected '⌨' to be ''`. Watched, 2026-08-29.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     const control = await screen.findByRole('button', { name: 'Keyboard shortcuts' });
 
     expect(control.textContent).toBe('');
@@ -439,9 +451,9 @@ describe('sharing the plan', () => {
     const api = fakeApi();
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
       />,
     );
     click('Add work item');
@@ -465,9 +477,9 @@ describe('sharing the plan', () => {
     const api = fakeApi();
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
       />,
     );
     expect(await screen.findByRole('button', { name: 'Copy as Markdown' })).toBeInTheDocument();
@@ -504,9 +516,9 @@ describe('sharing the plan', () => {
       await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
       render(
         <WbsTableOverClient
-          projectId="p1"
-          projectServices={projectServicesOf(api)}
-          projectName="Rewire the shed"
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(api)}
+          workPackageName="Rewire the shed"
         />,
       );
       await screen.findByRole('button', { name: 'Copy as Markdown' });
@@ -556,9 +568,9 @@ describe('sharing the plan', () => {
       const api = fakeApi();
       render(
         <WbsTableOverClient
-          projectId="p1"
-          projectServices={projectServicesOf(api)}
-          projectName="Rewire the shed"
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(api)}
+          workPackageName="Rewire the shed"
         />,
       );
       const trigger = await screen.findByRole('button', { name: 'Import with AI' });
@@ -594,10 +606,10 @@ describe('sharing the plan', () => {
     const api = fakeApi();
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
-        planImport={{ busy: true, chooseFile: vi.fn() }}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
+        planImport={{ busy: true, canImport: true, chooseFile: vi.fn() }}
       />,
     );
 
@@ -636,10 +648,10 @@ describe('sharing the plan', () => {
           predecessor: {
             kind: 'external',
             scope: 'whole',
-            projectId: 'remote-project',
+            workPackageId: 'remote-work-package',
             workItemId: 'remote-row',
             display: {
-              projectName: 'Remote',
+              workPackageName: 'Remote',
               abbreviation: 'REM',
               workItemName: 'Build',
               address: 'REM.010',
@@ -650,9 +662,9 @@ describe('sharing the plan', () => {
       ],
       connected: {
         kind: 'connected',
-        projectId: 'p1',
+        workPackageId: 'p1',
         mode: 'isolated',
-        projects: [],
+        workPackages: [],
         relationships: [],
         placement: { kind: 'unavailable', reason: 'cycle' },
       },
@@ -665,9 +677,9 @@ describe('sharing the plan', () => {
     const api = { ...model, exportPlan: () => Promise.resolve(exported) };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
       />,
     );
     await screen.findByLabelText('Name of 010');
@@ -713,7 +725,7 @@ describe('sharing the plan', () => {
     expect(downloaded).toMatchObject({
       document: { version: 12 },
       typedDependencies: [
-        { predecessor: { projectId: 'remote-project', workItemId: 'remote-row' } },
+        { predecessor: { workPackageId: 'remote-work-package', workItemId: 'remote-row' } },
       ],
       connected: { placement: { kind: 'unavailable', reason: 'cycle' } },
     });
@@ -736,7 +748,9 @@ describe('sharing the plan', () => {
             mountedTransfer as unknown as Awaited<ReturnType<typeof model.exportPlan>>,
           ),
       };
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await screen.findByRole('button', { name: 'Download JSON' });
       click('Download JSON');
       await waitFor(() => {
@@ -762,9 +776,9 @@ describe('sharing the plan', () => {
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
       />,
     );
     await screen.findByRole('button', { name: 'Download JSON' });
@@ -785,9 +799,9 @@ describe('sharing the plan', () => {
     const api = fakeApi();
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
       />,
     );
     const undo = await screen.findByRole('button', { name: 'Undo' });
@@ -812,7 +826,7 @@ describe('sharing the plan', () => {
       expect(toastTexts()).toEqual(['Copied as Markdown.']);
     });
     const [markdown] = copied;
-    expect(markdown).toContain('**Project:** Rewire the shed');
+    expect(markdown).toContain('**Work package:** Rewire the shed');
     expect(markdown).toContain('**Final figures:** PERT');
     expect(markdown).toContain('| Strip, sand & paint |');
     // An info toast, so no alert role: nothing was refused.
@@ -854,7 +868,7 @@ describe('sharing the plan', () => {
   itDom('points a refused Mermaid copy at the download that carries the chart', async () => {
     stubClipboard(() => Promise.reject(new Error('NotAllowedError')));
     await onePlannedRow();
-    typeIntoDate('Project start date', '2026-08-03');
+    typeIntoDate('Work package start date', '2026-08-03');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -879,7 +893,7 @@ describe('sharing the plan', () => {
       return Promise.resolve();
     });
     await onePlannedRow();
-    typeIntoDate('Project start date', '2026-08-03');
+    typeIntoDate('Work package start date', '2026-08-03');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -915,30 +929,33 @@ describe('sharing the plan', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
-  itDom('downloads a CSV named after the project and the day, and lets the URL go', async () => {
-    const downloads = captureDownloads();
-    await onePlannedRow();
+  itDom(
+    'downloads a CSV named after the work package and the day, and lets the URL go',
+    async () => {
+      const downloads = captureDownloads();
+      await onePlannedRow();
 
-    click('Download CSV');
+      click('Download CSV');
 
-    expect(downloads.names).toHaveLength(1);
-    expect(downloads.names[0]).toMatch(/^rewire-the-shed-\d{4}-\d{2}-\d{2}\.csv$/);
-    expect(downloads.revoked).toEqual(['blob:plan-1']);
-    // `.at`, not `[0]`: the index signature would hand back a `Blob` whatever
-    // is in the array, and the guard below would then be checking nothing.
-    const file = downloads.blobs.at(0);
-    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
-    expect(file.type).toBe('text/csv;charset=utf-8');
-    const bytes = await readBlobBytes(file);
-    // The byte-order mark first, or Excel on Windows reads the em dashes and
-    // every non-ASCII name as the system codepage.
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
-    const text = new TextDecoder().decode(bytes);
-    expect(text).toContain('Project,Rewire the shed');
-    // The name holds a comma, so it is quoted rather than splitting the row.
-    expect(text).toContain('"Strip, sand & paint"');
-    expect(text).toContain('\r\n');
-  });
+      expect(downloads.names).toHaveLength(1);
+      expect(downloads.names[0]).toMatch(/^rewire-the-shed-\d{4}-\d{2}-\d{2}\.csv$/);
+      expect(downloads.revoked).toEqual(['blob:plan-1']);
+      // `.at`, not `[0]`: the index signature would hand back a `Blob` whatever
+      // is in the array, and the guard below would then be checking nothing.
+      const file = downloads.blobs.at(0);
+      if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+      expect(file.type).toBe('text/csv;charset=utf-8');
+      const bytes = await readBlobBytes(file);
+      // The byte-order mark first, or Excel on Windows reads the em dashes and
+      // every non-ASCII name as the system codepage.
+      expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+      const text = new TextDecoder().decode(bytes);
+      expect(text).toContain('Work package,Rewire the shed');
+      // The name holds a comma, so it is quoted rather than splitting the row.
+      expect(text).toContain('"Strip, sand & paint"');
+      expect(text).toContain('\r\n');
+    },
+  );
 
   itDom('carries a work item deadline from the plan read into the downloaded CSV', async () => {
     // Proof: replacing `planForExport`'s rows with copies whose deadline was
@@ -954,9 +971,9 @@ describe('sharing the plan', () => {
     await api.patchWorkItem(row.id, { deadline: '2026-09-30' });
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
+        workPackageName="Rewire the shed"
       />,
     );
     await screen.findByLabelText('Name of 010');
@@ -973,7 +990,7 @@ describe('sharing the plan', () => {
   itDom('downloads the bundled Markdown document, the fence and the table together', async () => {
     const downloads = captureDownloads();
     await onePlannedRow();
-    typeIntoDate('Project start date', '2026-08-03');
+    typeIntoDate('Work package start date', '2026-08-03');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1011,7 +1028,7 @@ describe('sharing the plan', () => {
   });
 
   describe('the lane the Mermaid exports are grouped into', () => {
-    /** Where this browser's one answer lives — not per project, unlike the four layout keys. */
+    /** Where this browser's one answer lives — not per work package, unlike the four layout keys. */
     const KEY = 'wbs.mermaidSectionMode';
 
     /** The picker, or a thrown error rather than a null the assertions walk into. */
@@ -1027,7 +1044,7 @@ describe('sharing the plan', () => {
      */
     const plannedRowOnACalendar = async (): Promise<void> => {
       await onePlannedRow();
-      typeIntoDate('Project start date', '2026-08-03');
+      typeIntoDate('Work package start date', '2026-08-03');
       await waitFor(() => {
         expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
           false,
@@ -1039,9 +1056,9 @@ describe('sharing the plan', () => {
       const api = fakeApi();
       render(
         <WbsTableOverClient
-          projectId="p1"
-          projectServices={projectServicesOf(api)}
-          projectName="Rewire the shed"
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(api)}
+          workPackageName="Rewire the shed"
         />,
       );
       // Proof: reading synchronously while the initial tree was still loading
@@ -1132,7 +1149,7 @@ describe('sharing the plan', () => {
       //
       // Proof: `downloadMermaidDocument`'s call site reverted to
       // `planToMermaidDocument(plan)` — `1 failed | 7 passed`, on
-      // `AssertionError: expected '**Project:** Rewire the shed\n**Final…' to
+      // `AssertionError: expected '**WorkPackage:** Rewire the shed\n**Final…' to
       // contain 'section Dev'`, and it is the only one of the eight that moves:
       // the clipboard readers go through the other call site. Watched,
       // 2026-08-30.
@@ -1198,9 +1215,9 @@ describe('sharing the plan', () => {
   });
 });
 
-describe('the project’s settings behind one control', () => {
+describe('the work package’s settings behind one control', () => {
   /**
-   * `project-config-modal` slice 3.1: the three project-level dialogs — teams,
+   * `work-package-config-modal` slice 3.1: the three work-package-level dialogs — teams,
    * priorities, steps — are one modal behind one toolbar control, and the
    * three separate triggers are gone.
    *
@@ -1208,36 +1225,41 @@ describe('the project’s settings behind one control', () => {
    * the new control, and this failed on `expected null not to be … <button>`
    * — the "no separate control" half; watched 2026-08-30.
    */
-  itDom('one control opens every project setting, and no separate control remains', async () => {
-    const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-    click('Add work item');
-    await screen.findByLabelText('Name of 010');
-
-    const toolbar = document.querySelector('[data-toolbar]');
-    if (toolbar === null) throw new Error('the plan has no toolbar');
-    const named = (name: string): HTMLElement[] =>
-      [...toolbar.querySelectorAll('button')].filter(
-        (button) => (button.getAttribute('aria-label') ?? button.textContent.trim()) === name,
+  itDom(
+    'one control opens every work package setting, and no separate control remains',
+    async () => {
+      const api = fakeApi();
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
       );
-    expect(named('Project settings')).toHaveLength(1);
-    expect(named('Teams')).toHaveLength(0);
-    expect(named('Priorities')).toHaveLength(0);
-    expect(named('Steps')).toHaveLength(0);
+      click('Add work item');
+      await screen.findByLabelText('Name of 010');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Project settings' });
-    expect(
-      [...dialog.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
-    ).toEqual([
-      'General',
-      'Teams',
-      'Priorities',
-      'Steps',
-      'Estimating',
-      'Optimization',
-      'Timezone',
-      'Resources',
-    ]);
-  });
+      const toolbar = document.querySelector('[data-toolbar]');
+      if (toolbar === null) throw new Error('the plan has no toolbar');
+      const named = (name: string): HTMLElement[] =>
+        [...toolbar.querySelectorAll('button')].filter(
+          (button) => (button.getAttribute('aria-label') ?? button.textContent.trim()) === name,
+        );
+      expect(named('Work package settings')).toHaveLength(1);
+      expect(named('Teams')).toHaveLength(0);
+      expect(named('Priorities')).toHaveLength(0);
+      expect(named('Steps')).toHaveLength(0);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Work package settings' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Work package settings' });
+      expect(
+        [...dialog.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
+      ).toEqual([
+        'General',
+        'Teams',
+        'Priorities',
+        'Steps',
+        'Estimating',
+        'Optimization',
+        'Timezone',
+        'Resources',
+      ]);
+    },
+  );
 });

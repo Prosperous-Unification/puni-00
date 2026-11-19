@@ -1,0 +1,556 @@
+{
+  "schema": "verification-settings-project-v1",
+  "recordedDate": "2026-11-15",
+  "scope": {
+    "cohort": "V17 disposable settings/UI/project source tree",
+    "rows": 158,
+    "changedRows": 156,
+    "cohortIndexSha256": "ddaf982049ada50a1eeaed868e540ebb9cf1914144a53b5a688d9c9066000cd4",
+    "historicalCanonicalSourceCount": 475,
+    "historicalCanonicalSourceSha256": "de90844328d1341afca2601eb3fd4d767bb048fb012b4021cb8200614c1fd03c",
+    "qualification": "V14 and V16 entries retain their original private epochs; they were not rerun as whole V17 suites."
+  },
+  "commandNormalization": {
+    "meaning": "Expand each normalizedArgv.prefix with the ordered named scope after removing the exact exclude entries; argvSha256 hashes JSON.stringify of the fully expanded actual argv array. All cwd values are the actual historical private working directories.",
+    "scopes": {
+      "format154": [
+        "apps/wbs/be-01/src/app.routes.test.ts",
+        "apps/wbs/be-01/src/app.ts",
+        "apps/wbs/be-01/src/controller/command-permission.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/import-current-authority.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/measure-refusal.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/resource-use-permission.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/visibility.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/work-package-move.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+        "apps/wbs/be-01/src/services.ts",
+        "apps/wbs/be-01/src/testing/organization-harness.ts",
+        "apps/wbs/be-01/src/testing/organization-route-inventory.ts",
+        "apps/wbs/be-01/src/testing/project-fixture.ts",
+        "apps/wbs/be-01/src/testing/route-requests.ts",
+        "apps/wbs/be-01/src/testing/space-fixture.ts",
+        "apps/wbs/fe-01/src/components/projects/project-picker.test.tsx",
+        "apps/wbs/fe-01/src/components/spaces/space-access.ts",
+        "apps/wbs/fe-01/src/components/spaces/space-page.test.tsx",
+        "apps/wbs/fe-01/src/components/spaces/space-page.tsx",
+        "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+        "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+        "apps/wbs/fe-01/src/components/wbs/plan-import-words.test.ts",
+        "apps/wbs/fe-01/src/components/wbs/plan-import-words.ts",
+        "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+        "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+        "apps/wbs/fe-01/src/modules/work-package/work-package-catalog.feature.test.ts",
+        "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+        "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+        "apps/wbs/fe-01/tsconfig.app.json",
+        "apps/wbs/fe-01/tsconfig.e2e.json",
+        "apps/wbs/fe-01/tsconfig.json",
+        "apps/wbs/mcp-01/src/generated-document.test.ts",
+        "libs/wbs/adapters/store-memory/src/calendar-marker-fixture.ts",
+        "libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+        "libs/wbs/adapters/store-memory/src/current-parent-package.test.ts",
+        "libs/wbs/adapters/store-memory/src/in-memory-source.ts",
+        "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+        "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+        "libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+        "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+        "libs/wbs/adapters/store-memory/src/project-fixture.ts",
+        "libs/wbs/adapters/store-memory/src/settings-fixture.test.ts",
+        "libs/wbs/adapters/store-memory/src/settings-fixture.ts",
+        "libs/wbs/adapters/store-memory/src/source.ts",
+        "libs/wbs/adapters/store-memory/src/space-fixture.test.ts",
+        "libs/wbs/adapters/store-memory/src/space-fixture.ts",
+        "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+        "libs/wbs/adapters/store-memory/src/work-package-fixture.ts",
+        "libs/wbs/adapters/store-sqlite/src/access-decisions.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/access-decisions.ts",
+        "libs/wbs/adapters/store-sqlite/src/add-setting-value.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/build-stores.ts",
+        "libs/wbs/adapters/store-sqlite/src/calendar-marker-migration.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/calendar-marker.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/calendar-marker.ts",
+        "libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/fanout-capture.ts",
+        "libs/wbs/adapters/store-sqlite/src/project-administration.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/project-administration.ts",
+        "libs/wbs/adapters/store-sqlite/src/project-in-one-space.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/project-operations.ts",
+        "libs/wbs/adapters/store-sqlite/src/project-read.ts",
+        "libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/resource-use.ts",
+        "libs/wbs/adapters/store-sqlite/src/saved-current-capture.ts",
+        "libs/wbs/adapters/store-sqlite/src/saved-plan.ts",
+        "libs/wbs/adapters/store-sqlite/src/schema.ts",
+        "libs/wbs/adapters/store-sqlite/src/scoped-import-dependencies.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/settings.ts",
+        "libs/wbs/adapters/store-sqlite/src/shared-occupancy.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/source.ts",
+        "libs/wbs/adapters/store-sqlite/src/space-rollback.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/space-rollback.ts",
+        "libs/wbs/adapters/store-sqlite/src/space.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/space.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/space-database.ts",
+        "libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+        "libs/wbs/adapters/store-sqlite/src/work-package-observation.ts",
+        "libs/wbs/adapters/store-sqlite/src/work-package-read-owner.ts",
+        "libs/wbs/adapters/store-sqlite/src/work-package-row.ts",
+        "libs/wbs/adapters/store-sqlite/src/work-package.ts",
+        "libs/wbs/application/conformance/src/case-manifest.test.ts",
+        "libs/wbs/application/conformance/src/case-manifest.ts",
+        "libs/wbs/application/conformance/src/certification.ts",
+        "libs/wbs/application/conformance/src/index.ts",
+        "libs/wbs/application/conformance/src/project-store-conformance.ts",
+        "libs/wbs/application/conformance/src/source-conformance.ts",
+        "libs/wbs/application/conformance/src/space-store-conformance.ts",
+        "libs/wbs/application/conformance/src/stores/existing.test.ts",
+        "libs/wbs/application/conformance/src/stores/settings.ts",
+        "libs/wbs/application/core/src/compose.ts",
+        "libs/wbs/application/core/src/http/import.routes.test.ts",
+        "libs/wbs/application/core/src/http/import.routes.ts",
+        "libs/wbs/application/core/src/http/project.routes.test.ts",
+        "libs/wbs/application/core/src/http/project.routes.ts",
+        "libs/wbs/application/core/src/http/saved-plan.routes.ts",
+        "libs/wbs/application/core/src/http/space.routes.ts",
+        "libs/wbs/application/core/src/http/step.routes.test.ts",
+        "libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+        "libs/wbs/application/core/src/http/work-package.routes.ts",
+        "libs/wbs/application/core/src/index.ts",
+        "libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+        "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+        "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+        "libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+        "libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+        "libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+        "libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+        "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+        "libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+        "libs/wbs/application/core/src/module/plan-import/composition.ts",
+        "libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+        "libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts",
+        "libs/wbs/application/core/src/module/plan-import/module.test.ts",
+        "libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts",
+        "libs/wbs/application/core/src/module/work-package/check.ts",
+        "libs/wbs/application/core/src/module/work-package/module.ts",
+        "libs/wbs/application/core/src/module/work-package/work-package-birth.ts",
+        "libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+        "libs/wbs/application/core/src/module/work-package/work-package.resource.ts",
+        "libs/wbs/application/core/src/ports/access-decisions.ts",
+        "libs/wbs/application/core/src/ports/calendar-marker-store.ts",
+        "libs/wbs/application/core/src/ports/fanout-capture-store.ts",
+        "libs/wbs/application/core/src/ports/project-read.ts",
+        "libs/wbs/application/core/src/ports/project-store.ts",
+        "libs/wbs/application/core/src/ports/setting-store.ts",
+        "libs/wbs/application/core/src/ports/space-store.ts",
+        "libs/wbs/application/core/src/ports/stores.ts",
+        "libs/wbs/application/core/src/ports/work-package-values.ts",
+        "libs/wbs/application/core/src/service/authorize.test.ts",
+        "libs/wbs/application/core/src/service/authorize.ts",
+        "libs/wbs/application/core/src/service/dependency-context.test.ts",
+        "libs/wbs/application/core/src/service/dependency-context.ts",
+        "libs/wbs/application/core/src/service/project-settings.ts",
+        "libs/wbs/application/core/src/service/project.resource.test.ts",
+        "libs/wbs/application/core/src/service/project.resource.ts",
+        "libs/wbs/application/core/src/service/space.resource.test.ts",
+        "libs/wbs/application/core/src/service/space.resource.ts",
+        "libs/wbs/application/core/src/testing/import-service-source-contract.ts",
+        "libs/wbs/application/core/src/testing/legacy-package-source-fixture.ts",
+        "libs/wbs/domain/contracts/src/dependency-client.test.ts",
+        "libs/wbs/domain/contracts/src/http/import-shapes.test.ts",
+        "libs/wbs/domain/contracts/src/http/import-shapes.ts",
+        "libs/wbs/domain/contracts/src/http/project-shapes.ts",
+        "libs/wbs/domain/contracts/src/http/refusal.ts",
+        "libs/wbs/domain/contracts/src/http/shapes.ts",
+        "libs/wbs/domain/contracts/src/http/space-shapes.ts",
+        "libs/wbs/domain/contracts/src/http/work-package-shapes.ts",
+        "libs/wbs/domain/domain/src/settings/resolve-setting.ts",
+        "openspec/changes/wbs-work-packages/specs/work-packages/spec.md",
+        "tsconfig.base.json"
+      ]
+    }
+  },
+  "checks": [
+    {
+      "id": "projectV17",
+      "epoch": "V17",
+      "counts": {
+        "pass": 129,
+        "fail": 0,
+        "expects": 1063,
+        "files": 2,
+        "durationSeconds": 70.67
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-administration.db.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-settings-overlay-v17/tree",
+        "deadlineMs": 240000
+      },
+      "argvSha256": "364ed070ca52ad8549c10ac3f8f85d1a4055fa54c7370b09c06b105c397eda29",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-settings-overlay-v17-project-full-v1",
+      "rawSha256": "74187e8c34e69cdf999036f9c35d393f7426a5796328f25bd152e545703580e4",
+      "rawBytes": 13612,
+      "receiptSha256": "cc0da7c858470df87f6dd1bfe8ad973bc2061b4d3ecc069bfe5fd05556ca798a",
+      "validationSha256": "5168f10d181dd3a823aae0fc45a5c31f3a69b252f63d6d148d5a387e71830078",
+      "requestSha256": "bd1b08e4cb50823648855da73040ab4c1469016c5e7d17f1b0aeb1227a82d72d",
+      "validation": {
+        "post475Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags"
+    },
+    {
+      "id": "formatV17",
+      "epoch": "V17",
+      "counts": {
+        "matchedPaths": 154
+      },
+      "command": {
+        "cwd": "/tmp/puni-settings-overlay-v17/tree",
+        "deadlineMs": 240000,
+        "normalizedArgv": {
+          "prefix": [
+            "/home/df/.bun/bin/bun",
+            "./node_modules/prettier/bin/prettier.cjs",
+            "--check"
+          ],
+          "appendScope": "format154",
+          "exclude": []
+        }
+      },
+      "argvSha256": "99569b3f57608ce4ee7c56c7ca032f6d73640378f87875132b1800ff96c0b5c3",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-settings-overlay-v17-format-v1",
+      "rawSha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "rawBytes": 66,
+      "receiptSha256": "91a065455f95d276202391d24dbede5f3a30cd6665b441b7828dbbb1e4e96475",
+      "validationSha256": "4c5ca0619ed6a5dc31289bbfc914f072544d052576058c9dec730ed51980107e",
+      "requestSha256": "a8e514dad9b39ca4d66555d89634d3531f118f85d42316f2912b3419458fdd8f",
+      "validation": {
+        "post475Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags"
+    },
+    {
+      "id": "lintV17",
+      "epoch": "V17",
+      "counts": {
+        "distinctReports": 149,
+        "errors": 0,
+        "warnings": 0,
+        "fatals": 0,
+        "messages": 0
+      },
+      "command": {
+        "cwd": "/tmp/puni-settings-overlay-v17/tree",
+        "deadlineMs": 240000,
+        "normalizedArgv": {
+          "prefix": [
+            "/home/df/.bun/bin/bun",
+            "./node_modules/eslint/bin/eslint.js",
+            "--no-cache",
+            "--max-warnings=0",
+            "--format=json"
+          ],
+          "appendScope": "format154",
+          "exclude": [
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.e2e.json",
+            "apps/wbs/fe-01/tsconfig.json",
+            "openspec/changes/wbs-work-packages/specs/work-packages/spec.md",
+            "tsconfig.base.json"
+          ]
+        }
+      },
+      "argvSha256": "b80d42b460e182e264182e6db6a73013718579dff173612293fc04d5f2230d1c",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-settings-overlay-v17-lint-v1",
+      "rawSha256": "fdd649b8c2fb894ed4152d8ca06385b1517bcb495089ffff1240fe4d76d8f546",
+      "rawBytes": 61663,
+      "receiptSha256": "0e9d679240f2db9e45c35a5e580cdf1c38cbe43bcd01170e33178b5287dea1c9",
+      "validationSha256": "41824964b144b8f584ddfbf03adfb73492053cfd8c3ac266b5009584ed888509",
+      "requestSha256": "a7e6b7f0af520bd999816eed4183e6ad5adcc2d58e785b4fe979d9b5a7a4db28",
+      "validation": {
+        "post475Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags"
+    },
+    {
+      "id": "typesV17",
+      "epoch": "V17",
+      "counts": {
+        "configuredRoots": 7,
+        "emptyDiagnostics": true
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/be-01/tsconfig.json",
+          "apps/wbs/fe-01/tsconfig.json",
+          "apps/wbs/gw-01/tsconfig.json",
+          "apps/wbs/mcp-01/tsconfig.json",
+          "libs/wbs/application/conformance/tsconfig.json",
+          "libs/wbs/adapters/store-memory/tsconfig.json",
+          "libs/wbs/adapters/store-sqlite/tsconfig.json"
+        ],
+        "cwd": "/tmp/puni-settings-overlay-v17/tree",
+        "deadlineMs": 240000
+      },
+      "argvSha256": "2c20cbd8f46794330d5dd10722ae9d814a3d4c235818e443793046d41386d4dd",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-settings-overlay-v17-types-v1",
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rawBytes": 0,
+      "receiptSha256": "400cbbf5d1ca52d4933c2ddf2421572d91e5e29829bca0b313c6df9130d9ac16",
+      "validationSha256": "8c8f102f827ee490fbabcc3bac640d951592fc13d317651f44a38b234dcc995b",
+      "requestSha256": "5c9e4922dada0ce13875311a74c09bcf9de695ae96aec8b8dcbd50953204ef40",
+      "validation": {
+        "post475Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags"
+    },
+    {
+      "id": "rollbackStorageV16",
+      "epoch": "V16 constituent",
+      "counts": {
+        "pass": 17,
+        "fail": 0,
+        "expects": 139,
+        "files": 3,
+        "durationSeconds": 10.09
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/calendar-marker.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/calendar-marker-migration.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-rollback.db.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-settings-overlay-v16/tree",
+        "deadlineMs": 180000
+      },
+      "argvSha256": "0350569ea6a85d129f4d5d5e8c8e3435684e0dc34b388df15d3a97950f618d25",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-settings-overlay-v16-rollback-storage-v1",
+      "rawSha256": "c14d55baa8a9eaa60295d3c36799fec88ebe98fcc471516f49bcacf2849d3858",
+      "rawBytes": 2368,
+      "receiptSha256": "619b53a33df66a3e9e2b2433bc20da1eb25cd54cc27692a852ea5a6cfd07e23b",
+      "validationSha256": "79646c362bd37e9250c8eb12d3b603ef326c5c2e000e32eb70d77e2c40f967f0",
+      "requestSha256": "4f4a01ddc9ac95730a13b9aea61208a738111118e8539bd16611d75d99ba7870",
+      "validation": {
+        "post475Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags"
+    },
+    {
+      "id": "uiV14",
+      "epoch": "V14 constituent",
+      "counts": {
+        "pass": 36,
+        "fail": 0,
+        "files": 2
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "../../../node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "vitest.config.ts",
+          "src/components/wbs/plan-import-words.test.ts",
+          "src/components/spaces/space-page.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-settings-overlay-v14/tree/apps/wbs/fe-01",
+        "deadlineMs": 180000
+      },
+      "argvSha256": "d662866c9874cb74706b6a095dbfea6df8acbdd3f6be36b515d06371c26b135f",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-settings-overlay-v14-ui-full-v2",
+      "rawSha256": "0932693d7f91eec828f8213e6383c335bd9b6c810163d52db9eeec51924b8992",
+      "rawBytes": 957,
+      "receiptSha256": "52c592cf2e5593022d34ce5e3330feba534943f3de7ce25a73ee8203d0370976",
+      "validationSha256": "a39c8a157d967aee2af45a6aafd4df37d55e67c64794f0c916786e66ae474b8e",
+      "requestSha256": "f4f4a1ed6fa746d6e9503f4b7a3db0ef3b21ecf744bed189cc1c4169b86e0211",
+      "validation": {
+        "post475Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags"
+    },
+    {
+      "id": "settingsConformanceV14",
+      "epoch": "V14 constituent",
+      "counts": {
+        "pass": 8,
+        "fail": 0,
+        "filtered": 168,
+        "expects": 270,
+        "files": 3,
+        "durationSeconds": 4.92
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/application/conformance/src/case-manifest.test.ts",
+          "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "--test-name-pattern",
+          "the closed case manifest|requires executable settings cases|settings source conformance",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-settings-overlay-v14/tree",
+        "deadlineMs": 180000
+      },
+      "argvSha256": "e44a2fd191cf12be67e4fdf9ac37c6ac4311376e107cb136aeaecad0a2e22a89",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-settings-conformance-git-successor-v2",
+      "rawSha256": "bcc357e23cad35b77202a1172b5629e776b5a26f4073ef1f86fcc4352fc666c3",
+      "rawBytes": 1182,
+      "receiptSha256": "e59f6a0cd6f819da12a5d989b9b11c90bcf7fb6192a8ddd7cf68f38c0a70cb11",
+      "validationSha256": "df646f5dd62f2c33de0c6ed28a32594aa5a67bbd325ac93b2f48bd82ab6afa45",
+      "requestSha256": "40c6e555696915678a2214ed6bf622a03b250401c218ff176a7cd53aeaca5c71",
+      "validation": {
+        "post475Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags"
+    },
+    {
+      "id": "settingsLive584",
+      "epoch": "Isolated live AF5E after V17 local publication; WBS584",
+      "counts": {
+        "pass": 120,
+        "fail": 0,
+        "expects": 792,
+        "files": 11,
+        "durationSeconds": 26.89
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/domain/domain/src/settings/catalogue.test.ts",
+          "./libs/wbs/domain/domain/src/settings/resolve-setting.test.ts",
+          "libs/wbs/adapters/store-memory/src/settings-fixture.test.ts",
+          "libs/wbs/adapters/store-memory/src/space-fixture.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/add-setting-value.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-in-one-space.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/space.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/calendar-marker.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/calendar-marker-migration.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-rollback.db.test.ts",
+          "libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/home/df/.codex/worktrees/af5e/puni-00",
+        "deadlineMs": 240000
+      },
+      "argvSha256": "59d0f89912a1fac70bd72639345cfa1dbcceb630fd3f80bc8768aafddd65ed7b",
+      "exitCode": 0,
+      "originalLocator": "/tmp/puni-live-settings-checks-v2",
+      "rawSha256": "be17a8e8ac832526593d35b6fa02a712feab4651c984f5f0ca883b0881c718b4",
+      "rawBytes": 13274,
+      "receiptSha256": "c6cafec2996850258131fc1d9adcb43f6d96f8224d2932d05af9f79f1d9e6db6",
+      "validationSha256": "e3c868e572c09f247a71ad77caed1746f5810051cb3736638e96adfdfc633a70",
+      "requestSha256": "db74c2bf57ab1a27e1d7c7216ef283230ac01d8d8bfe9908ba847bf892fe240d",
+      "sourceSnapshotSha256": "c0a02d96ceed681a22dbb86f84bc823848906cffca22778118e2282ecac78acb",
+      "validation": {
+        "post584Matched": true,
+        "supportsMatched": true,
+        "evidenceMatched": true
+      },
+      "nativeFlags": "allNativeFlags",
+      "qualification": "Eleven exact source test files. Earlier folder-selector attempt had two dist-JS collection errors; it is not a GREEN run. V2 only changed that selector to the two exact ./TS filenames."
+    }
+  ],
+  "fixtureCorrection": {
+    "before": {
+      "pass": 123,
+      "fail": 6,
+      "expects": 1021,
+      "rawSha256": "10a92e0d02984aab5a506c533a6b1908769c763502295c7bb84763d5614d7eda"
+    },
+    "cause": "seedPrivateChildren retained the creator project-manager parent grant, which legitimately includes package.read on both restricted children.",
+    "change": "Verify and remove exact existing-grant; retain the local organization.create_project role and add project.read. Assert exact creator grants, no package.read, and an empty actual readablePackageIds set before direct child grants.",
+    "retained": "All six zero/one assertions, queued direct-grant removal, corruption rollback, all-readable controls and production authorization policy.",
+    "testedTargets": [
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/project-administration.db.test.ts",
+        "sha256": "61c6c91e1437bf07ec322ce940bfafcc3f206ccbebd209a850dff1da23e65814"
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+        "sha256": "c9812dbea075e7d4646221956c733694c49dd2c05f792287e704634a716fb6ac"
+      }
+    ]
+  },
+  "localPublication": {
+    "locator": "/tmp/puni-settings-v17-publication-v1/publication.json",
+    "receiptSha256": "0f4f4837d0fdd3c31f8f63fd74547b231127fc75cc2212f7280db805ed0ff0eb",
+    "writes": 156,
+    "rows": 158,
+    "currentSourceCount": 584,
+    "currentSourceSha256": "c0a02d96ceed681a22dbb86f84bc823848906cffca22778118e2282ecac78acb",
+    "all584Matched": true,
+    "supports371Matched": true,
+    "manifestSha256": "f8486602938931c0a53acbb68bc1e8130c2da99125f7a9ef1016873ef80bb558",
+    "writeJournalSha256": "db6b839249ba18f03da0607ec604db16d9da169d77e8297b8cf92d2cfd1f34f4",
+    "forwardPatchSha256": "e03091fbe900f58a706c20519fdc03dc70852dbc231ae455cdeb8bc76f0092bf",
+    "inversePatchSha256": "7f7e42bdeb6ed7e925b9c149e91388e22758cc7b3bd10ac198545bfc73a41618",
+    "qualification": "Applied exact reviewed V17 source rows in isolated WBS feature worktree. No Git staging/commit/push, deploy, whole repository gate or full-goal completion claim."
+  },
+  "remaining": [
+    "Final document17/18",
+    "Settings UI and events",
+    "Permission matrix",
+    "Catalogue apply/history/APIs/UI and current consumers",
+    "Operator script migration",
+    "Combined gates"
+  ],
+  "limitations": [
+    "Recorded counts are completed scoped observations; no repository-wide gate, deployment, commit or task completion claim.",
+    "The public rollback wrapper paired-failure custody remains unverified; ordinary guarded refusal and supported roundtrip assertions do not prove a global cleanup policy.",
+    "Original private filesystem paths are evidence locators; commands, hashes, collection counts, custody and limits are included here for PR review without those files."
+  ],
+  "nativeRecordFormat": {
+    "originalLocator": "Directory containing native.log, native.receipt.json and native.validation.json. Hashes below bind originals; full logs/environments are deliberately excluded.",
+    "allNativeFlags": {
+      "originalObserved": true,
+      "settled": true,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    }
+  }
+}

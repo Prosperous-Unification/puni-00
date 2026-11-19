@@ -73,8 +73,13 @@ interface PerformanceServiceDescriptor {
   env: Record<string, string>;
 }
 
+/** Explicit Bun arguments belong only to the private fixture caller; candidate commands remain closed. */
+interface PerformanceFixtureServiceDescriptor extends PerformanceServiceDescriptor {
+  bunArgs: readonly [string, ...string[]];
+}
+
 /** Decodes the candidate WBS producer output before any command is launched. */
-function decodeServiceDescriptors(source: string): PerformanceServiceDescriptor[] {
+export function decodeServiceDescriptors(source: string): PerformanceServiceDescriptor[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
@@ -123,7 +128,7 @@ function decodeServiceDescriptors(source: string): PerformanceServiceDescriptor[
   });
 }
 
-function assertCandidateServiceDescriptors(
+export function assertCandidateServiceDescriptors(
   descriptors: readonly PerformanceServiceDescriptor[],
   checkoutRoot: string,
   shift: number,
@@ -136,33 +141,57 @@ function assertCandidateServiceDescriptors(
   const gwUrl = `http://localhost:${gwPort}`;
   const expected: readonly PerformanceServiceDescriptor[] = [
     {
-      command: 'bun src/main.ts',
+      command: 'bun src/testing/ordinary-browser-server.ts',
       cwd: join(checkoutRoot, 'apps/wbs/be-01'),
-      url: `${beUrl}/health`,
+      url: beUrl + '/_ordinary/ready',
       env: {
-        APP_ORIGIN: `http://localhost:${fePort}`,
+        E2E_CURRENT_COHORT: 'current',
+        NODE_ENV: 'development',
+        AUTH_MODE: 'local',
+        BROWSER_SESSION_AUTHORITY: 'enabled',
+        APP_ORIGIN: 'http://localhost:' + fePort,
         PORT: bePort,
         GW_URL: gwUrl,
         DB_PATH: runDatabase,
         HOSTNAME: 'e2e000000000',
-        MIGRATE_ON_STARTUP: 'true',
+        LOG_LEVEL: 'error',
+        JWT_SIGNING_KEY_CURRENT: 'test-jwt-signing-key-at-least-32-chars',
+        INTERNAL_AUTH_SECRET: 'ordinary-internal-secret-0123456789abcdef',
+        ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+        ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+        ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
+        MCP_BE_INTERNAL_SECRET: 'mcp-secret-0123456789abcdefghijklmn',
+        WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT: 'grant-key-g-0123456789abcdefghijklmn',
+        WBS_MCP_AUTHORIZATION_SERVER: 'https://wbs.example/mcp/oauth',
+        SOLVER_BUDGET_MS: '60000',
+        SOLVER_SEARCH_WORKERS: '2',
+        SOLVER_MEMORY_LIMIT_MB: '512',
       },
     },
     {
-      command: 'bun src/main.ts',
+      command: 'bun src/testing/ordinary-browser-gateway.ts',
       cwd: join(checkoutRoot, 'apps/wbs/gw-01'),
-      url: `${gwUrl}/health`,
-      env: { PORT: gwPort, BE_URL: beUrl },
+      url: gwUrl + '/health',
+      env: {
+        E2E_CURRENT_COHORT: 'current',
+        AUTH_MODE: 'oidc',
+        APP_ORIGIN: 'http://localhost:' + fePort,
+        PORT: gwPort,
+        BE_URL: beUrl,
+        LOG_LEVEL: 'error',
+        JWT_SIGNING_KEY_CURRENT: 'test-jwt-signing-key-at-least-32-chars',
+        INTERNAL_AUTH_SECRET: 'ordinary-internal-secret-0123456789abcdef',
+      },
     },
     {
-      command: 'bunx vite build --minify=false && bunx vite preview',
+      command: 'bun ordinary-browser-frontend.ts',
       cwd: join(checkoutRoot, 'apps/wbs/fe-01'),
-      url: `http://localhost:${fePort}`,
+      url: 'http://localhost:' + fePort,
       env: {
         PORT: fePort,
         VITE_BE_URL: beUrl,
         VITE_GW_URL: gwUrl,
-        VITE_WS_URL: `ws://localhost:${gwPort}/ws`,
+        VITE_WS_URL: 'ws://localhost:' + gwPort + '/ws',
       },
     },
   ];
@@ -704,6 +733,7 @@ async function invokePlaywright(
   owner: PerformanceProcessOwner,
   deadlineMs: number,
   selectionEnvironment: { CI: '1'; E2E_PORT_SHIFT: string },
+  runDatabase: string,
 ): Promise<Invocation> {
   // Proof: inheriting process.env made the scratch config consume injected PLAYWRIGHT_GREP;
   // the production fixture test then failed exact collection instead of measuring its case.
@@ -713,6 +743,7 @@ async function invokePlaywright(
     TMPDIR: tmpdir(),
     LANG: 'C.UTF-8',
     PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile,
+    E2E_TEST_DATABASE: runDatabase,
     CI: selectionEnvironment.CI,
     E2E_PORT_SHIFT: selectionEnvironment.E2E_PORT_SHIFT,
   };
@@ -1120,7 +1151,7 @@ export function xmlText(value: string): string {
 async function runLockedPerformanceLevel(
   candidateRoot: string,
   rulePolicyPath?: string,
-  injectedDescriptors?: readonly PerformanceServiceDescriptor[],
+  injectedDescriptors?: readonly PerformanceFixtureServiceDescriptor[],
 ): Promise<void> {
   const report = join(candidateRoot, reportPath);
   const binding = join(candidateRoot, bindingPath);
@@ -1264,7 +1295,7 @@ async function runLockedPerformanceLevel(
         selectionEnvironment,
       ));
     const expectedUrls = [
-      `http://localhost:${String(3100 + shift)}/health`,
+      `http://localhost:${String(3100 + shift)}/_ordinary/ready`,
       `http://localhost:${String(3200 + shift)}/health`,
       `http://localhost:${String(4200 + shift)}`,
     ];
@@ -1283,13 +1314,25 @@ async function runLockedPerformanceLevel(
         throw new Error('Performance service descriptor leaves the checked-out shifted stack');
       return { ...descriptor, cwd };
     });
-    const serviceChildren = normalizedDescriptors.map((descriptor) =>
-      activeOwner.spawn(
-        ['sh', '-c', descriptor.command],
-        descriptor.cwd,
-        executionEnvironment(descriptor.env, selectionEnvironment),
-      ),
-    );
+    const serviceArguments: readonly (readonly string[])[] =
+      injectedDescriptors === undefined
+        ? [
+            [process.execPath, 'src/testing/ordinary-browser-server.ts'],
+            [process.execPath, 'src/testing/ordinary-browser-gateway.ts'],
+            [process.execPath, 'ordinary-browser-frontend.ts'],
+          ]
+        : injectedDescriptors.map((descriptor) => [process.execPath, ...descriptor.bunArgs]);
+    const serviceChildren = normalizedDescriptors.map((descriptor, index) => {
+      const argv = serviceArguments.at(index);
+      if (argv === undefined)
+        throw new Error(
+          'Performance service descriptors differ from the approved shifted WBS stack',
+        );
+      return activeOwner.spawn([...argv], descriptor.cwd, {
+        ...executionEnvironment(descriptor.env, selectionEnvironment),
+        E2E_TEST_DATABASE: runDatabase,
+      });
+    });
     await awaitServiceReadiness(normalizedDescriptors, serviceChildren, 120_000);
     await assertPinnedCheckout(
       checkoutRoot,
@@ -1316,12 +1359,13 @@ async function runLockedPerformanceLevel(
       '--reporter=json',
     ];
     const listedInvocation = await invokePlaywright(
-      ['node', playwrightCli, ...listArguments],
+      [process.execPath, playwrightCli, ...listArguments],
       checkoutRoot,
       join(archiveParent, 'list.json'),
       activeOwner,
       20_000,
       selectionEnvironment,
+      runDatabase,
     );
     await writeBundleArtifact(bundle, 'discovery.json', listedInvocation.stdout);
     // Proof: disabling this exit-status guard made the nonzero-discovery scratch target
@@ -1362,12 +1406,13 @@ async function runLockedPerformanceLevel(
       'before execution',
     );
     const runInvocation = await invokePlaywright(
-      ['node', playwrightCli, ...runArguments],
+      [process.execPath, playwrightCli, ...runArguments],
       checkoutRoot,
       join(archiveParent, 'run.json'),
       activeOwner,
       120_000,
       selectionEnvironment,
+      runDatabase,
     );
     await writeBundleArtifact(bundle, 'run.json', runInvocation.stdout);
     const executed = decodePlaywrightReport(
@@ -1584,7 +1629,7 @@ async function runLockedPerformanceLevel(
 export async function runPerformanceLevel(
   candidateRoot: string,
   rulePolicyPath?: string,
-  injectedDescriptors?: readonly PerformanceServiceDescriptor[],
+  injectedDescriptors?: readonly PerformanceFixtureServiceDescriptor[],
 ): Promise<void> {
   return withPerformanceLock(candidateRoot, () =>
     runLockedPerformanceLevel(candidateRoot, rulePolicyPath, injectedDescriptors),

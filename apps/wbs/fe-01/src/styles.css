@@ -488,7 +488,7 @@
    *
    * Proof: this rule deleted, `draws no platform bevel and no ink-coloured
    * frame` in `e2e/chrome-frames.spec.ts` failed on the home card,
-   * `section[data-no-project-open] · Top edge in its ink`, in both palettes.
+   * `section[data-no-work-package-open] · Top edge in its ink`, in both palettes.
    */
   *:not([data-grid], [data-grid] *),
   :not([data-grid], [data-grid] *)::before,
@@ -739,7 +739,7 @@
    * A card that opens from a cell is a **child of that cell**, so it takes the
    * grid's 13px over a 1.4 line from the rule above by inheritance and always
    * has. A card that is **portalled** — the hint layer's, which is what most of
-   * the table's columns answer with, the Gantt's, and the project picker's — is
+   * the table's columns answer with, the Gantt's, and the workPackage picker's — is
    * a child of `<body>`, which is outside the `font-sans` on `<main>` and
    * outside `[data-grid]` both. Measured in Chromium on 2026-09-11: the Slack
    * cell's fact came out `Times / 16px / normal` beside the notes preview's

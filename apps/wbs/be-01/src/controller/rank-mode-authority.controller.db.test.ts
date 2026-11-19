@@ -2,9 +2,9 @@ import type { OrganizationAccess } from '@wbs/core';
 import type { ResourceAccess, UnitOfWork } from '@wbs/core';
 import { clockOf } from '@wbs/core';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
-import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
+import { workPackageRankRoutes } from '@wbs/core/http/work-package-rank.routes';
 import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
-import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
+import { WorkPackageRankResource } from '@wbs/core/service/work-package-rank.resource';
 import { standaloneCapacityModeSwitch } from '@wbs/core/service/standalone-capacity-mode';
 import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
 import { AccessDecisionRepository } from '@wbs/store-sqlite/access-decisions';
@@ -14,8 +14,8 @@ import {
   SqliteOrganizationAccess,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite/organization-access';
-import { ProjectRepository } from '@wbs/store-sqlite/project';
-import { ProjectRankRepository } from '@wbs/store-sqlite/project-rank';
+import { WorkPackageRepository } from '@wbs/store-sqlite/work-package';
+import { WorkPackageRankRepository } from '@wbs/store-sqlite/work-package-rank';
 import { afterEach, beforeEach, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -39,12 +39,12 @@ beforeEach(async () => {
   for (const username of ['keeper', 'other']) harness.bind(username, 'org-a');
   harness.activate();
   for (const name of ['First', 'Second']) {
-    const created = await harness.call('keeper', 'POST', '/api/projects', { name });
-    if (created.status !== 200) throw new Error('rank/mode project setup refused');
+    const created = await harness.call('keeper', 'POST', '/api/work-packages', { name });
+    if (created.status !== 200) throw new Error('rank/mode work package setup refused');
     const saved = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
+      .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
       .get(name);
-    if (saved === null) throw new Error('rank/mode project setup missing');
+    if (saved === null) throw new Error('rank/mode work package setup missing');
     if (name === 'First') first = saved.id;
     else second = saved.id;
   }
@@ -62,7 +62,7 @@ function makeAccess(username = 'keeper'): Extract<ResourceAccess, { kind: 'scope
 }
 function captureState() {
   return [
-    'project_rank',
+    'work_package_rank',
     'organization',
     'shared_people_audit',
     'event_log',
@@ -75,8 +75,8 @@ function openResources(uow?: UnitOfWork) {
   const boundary = harness.publicWrites();
   const delivery = boundary.committedFanout;
   if (delivery === undefined) throw new Error('rank/mode fixture lacks committed delivery');
-  const raw = new ProjectRankRepository(connection.db, OPEN),
-    catalog = new ProjectRepository(connection.db, OPEN);
+  const raw = new WorkPackageRankRepository(connection.db, OPEN),
+    catalog = new WorkPackageRepository(connection.db, OPEN);
   const ranks = standaloneRankStore(raw, uow ?? boundary.uow, delivery, boundary.commandAccess);
   const modes = standaloneCapacityModeSwitch(
     raw,
@@ -84,9 +84,9 @@ function openResources(uow?: UnitOfWork) {
     delivery,
     boundary.commandAccess,
   );
-  const projects = {
+  const workPackages = {
     listWithin: (actorId: string, access: ResourceAccess) => {
-      if (access.kind === 'legacy') throw new Error('unexpected legacy project list');
+      if (access.kind === 'legacy') throw new Error('unexpected legacy work package list');
       return catalog.listForInOrganization(actorId, access.scope.organizationId);
     },
   };
@@ -97,8 +97,13 @@ function openResources(uow?: UnitOfWork) {
     delivery,
     ranks,
     modes,
-    projects,
-    rankResource: new ProjectRankResource({ ranks, projects, clock, accessDecisions: decisions }),
+    workPackages,
+    rankResource: new WorkPackageRankResource({
+      ranks,
+      workPackages,
+      clock,
+      accessDecisions: decisions,
+    }),
     modeResource: new CapacityModeResource({
       modes,
       clock,
@@ -153,7 +158,7 @@ for (const operation of operations) {
           rankWrite = spyOn(fixture.ranks, 'moveAfter'),
           modeRead = spyOn(fixture.modes, 'capacityModeIn'),
           modeWrite = spyOn(fixture.modes, 'switchCapacityMode'),
-          names = spyOn(fixture.projects, 'listWithin'),
+          names = spyOn(fixture.workPackages, 'listWithin'),
           published = spyOn(fixture.delivery, 'deliverCommitted');
         const before = captureState();
         try {
@@ -251,13 +256,13 @@ for (const operation of ['rank read', 'rank move', 'mode read', 'mode switch'] a
         try {
           const reply =
             operation === 'rank read'
-              ? await harness.call('keeper', 'GET', '/api/organization/project-rank')
+              ? await harness.call('keeper', 'GET', '/api/organization/work-package-rank')
               : operation === 'rank move'
                 ? await harness.call(
                     'keeper',
                     'POST',
-                    '/api/organization/projects/' + second + '/rank',
-                    { afterProjectId: null },
+                    '/api/organization/work-packages/' + second + '/rank',
+                    { afterWorkPackageId: null },
                   )
                 : operation === 'mode read'
                   ? await harness.call('keeper', 'GET', '/api/organization')
@@ -268,7 +273,7 @@ for (const operation of ['rank read', 'rank move', 'mode read', 'mode switch'] a
           if (operation === 'mode read') expect(reply.body).toMatchObject({ canSwitch: true });
           if (operation === 'rank move')
             expect(reply.body).toMatchObject({
-              projects: [{ projectId: second }, { projectId: first }],
+              workPackages: [{ workPackageId: second }, { workPackageId: first }],
             });
           if (operation === 'mode switch') expect(reply.body).toMatchObject({ sharedPeople: true });
           expect(resolutions).toBe(
@@ -300,10 +305,10 @@ for (const changed of ['target', 'destination', 'sharedPeople'] as const) {
         return resolved;
       },
     };
-    const rankEndpoints = projectRankRoutes(fixture.rankResource, organizations),
+    const rankEndpoints = workPackageRankRoutes(fixture.rankResource, organizations),
       modeEndpoints = capacityModeRoutes(fixture.modeResource, organizations);
     const params = { id: second },
-      body = { afterProjectId: null as string | null },
+      body = { afterWorkPackageId: null as string | null },
       mode = { sharedPeople: true };
     const request = {
       method: changed === 'sharedPeople' ? 'PATCH' : 'POST',
@@ -323,7 +328,7 @@ for (const changed of ['target', 'destination', 'sharedPeople'] as const) {
         : rankEndpoints[1].handle({ principal: caller, params, query: undefined, body, request });
     await entered.promise;
     if (changed === 'target') params.id = first;
-    else if (changed === 'destination') body.afterProjectId = first;
+    else if (changed === 'destination') body.afterWorkPackageId = first;
     else mode.sharedPeople = false;
     held.resolve(undefined);
     try {
@@ -332,7 +337,7 @@ for (const changed of ['target', 'destination', 'sharedPeople'] as const) {
       expect(reply.body).toMatchObject(
         changed === 'sharedPeople'
           ? { sharedPeople: true }
-          : { projects: [{ projectId: second }, { projectId: first }] },
+          : { workPackages: [{ workPackageId: second }, { workPackageId: first }] },
       );
     } finally {
       held.resolve(undefined);
@@ -351,7 +356,7 @@ function wrapOwner(patch: 'retired slots' | 'capture' | 'ranks' | 'grants'): Uni
           return perform(without);
         }
         if (patch === 'ranks') {
-          const { projectRanks, ...stores } = scope.stores;
+          const { workPackageRanks, ...stores } = scope.stores;
           return perform({ ...scope, stores });
         }
         if (patch === 'grants') {
@@ -439,7 +444,7 @@ for (const operation of ['rank', 'mode'] as const) {
           if (operation === 'rank') {
             const rows = harness.sqlite
               .query<{ created_by: string; created_at: number }, []>(
-                'SELECT created_by,created_at FROM project_rank',
+                'SELECT created_by,created_at FROM work_package_rank',
               )
               .all();
             expect(rows).toHaveLength(2);
@@ -530,8 +535,10 @@ it('moves rank with current grants and no retired role-authority slots', async (
         principal,
         expectedAccess: makeAccess(),
       }),
-    ).toMatchObject({ ok: true, order: [{ projectId: second }, { projectId: first }] });
-    expect(harness.sqlite.query('SELECT project_id FROM project_rank').all()).toHaveLength(2);
+    ).toMatchObject({ ok: true, order: [{ workPackageId: second }, { workPackageId: first }] });
+    expect(
+      harness.sqlite.query('SELECT work_package_id FROM work_package_rank').all(),
+    ).toHaveLength(2);
   } finally {
     fixture.connection.close();
   }
@@ -652,8 +659,10 @@ for (const operation of operations) {
         operation === 'rank read' || operation === 'rank move'
           ? {
               ok: true,
-              projects: [
-                expect.objectContaining({ projectId: operation === 'rank read' ? first : second }),
+              workPackages: [
+                expect.objectContaining({
+                  workPackageId: operation === 'rank read' ? first : second,
+                }),
                 expect.anything(),
               ],
             }
@@ -753,9 +762,14 @@ for (const operation of ['rank move', 'mode switch'] as const) {
   it('uses a minimal current grant at ' + operation + ' despite viewer storage', async () => {
     const reply =
       operation === 'rank move'
-        ? await harness.call('other', 'POST', '/api/organization/projects/' + second + '/rank', {
-            afterProjectId: null,
-          })
+        ? await harness.call(
+            'other',
+            'POST',
+            '/api/organization/work-packages/' + second + '/rank',
+            {
+              afterWorkPackageId: null,
+            },
+          )
         : await harness.call('other', 'PATCH', '/api/organization', { sharedPeople: true });
     expect(reply.status).toBe(200);
   });
@@ -884,7 +898,9 @@ for (const operation of ['rank', 'mode'] as const) {
         const actors =
           operation === 'rank'
             ? harness.sqlite
-                .query<{ actor_id: string }, []>('SELECT created_by AS actor_id FROM project_rank')
+                .query<{ actor_id: string }, []>(
+                  'SELECT created_by AS actor_id FROM work_package_rank',
+                )
                 .all()
             : harness.sqlite
                 .query<{ actor_id: string }, [string]>(

@@ -1,3 +1,4 @@
+import {readSqliteMeasureEstimatesIn} from './tuple-reads';
 import type {
   MeasureEstimateStore,
   StepWriteOutcome,
@@ -12,8 +13,8 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { measureEstimate, projectOrganization, step, stepMeasure, workItem } from './schema';
-import { basisColumns, basisOf, measureIdFor } from './step-measure';
+import { measureEstimate, workPackageOrganization, stepMeasure, workItem } from './schema';
+import { basisColumns, measureIdFor } from './step-measure';
 import { writingStep } from './step-reference';
 
 const LEGACY_TOKEN_ESTIMATE = 'token_estimate';
@@ -37,39 +38,9 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
     private readonly gate: Gate,
   ) {}
 
-  /** Every trio in the project, in work item, step position and key order. */
-  async listByProject(projectId: string): Promise<StoredMeasureEstimate[]> {
-    await Promise.resolve();
-    return (
-      this.db
-        .select({
-          workItemId: measureEstimate.workItemId,
-          stepId: measureEstimate.stepId,
-          key: measureEstimate.measureKey,
-          optimistic: measureEstimate.optimistic,
-          realistic: measureEstimate.realistic,
-          pessimistic: measureEstimate.pessimistic,
-          singlePoint: measureEstimate.singlePoint,
-          currency: measureEstimate.currency,
-          rateCardDigest: measureEstimate.rateCardDigest,
-        })
-        .from(measureEstimate)
-        // Inner joins: both columns are foreign keys.
-        .innerJoin(step, eq(measureEstimate.stepId, step.id))
-        .innerJoin(workItem, eq(measureEstimate.workItemId, workItem.id))
-        .where(eq(workItem.projectId, projectId))
-        .orderBy(
-          measureEstimate.workItemId,
-          step.position,
-          measureEstimate.stepId,
-          measureEstimate.measureKey,
-        )
-        .all()
-        .map(({ currency, rateCardDigest, ...row }) => ({
-          ...row,
-          ...basisOf(currency, rateCardDigest),
-        }))
-    );
+  /** Every complete measure-keyed trio in one coherent current SC18 snapshot. */
+  async listByWorkPackage(workPackageId:string):Promise<StoredMeasureEstimate[]>{
+    return await this.gate.enter(()=>Promise.resolve(this.db.transaction(tx=>readSqliteMeasureEstimatesIn(tx,workPackageId,null))));
   }
 
   /**
@@ -201,18 +172,21 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
 
   /**
    * The definition id a trio in `key` references: the owning organization's,
-   * or null for `tokens` on a project no organization owns.
+   * or null for `tokens` on a work package no organization owns.
    *
-   * @throws when an owned project's organization defines no such key, or an
-   * unowned project's trio is in anything but tokens.
+   * @throws when an owned work package's organization defines no such key, or an
+   * unowned work package's trio is in anything but tokens.
    */
   private referenceOf(tx: SQLiteBunDatabase, workItemId: string, key: string): string | null {
     const resolved = measureIdFor(tx, workItemId, key);
     if (resolved !== null) return resolved;
     const owned = tx
-      .select({ organizationId: projectOrganization.organizationId })
+      .select({ organizationId: workPackageOrganization.organizationId })
       .from(workItem)
-      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .innerJoin(
+        workPackageOrganization,
+        eq(workPackageOrganization.resourceId, workItem.workPackageId),
+      )
       .where(eq(workItem.id, workItemId))
       .get();
     // Proof: with this throw removed, the SQLite certification's

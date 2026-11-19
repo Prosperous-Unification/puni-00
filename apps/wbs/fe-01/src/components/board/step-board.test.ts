@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { planRead, workItemView } from '@/testing/views';
 
-import { projectStepBoard } from './step-board';
+import { workPackageStepBoard } from './step-board';
 
-describe('projectStepBoard', () => {
+describe('workPackageStepBoard', () => {
   it('keeps held and unestimated leaves with no slices, excludes parents, and counts step progress', () => {
     const plan = planRead({
       seq: 42,
-      projectRevision: 7,
+      workPackageRevision: 7,
       slices: [],
       steps: [
         { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 },
@@ -36,9 +36,9 @@ describe('projectStepBoard', () => {
       ],
     });
 
-    expect(projectStepBoard(plan)).toEqual({
+    expect(workPackageStepBoard(plan)).toEqual({
       seq: 42,
-      projectRevision: 7,
+      workPackageRevision: 7,
       columns: {
         unknown: [
           {
@@ -88,7 +88,7 @@ describe('projectStepBoard', () => {
 
   it('keeps card identity through label changes and changes it when a step is recreated', () => {
     const leaf = workItemView({ id: 'leaf', number: '010', name: 'Build' });
-    const first = projectStepBoard(
+    const first = workPackageStepBoard(
       planRead({
         workItems: [leaf],
         steps: [
@@ -96,7 +96,7 @@ describe('projectStepBoard', () => {
         ],
       }),
     );
-    const renamed = projectStepBoard(
+    const renamed = workPackageStepBoard(
       planRead({
         workItems: [{ ...leaf, number: '020', name: 'Build again' }],
         steps: [
@@ -109,7 +109,7 @@ describe('projectStepBoard', () => {
         ],
       }),
     );
-    const recreated = projectStepBoard(
+    const recreated = workPackageStepBoard(
       planRead({
         workItems: [{ ...leaf, number: '020' }],
         steps: [
@@ -135,8 +135,8 @@ describe('projectStepBoard', () => {
     expect(recreated.columns.unknown).toMatchObject([{ id: 'sn1.leaf.replacement' }]);
   });
 
-  it('produces no cards when work items have no project steps', () => {
-    expect(projectStepBoard(planRead({ workItems: [workItemView()] })).columns).toEqual({
+  it('produces no cards when work items have no work package steps', () => {
+    expect(workPackageStepBoard(planRead({ workItems: [workItemView()] })).columns).toEqual({
       unknown: [],
       inProgress: [],
       done: [],
@@ -146,7 +146,7 @@ describe('projectStepBoard', () => {
   it('rejects malformed progress instead of treating it as Unknown', () => {
     const leaf = workItemView({ progress: { qa: 'blocked' as 'done' } });
     expect(() =>
-      projectStepBoard(
+      workPackageStepBoard(
         planRead({
           workItems: [leaf],
           steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
@@ -158,7 +158,7 @@ describe('projectStepBoard', () => {
   it('rejects progress naming a step absent from this delivered tree', () => {
     const leaf = workItemView({ progress: { oldStep: 'done' } });
     expect(() =>
-      projectStepBoard(
+      workPackageStepBoard(
         planRead({
           workItems: [leaf],
           steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
@@ -178,14 +178,14 @@ describe('projectStepBoard', () => {
         { estimateUnit: 'workdays' as const, id: 'dev', name: 'Development', allowancePercent: 0 },
       ],
     });
-    expect(projectStepBoard(plan).columns.unknown.map((card) => card.id)).toEqual([
+    expect(workPackageStepBoard(plan).columns.unknown.map((card) => card.id)).toEqual([
       'sn1.z-leaf.qa',
       'sn1.z-leaf.dev',
       'sn1.a-leaf.qa',
       'sn1.a-leaf.dev',
     ]);
     expect(
-      projectStepBoard({ ...plan, steps: [...plan.steps].reverse() }).columns.unknown.map(
+      workPackageStepBoard({ ...plan, steps: [...plan.steps].reverse() }).columns.unknown.map(
         (card) => card.id,
       ),
     ).toEqual(['sn1.z-leaf.dev', 'sn1.z-leaf.qa', 'sn1.a-leaf.dev', 'sn1.a-leaf.qa']);
@@ -195,7 +195,7 @@ describe('projectStepBoard', () => {
     const step = { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 };
     const leaf = workItemView({ id: 'leaf' });
     expect(() =>
-      projectStepBoard(
+      workPackageStepBoard(
         planRead({
           workItems: [leaf, { ...leaf, number: '020' }],
           steps: [step],
@@ -208,7 +208,7 @@ describe('projectStepBoard', () => {
     const step = { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 };
     const leaf = workItemView({ id: 'leaf' });
     expect(() =>
-      projectStepBoard(
+      workPackageStepBoard(
         planRead({
           workItems: [leaf],
           steps: [step, { ...step, name: 'Repeated' }],

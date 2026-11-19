@@ -11,7 +11,7 @@ import { readMigrationFolders, rollbackTo } from './migrate-down';
 /**
  * **The check that a thing was _not_ done.**
  *
- * `priority-default-medium` gives every *newly created* work item the project's
+ * `priority-default-medium` gives every *newly created* work item the work package's
  * middle rung and deliberately ships **no migration and no backfill**: a plan
  * written before it keeps its blank priorities, because moving every row on
  * screen for a default nobody typed is the one thing the change refused
@@ -71,15 +71,15 @@ describe('the priorities of a plan written before the default', () => {
           "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'hash', 1)",
         );
         before.run(
-          "INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('p', 'Rewire the shed', 'ada', 0, 'pert', NULL, 0, 1)",
+          "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('p', 'Rewire the shed', 'ada', 0, 'pert', NULL, 0, 1)",
         );
         // Two rows nobody prioritised — the state every plan in the database is
         // in on the day this change ships.
         before.run(
-          "INSERT INTO work_item (id, project_id, position, name) VALUES ('strip', 'p', 10, 'Strip')",
+          "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('strip', 'p', 10, 'Strip')",
         );
         before.run(
-          "INSERT INTO work_item (id, project_id, position, name) VALUES ('sand', 'p', 20, 'Sand')",
+          "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('sand', 'p', 20, 'Sand')",
         );
         expect(
           before

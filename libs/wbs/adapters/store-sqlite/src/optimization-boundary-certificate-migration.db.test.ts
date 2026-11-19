@@ -28,7 +28,7 @@ it('creates retained certificate storage and rolls back only an intact empty tab
       )
       .all();
     sqlite.close();
-    rollbackTo(path, folder, '20261022212000_add_cross_project_dependency_activation');
+    rollbackTo(path, folder, '20261022212000_add_cross_work_package_dependency_activation');
     const rolled = openDatabase(path);
     expect(
       rolled
@@ -53,7 +53,7 @@ for (const fault of ['retained', 'missing', 'replaced'] as const)
       const sqlite = openDatabase(path);
       if (fault === 'retained') {
         sqlite.run("INSERT INTO users(id,username,password_hash,created_at) VALUES('u','u','x',1)");
-        sqlite.run("INSERT INTO project(id,name,owner_id,created_at) VALUES('B','B','u',1)");
+        sqlite.run("INSERT INTO work_package(id,name,owner_id,created_at) VALUES('B','B','u',1)");
         sqlite.run(
           "INSERT INTO optimization_boundary_certificate VALUES('B','h','time','v',1,'{}',1,'a',1)",
         );
@@ -61,7 +61,7 @@ for (const fault of ['retained', 'missing', 'replaced'] as const)
         sqlite.run('DROP TABLE optimization_boundary_certificate');
         if (fault === 'replaced')
           sqlite.run(
-            'CREATE TABLE optimization_boundary_certificate(project_id,input_hash,objective,contract_version,budget_ms,certificate_json,generation,attempt_token,created_at)',
+            'CREATE TABLE optimization_boundary_certificate(work_package_id,input_hash,objective,contract_version,budget_ms,certificate_json,generation,attempt_token,created_at)',
           );
       }
       const ledger = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
@@ -69,7 +69,7 @@ for (const fault of ['retained', 'missing', 'replaced'] as const)
       // Proof: removing retention/schema predicates separately in scratch down scripts
       // made the pinned retained/replaced cases fail with no throw (2026-10-24).
       expect(() =>
-        rollbackTo(path, folder, '20261022212000_add_cross_project_dependency_activation'),
+        rollbackTo(path, folder, '20261022212000_add_cross_work_package_dependency_activation'),
       ).toThrow(
         fault === 'missing'
           ? 'no such table: optimization_boundary_certificate'

@@ -9,12 +9,12 @@ import {
   validateExternalDependencyAuthoring,
 } from '../../ports/external-dependency-authoring';
 import type { RefusedOrganizationAccess, ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
 import {
   type CommittedFanoutDelivery,
-  type CommittedProjectEvent,
+  type CommittedWorkPackageEvent,
   recordCommittedFanout,
 } from '../../service/committed-fanout';
 import {
@@ -26,6 +26,8 @@ import {
   type ImportedPlan,
   ImportedPlanResource,
   type ImportGraphFactory,
+  type ImportProject,
+  type ImportProjectRefusal,
   type ImportTransaction,
 } from './imported-plan.resource';
 import { ImportService } from './plan-import.feature';
@@ -49,6 +51,32 @@ export interface PlanImportSource {
   committedFanout?: CommittedFanoutDelivery;
 }
 
+function missingProject(): ImportProjectRefusal {
+  return { ok: false, code: 'not_found', path: 'projectId', detail: null };
+}
+
+/** Narrow destination lookup on this writer, before grant evaluation or private settings capture. */
+async function readImportProject(
+  scope: Scope,
+  access: ResourceAccess,
+  projectId: string,
+  assertActive: () => void,
+): Promise<ImportProject | null> {
+  assertActive();
+  const organizationId =
+    access.kind === 'scoped'
+      ? access.scope.organizationId
+      : await scope.stores.directory.legacyOrganizationId();
+  assertActive();
+  if (organizationId === null) throw new Error('legacy import organization is absent');
+  const project = await scope.stores.settings.readTarget(
+    { level: 'project', id: projectId },
+    organizationId,
+  );
+  assertActive();
+  return project;
+}
+
 function importTransaction(
   uow: UnitOfWork,
   commandAccess: CommandAccess,
@@ -59,14 +87,15 @@ function importTransaction(
   return {
     run: async <T>(
       caller: CommandCaller,
+      projectId: string,
       forbidden: (permission?: Permission) => T,
       broadcast: Broadcaster,
       act: (plan: ImportedPlan, access: ResourceAccess) => Promise<ImportDecision<T>>,
-    ): Promise<T | RefusedOrganizationAccess> => {
+    ): Promise<T | RefusedOrganizationAccess | ImportProjectRefusal> => {
       const settled = await uow.run<{
-        value: T | RefusedOrganizationAccess;
+        value: T | RefusedOrganizationAccess | ImportProjectRefusal;
         delivery: {
-          events: readonly CommittedProjectEvent[];
+          events: readonly CommittedWorkPackageEvent[];
           transport: CommittedFanoutDelivery;
         } | null;
       }>(async (scope) => {
@@ -82,34 +111,40 @@ function importTransaction(
           if (!observationOpen) throw new Error('import observation is closed');
         };
         let dependencies: OpenDependencyContext | undefined;
-        const writes = new ImportedPlanResource(scope, {
-          actorId,
-          // Proof: independently binding expected access here, in the dependency context or callback failed the SQLite fresh-access observation (2026-10-22).
-          access,
-          externalDependencies:
-            typeof externalDependencies === 'function'
-              ? externalDependencies(scope)
-              : externalDependencies,
-          assertActive,
-          contextFor: (projectId) => {
-            assertActive();
-            dependencies ??= createDependencyContext(
-              scope.stores,
-              {
-                projectId,
-                actorId,
-                access,
-                admission: NO_ADMISSION,
-              },
-              assertActive,
-              { kind: 'raw' },
-            );
-            dependencies.context.assertUsable(projectId, actorId);
-            return dependencies.context;
-          },
-        });
+        const writesFor = (project: ImportProject) =>
+          new ImportedPlanResource(scope, {
+            actorId,
+            // Proof: independently binding expected access here, in the dependency context or callback failed the SQLite fresh-access observation (2026-10-22).
+            access,
+            project,
+            externalDependencies:
+              typeof externalDependencies === 'function'
+                ? externalDependencies(scope)
+                : externalDependencies,
+            assertActive,
+            contextFor: (workPackageId) => {
+              assertActive();
+              dependencies ??= createDependencyContext(
+                scope.stores,
+                {
+                  workPackageId,
+                  actorId,
+                  access,
+                  admission: NO_ADMISSION,
+                },
+                assertActive,
+                { kind: 'raw' },
+              );
+              dependencies.context.assertUsable(workPackageId, actorId);
+              return dependencies.context;
+            },
+          });
         try {
           if (access.kind === 'legacy') {
+            const project = await readImportProject(scope, access, projectId, assertActive);
+            if (project === null)
+              return { commit: false, value: { value: missingProject(), delivery: null } };
+            const writes = writesFor(project);
             const decision = await act(
               {
                 writes,
@@ -129,12 +164,23 @@ function importTransaction(
             throw new Error('scoped import lacks borrowed authority or fan-out delivery');
           // Proof: moving this below capture invokes the throwing capture spy after
           // a queued membership demotion instead of returning typed forbidden.
-          const authority = await capture.authorizeImport(actorId, access);
+          const project = await readImportProject(scope, access, projectId, assertActive);
+          if (project === null)
+            return { commit: false, value: { value: missingProject(), delivery: null } };
+          const authority = await capture.authorizeImport(actorId, access, project);
+          assertActive();
           if (!authority.ok)
             return {
               commit: false as const,
-              value: { value: forbidden(authority.permission), delivery: null },
+              value: {
+                value:
+                  authority.reason === 'not_found'
+                    ? missingProject()
+                    : forbidden(authority.permission),
+                delivery: null,
+              },
             };
+          const writes = writesFor(project);
           const before = await capture.capture(access.scope.organizationId);
           const decision = await act(
             {

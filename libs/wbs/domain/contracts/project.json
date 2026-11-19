@@ -27,7 +27,8 @@
       "inputs": [
         "default",
         "^production",
-        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/mcp/testing/pool-keys.v1.json"
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/mcp/testing/pool-keys.v1.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-runtime-acceptance1.txt"
       ]
     },
     "test:unit": {
@@ -40,7 +41,8 @@
       "inputs": [
         "default",
         "^production",
-        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/mcp/testing/pool-keys.v1.json"
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/mcp/testing/pool-keys.v1.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-runtime-acceptance1.txt"
       ]
     },
     "typecheck": {

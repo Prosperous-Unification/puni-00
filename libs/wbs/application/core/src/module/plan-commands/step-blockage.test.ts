@@ -1,10 +1,11 @@
 import { serializeSchedule } from '@wbs/domain';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { openMemorySource } from '@wbs/store-memory';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { ScheduleRead } from '../../ports/scheduler';
 import type { Scope } from '../../ports/unit-of-work';
 import { createLocalDependencyContext } from '../../service/dependency-context';
@@ -19,10 +20,11 @@ import { createPlanCommandRunner } from './composition';
 const OWNER = 'blockage-owner';
 
 async function seeded(fault?: 'refuse' | 'throw') {
-  const source = openMemorySource();
+  const fixture = openMemorySourceFixture();
+  const source = fixture.source;
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -35,18 +37,28 @@ async function seeded(fault?: 'refuse' | 'throw') {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
   );
-  const created = expectCreated(await graph.projects.create('Blockage authoring', OWNER));
-  const projectId = created.project.id;
-  await source.stores.projects.update(projectId, { restricted: true }, { at: 1, by: OWNER });
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: OWNER,
+  });
+  const created = expectCreated(
+    await graph.workPackages.create('Blockage authoring', 'fixture-project', OWNER),
+  );
+  const workPackageId = created.workPackage.id;
   const step = created.steps[0];
   await source.stores.steps.add(
-    { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+    { id: step.id, workPackageId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
     { at: 1, by: OWNER },
   );
-  await source.stores.workItems.insert(workItemRow({ id: 'leaf', projectId, parentId: null }), [], {
-    at: 1,
-    by: OWNER,
-  });
+  await source.stores.workItems.insert(
+    workItemRow({ id: 'leaf', workPackageId, parentId: null }),
+    [],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     uow: source.uow,
@@ -74,12 +86,12 @@ async function seeded(fault?: 'refuse' | 'throw') {
   });
   const snapshot = () =>
     Promise.all([
-      source.stores.workItems.listByProject(projectId),
-      source.stores.projects.findById(projectId),
-      source.stores.progress.listByProject(projectId),
-      source.stores.blockages.listByProject(projectId),
-      source.stores.journal.entriesFor({ projectId, userId: OWNER, personId: null }),
-      source.stores.planEvents.listFor(projectId, {}),
+      source.stores.workItems.listByWorkPackage(workPackageId),
+      source.stores.workPackages.findById(workPackageId),
+      source.stores.progress.listByWorkPackage(workPackageId),
+      source.stores.blockages.listByWorkPackage(workPackageId),
+      source.stores.journal.entriesFor({ workPackageId, userId: OWNER, personId: null }),
+      source.stores.planEvents.listFor(workPackageId, {}),
     ]);
   const command = (isBlocked: boolean) => ({
     kind: 'setStepBlocked' as const,
@@ -87,28 +99,28 @@ async function seeded(fault?: 'refuse' | 'throw') {
     stepId: step.id,
     isBlocked,
   });
-  return { source, broadcast, graph, runner, projectId, stepId: step.id, snapshot, command };
+  return { source, broadcast, graph, runner, workPackageId, stepId: step.id, snapshot, command };
 }
 
 describe('public blockage authoring over transactional memory', () => {
   it('collects one undo unit, refreshes retained facts, and emits committed readings', async () => {
-    const { source, runner, projectId, stepId, command, broadcast } = await seeded();
+    const { source, runner, workPackageId, stepId, command, broadcast } = await seeded();
     try {
       expect(
-        await runner.run(projectId, OWNER, [command(true), command(false), command(true)]),
+        await runner.run(workPackageId, OWNER, [command(true), command(false), command(true)]),
       ).toMatchObject({ ok: true });
-      const facts = await source.stores.blockages.listByProject(projectId);
+      const facts = await source.stores.blockages.listByWorkPackage(workPackageId);
       expect(facts).toHaveLength(1);
       expect(
-        await source.stores.journal.entriesFor({ projectId, userId: OWNER, personId: null }),
+        await source.stores.journal.entriesFor({ workPackageId, userId: OWNER, personId: null }),
       ).toHaveLength(1);
       const trees = broadcast.published.filter(({ event }) => event.type === 'tree_replaced');
       expect(trees.length).toBeGreaterThan(0);
       expect(JSON.stringify(trees)).toContain('blocked');
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
-      expect(await source.stores.blockages.listByProject(projectId)).toEqual([]);
-      expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: true });
-      expect(await source.stores.blockages.listByProject(projectId)).toEqual(facts);
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.blockages.listByWorkPackage(workPackageId)).toEqual([]);
+      expect(await runner.redo(workPackageId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.blockages.listByWorkPackage(workPackageId)).toEqual(facts);
       expect(facts[0]?.stepId).toBe(stepId);
     } finally {
       await source.close();
@@ -118,12 +130,12 @@ describe('public blockage authoring over transactional memory', () => {
   it.each(['refuse', 'throw'] as const)(
     'rolls back a prior mutation and emits no fanout after a %s store write',
     async (fault) => {
-      const { source, runner, projectId, command, snapshot, broadcast } = await seeded(fault);
+      const { source, runner, workPackageId, command, snapshot, broadcast } = await seeded(fault);
       try {
         const before = await snapshot();
         const published = [...broadcast.published];
         const rejection = await runner
-          .run(projectId, OWNER, [
+          .run(workPackageId, OWNER, [
             { kind: 'patchWorkItem', workItemId: 'leaf', patch: { name: 'Changed' } },
             command(true),
           ])
@@ -143,12 +155,12 @@ describe('public blockage authoring over transactional memory', () => {
   );
 
   it('rolls back an earlier fact when the later command is unknown', async () => {
-    const { source, runner, projectId, command, snapshot, broadcast } = await seeded();
+    const { source, runner, workPackageId, command, snapshot, broadcast } = await seeded();
     try {
       const before = await snapshot();
       const published = [...broadcast.published];
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           command(true),
           { ...command(false), stepId: 'missing' },
         ]),
@@ -161,10 +173,19 @@ describe('public blockage authoring over transactional memory', () => {
   });
 
   it('refuses direct service ownership before an equivalent clear', async () => {
-    const { source, graph, stepId, snapshot } = await seeded();
+    const { source, graph, workPackageId, stepId, snapshot } = await seeded();
     try {
+      await source.stores.workPackages.update(
+        workPackageId,
+        { restricted: true },
+        { at: 1, by: OWNER },
+      );
       const before = await snapshot();
       expect(await graph.workItems.setStepBlocked('leaf', 'other-account', stepId, false)).toEqual({
+        ok: false,
+        reason: 'forbidden',
+      });
+      expect(await graph.workItems.setStepBlocked('leaf', OWNER, stepId, false)).toEqual({
         ok: false,
         reason: 'forbidden',
       });
@@ -176,17 +197,18 @@ describe('public blockage authoring over transactional memory', () => {
   it.each(['undo', 'redo'] as const)(
     'refuses stale memory %s without accepting forged owner revisions',
     async (direction) => {
-      const { source, runner, projectId, stepId, command, snapshot, broadcast } = await seeded();
+      const { source, runner, workPackageId, stepId, command, snapshot, broadcast } =
+        await seeded();
       try {
-        expect(await runner.run(projectId, OWNER, [command(true)])).toMatchObject({ ok: true });
+        expect(await runner.run(workPackageId, OWNER, [command(true)])).toMatchObject({ ok: true });
         if (direction === 'redo')
-          expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+          expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
         await source.stores.blockages.set(
           { workItemId: 'leaf', stepId, blockedAt: -23 },
           { at: 2, by: OWNER },
         );
         for (const entry of await source.stores.journal.entriesFor({
-          projectId,
+          workPackageId,
           userId: OWNER,
           personId: null,
         }))
@@ -196,7 +218,7 @@ describe('public blockage authoring over transactional memory', () => {
           });
         const before = await snapshot();
         const published = [...broadcast.published];
-        expect(await runner[direction](projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await runner[direction](workPackageId, OWNER)).toMatchObject({ ok: false });
         expect((await snapshot()).slice(0, 4)).toEqual(before.slice(0, 4));
         expect(broadcast.published).toEqual(published);
       } finally {
@@ -206,12 +228,12 @@ describe('public blockage authoring over transactional memory', () => {
   );
 
   it('keeps progress, canonical input and full Fast schedule unchanged', async () => {
-    const { source, runner, graph, projectId, stepId, command } = await seeded();
+    const { source, runner, graph, workPackageId, stepId, command } = await seeded();
     const observed = spyOn(fastScheduler, 'read');
     try {
       const capture = async () => {
         const callCount = observed.mock.calls.length;
-        const tree = await graph.workItems.tree(projectId);
+        const tree = await graph.workItems.tree(workPackageId);
         const call = observed.mock.calls.at(callCount);
         const schedule = (await Promise.resolve(observed.mock.results[callCount]?.value)) as
           ScheduleRead | undefined;
@@ -231,8 +253,8 @@ describe('public blockage authoring over transactional memory', () => {
       await graph.workItems.setProgress('leaf', OWNER, stepId, 'in_progress');
       const baseline = await capture();
       const before = baseline.tree;
-      const progress = await source.stores.progress.listByProject(projectId);
-      expect(await runner.run(projectId, OWNER, [command(true)])).toMatchObject({ ok: true });
+      const progress = await source.stores.progress.listByWorkPackage(workPackageId);
+      expect(await runner.run(workPackageId, OWNER, [command(true)])).toMatchObject({ ok: true });
       const captured = await capture();
       const blocked = captured.tree;
       if (before === null || blocked === null || 'kind' in before || 'kind' in blocked)
@@ -240,7 +262,7 @@ describe('public blockage authoring over transactional memory', () => {
       expect(blocked.slices).toEqual(before.slices);
       expect(captured.input).toEqual(baseline.input);
       expect(captured.fast).toEqual(baseline.fast);
-      expect(await source.stores.progress.listByProject(projectId)).toEqual(progress);
+      expect(await source.stores.progress.listByWorkPackage(workPackageId)).toEqual(progress);
       expect(blocked.workItems[0]?.progress).toEqual(before.workItems[0]?.progress);
       expect(blocked.workItems[0]?.status).toEqual(before.workItems[0]?.status);
     } finally {

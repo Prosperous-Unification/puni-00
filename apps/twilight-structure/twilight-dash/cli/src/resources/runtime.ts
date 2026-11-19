@@ -1924,7 +1924,7 @@ export class ResourceRuntime {
   private declaration(use: ResourceUse): ResourceRuntimeAdmission['use'] {
     const attribution = use.request;
     return {
-      projectId: attribution.projectId,
+      workPackageId: attribution.projectId,
       resourceId: attribution.resourceId,
       workItemId: attribution.workItemId,
       agentRun: attribution.agentRun,

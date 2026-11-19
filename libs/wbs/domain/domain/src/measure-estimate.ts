@@ -56,7 +56,7 @@ export const TOKEN_ESTIMATE_KEY = 'tokens';
  * Why a trio cannot be written or cleared in a measure (`wbs-measure-budgets`
  * D3, spec "Estimates and facts exist per measure"):
  *
- * - `unknown_measure` (404): the key names no definition of the project's
+ * - `unknown_measure` (404): the key names no definition of the work package's
  *   organization;
  * - `scheduling_measure_estimate` (409): the definition schedules work
  *   (`time`), whose trio stays in `estimate` and is written by `setEstimate`
@@ -74,7 +74,7 @@ export type MeasureEstimateDecision =
 
 /**
  * Whether a trio in `key` may be written (`trio`) or cleared (null) on a
- * project whose organization holds `definitions` (null when no organization
+ * work package whose organization holds `definitions` (null when no organization
  * owns it, which answers the seeded four of design D19). Checked in the order
  * unknown, scheduling, three-point, scale, so one request answers one reason.
  *
@@ -167,7 +167,7 @@ function exactHalfUp(trio: MeasureTrio, weights: PertWeights): number | null {
 const HALF_DRIFT = 1e-12;
 
 /**
- * The **expected measure** of one trio: the project's PERT weights applied to
+ * The **expected measure** of one trio: the work package's PERT weights applied to
  * the three points ({@link expectedDays}'s arithmetic, which is unit free),
  * then rounded by the definition's scale.
  *
@@ -217,7 +217,7 @@ export function roundToScale(figure: number, scale: MeasureScale): number {
       ? halves / 2
       : figure;
   // Proof: with `Math.floor` here, `derives a budget from the pessimistic
-  // points times the project factor …` (budget.test.ts) capped B at 601;
+  // points times the work package factor …` (budget.test.ts) capped B at 601;
   // watched 2026-10-23.
   return Math.round(snapped);
 }

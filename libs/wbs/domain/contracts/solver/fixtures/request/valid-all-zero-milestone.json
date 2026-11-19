@@ -4,7 +4,7 @@
     "milestone\u0000second": 0
   },
   "budgetMs": 30000,
-  "contractVersion": "18+0.4.0",
+  "contractVersion": "19+0.4.0",
   "edges": [
     {
       "predecessorKey": "milestone\u0000first",

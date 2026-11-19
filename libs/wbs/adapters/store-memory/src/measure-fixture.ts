@@ -1,10 +1,11 @@
-import type { MeasureStore, StepStore, StoredMeasure, WorkItemStore } from '@wbs/core';
+import type { MeasureStore, StoredMeasure, WorkItemStore } from '@wbs/core';
 import { definitionKeyOf, factMetricOf, isLegacyMetric, type MeasureDefinition } from '@wbs/domain';
 
 import type { MemoryMeasureDefinitionTables } from './measure-definition-fixture';
 import { type MemoryMeasureEstimateTable, retireTokensTrio } from './measure-estimate-fixture';
-import { readTargetedSatelliteRows } from './targeted-satellite-rows';
-import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
+import {readMemoryMeasuresIn,type MemoryTupleReadContext} from './tuple-reads';
+import {readMemoryStepWriteIn} from './step-write';
+import { listValueGroupPlacements } from './value-group-placement';
 
 /**
  * A MeasureStore backed by an array, keyed as the composite primary key is —
@@ -14,18 +15,18 @@ import { compareValueGroupIds, listValueGroupPlacements } from './value-group-pl
  * A row holds its metric as readers see it (a legacy name or a definition
  * key); SQLite's `measure_id` has no twin here, so `definitionsOf` answers
  * {@link MeasureStore.definitionsFor} from the source's organization tables,
- * and a source holding no organizations owns no project.
+ * and a source holding no organizations owns no work package.
  */
 export function inMemoryMeasures(
   workItems: WorkItemStore,
-  table: MemoryMeasureTable = memoryMeasureTable(),
-  steps?: StepStore,
-  definitionsOf: (projectId: string) => MeasureDefinition[] | null = () => null,
+  context:MemoryTupleReadContext,
+  table:MemoryMeasureTable,
+  definitionsOf:(workPackageId:string)=>MeasureDefinition[]|null,
   /**
    * The source's measure estimate table, whose three-point tokens trio a
    * legacy `token_estimate` write replaces ({@link retireTokensTrio}).
    */
-  estimateTable?: MemoryMeasureEstimateTable,
+  estimateTable:MemoryMeasureEstimateTable,
 ): MeasureStore {
   const { rows } = table;
   /**
@@ -34,51 +35,31 @@ export function inMemoryMeasures(
    */
 
   return {
-    async listByProject(projectId) {
-      const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
-      return order(
-        rows.filter((row) => ids.has(row.workItemId)),
-        await steps?.listByProject(projectId),
-      );
+    async listByWorkPackage(workPackageId){return await Promise.resolve(readMemoryMeasuresIn(context,table,workPackageId,null));},
+    async listByWorkItems(workPackageId,ids){return await Promise.resolve(readMemoryMeasuresIn(context,table,workPackageId,ids));},
+    definitionsFor(workPackageId) {
+      return Promise.resolve(definitionsOf(workPackageId));
     },
-    async listByWorkItems(projectId, workItemIds) {
-      const targeted = await readTargetedSatelliteRows(
-        'measure',
-        rows,
-        projectId,
-        workItemIds,
-        workItems,
-        steps,
-        (row) => {
-          if (typeof row.metric !== 'string' || row.metric === '') {
-            throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid metric`);
-          }
-          if (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < 0) {
-            throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid value`);
-          }
-          if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
-            throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid recorded time`);
-          }
-        },
-      );
-      return order(targeted.rows, targeted.steps);
-    },
-    definitionsFor(projectId) {
-      return Promise.resolve(definitionsOf(projectId));
-    },
-    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
+    listPlacements: (workPackageId, ids) =>
+      listValueGroupPlacements(rows, workPackageId, ids, workItems),
     async set(requested, _stamp) {
+      const retained=structuredClone(requested);
+      const decision=readMemoryStepWriteIn(context,retained.workItemId,retained.stepId);
+      // Proof: removing this refusal made memory stepCatalogue.pointWrite:measure-untyped
+      // return written for an unresolved step after its healthy typed write/read/remove.
+      // Restoring the guard returned the same isolated owner to passing.
+      if(decision.kind!=='resolved')return await Promise.resolve(decision.kind);
       // `tokens` and `hours` are the legacy rows under their keys, as on SQLite (design D18).
       // Proof: with this mapping removed, the memory certification's
       // `measures.set:alias-one-row` stored `tokens` as a second row; watched 2026-10-23.
-      const toSet = { ...requested, metric: factMetricOf(requested.metric) };
+      const toSet = { ...retained, metric: factMetricOf(retained.metric) };
       // SQLite's store throws the same way: a defined metric must name a
-      // definition of the organization owning the work item's project.
+      // definition of the organization owning the work item's work package.
       // Proof: with this check removed, the memory certification's
       // `measures.set:defined-key` stored `story_points`; watched 2026-10-23.
       if (!isLegacyMetric(toSet.metric)) {
-        const owner = await workItems.findById(toSet.workItemId);
-        const held = owner === null ? null : definitionsOf(owner.projectId);
+        const owner=context.workItems.byId.get(toSet.workItemId);
+        const held=owner===undefined?null:definitionsOf(owner.workPackageId);
         if (held?.some((each) => each.key === toSet.metric) !== true)
           throw new Error(
             `measure ${toSet.metric} is not defined by the organization owning work item ${toSet.workItemId}`,
@@ -98,11 +79,7 @@ export function inMemoryMeasures(
       // trio beside the legacy figure; watched 2026-10-23.
       if (toSet.metric === 'token_estimate')
         retireTokensTrio(estimateTable, toSet.workItemId, toSet.stepId);
-      // `'written'`, always: these fixtures enforce no references at all, so
-      // they cannot tell a step that has gone from one that never existed. That
-      // is the memory source lagging the SQLite one on a named method (D29),
-      // and slice 5 is where it goes on the allowlist or is tightened.
-      return 'written' as const;
+      return await Promise.resolve<'written'>('written');
     },
     remove(workItemId, stepId, requested, _stamp) {
       // Proof: unmapped, `measures.set:alias-one-row` kept the tokens row
@@ -124,21 +101,6 @@ export function inMemoryMeasures(
   };
 }
 
-function order(
-  rows: StoredMeasure[],
-  steps: Awaited<ReturnType<StepStore['listByProject']>> | undefined,
-): StoredMeasure[] {
-  if (steps === undefined) return rows;
-  const position = new Map(steps.map((step) => [step.id, step.position]));
-  return [...rows].sort(
-    (left, right) =>
-      compareValueGroupIds(left.workItemId, right.workItemId) ||
-      (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
-      left.stepId.localeCompare(right.stepId) ||
-      left.metric.localeCompare(right.metric),
-  );
-}
-
 export interface MemoryMeasureTable {
   readonly rows: StoredMeasure[];
 }
@@ -146,26 +108,26 @@ export function memoryMeasureTable(): MemoryMeasureTable {
   return { rows: [] };
 }
 
-/** The tables a memory source resolves a project's definitions through. */
+/** The tables a memory source resolves a work package's definitions through. */
 export interface MemoryMeasureOwnership {
-  /** Project id to owning organization id: the twin of `project_organization`. */
-  readonly projectOrganization: ReadonlyMap<string, string>;
+  /** Work package id to owning organization id: the twin of `work_package_organization`. */
+  readonly workPackageOrganization: ReadonlyMap<string, string>;
   readonly definitions: MemoryMeasureDefinitionTables;
 }
 
 /**
- * The definitions of the organization owning `projectId`, in list order, or
+ * The definitions of the organization owning `workPackageId`, in list order, or
  * null when no organization owns it: the memory twin of
  * `StepMeasureRepository.definitionsFor`.
  */
-export function definitionsOfProject(
+export function definitionsOfWorkPackage(
   ownership: MemoryMeasureOwnership,
-  projectId: string,
+  workPackageId: string,
 ): MeasureDefinition[] | null {
-  const organizationId = ownership.projectOrganization.get(projectId);
+  const organizationId = ownership.workPackageOrganization.get(workPackageId);
   if (organizationId === undefined) return null;
   const held = ownership.definitions.organizations.get(organizationId);
-  // SQLite's foreign key keeps an owned project's organization in place.
+  // SQLite's foreign key keeps an owned work package's organization in place.
   if (held === undefined) throw new Error(`organization ${organizationId} does not exist`);
   return [...held.measures].sort(
     (left, right) => left.order - right.order || left.key.localeCompare(right.key),
@@ -174,7 +136,7 @@ export function definitionsOfProject(
 
 /**
  * How many facts are in the organization's definition `measureId`: rows of
- * its projects whose metric names that definition's key (legacy names
+ * its work packages whose metric names that definition's key (legacy names
  * included), the memory twin of counting `step_measure.measure_id`.
  *
  * @throws when a fact names a work item the source does not hold.
@@ -182,7 +144,7 @@ export function definitionsOfProject(
 export function countFactsKeyedBy(
   ownership: MemoryMeasureOwnership,
   facts: readonly StoredMeasure[],
-  projectOf: ReadonlyMap<string, { projectId: string }>,
+  workPackageOf: ReadonlyMap<string, { workPackageId: string }>,
   organizationId: string,
   measureId: string,
 ): number {
@@ -191,10 +153,10 @@ export function countFactsKeyedBy(
     ?.measures.find((each) => each.id === measureId)?.key;
   if (key === undefined) return 0;
   return facts.filter((fact) => {
-    const owner = projectOf.get(fact.workItemId);
+    const owner = workPackageOf.get(fact.workItemId);
     if (owner === undefined) throw new Error(`measure names absent work item ${fact.workItemId}`);
     return (
-      ownership.projectOrganization.get(owner.projectId) === organizationId &&
+      ownership.workPackageOrganization.get(owner.workPackageId) === organizationId &&
       definitionKeyOf(fact.metric) === key
     );
   }).length;
@@ -202,7 +164,7 @@ export function countFactsKeyedBy(
 
 /**
  * How many trios are in the organization's definition `measureId`: stored
- * estimates of its projects under that definition's key, the memory twin of
+ * estimates of its work packages under that definition's key, the memory twin of
  * counting `measure_estimate.measure_id`. A single-point tokens trio is a
  * legacy row here and is not counted, as `tokens` is never deletable (D14).
  * Budgets are counted through it too: they are keyed the same way
@@ -213,7 +175,7 @@ export function countFactsKeyedBy(
 export function countEstimatesKeyedBy(
   ownership: MemoryMeasureOwnership,
   estimates: readonly { readonly workItemId: string; readonly key: string }[],
-  projectOf: ReadonlyMap<string, { projectId: string }>,
+  workPackageOf: ReadonlyMap<string, { workPackageId: string }>,
   organizationId: string,
   measureId: string,
 ): number {
@@ -222,11 +184,12 @@ export function countEstimatesKeyedBy(
     ?.measures.find((each) => each.id === measureId)?.key;
   if (key === undefined) return 0;
   return estimates.filter((estimate) => {
-    const owner = projectOf.get(estimate.workItemId);
+    const owner = workPackageOf.get(estimate.workItemId);
     if (owner === undefined)
       throw new Error(`measure estimate names absent work item ${estimate.workItemId}`);
     return (
-      ownership.projectOrganization.get(owner.projectId) === organizationId && estimate.key === key
+      ownership.workPackageOrganization.get(owner.workPackageId) === organizationId &&
+      estimate.key === key
     );
   }).length;
 }

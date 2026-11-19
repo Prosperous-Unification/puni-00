@@ -24,7 +24,7 @@ test('tree boundary refuses missing core producer fields while allowing additive
     estimateRounding: 'exact',
     depReach: 'whole-item',
     startDate: null,
-    projectRevision: 1,
+    workPackageRevision: 1,
   };
   expect(
     (await validateSchema(schema, { ...tree, future: { extra: true } })).issues,
@@ -37,12 +37,12 @@ test('tree boundary refuses missing core producer fields while allowing additive
     expect((await validateSchema(schema, { ...tree, remoteBlockageLabels })).issues).toBeDefined();
   const missingCalendar = {
     kind: 'dependency_calendar_missing',
-    projects: [{ projectId: 'p', abbreviation: 'P', name: 'Plan' }],
+    workPackages: [{ workPackageId: 'p', abbreviation: 'P', name: 'Plan' }],
   };
   const missingEngine = {
     kind: 'engine_unavailable',
     engine: 'optimized',
-    projects: ['p'],
+    workPackages: ['p'],
     reason: 'adapter_missing',
   };
   for (const scheduleError of [
@@ -55,14 +55,14 @@ test('tree boundary refuses missing core producer fields while allowing additive
   ])
     expect((await validateSchema(schema, { ...tree, scheduleError })).issues).toBeUndefined();
   for (const scheduleError of [
-    { ...missingCalendar, projects: undefined },
-    { ...missingCalendar, projects: [] },
-    ...['projectId', 'abbreviation', 'name'].map((field) => ({
+    { ...missingCalendar, workPackages: undefined },
+    { ...missingCalendar, workPackages: [] },
+    ...['workPackageId', 'abbreviation', 'name'].map((field) => ({
       ...missingCalendar,
-      projects: [{ ...missingCalendar.projects[0], [field]: undefined }],
+      workPackages: [{ ...missingCalendar.workPackages[0], [field]: undefined }],
     })),
-    { ...missingEngine, projects: undefined },
-    { ...missingEngine, projects: [] },
+    { ...missingEngine, workPackages: undefined },
+    { ...missingEngine, workPackages: [] },
     { ...missingEngine, engine: 'fast' },
     { ...missingEngine, reason: undefined },
     { ...missingEngine, reason: 'unknown' },
@@ -97,7 +97,7 @@ test('tree boundary refuses missing core producer fields while allowing additive
   ]) {
     expect((await validateSchema(read, malformed)).issues).toBeDefined();
   }
-  const { projectRevision, ...missing } = tree;
+  const { workPackageRevision, ...missing } = tree;
   expect((await validateSchema(schema, missing)).issues).toBeDefined();
 });
 
@@ -116,7 +116,7 @@ test('checks deadline and slice lateness while retaining additive nested respons
   const row = {
     charged: {},
     id: 'w',
-    projectId: 'p',
+    workPackageId: 'p',
     parentId: null,
     position: 1,
     name: 'Work',
@@ -163,7 +163,7 @@ test('checks deadline and slice lateness while retaining additive nested respons
     workItemId: 'w',
     stepId: 's',
     personId: 'person',
-    boundBy: 'projectStart',
+    boundBy: 'workPackageStart',
     resourcePredecessorId: null,
     capacityPredecessorIds: [],
     capacityTeamId: null,
@@ -187,7 +187,7 @@ test('checks deadline and slice lateness while retaining additive nested respons
     estimateRounding: 'exact',
     depReach: 'whole-item',
     startDate: null,
-    projectRevision: 1,
+    workPackageRevision: 1,
   };
   expect((await validateSchema(schema, tree)).issues).toBeUndefined();
   const resources = {
@@ -314,7 +314,7 @@ test('checks the optional optimization projection and every variant state', asyn
     estimateRounding: 'exact',
     depReach: 'whole-item',
     startDate: null,
-    projectRevision: 1,
+    workPackageRevision: 1,
   };
   const optimization = {
     enabled: true,
@@ -357,7 +357,7 @@ test('checks the optional optimization projection and every variant state', asyn
 test('generated tree OpenAPI requires captured unavailable evidence', () => {
   const document = documentFromShapes([getWorkItems]);
   const schema =
-    document.paths['/api/projects/{id}/work-items']?.['get']?.responses['200']?.content?.[
+    document.paths['/api/work-packages/{id}/work-items']?.['get']?.responses['200']?.content?.[
       'application/json'
     ]?.schema;
   expect(schema).toHaveProperty('properties.scheduleError.anyOf');
@@ -369,17 +369,20 @@ test('generated tree OpenAPI requires captured unavailable evidence', () => {
             properties: {
               kind: { const: 'engine_unavailable' },
               engine: { const: 'optimized' },
-              projects: { minItems: 1 },
+              workPackages: { minItems: 1 },
               reason: { enum: ['adapter_missing', 'connected_optimization_not_supported'] },
             },
-            required: ['engine', 'kind', 'projects', 'reason'],
+            required: ['engine', 'kind', 'reason', 'workPackages'],
           },
           {
             properties: {
               kind: { const: 'dependency_calendar_missing' },
-              projects: { minItems: 1, items: { required: ['abbreviation', 'name', 'projectId'] } },
+              workPackages: {
+                minItems: 1,
+                items: { required: ['abbreviation', 'name', 'workPackageId'] },
+              },
             },
-            required: ['kind', 'projects'],
+            required: ['kind', 'workPackages'],
           },
           { const: 'calendar_range' },
           { const: 'cycle' },

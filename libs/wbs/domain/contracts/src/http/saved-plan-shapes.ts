@@ -31,7 +31,7 @@ const schedule = type({
 }).or({ present: 'false', absentReason: 'string' });
 const savedPlan = type({
   id: 'string',
-  projectId: 'string',
+  workPackageId: 'string',
   name: 'string',
   createdBy: 'string',
   createdAt: 'number',
@@ -132,8 +132,8 @@ const nameRefusals = [
  */
 export const savePlan = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/saved-plans',
-  operationId: 'postApiProjectsByIdSaved-plans',
+  path: '/api/work-packages/:id/saved-plans',
+  operationId: 'postApiWorkPackagesByIdSaved-plans',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   body: requestSchema(type({ 'name?': 'string > 0' })),
@@ -153,7 +153,7 @@ export const savePlan = defineEndpointShape({
         type({
           error: "'quota'",
           refusal: {
-            limit: "'body_bytes' | 'plan_count' | 'project_bytes'",
+            limit: "'body_bytes' | 'plan_count' | 'work_package_bytes'",
             asked: 'number',
             allowed: 'number',
           },
@@ -161,14 +161,14 @@ export const savePlan = defineEndpointShape({
       ),
     },
   ],
-  document: { summary: 'Save a project plan.' },
+  document: { summary: 'Save a work package plan.' },
 });
 
 /** Lists saved headers and their byte budgets without parsing stored bodies. */
 export const listSavedPlans = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/saved-plans',
-  operationId: 'getApiProjectsByIdSaved-plans',
+  path: '/api/work-packages/:id/saved-plans',
+  operationId: 'getApiWorkPackagesByIdSaved-plans',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   responses: [
@@ -191,7 +191,7 @@ export const listSavedPlans = defineEndpointShape({
     },
   ],
   refusals: readRefusals,
-  document: { summary: 'List saved project plans.' },
+  document: { summary: 'List saved work package plans.' },
 });
 
 /** Historical difference values are opaque; their category and path remain validated. */
@@ -201,6 +201,7 @@ const difference = type({
     'removed',
     'renamed',
     'reparented',
+    'retired-field',
     'reordered',
     'estimates',
     'uncertainty',
@@ -230,7 +231,11 @@ const difference = type({
   right: 'unknown',
 });
 
-const comparisonProject = type({ projectId: 'string', name: 'string', abbreviation: 'string' });
+const comparisonWorkPackage = type({
+  workPackageId: 'string',
+  name: 'string',
+  abbreviation: 'string',
+});
 const comparisonVariant = type({
   state: "'ready'",
   questionHash: 'string',
@@ -259,7 +264,7 @@ const comparisonVariant = type({
       .array()
       .readonly(),
   });
-const comparisonStage = comparisonProject.and({
+const comparisonStage = comparisonWorkPackage.and({
   engine: "'fast' | 'optimized'",
   objective: "'pri' | 'time'",
   observation: type({
@@ -273,17 +278,17 @@ const comparisonStage = comparisonProject.and({
   variants: type({ pri: comparisonVariant, time: comparisonVariant }).or('null'),
   boundary: {
     kind: "'connected-stage'",
-    projectId: 'string',
-    format: "'connected-stage-v1'",
+    workPackageId: 'string',
+    format: "'connected-stage-v1' | 'connected-stage-v2'",
     canonical: 'string',
     originOrdinal: 'number',
     // Proof: optional fixed/canonical/originOrdinal accepted malformed mounted summaries (500 became 200).
     fixed: type({
-      projectId: 'string',
+      workPackageId: 'string',
       workItemId: 'string',
       stepId: 'string | null',
-      projectName: 'string',
-      projectAbbreviation: 'string',
+      workPackageName: 'string',
+      workPackageAbbreviation: 'string',
       workItemName: 'string',
       stepName: 'string | null',
       start: 'number',
@@ -294,27 +299,34 @@ const comparisonStage = comparisonProject.and({
   },
 });
 const comparisonPlacement = type({ kind: "'scheduled'" })
-  .or({ kind: "'dependency_calendar_missing'", projects: comparisonProject.array().readonly() })
+  .or({
+    kind: "'dependency_calendar_missing'",
+    workPackages: comparisonWorkPackage.array().readonly(),
+  })
   .or({
     kind: "'engine_unavailable'",
     engine: "'optimized'",
-    projects: type('string[]').readonly(),
+    workPackages: type('string[]').readonly(),
     reason: "'adapter_missing' | 'connected_optimization_not_supported'",
   })
   .or({ kind: "'unavailable'", reason: "'cycle' | 'calendar_range'" });
 const comparisonSide = type({
   source: type({ kind: "'current'" }).or({ kind: "'saved'", savedPlanId: 'string' }),
+  // Proof: replacing this endpoint's outer validator with an accepting dependency
+  // made the parent-evidence tests first fail on missing left.parent and null
+  // right.parent; fresh healthy children passed before and after (2026-11-13).
+  parent: type({ kind: "'unrecorded'" }).or({ kind: "'recorded'", projectId: 'string > 0' }),
   schedule: type({ present: 'true', algorithmId: 'string' }).or({
     present: 'false',
     absentReason: 'string',
   }),
   provenance: type({ kind: "'legacy-unknown' | 'local'" }).or({
     kind: "'connected'",
-    targetProjectId: 'string',
+    targetWorkPackageId: 'string',
     mode: "'isolated' | 'shared'",
     placementState: comparisonPlacement,
-    projects: comparisonProject.array().readonly(),
-    idleProjects: comparisonProject.array().readonly(),
+    workPackages: comparisonWorkPackage.array().readonly(),
+    idleWorkPackages: comparisonWorkPackage.array().readonly(),
     stages: comparisonStage.array().readonly(),
   }),
 });
@@ -322,8 +334,8 @@ const comparisonSide = type({
 /** Compares two saved ids or the exact current sentinel; duplicate queries retain their last value. */
 export const compareSavedPlans = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/saved-plans/compare',
-  operationId: 'getApiProjectsByIdSaved-plansCompare',
+  path: '/api/work-packages/:id/saved-plans/compare',
+  operationId: 'getApiWorkPackagesByIdSaved-plansCompare',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   query: requestSchema(type({ left: 'string > 0', right: 'string > 0' })),
@@ -358,7 +370,7 @@ export const compareSavedPlans = defineEndpointShape({
       ),
     },
   ],
-  document: { summary: 'Compare saved or current project plans.' },
+  document: { summary: 'Compare saved or current work package plans.' },
 });
 
 /**
@@ -401,10 +413,10 @@ export const renameSavedPlan = defineEndpointShape({
     },
   ],
   refusals: nameRefusals,
-  document: { summary: 'Rename a saved plan as its creator or project owner.' },
+  document: { summary: 'Rename a saved plan as its creator or work package owner.' },
 });
 
-/** Removes a saved plan as its creator or project owner, returning no representation. */
+/** Removes a saved plan as its creator or work package owner, returning no representation. */
 export const deleteSavedPlan = defineEndpointShape({
   method: 'DELETE',
   path: '/api/saved-plans/:id',
@@ -416,5 +428,5 @@ export const deleteSavedPlan = defineEndpointShape({
     ...writeRefusals,
     { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
   ],
-  document: { summary: 'Delete a saved plan as its creator or project owner.' },
+  document: { summary: 'Delete a saved plan as its creator or work package owner.' },
 });

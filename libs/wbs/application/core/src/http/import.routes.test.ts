@@ -1,4 +1,4 @@
-import { type AuthenticatedUser, importProject } from '@wbs/contracts';
+import { type AuthenticatedUser, importWorkPackage } from '@wbs/contracts';
 import { expect, mock, test } from 'bun:test';
 
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
@@ -7,7 +7,7 @@ import { importRoutes } from './import.routes';
 
 const summary = {
   ok: true as const,
-  projectId: 'project-new',
+  workPackageId: 'work-package-new',
   rows: 2,
   created: {
     teams: ['Billing'],
@@ -45,34 +45,38 @@ test('binds the import shape and returns its complete created summary', async ()
   };
   const importPlan = mock(() => Promise.resolve(summary));
   const [endpoint] = importRoutes({ import: importPlan }, legacyOrganizationAccess);
-  expect(endpoint.shape).toBe(importProject);
+  expect(endpoint.shape).toBe(importWorkPackage);
 
   const response = await endpoint.handle({
     params: {},
     query: undefined,
-    body: planDocumentFixture(),
+    body: { projectId: 'route-parent', document: planDocumentFixture() },
     principal,
     request: {
-      url: new URL('https://app.test/api/projects/import'),
+      url: new URL('https://app.test/api/work-packages/import'),
       method: 'POST',
       headers: new Headers(),
       signal: new AbortController().signal,
     },
   });
 
-  expect(importPlan).toHaveBeenCalledWith(planDocumentFixture(), {
-    kind: 'human',
-    principal: {
-      ...principal,
-      organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } },
+  expect(importPlan).toHaveBeenCalledWith(
+    planDocumentFixture(),
+    {
+      kind: 'human',
+      principal: {
+        ...principal,
+        organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } },
+      },
+      expectedAccess: { kind: 'legacy' },
     },
-    expectedAccess: { kind: 'legacy' },
-  });
+    'route-parent',
+  );
   expect(response).toEqual({
     ok: true,
     status: 201,
     body: {
-      projectId: summary.projectId,
+      workPackageId: summary.workPackageId,
       rows: summary.rows,
       created: summary.created,
       solutionRef: summary.solutionRef,
@@ -116,10 +120,10 @@ test.each([
   const response = await endpoint.handle({
     params: {},
     query: undefined,
-    body: planDocumentFixture(),
+    body: { projectId: 'route-parent', document: planDocumentFixture() },
     principal: { id: 'actor', username: 'actor', scopes: ['write'] },
     request: {
-      url: new URL('https://app.test/api/projects/import'),
+      url: new URL('https://app.test/api/work-packages/import'),
       method: 'POST',
       headers: new Headers(),
       signal: new AbortController().signal,
@@ -149,10 +153,10 @@ test('maps dormant v11 external import to conflict with its declaration path', a
   const response = await endpoint.handle({
     params: {},
     query: undefined,
-    body: planDocumentFixture(),
+    body: { projectId: 'route-parent', document: planDocumentFixture() },
     principal: { id: 'actor', username: 'actor', scopes: ['write'] },
     request: {
-      url: new URL('https://app.test/api/projects/import'),
+      url: new URL('https://app.test/api/work-packages/import'),
       method: 'POST',
       headers: new Headers(),
       signal: new AbortController().signal,
@@ -204,10 +208,10 @@ for (const [outcome, status, body] of [
     const reply: unknown = await endpoint.handle({
       params: {},
       query: undefined,
-      body: planDocumentFixture(),
+      body: { projectId: 'route-parent', document: planDocumentFixture() },
       principal: { id: 'actor', username: 'actor', scopes: ['write'] },
       request: {
-        url: new URL('https://app.test/api/projects/import'),
+        url: new URL('https://app.test/api/work-packages/import'),
         method: 'POST',
         headers: new Headers(),
         signal: new AbortController().signal,
@@ -216,3 +220,36 @@ for (const [outcome, status, body] of [
     expect(reply).toEqual({ ok: false, status, body });
   });
 }
+
+test('maps an inherited destination factor conflict to opaque409 without leaking either factor', async () => {
+  const [endpoint] = importRoutes(
+    {
+      import: () =>
+        Promise.resolve({
+          ok: false as const,
+          code: 'import_settings_conflict' as const,
+          key: 'budgetFactor' as const,
+          currentFactor: 7,
+          requestedFactor: 5,
+        }),
+    },
+    legacyOrganizationAccess,
+  );
+  const reply = await endpoint.handle({
+    params: {},
+    query: undefined,
+    body: { projectId: 'route-parent', document: planDocumentFixture() },
+    principal: { id: 'actor', username: 'actor', scopes: ['write'] },
+    request: {
+      url: new URL('https://app.test/api/work-packages/import'),
+      method: 'POST',
+      headers: new Headers(),
+      signal: new AbortController().signal,
+    },
+  });
+  expect(reply).toEqual({
+    ok: false,
+    status: 409,
+    body: { error: 'import_settings_conflict', key: 'budgetFactor' },
+  });
+});

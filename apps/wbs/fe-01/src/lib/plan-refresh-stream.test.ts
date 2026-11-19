@@ -2,8 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { planRead } from '../testing/views';
 import { createPlanRefresh, resourcesFor } from './plan-refresh';
-import { type ProjectStream, type SocketHandlers, subscribeToProject } from './project-stream';
-import { type CalendarMarkerView, httpProjectApi, WbsRequestError } from './wbs-api';
+import { type CalendarMarkerView, httpWorkPackageApi, WbsRequestError } from './wbs-api';
+import {
+  type SocketHandlers,
+  subscribeToWorkPackage,
+  type WorkPackageStream,
+} from './work-package-stream';
 
 /** The real stream reads location; this boundary runs under the browser test environment. */
 interface Socket {
@@ -21,7 +25,9 @@ function held<T>() {
 
 function scenario(initialSeq = -1) {
   let seq = initialSeq;
-  let markers: (CalendarMarkerView & { projectId: string; createdAt: number })[] = [];
+  let treeRefused = false;
+  const connections: boolean[] = [];
+  let markers: (CalendarMarkerView & { workPackageId: string; createdAt: number })[] = [];
   let markerGate: ReturnType<typeof held<undefined>> | null = null;
   let markerStarted = held<undefined>();
   /** `missing` answers as an older be-01 does: Elysia's router miss, a bare `404 NOT_FOUND`. */
@@ -34,23 +40,24 @@ function scenario(initialSeq = -1) {
     'fetch',
     vi.fn(async (path: string) => {
       requests.push(path);
-      if (path === '/api/projects/p1/work-items') {
+      if (path === '/api/work-packages/p1/work-items') {
         const gate = treeGate;
         treeStarted.resolve(undefined);
         if (gate !== null) await gate.promise;
+        if (treeRefused) return Response.json({ code: 'forbidden' }, { status: 403 });
         return Response.json({
           ...planRead({ seq }),
           waitingForPerson: 0,
           waitingForCapacity: 0,
         });
       }
-      if (path === '/api/projects/p1')
+      if (path === '/api/work-packages/p1')
         return Response.json({
-          project: {
+          workPackage: {
             id: 'p1',
             name: 'Plan',
             abbreviation: 'PLAN',
-            ownerId: 'owner',
+            projectId: 'fixture-project',
             restricted: false,
             estimateMethod: 'pert',
             depReach: 'whole-item',
@@ -66,14 +73,14 @@ function scenario(initialSeq = -1) {
           },
           steps: [],
         });
-      if (path === '/api/projects/p1/calendar-markers') {
+      if (path === '/api/work-packages/p1/calendar-markers') {
         const captured = Response.json({ markers });
         const gate = markerGate;
         markerStarted.resolve(undefined);
         if (gate !== null) await gate.promise;
         return captured;
       }
-      if (path === '/api/projects/p1/claims')
+      if (path === '/api/work-packages/p1/claims')
         return claimsRoute === 'served'
           ? Response.json({ readAt: 0, claims: [] })
           : new Response('NOT_FOUND', { status: 404 });
@@ -91,24 +98,27 @@ function scenario(initialSeq = -1) {
     }),
   );
   const owner = createPlanRefresh({
-    projectId: 'p1',
-    routes: httpProjectApi('session'),
+    workPackageId: 'p1',
+    routes: httpWorkPackageApi('session'),
     monotonicNow: () => 0,
   });
   const sockets: Socket[] = [];
   const timers: (() => void)[] = [];
   const pending: Promise<unknown>[] = [];
-  let stream: ProjectStream | null = null;
+  let stream: WorkPackageStream | null = null;
   let acknowledged = -1;
   const stop = owner.subscribe(() => {
     const snapshot = owner.getSnapshot();
     if (snapshot.baseline !== null && stream === null) {
       acknowledged = snapshot.baseline.seq;
-      stream = subscribeToProject(
+      stream = subscribeToWorkPackage(
         {
-          projectId: 'p1',
+          workPackageId: 'p1',
           sinceSeq: snapshot.baseline.seq,
           hasBaseline: true,
+          onConnectionChange: (connected) => {
+            connections.push(connected);
+          },
           onChange: (kind, sequence) => {
             pending.push(
               kind == null && sequence === undefined
@@ -154,7 +164,7 @@ function scenario(initialSeq = -1) {
     const frames = latest().sent.map(
       (frame) => JSON.parse(frame) as { type: string; resume_points?: Record<string, number> },
     );
-    return frames.find((frame) => frame.type === 'resume')?.resume_points?.['project:p1'];
+    return frames.find((frame) => frame.type === 'resume')?.resume_points?.['work-package:p1'];
   };
   return {
     owner,
@@ -192,7 +202,7 @@ function scenario(initialSeq = -1) {
       markers = [
         {
           id: 'launch',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name,
           date: '2026-09-06',
           color: '#2563eb',
@@ -205,7 +215,7 @@ function scenario(initialSeq = -1) {
       seq += 1;
       const event = { seq, message: { type: 'tree_replaced' } };
       journal.push(event);
-      latest().handlers.onMessage(JSON.stringify({ subscription: 'project:p1', ...event }));
+      latest().handlers.onMessage(JSON.stringify({ subscription: 'work-package:p1', ...event }));
       await Promise.all(pending.splice(0));
     },
     open: () => {
@@ -219,12 +229,29 @@ function scenario(initialSeq = -1) {
       latest().handlers.onOpen();
     },
     resumePoint,
+    refuseTree() {
+      treeRefused = true;
+    },
+    serveTree() {
+      treeRefused = false;
+    },
+    connectionStates: () => [...connections],
+    async frame(subscription: string, sequence: number) {
+      latest().handlers.onMessage(
+        JSON.stringify({
+          subscription,
+          seq: sequence,
+          message: { type: 'calendar_markers_changed' },
+        }),
+      );
+      await Promise.all(pending.splice(0));
+    },
     socketCount: () => sockets.length,
     async denyResume() {
       latest().handlers.onMessage(
         JSON.stringify({
           type: 'resume_denied',
-          subscription: 'project:p1',
+          subscription: 'work-package:p1',
           reason: 'unavailable',
         }),
       );
@@ -234,11 +261,11 @@ function scenario(initialSeq = -1) {
       const cursor = resumePoint();
       if (cursor === undefined) return;
       for (const event of journal.filter((event) => event.seq > cursor))
-        latest().handlers.onMessage(JSON.stringify({ subscription: 'project:p1', ...event }));
+        latest().handlers.onMessage(JSON.stringify({ subscription: 'work-package:p1', ...event }));
       latest().handlers.onMessage(
         JSON.stringify({
           type: 'resume_ack',
-          replayed: { 'project:p1': journal.filter((event) => event.seq > cursor).length },
+          replayed: { 'work-package:p1': journal.filter((event) => event.seq > cursor).length },
         }),
       );
       await Promise.all(pending.splice(0));
@@ -389,7 +416,9 @@ describe('claims over the real API and stream', () => {
       });
       expect(fixture.owner.getSnapshot().baseline?.seq).toBe(0);
       expect(fixture.owner.getSnapshot().claims.failure?.cause).toBeInstanceOf(WbsRequestError);
-      expect(fixture.requests.filter((path) => path === '/api/projects/p1/claims')).toHaveLength(1);
+      expect(
+        fixture.requests.filter((path) => path === '/api/work-packages/p1/claims'),
+      ).toHaveLength(1);
     } finally {
       fixture.close();
     }
@@ -415,4 +444,57 @@ describe('claims over the real API and stream', () => {
       fixture.close();
     }
   });
+});
+
+it('ignores legacy frame zero while installing distinct current zero and resuming only covered current state', async () => {
+  const fixture = scenario();
+  try {
+    await fixture.owner.initialize();
+    fixture.open();
+    expect(fixture.resumePoint()).toBe(-1);
+    fixture.commitMarker('Current namespace zero');
+    const before = fixture.requests.length;
+    await fixture.frame('project:p1', 0);
+    expect(fixture.requests).toHaveLength(before);
+    expect(fixture.owner.getSnapshot().markers.installed?.value).toEqual([]);
+    expect(fixture.owner.getSnapshot().acknowledged).toBe(-1);
+    await fixture.replay();
+    expect(fixture.owner.getSnapshot().markers.installed?.value[0]?.name).toBe(
+      'Current namespace zero',
+    );
+    expect(fixture.owner.getSnapshot().acknowledged).toBe(0);
+    fixture.reconnect();
+    expect(fixture.resumePoint()).toBe(0);
+  } finally {
+    fixture.close();
+  }
+});
+it('failed denied-resume refetch keeps stale rows and current acknowledgment despite connected transport', async () => {
+  const fixture = scenario(0);
+  try {
+    await fixture.owner.initialize();
+    fixture.open();
+    fixture.commitMarker('Not yet readable');
+    fixture.refuseTree();
+    await fixture.denyResume();
+    expect(fixture.connectionStates()).toContain(true);
+    expect(fixture.owner.getSnapshot().tree.failure?.cause).toBeInstanceOf(WbsRequestError);
+    expect(fixture.owner.getSnapshot().staleResources).toContain('tree');
+    expect(fixture.owner.getSnapshot().markers.installed?.value).toEqual([]);
+    expect(fixture.owner.getSnapshot().acknowledged).toBe(0);
+    await fixture.replay();
+    expect(fixture.owner.getSnapshot().markers.installed?.value).toEqual([]);
+    expect(fixture.owner.getSnapshot().acknowledged).toBe(0);
+    fixture.reconnect();
+    expect(fixture.resumePoint()).toBe(0);
+    fixture.serveTree();
+    await fixture.denyResume();
+    expect(fixture.owner.getSnapshot().markers.installed?.value[0]?.name).toBe('Not yet readable');
+    expect(fixture.owner.getSnapshot().staleResources).toEqual([]);
+    expect(fixture.owner.getSnapshot().acknowledged).toBe(1);
+    fixture.reconnect();
+    expect(fixture.resumePoint()).toBe(1);
+  } finally {
+    fixture.close();
+  }
 });

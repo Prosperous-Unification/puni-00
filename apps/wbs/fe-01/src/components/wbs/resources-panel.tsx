@@ -1,12 +1,12 @@
 import { Button, CONTROL_HEIGHT, Input, SELECT_CLASS } from '@ui/saas-01';
 import {
   applyDirectoryCommands,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   type ClientReply,
   listComputeProviders,
   readActiveOrganization,
-  readProjectResources,
   readStartableWork,
+  readWorkPackageResources,
 } from '@wbs/contracts';
 import { type SyntheticEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 
@@ -27,17 +27,20 @@ import { ResourceUsesPanel } from './resource-uses-panel';
 import type { SettingsSectionReport } from './teams-panel';
 
 const RESOURCE_SHAPES = [
-  readProjectResources,
+  readWorkPackageResources,
   readStartableWork,
   listComputeProviders,
   readActiveOrganization,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   applyDirectoryCommands,
 ] as const;
 
-type ResourcesRead = Extract<ClientReply<typeof readProjectResources>, { kind: 'success' }>['body'];
-/** One resource of the caller's directory as the project resources read answers it. */
-export type ProjectResource = ResourcesRead['resources'][number];
+type ResourcesRead = Extract<
+  ClientReply<typeof readWorkPackageResources>,
+  { kind: 'success' }
+>['body'];
+/** One resource of the caller's directory as the work package resources read answers it. */
+export type WorkPackageResource = ResourcesRead['resources'][number];
 
 /** How long a shown section waits before it reads the reports' ages again. */
 const TICK_MS = 30_000;
@@ -86,7 +89,7 @@ type Occupancy =
  * - `unknown`: the role read failed; nothing to change, and `isTransport`
  *   says whether reading it again can help.
  *
- * A drawing hint only: be-01 decides. On a restricted project be-01 refuses
+ * A drawing hint only: be-01 decides. On a restricted work package be-01 refuses
  * capacity to every non-creator but a super-admin, an admin included; the
  * section does not read the restriction, so that refusal is said beside the
  * row. Any `forbidden` write rereads the role.
@@ -125,7 +128,7 @@ type View =
   | { kind: 'failure'; message: string }
   | {
       kind: 'ready';
-      resources: readonly ProjectResource[];
+      resources: readonly WorkPackageResource[];
       declared: ReadonlyMap<string, number>;
       providers: ProviderChoice;
       occupancy: Occupancy;
@@ -133,7 +136,7 @@ type View =
     };
 
 /**
- * An adoption that landed. Held while the project's declared number is still
+ * An adoption that landed. Held while the work package's declared number is still
  * the adopted one: a reread that finds another number (someone else stated
  * it since) drops it, so Undo never writes the old number over theirs.
  */
@@ -142,12 +145,12 @@ interface Adoption {
   readonly name: string;
   readonly units: number;
   readonly unitLabel: string;
-  /** What this project stated before, null when it was unstated. */
+  /** What this work package stated before, null when it was unstated. */
   readonly previous: number | null;
 }
 
 export interface ResourcesPanelProps extends SettingsSectionReport {
-  projectId: string;
+  workPackageId: string;
   /** Whether its tab is in front: the section reads its resources each time it is shown. */
   shown: boolean;
   /** Re-reads the plan after a capacity statement, which may move its dates. */
@@ -155,8 +158,8 @@ export interface ResourcesPanelProps extends SettingsSectionReport {
 }
 
 /**
- * The resources this project's directory holds (`compute-providers` P7, P12):
- * what the project declares of each, the compute provider instance that
+ * The resources this work package's directory holds (`compute-providers` P7, P12):
+ * what the work package declares of each, the compute provider instance that
  * fulfils it, and that instance's latest capacity report read on this
  * section's own clock, so a report goes stale here without a reread.
  *
@@ -181,14 +184,14 @@ export interface ResourcesPanelProps extends SettingsSectionReport {
  * its unit label (`patchResource`), Remove deletes it (`deleteResource`) and,
  * when demands, capacities or claims still name it, says so with the counts
  * and offers to remove it with them (`cascade`). The declared box states this
- * project's capacity by hand (`setResourceCapacity`, blank for unstated).
+ * work package's capacity by hand (`setResourceCapacity`, blank for unstated).
  * What the role cannot send is not offered ({@link Standing}); every refusal
  * be-01 still answers is said beside the row whose write caused it, and a
  * refused capacity leaves the box showing the declared number, not the
  * unsaved one.
  */
 export function ResourcesPanel({
-  projectId,
+  workPackageId,
   shown,
   onChanged,
   onDirtyChange,
@@ -268,9 +271,9 @@ export function ResourcesPanel({
         };
       };
       const [listed, rights, startable] = await Promise.all([
-        client.getApiProjectsByIdResources({ params: { id: projectId } }),
+        client.getApiWorkPackagesByIdResources({ params: { id: workPackageId } }),
         readRights(),
-        client.getApiProjectsByIdStartable({ params: { id: projectId }, query: {} }),
+        client.getApiWorkPackagesByIdStartable({ params: { id: workPackageId }, query: {} }),
       ]);
       if (version !== generation.current) return;
       if (rights === null) return;
@@ -359,7 +362,7 @@ export function ResourcesPanel({
         standing,
       });
     },
-    [client, projectId, captured],
+    [client, workPackageId, captured],
   );
 
   const refresh = useCallback(async () => {
@@ -398,7 +401,7 @@ export function ResourcesPanel({
    */
   async function write(
     send: () => Promise<
-      ClientReply<typeof applyProjectCommands> | ClientReply<typeof applyDirectoryCommands>
+      ClientReply<typeof applyWorkPackageCommands> | ClientReply<typeof applyDirectoryCommands>
     >,
     after: {
       replans: boolean;
@@ -450,18 +453,18 @@ export function ResourcesPanel({
     }
   }
 
-  function setCapacity(resource: ProjectResource, units: number | null) {
+  function setCapacity(resource: WorkPackageResource, units: number | null) {
     return write(
       () =>
-        client.postApiProjectsByIdCommands({
-          params: { id: projectId },
+        client.postApiWorkPackagesByIdCommands({
+          params: { id: workPackageId },
           body: { commands: [{ kind: 'setResourceCapacity', resourceId: resource.id, units }] },
         }),
       { replans: true, resourceName: resource.name, resourceId: resource.id },
     );
   }
 
-  async function adopt(resource: ProjectResource, units: number, previous: number | null) {
+  async function adopt(resource: WorkPackageResource, units: number, previous: number | null) {
     setAdoption(null);
     if ((await setCapacity(resource, units)) === 'landed')
       setAdoption({
@@ -473,11 +476,11 @@ export function ResourcesPanel({
       });
   }
 
-  async function undo(adopted: Adoption, resource: ProjectResource) {
+  async function undo(adopted: Adoption, resource: WorkPackageResource) {
     if ((await setCapacity(resource, adopted.previous)) === 'landed') setAdoption(null);
   }
 
-  function setProvider(resource: ProjectResource, providerId: string | null) {
+  function setProvider(resource: WorkPackageResource, providerId: string | null) {
     setAdoption(null);
     observe(
       write(
@@ -531,7 +534,11 @@ export function ResourcesPanel({
     );
   }
 
-  function rename(resource: ProjectResource, name: string, unitLabel: string): Promise<boolean> {
+  function rename(
+    resource: WorkPackageResource,
+    name: string,
+    unitLabel: string,
+  ): Promise<boolean> {
     return directory(
       {
         kind: 'patchResource',
@@ -544,7 +551,7 @@ export function ResourcesPanel({
   }
 
   /** Records where a removed resource stood, for the focus to land beside it. */
-  function landAfterRemoving(resource: ProjectResource) {
+  function landAfterRemoving(resource: WorkPackageResource) {
     // Proof: 2026-10-25, without this, `lands on the next resource after a
     // removal` found the focus on the page body.
     if (view.kind === 'ready')
@@ -554,7 +561,7 @@ export function ResourcesPanel({
   /**
    * One step of removing a resource. `ask` only opens the confirm, which says
    * the removal cannot be undone. `confirm` sends the plain delete; be-01
-   * refuses one still in use `in_use` with the counts and the projects using
+   * refuses one still in use `in_use` with the counts and the work packages using
    * it, which the row then shows. `cascade` re-checks first: it sends the
    * plain delete again and sends `cascade` only when be-01 answers the usage
    * that was shown, so nothing added since the reader looked is taken with it
@@ -566,7 +573,7 @@ export function ResourcesPanel({
    * read it) and closes the confirm; {@link write}'s reread takes Remove away.
    * False for every other refusal.
    */
-  function sayForbiddenRemoval(resource: ProjectResource, refusal: BatchRefusal): boolean {
+  function sayForbiddenRemoval(resource: WorkPackageResource, refusal: BatchRefusal): boolean {
     if (refusal.error !== 'forbidden') return false;
     setRemoval(null);
     setNotice({
@@ -576,7 +583,7 @@ export function ResourcesPanel({
     return true;
   }
 
-  async function remove(resource: ProjectResource, step: 'ask' | 'confirm' | 'cascade') {
+  async function remove(resource: WorkPackageResource, step: 'ask' | 'confirm' | 'cascade') {
     // Proof: 2026-10-25, with `ask` sending the delete at once, `removes an
     // unused resource only after a confirm naming its provider link` failed:
     // one click removed it, with no word that it cannot be undone.
@@ -640,7 +647,10 @@ export function ResourcesPanel({
     });
   }
 
-  async function stateCapacity(resource: ProjectResource, typed: string): Promise<CapacityAnswer> {
+  async function stateCapacity(
+    resource: WorkPackageResource,
+    typed: string,
+  ): Promise<CapacityAnswer> {
     const trimmed = typed.trim();
     // Proof: 2026-10-25, without this check `says a capacity that is not a
     // number in place` failed on `Unable to find role="alert"`: `NaN` went out
@@ -672,14 +682,14 @@ export function ResourcesPanel({
     // No heading of its own: the tab names the section, as every other (F-122).
     <div ref={section} className="flex flex-col gap-3">
       <p className="text-muted-foreground m-0 text-sm">
-        What this project declares of each resource, beside what its compute provider last measured.
-        The plan uses only the declared number
+        What this work package declares of each resource, beside what its compute provider last
+        measured. The plan uses only the declared number
         {mayWrite ? '; adopting a measurement states it.' : '.'}
         {view.kind === 'ready' && view.providers.kind === 'named' && (
           <>
             {' '}
             A resource’s compute provider is the directory’s: changing it here changes it for every
-            project.
+            work package.
           </>
         )}
       </p>
@@ -812,7 +822,7 @@ export function ResourcesPanel({
                 onRename={
                   mayWrite ? (name, unitLabel) => rename(resource, name, unitLabel) : undefined
                 }
-                projectId={projectId}
+                workPackageId={workPackageId}
                 // Proof: 2026-10-25, with no notice passed to the row, `shows
                 // the declared number again after a refused capacity, and says
                 // why beside its row` found no alert in the row.
@@ -839,7 +849,7 @@ export function ResourcesPanel({
       )}
       {mayWrite && <NewResourceForm busy={busy} onCreate={create} />}
       <ResourceUsesPanel
-        projectId={projectId}
+        workPackageId={workPackageId}
         shown={shown}
         onDirtyChange={setUsesDirty}
         onBusyChange={setUsesBusy}
@@ -877,23 +887,23 @@ type Removal =
 /** Whether two `in_use` answers name the same uses. */
 function sameUse(left: InUse, right: InUse): boolean {
   return (
-    JSON.stringify([left.counts, left.usage.projects]) ===
-    JSON.stringify([right.counts, right.usage.projects])
+    JSON.stringify([left.counts, left.usage.workPackages]) ===
+    JSON.stringify([right.counts, right.usage.workPackages])
   );
 }
 
 /**
- * Where a resource is used, by project: `this project (2 work items)` first,
- * then each other project by name. Empty when no work item uses it.
+ * Where a resource is used, by work package: `this workPackage (2 work items)` first,
+ * then each other work package by name. Empty when no work item uses it.
  */
-export function usagePlaces(usage: InUse['usage'], projectId: string): string {
+export function usagePlaces(usage: InUse['usage'], workPackageId: string): string {
   const items = (count: number) => `${String(count)} work item${count === 1 ? '' : 's'}`;
-  const places = [...usage.projects]
-    .sort((left, right) => Number(right.id === projectId) - Number(left.id === projectId))
-    .map((project) =>
-      project.id === projectId
-        ? `this project (${items(project.workItems.length)})`
-        : `“${project.name}” (${items(project.workItems.length)})`,
+  const places = [...usage.workPackages]
+    .sort((left, right) => Number(right.id === workPackageId) - Number(left.id === workPackageId))
+    .map((workPackage) =>
+      workPackage.id === workPackageId
+        ? `this work package (${items(workPackage.workItems.length)})`
+        : `“${workPackage.name}” (${items(workPackage.workItems.length)})`,
     );
   return places.length <= 1
     ? (places[0] ?? '')
@@ -1139,11 +1149,11 @@ function StandingHint({
 
 /** A refused resources read in words; every arm is a page fault or a lost organization. */
 function resourcesReadSentence(
-  refusal: Extract<ClientReply<typeof readProjectResources>, { kind: 'refusal' }>['body'],
+  refusal: Extract<ClientReply<typeof readWorkPackageResources>, { kind: 'refusal' }>['body'],
 ): string {
   switch (refusal.error) {
     case 'not_found':
-      return 'This project is no longer here — someone may have deleted it.';
+      return 'This work package is no longer here — someone may have deleted it.';
     case 'unauthenticated':
       return 'Your session ended. Sign in again to see the resources.';
     case 'organization_context_changed':
@@ -1207,17 +1217,17 @@ export function ResourceRow({
   onUndo,
   onProvider,
   removal = null,
-  projectId = '',
+  workPackageId = '',
   onRename,
   onRemove,
   onKeep,
   onCapacity,
   notice = null,
 }: {
-  resource: ProjectResource;
+  resource: WorkPackageResource;
   declared: number | null;
   /**
-   * What claims of this project hold of it now, against its stated capacity;
+   * What claims of this work package hold of it now, against its stated capacity;
    * `not_reported` when the read lists no line for it; null when unread.
    */
   held?: { occupied: number; free: number } | 'not_reported' | null;
@@ -1232,8 +1242,8 @@ export function ResourceRow({
   onProvider: (providerId: string | null) => void;
   /** A removal under way on this row, or null. */
   removal?: Removal | null;
-  /** The project whose settings show the row, named `this project` in the usage. */
-  projectId?: string;
+  /** The work package whose settings show the row, named `this workPackage` in the usage. */
+  workPackageId?: string;
   /**
    * Renames the resource or changes its unit label; answers whether it landed.
    * Losing this capability discards an open edit, including on later recovery.
@@ -1242,7 +1252,7 @@ export function ResourceRow({
   /** Removes the resource; `cascade` takes what still uses it with it. */
   onRemove?: (step: 'ask' | 'confirm' | 'cascade') => void;
   onKeep?: () => void;
-  /** States this project's capacity from the typed box, blank for unstated; absent offers no box. */
+  /** States this work package's capacity from the typed box, blank for unstated; absent offers no box. */
   onCapacity?: (typed: string) => Promise<CapacityAnswer>;
   /** What the section says about this row's last write: a refusal or a failure. */
   notice?: string | null;
@@ -1413,7 +1423,7 @@ export function ResourceRow({
           )}
         </div>
       )}
-      {/* The project's number and the instance that fulfils it, side by side where they fit. */}
+      {/* The work package's number and the instance that fulfils it, side by side where they fit. */}
       <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
         {onCapacity !== undefined && (
           <form
@@ -1435,13 +1445,13 @@ export function ResourceRow({
               htmlFor={`resource-capacity-${resource.id}`}
               className="text-muted-foreground"
             >
-              This project may use
+              This work package may use
             </label>
             <Input
               id={`resource-capacity-${resource.id}`}
               inputMode="numeric"
               // The visible label first, then whose number it is (WCAG 2.5.3):
-              // `This project may use h2puni ram`.
+              // `This workPackage may use h2puni ram`.
               aria-labelledby={`resource-capacity-label-${resource.id} resource-name-${resource.id}`}
               className={`${CONTROL_HEIGHT} w-24 text-right tabular-nums`}
               placeholder="unstated"
@@ -1579,8 +1589,8 @@ export function ResourceRow({
         >
           {removal.stage === 'confirm' ? (
             <span>
-              Remove {resource.name} from the directory? Every project loses it, and it cannot be
-              undone: the plan’s Undo does not reach the directory
+              Remove {resource.name} from the directory? Every work package loses it, and it cannot
+              be undone: the plan’s Undo does not reach the directory
               {resource.providerId === null ? '' : ', and its compute provider link goes with it'}.
             </span>
           ) : (
@@ -1593,11 +1603,11 @@ export function ResourceRow({
               <span>
                 {resource.name} is still used by {usageWords(removal.counts)}.
                 {/* `usage` places demands only; capacities and claims are counted, not placed. */}
-                {removal.usage.projects.length === 0
+                {removal.usage.workPackages.length === 0
                   ? ''
-                  : ` Its demands are in ${usagePlaces(removal.usage, projectId)}.`}{' '}
-                Capacities and claims are counted across every project. Removing it with them takes
-                all of these away, and cannot be undone.
+                  : ` Its demands are in ${usagePlaces(removal.usage, workPackageId)}.`}{' '}
+                Capacities and claims are counted across every work package. Removing it with them
+                takes all of these away, and cannot be undone.
               </span>
               {removal.counts.occupancies > 0 && (
                 <span>

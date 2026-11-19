@@ -35,3 +35,18 @@ Reconcile requested outputs and observed stages against retained receipts and ac
 filesystem evidence; diagnostics alone are not a deletion list. Preserve competing or
 unattributable artifacts for investigation. Cleanup is an explicit operator action, not an
 automatic continuation of a failed backup.
+
+## Admitted stopped migration and startup
+
+The entity window requires an explicitly admitted one-off candidate migration before current
+application startup. The current boot inspector keeps its strict current-layout contract;
+ordinary startup does not translate old durable authority. The raw path-based migration CLI
+and the backup/window verifier do not supply the required transition owner.
+
+Follow the candidate/store/complete-ledger binding and permissions 6.4b/6.4e owner in the
+[dev window procedure](runbook-dev-deploy.md#work-package-rename-window). Positive execution
+remains unqualified until that owner, the historical-to-current correspondence and the
+actual one-off invocation are implemented and proved. Keep authenticated snapshot reads
+available through the transition and retire old HTTP/WS authorizers before upgraded exposure.
+Unknown transition or exposure state retains the barriers and explicit recovery ownership;
+E38 does not permit automatic old-role restoration after possible upgraded writes.

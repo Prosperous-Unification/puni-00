@@ -3,19 +3,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
-import { ProjectRepository } from './project';
+import { seedPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const FREEZE = '20260927200000_freeze_organization_ownership';
 const wrote: WriteStamp = { at: 1, by: 'ada' };
+const creationAudit = {
+  actor_id: 'ada',
+  detail:
+    '{"roleId":"package-manager","scopeKind":"work_package","scopeId":"p1","subjectKind":"user","subjectId":"ada","origin":"creation"}',
+};
 
 /**
  * `20260927220000_add_organization_audit` and the audited recovery write
@@ -33,6 +39,7 @@ describe('the organization audit', () => {
     raw((sqlite) =>
       sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"),
     );
+    seedPackageParent(path, 'org-a', 'parent-a');
     const db = openDrizzle(path);
     for (const id of ['ada', 'sam']) {
       await new UserRepository(db, OPEN).create(
@@ -40,11 +47,17 @@ describe('the organization audit', () => {
         wrote,
       );
     }
-    await new ProjectRepository(db, OPEN).createInOrganization(
-      projectRow({ id: 'p1', name: 'Plan', ownerId: 'ada', restricted: true }),
+    raw((sqlite) =>
+      sqlite.run(
+        "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
+      ),
+    );
+    await new WorkPackageRepository(db, OPEN).createInOrganization(
+      workPackageRow({ id: 'p1', name: 'Plan', projectId: 'parent-a', restricted: true }),
       [],
       wrote,
       'org-a',
+      { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
     );
   });
 
@@ -69,23 +82,25 @@ describe('the organization audit', () => {
       ),
     );
 
-  it('does not expose the retired role-authorized project admission API', () => {
-    expect(Reflect.get(ProjectRepository.prototype, 'admitEditInOrganization')).toBeUndefined();
+  it('does not expose the retired role-authorized work package admission API', () => {
+    expect(Reflect.get(WorkPackageRepository.prototype, 'admitEditInOrganization')).toBeUndefined();
   });
 
   it('refuses an unknown action or subject kind', () => {
-    expect(() => insert('something_else', 'project')).toThrow();
-    expect(() => insert('restricted_project_recovery', 'person')).toThrow();
-    expect(() => insert('restricted_project_recovery', 'project')).not.toThrow();
+    expect(() => insert('something_else', 'work_package')).toThrow();
+    expect(() => insert('restricted_work_package_recovery', 'person')).toThrow();
+    expect(() => insert('restricted_work_package_recovery', 'work_package')).not.toThrow();
   });
 
   it('refuses a record of no organization', () => {
     raw((db) => db.run('PRAGMA foreign_keys = ON'));
-    expect(() => insert('restricted_project_recovery', 'project', 'org-nowhere')).toThrow();
+    expect(() =>
+      insert('restricted_work_package_recovery', 'work_package', 'org-nowhere'),
+    ).toThrow();
   });
 
   it('refuses to roll back over a recorded act', () => {
-    insert('restricted_project_recovery', 'project');
+    insert('restricted_work_package_recovery', 'work_package');
     expect(() => rollbackTo(path, FOLDER, FREEZE)).toThrow();
     expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM organization_audit').get())).toEqual({
       n: 1,
@@ -112,9 +127,9 @@ describe('the organization audit', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -144,13 +159,13 @@ describe('the organization audit', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260927220000_add_organization_audit',
       '20260927213000_add_typed_dependency',
     ]);
@@ -164,7 +179,7 @@ describe('the organization audit', () => {
       ),
     );
   const edit = (actorId: string, name: string) =>
-    new ProjectRepository(openDrizzle(path), OPEN).editInOrganization(
+    new WorkPackageRepository(openDrizzle(path), OPEN).editInOrganization(
       'p1',
       { name },
       { at: 2, by: actorId },
@@ -179,7 +194,7 @@ describe('the organization audit', () => {
       ),
     );
   const clearRestriction = (actorId: string) =>
-    new ProjectRepository(openDrizzle(path), OPEN).editInOrganization(
+    new WorkPackageRepository(openDrizzle(path), OPEN).editInOrganization(
       'p1',
       { restricted: false },
       { at: 2, by: actorId },
@@ -188,7 +203,7 @@ describe('the organization audit', () => {
     );
   const state = () =>
     raw((db) => ({
-      project: db.query('SELECT name, revision, restricted FROM project').get(),
+      workPackage: db.query('SELECT name, revision, restricted FROM work_package').get(),
       audits: db.query('SELECT actor_id, detail FROM organization_audit').all(),
     }));
 
@@ -201,7 +216,7 @@ describe('the organization audit', () => {
     expect(state()).toEqual(before);
   });
 
-  it('refuses a non-creator admin of a restricted project', async () => {
+  it('refuses a non-creator admin of a restricted work package', async () => {
     member('sam', 'admin');
     grant('sam', 'org-admin', 'organization', 'org-a');
     const before = state();
@@ -209,22 +224,26 @@ describe('the organization audit', () => {
     expect(state()).toEqual(before);
   });
 
-  it('audits a recovery the project became after the request read it', async () => {
+  it('audits a recovery the work package became after the request read it', async () => {
     member('sam', 'super_admin');
     grant('sam', 'org-super-admin', 'organization', 'org-a');
-    expect(await clearRestriction('sam')).toMatchObject({ restricted: false, ownerId: 'ada' });
-    expect(state().audits).toEqual([{ actor_id: 'sam', detail: '{"fields":["restricted"]}' }]);
+    expect(await clearRestriction('sam')).toMatchObject({
+      restricted: false,
+      projectId: 'parent-a',
+    });
+    expect(state().audits).toEqual([
+      creationAudit,
+      { actor_id: 'sam', detail: '{"fields":["restricted"]}' },
+    ]);
   });
 
-  it("writes the creator's own edit and an unrestricted project's edit without a record", async () => {
-    member('ada', 'member');
+  it("writes the creator's own edit and an unrestricted work package's edit without a record", async () => {
     member('sam', 'super_admin');
-    grant('ada', 'package-manager', 'work_package', 'p1');
     grant('sam', 'org-super-admin', 'organization', 'org-a');
     expect(await edit('ada', 'Mine')).toMatchObject({ name: 'Mine' });
-    raw((db) => db.run('UPDATE project SET restricted = 0'));
+    raw((db) => db.run('UPDATE work_package SET restricted = 0'));
     expect(await edit('sam', 'Open')).toMatchObject({ name: 'Open' });
-    expect(state().audits).toEqual([]);
+    expect(state().audits).toEqual([creationAudit]);
   });
 
   it('rolls the edit back when its audit record cannot be written', async () => {
@@ -246,12 +265,12 @@ describe('the organization audit', () => {
     expect(state()).toEqual(before);
   });
 
-  it('answers a project of another organization as absent, before any permission', async () => {
+  it('answers a work package of another organization as absent, before any permission', async () => {
     raw((db) => {
       db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
     });
     member('sam', 'viewer');
-    const answer = await new ProjectRepository(openDrizzle(path), OPEN).editInOrganization(
+    const answer = await new WorkPackageRepository(openDrizzle(path), OPEN).editInOrganization(
       'p1',
       { name: 'Taken' },
       { at: 2, by: 'sam' },

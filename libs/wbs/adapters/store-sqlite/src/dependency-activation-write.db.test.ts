@@ -17,7 +17,7 @@ import { afterEach, beforeEach, expect, it } from 'bun:test';
 import {
   activateDependencies,
   inspectDependencyActivation,
-} from './cross-project-dependency-activation';
+} from './cross-work-package-dependency-activation';
 import { openConnection } from './db';
 import { runMigrations } from './migrate';
 
@@ -77,23 +77,23 @@ it('refuses a conflicting receipt and preserves enabled authority', () => {
 for (const [label, fault] of [
   [
     'receipt insert',
-    "CREATE TRIGGER refuse_receipt BEFORE INSERT ON cross_project_dependency_activation_receipt BEGIN SELECT RAISE(ABORT,'injected receipt failure'); END",
+    "CREATE TRIGGER refuse_receipt BEFORE INSERT ON cross_work_package_dependency_activation_receipt BEGIN SELECT RAISE(ABORT,'injected receipt failure'); END",
   ],
   [
     'marker flip',
-    "CREATE TRIGGER refuse_flip BEFORE UPDATE ON cross_project_dependency_activation BEGIN SELECT RAISE(ABORT,'injected flip failure'); END",
+    "CREATE TRIGGER refuse_flip BEFORE UPDATE ON cross_work_package_dependency_activation BEGIN SELECT RAISE(ABORT,'injected flip failure'); END",
   ],
   [
     'receipt readback',
-    "CREATE TRIGGER change_receipt AFTER INSERT ON cross_project_dependency_activation_receipt BEGIN UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.activationId','changed'); END",
+    "CREATE TRIGGER change_receipt AFTER INSERT ON cross_work_package_dependency_activation_receipt BEGIN UPDATE cross_work_package_dependency_activation_receipt SET receipt=json_set(receipt,'$.activationId','changed'); END",
   ],
   [
     'marker readback',
-    'CREATE TRIGGER ignore_flip BEFORE UPDATE ON cross_project_dependency_activation BEGIN SELECT RAISE(IGNORE); END',
+    'CREATE TRIGGER ignore_flip BEFORE UPDATE ON cross_work_package_dependency_activation BEGIN SELECT RAISE(IGNORE); END',
   ],
   [
     'disabled readback',
-    "CREATE TRIGGER reset_authority AFTER UPDATE ON cross_project_dependency_activation WHEN NEW.state='ENABLED' BEGIN UPDATE cross_project_dependency_activation SET state='DISABLED'; DELETE FROM cross_project_dependency_activation_receipt; END",
+    "CREATE TRIGGER reset_authority AFTER UPDATE ON cross_work_package_dependency_activation WHEN NEW.state='ENABLED' BEGIN UPDATE cross_work_package_dependency_activation SET state='DISABLED'; DELETE FROM cross_work_package_dependency_activation_receipt; END",
   ],
 ] as const) {
   it(`rolls back both writes after ${label} failure`, () => {
@@ -107,8 +107,8 @@ for (const [label, fault] of [
 }
 
 for (const fault of [
-  'DROP TABLE cross_project_dependency_activation_receipt',
-  'DROP TABLE cross_project_dependency_activation',
+  'DROP TABLE cross_work_package_dependency_activation_receipt',
+  'DROP TABLE cross_work_package_dependency_activation',
   'DROP TABLE __drizzle_migrations',
   "UPDATE __drizzle_migrations SET hash='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' WHERE name='20261022212000_add_cross_project_dependency_activation'",
   "DELETE FROM __drizzle_migrations WHERE name='20261022211000_add_external_dependencies'",
@@ -117,8 +117,8 @@ for (const fault of [
   'INSERT INTO __drizzle_migrations(hash,created_at,name) SELECT hash,created_at,name FROM __drizzle_migrations LIMIT 1',
   'DELETE FROM __drizzle_migrations WHERE name=(SELECT min(name) FROM __drizzle_migrations)',
   'DROP TRIGGER external_dependency_admit_update',
-  'DELETE FROM cross_project_dependency_activation',
-  "UPDATE cross_project_dependency_activation SET state='ENABLED'",
+  'DELETE FROM cross_work_package_dependency_activation',
+  "UPDATE cross_work_package_dependency_activation SET state='ENABLED'",
 ] as const) {
   it(`refuses damaged trusted state: ${fault}`, () => {
     connection.db.run(fault);
@@ -131,17 +131,17 @@ for (const fault of [
 }
 
 it('refuses an existing unconstrained replacement receipt table', () => {
-  connection.db.run('DROP TABLE cross_project_dependency_activation_receipt');
+  connection.db.run('DROP TABLE cross_work_package_dependency_activation_receipt');
   connection.db.run(
-    'CREATE TABLE cross_project_dependency_activation_receipt(id INTEGER,receipt TEXT)',
+    'CREATE TABLE cross_work_package_dependency_activation_receipt(id INTEGER,receipt TEXT)',
   );
   expect(() => activateDependencies(path, FOLDER, RECEIPT)).toThrow(
     'invalid dependency activation schema',
   );
-  expect(connection.db.all('SELECT * FROM cross_project_dependency_activation_receipt')).toEqual(
-    [],
-  );
-  expect(connection.db.all('SELECT state FROM cross_project_dependency_activation')).toEqual([
+  expect(
+    connection.db.all('SELECT * FROM cross_work_package_dependency_activation_receipt'),
+  ).toEqual([]);
+  expect(connection.db.all('SELECT state FROM cross_work_package_dependency_activation')).toEqual([
     { state: 'DISABLED' },
   ]);
 });
@@ -184,13 +184,15 @@ it('requires the external dependency identity even when omitted from both artifa
 it('refuses an enabled malformed exact receipt without overwriting it', () => {
   activateDependencies(path, FOLDER, RECEIPT);
   connection.db.run(
-    "UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.activatedAt',-1)",
+    "UPDATE cross_work_package_dependency_activation_receipt SET receipt=json_set(receipt,'$.activatedAt',-1)",
   );
-  const before = connection.db.all('SELECT * FROM cross_project_dependency_activation_receipt');
+  const before = connection.db.all(
+    'SELECT * FROM cross_work_package_dependency_activation_receipt',
+  );
   expect(() => activateDependencies(path, FOLDER, RECEIPT)).toThrow(
     'invalid dependency activation receipt',
   );
-  expect(connection.db.all('SELECT * FROM cross_project_dependency_activation_receipt')).toEqual(
-    before,
-  );
+  expect(
+    connection.db.all('SELECT * FROM cross_work_package_dependency_activation_receipt'),
+  ).toEqual(before);
 });

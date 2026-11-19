@@ -164,6 +164,6 @@ describe('findPersonWork', () => {
       findPersonWork(
         reads({ assignments: [{ workItemId: 'w-1', stepId: 'gone', personId: 'kat' }] }),
       ),
-    ).toThrow('step gone is not a step of this project');
+    ).toThrow('step gone is not a step of this work package');
   });
 });

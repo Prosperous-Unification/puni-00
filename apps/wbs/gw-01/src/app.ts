@@ -10,7 +10,7 @@ import { Elysia } from 'elysia';
 
 import { internalController, type SocketLike } from './controller/internal.controller';
 import { createUnexpectedBackendFailureReporter } from './controller/unexpected-backend-failure';
-import { handleWsMessage, projectIdOf } from './controller/ws.controller';
+import { handleWsMessage, workPackageIdOf } from './controller/ws.controller';
 import { GATEWAY_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import {
   type ForwardedBrowserCredential,
@@ -27,7 +27,7 @@ import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier, type TokenVerifier } from './service/jwt-auth';
 import { Presence } from './service/presence';
-import type { CheckProjectAccess } from './service/project-access';
+import type { CheckWorkPackageAccess } from './service/work-package-access';
 import { ResumeClient } from './service/resume-client';
 import { socketWriter } from './service/socket-writer';
 import { SubscriptionMap } from './service/subscription-map';
@@ -46,7 +46,7 @@ interface WsAuthCarrier {
 }
 
 /**
- * What authenticated one socket, handed to the project access adapter so it
+ * What authenticated one socket, handed to the work package access adapter so it
  * can prove that principal to be-01. Never a name the client chose.
  */
 export type SocketCredential =
@@ -100,25 +100,25 @@ interface WsConnection {
   /** Aborted synchronously on close, before waiting for authentication/presence. */
   cancellation: AbortController;
   socket: SocketLike;
-  /** Projects removed synchronously by retirement, broadcast by physical close. */
-  retiredProjects?: readonly string[];
+  /** Work packages removed synchronously by retirement, broadcast by physical close. */
+  retiredWorkPackages?: readonly string[];
   /**
    * The rest of `open` — verify the token, join presence — as something the
    * later handlers can wait for.
    *
    * Bun delivers `message` and `close` as soon as the frames arrive, without
    * waiting for an `open` handler that is still awaiting. A `subscribe` that
-   * won that race called `presence.enterProject` for a connection `join` had
-   * not created yet: `enterProject` models an unknown connection as one that
+   * won that race called `presence.enterWorkPackage` for a connection `join` had
+   * not created yet: `enterWorkPackage` models an unknown connection as one that
    * never joined and does nothing, so the membership was dropped, and the
-   * `join` behind it then wrote `projectId: null` over it — a socket that had
+   * `join` behind it then wrote `workPackageId: null` over it — a socket that had
    * subscribed, in no roster, for as long as it stayed open. It was gw-01's
    * flaky test, at 2 runs in 40: `no roster arrived for ada; ada has []`.
    *
    * Authentication failure is modeled inside it; delivery infrastructure errors propagate.
    */
   joined: Promise<void>;
-  /** This socket's project authorization, created before `open`'s first await. */
+  /** This socket's work package authorization, created before `open`'s first await. */
   access: ConnectionAccess;
   /** The forwarded browser cookies for `/internal/resume`; absent in local mode. */
   forwardedCookie?: string;
@@ -155,10 +155,10 @@ export interface AppOptions {
   /** Overrides the framework-free Prometheus collector in tests. */
   metricsScrape?: () => Promise<MetricsScrape>;
   /**
-   * Builds one socket's project access check from its credential. Required:
-   * a gateway that cannot ask be-01 about a project cannot serve one.
+   * Builds one socket's work package access check from its credential. Required:
+   * a gateway that cannot ask be-01 about a work package cannot serve one.
    */
-  projectAccess: (credential: SocketCredential) => CheckProjectAccess;
+  workPackageAccess: (credential: SocketCredential) => CheckWorkPackageAccess;
   /** Lease cadence and check deadline overrides for tests; production uses the constants. */
   lease?: { timers: Timers; renewMs: number; checkDeadlineMs: number };
 }
@@ -231,11 +231,11 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
     }
   };
   const forwarder = new ForwardClient(requestOptions);
-  /** Takes a connection out of a project roster after it left or lost that subscription. */
-  const leaveProject = async (connectionId: string, subscription: string): Promise<void> => {
-    const projectId = projectIdOf(subscription);
-    if (projectId === null) return;
-    const affected = presence.leaveProject(connectionId, projectId);
+  /** Takes a connection out of a work package roster after it left or lost that subscription. */
+  const leaveWorkPackage = async (connectionId: string, subscription: string): Promise<void> => {
+    const workPackageId = workPackageIdOf(subscription);
+    if (workPackageId === null) return;
+    const affected = presence.leaveWorkPackage(connectionId, workPackageId);
     await presence.broadcast(affected);
     // Proof: omitting reset leaves no empty frame after real-socket unsubscribe;
     // removing the condition instead sends a frame during the stale-unsubscribe no-op.
@@ -385,7 +385,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
               // and aborts before physical close, with physical close withheld.
               conn.cancellation.abort(new Error(`delivery ${reason}`));
               subs.removeAll(conn.socket);
-              conn.retiredProjects = presence.leave(conn.connectionId);
+              conn.retiredWorkPackages = presence.leave(conn.connectionId);
               logger.error(
                 { reason, err: caught, connectionId: conn.connectionId },
                 'socket delivery retired',
@@ -402,13 +402,13 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           conn.access = new ConnectionAccess({
             check:
               localIdentity !== undefined
-                ? opts.projectAccess({
+                ? opts.workPackageAccess({
                     kind: 'local',
                     identity: localIdentity,
                     dependencySemantics: conn.dependencySemantics,
                   })
                 : forwarded !== undefined
-                  ? opts.projectAccess({
+                  ? opts.workPackageAccess({
                       kind: 'cookie',
                       forwarded,
                       dependencySemantics: conn.dependencySemantics,
@@ -423,7 +423,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
               : { leaseRenewMs: opts.lease.renewMs, checkDeadlineMs: opts.lease.checkDeadlineMs }),
             onRevoked: async (subscription) => {
               subs.unsubscribe(subscription, conn.socket);
-              await leaveProject(conn.connectionId, subscription);
+              await leaveWorkPackage(conn.connectionId, subscription);
               await conn.socket.send(wsError('subscription_revoked', { subscription }));
             },
             onUnauthenticated: () => {
@@ -432,14 +432,14 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             onUnavailable: (caught) => {
               reportUnexpectedBackendFailure({
                 caught,
-                operation: 'project_access',
+                operation: 'work_package_access',
                 connectionId: conn.connectionId,
                 clientId: username ?? 'unjoined',
               });
               metrics.backendUnavailable();
               // 1013 Try Again Later: the client reconnects and asks again
               // rather than staying subscribed on authority nobody confirmed.
-              ws.close(1013, 'project access unavailable');
+              ws.close(1013, 'work package access unavailable');
             },
           });
           // Assigned before this handler's first `await`, which is the only
@@ -472,7 +472,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // An upgrade that was accepted and then could not say who is behind
           // it is closed, not served. Without this the socket stayed open and
           // `message` below fell back to `'anon'`, which subscribes to any
-          // project and receives its fan-out — so the cookie checked in
+          // work package and receives its fan-out — so the cookie checked in
           // `beforeHandle` was bound to an identity only by Elysia happening
           // to share the query object between the two hooks.
           if (presence.usernameOf(conn.connectionId) === null) {
@@ -522,7 +522,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
                   dependencySemantics: conn.dependencySemantics,
                   connectionId: conn.connectionId,
                   traceId: crypto.randomUUID(),
-                  // be-01 rechecks every replayed project for this principal.
+                  // be-01 rechecks every replayed work package for this principal.
                   // Proof: omitting the forwarded cookie made `resumes for the
                   // socket's own principal through be-01`
                   // (composition.integration.test.ts) send none (2026-10-11).
@@ -539,16 +539,16 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             onBackendUnavailable: () => {
               metrics.backendUnavailable();
             },
-            // A `project:` subscription is what puts this connection in a
+            // A `workPackage:` subscription is what puts this connection in a
             // roster, and the broadcast is what tells the people already in it.
-            // `presence` names no project, so it moves nobody.
+            // `presence` names no work package, so it moves nobody.
             onSubscribed: async (subscription) => {
-              const projectId = projectIdOf(subscription);
-              if (projectId === null) return;
-              await presence.broadcast(presence.enterProject(conn.connectionId, projectId));
+              const workPackageId = workPackageIdOf(subscription);
+              if (workPackageId === null) return;
+              await presence.broadcast(presence.enterWorkPackage(conn.connectionId, workPackageId));
             },
             onUnsubscribed: async (subscription) => {
-              await leaveProject(conn.connectionId, subscription);
+              await leaveWorkPackage(conn.connectionId, subscription);
             },
             roster: () => presence.rosterFor(conn.connectionId),
           });
@@ -563,9 +563,9 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // counted in `delivered_to_sockets`, and joined again by the same
           // browser on its next reconnect.
           subs.removeAll(conn.socket);
-          // The returned project was looked up before the connection was removed.
+          // The returned work package was looked up before the connection was removed.
           await presence.broadcast([
-            ...(conn.retiredProjects ?? []),
+            ...(conn.retiredWorkPackages ?? []),
             ...presence.leave(conn.connectionId),
           ]);
         },

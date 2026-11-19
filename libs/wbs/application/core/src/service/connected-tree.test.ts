@@ -1,16 +1,29 @@
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import * as domain from '@wbs/domain';
 import { scheduleResolved, sliceKey } from '@wbs/domain';
-import { describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn  } from 'bun:test';
 
 import { presentConnectedTree } from '../module/work-item/work-item.resource';
 import type { LivePlanRead } from '../ports/shared-people-values';
 import { createConnectedBlockageRead } from '../testing/connected-blockage.fixture';
 import { connectedCapture, connectedReads } from '../testing/connected-plan-fixture';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
 import { deriveConnectedPlan } from './connected-plan';
 import type { ConnectedPlanCapture } from './connected-plan-values';
 import { deriveConnectedReadiness } from './connected-readiness';
-import { projectConnectedTree } from './connected-tree';
+import { workPackageConnectedTree } from './connected-tree';
+
+/** Only this module's new logical Sources; a failed close remains retained and is reported after all cleanup attempts. */
+const ownedSources=new Set<ReturnType<typeof openMemorySourceFixture>['source']>();
+function openOwnedSource(){const source=openMemorySourceFixture().source;ownedSources.add(source);return source;}
+afterEach(async()=>{
+  const cleanupCauses:unknown[]=[];
+  for(const source of ownedSources){
+    try{await source.close();ownedSources.delete(source);}
+    catch(cause:unknown){cleanupCauses.push(cause);}
+  }
+  if(cleanupCauses.length>0)throw new AggregateError(cleanupCauses,'test-owned MemorySource cleanup failed',{cause:cleanupCauses.at(-1)});
+});
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const live = (capture: ConnectedPlanCapture = connectedCapture()): ConnectedRead => {
@@ -21,19 +34,22 @@ const live = (capture: ConnectedPlanCapture = connectedCapture()): ConnectedRead
     readiness: deriveConnectedReadiness(
       capture,
       projection.authored,
-      new Map(capture.projects.map((member) => [member.projectId, []])),
+      new Map(capture.workPackages.map((member) => [member.workPackageId, []])),
     ),
-    metadataByProject: new Map(
-      capture.projects.map((member) => [
-        member.projectId,
+    metadataByWorkPackage: new Map(
+      capture.workPackages.map((member) => [
+        member.workPackageId,
         {
-          project: {
-            ...member.reads.project,
+          workPackage: {
+            ...member.reads.workPackage,
             abbreviation: member.abbreviation,
             revision: 7,
             createdAt: 0,
           },
-          steps: member.reads.steps.map((step) => ({ ...step, projectId: member.projectId })),
+          steps: member.reads.steps.map((step) => ({
+            ...step,
+            workPackageId: member.workPackageId,
+          })),
           workItems: member.reads.workItems.map((row) => ({
             ...row,
             externalRefs: row.externalRefs.map((reference) => ({
@@ -69,15 +85,20 @@ describe('detached connected tree projection', () => {
       relationships: capture.relationships.map((relationship) => ({
         ...relationship,
         predecessor: {
-          projectId: 'A',
+          workPackageId: 'A',
           workItemId: 'parent',
           scope: 'descendant-step',
           stepId: 'build',
         },
       })),
     });
-    expect(projectConnectedTree(captured, 'B').dependencies[0]?.predecessor).toMatchObject({
-      endpoint: { projectId: 'A', workItemId: 'parent', scope: 'descendant-step', stepId: 'build' },
+    expect(workPackageConnectedTree(captured, 'B').dependencies[0]?.predecessor).toMatchObject({
+      endpoint: {
+        workPackageId: 'A',
+        workItemId: 'parent',
+        scope: 'descendant-step',
+        stepId: 'build',
+      },
       isLeaf: false,
       workItemNumber: '010',
       step: { id: 'build', code: 'dev', name: 'Build' },
@@ -95,20 +116,20 @@ describe('detached connected tree projection', () => {
         ...capture,
         relationships: capture.relationships.map((relationship) => ({
           ...relationship,
-          predecessor: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'build' },
+          predecessor: { workPackageId: 'A', scope: 'node', workItemId: 'a', stepId: 'build' },
         })),
       });
-      const metadata = structuredClone(captured.metadataByProject.get('A')!);
+      const metadata = structuredClone(captured.metadataByWorkPackage.get('A')!);
       if (fault === 'abbreviation')
-        Object.defineProperty(metadata.project, 'abbreviation', { value: null });
+        Object.defineProperty(metadata.workPackage, 'abbreviation', { value: null });
       if (fault === 'row name')
         Object.defineProperty(metadata.workItems[0], 'name', { value: null });
       if (fault === 'step name') Object.defineProperty(metadata.steps[0], 'name', { value: null });
       expect(() =>
-        projectConnectedTree(
+        workPackageConnectedTree(
           {
             ...captured,
-            metadataByProject: new Map([...captured.metadataByProject, ['A', metadata]]),
+            metadataByWorkPackage: new Map([...captured.metadataByWorkPackage, ['A', metadata]]),
           },
           'B',
         ),
@@ -134,21 +155,21 @@ describe('detached connected tree projection', () => {
       relationships: [
         {
           id: 'design-build',
-          projectId: 'B',
+          workPackageId: 'B',
           type: 'FS',
-          predecessor: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'design' },
-          successor: { projectId: 'B', scope: 'node', workItemId: 'b', stepId: 'build' },
+          predecessor: { workPackageId: 'A', scope: 'node', workItemId: 'a', stepId: 'design' },
+          successor: { workPackageId: 'B', scope: 'node', workItemId: 'b', stepId: 'build' },
         },
         {
           id: 'build-test',
-          projectId: 'A',
+          workPackageId: 'A',
           type: 'FS',
-          predecessor: { projectId: 'B', scope: 'node', workItemId: 'b', stepId: 'build' },
-          successor: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'test' },
+          predecessor: { workPackageId: 'B', scope: 'node', workItemId: 'b', stepId: 'build' },
+          successor: { workPackageId: 'A', scope: 'node', workItemId: 'a', stepId: 'test' },
         },
       ],
     });
-    const target = projectConnectedTree(captured, 'A');
+    const target = workPackageConnectedTree(captured, 'A');
     if (target.placement.kind !== 'scheduled') throw new Error('fixture must schedule');
     expect(
       [...target.placement.schedule.slices.values()].map((slice) => [
@@ -174,9 +195,9 @@ describe('detached connected tree projection', () => {
         b,
       ),
     );
-    const projected = projectConnectedTree(captured, 'B');
+    const projected = workPackageConnectedTree(captured, 'B');
     expect(projected.metadata.workItems.map((row) => row.id)).toEqual(['b']);
-    expect(projected.metadata.project).toMatchObject({ startDate: '2026-10-07', revision: 7 });
+    expect(projected.metadata.workPackage).toMatchObject({ startDate: '2026-10-07', revision: 7 });
     expect(projected.metadata.seq).toBe(11);
     expect(projected.reads).toBe(b);
     expect(projected.placement.kind).toBe('scheduled');
@@ -188,7 +209,7 @@ describe('detached connected tree projection', () => {
     expect([...projected.placement.schedule.workItems.keys()]).toEqual(['b']);
     const componentPlacement = captured.projection.placement;
     if (componentPlacement.kind !== 'scheduled') throw new Error('fixture must schedule');
-    expect(projected.placement.schedule).toBe(componentPlacement.byProject.get('B')!);
+    expect(projected.placement.schedule).toBe(componentPlacement.byWorkPackage.get('B')!);
     expect([...projected.readiness.statuses.keys()]).toEqual(['b']);
     expect([...projected.readiness.nodes.readings.keys()]).toEqual(['b']);
     expect(projected.readiness.eligibilityByNode.get(sliceKey('b', 'build'))).toMatchObject({
@@ -214,22 +235,22 @@ describe('detached connected tree projection', () => {
       });
       const captured = live({
         ...base,
-        projects: [
-          ...base.projects,
-          { projectId: 'C', abbreviation: 'C', rank: 2, reads: connectedReads('C') },
+        workPackages: [
+          ...base.workPackages,
+          { workPackageId: 'C', abbreviation: 'C', rank: 2, reads: connectedReads('C') },
         ],
         relationships: [
           ...base.relationships,
           {
             id: 'bc',
-            projectId: 'C',
+            workPackageId: 'C',
             type: 'FS',
-            predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-            successor: { projectId: 'C', scope: 'whole', workItemId: 'c' },
+            predecessor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
+            successor: { workPackageId: 'C', scope: 'whole', workItemId: 'c' },
           },
         ],
       });
-      const target = projectConnectedTree(captured, 'C');
+      const target = workPackageConnectedTree(captured, 'C');
       expect(target.dependencies.map((edge) => edge.id)).toEqual(['bc']);
       expect(target.remoteBlockageLabels).toEqual([
         {
@@ -240,7 +261,7 @@ describe('detached connected tree projection', () => {
           label: kind === 'hold' ? 'A.010 · Remote root' : 'A.010 · Remote root · Build',
         },
       ]);
-      expect(projectConnectedTree(captured, 'A').remoteBlockageLabels).toEqual([]);
+      expect(workPackageConnectedTree(captured, 'A').remoteBlockageLabels).toEqual([]);
     },
   );
 
@@ -252,19 +273,19 @@ describe('detached connected tree projection', () => {
         connectedReads('B'),
       ),
     );
-    const target = projectConnectedTree(captured, 'B');
+    const target = workPackageConnectedTree(captured, 'B');
     expect(target.readiness.statuses.get('b')).toBe('blocked_by_proxy');
     expect(target.readiness.nodes.readings.get('b')).toEqual({ build: 'blocked_by_proxy' });
     expect(target.readiness.nodes.causes.get('b')).toEqual(
       captured.readiness.nodes.causes.get('b'),
     );
     expect(target.readiness.nodes.causes.get('b')?.['build']).toHaveLength(1);
-    const held = projectConnectedTree(captured, 'A');
+    const held = workPackageConnectedTree(captured, 'A');
     if (held.placement.kind !== 'scheduled') throw new Error('fixture must schedule');
     expect(held.placement.schedule.workItems.has('a')).toBe(false);
   });
 
-  it('projects incoming and outgoing incident labels using each endpoint own numbering and step', () => {
+  it('presents incoming and outgoing incident labels using each endpoint own numbering and step', () => {
     const a = connectedReads('A');
     const b = connectedReads('B');
     const c = connectedReads('C');
@@ -276,25 +297,28 @@ describe('detached connected tree projection', () => {
     });
     const captured = live({
       ...capture,
-      projects: [...capture.projects, { projectId: 'C', abbreviation: 'C', rank: 2, reads: c }],
+      workPackages: [
+        ...capture.workPackages,
+        { workPackageId: 'C', abbreviation: 'C', rank: 2, reads: c },
+      ],
       relationships: [
         {
           ...capture.relationships[0],
-          successor: { projectId: 'B', scope: 'node', workItemId: 'b', stepId: 'remote' },
+          successor: { workPackageId: 'B', scope: 'node', workItemId: 'b', stepId: 'remote' },
         },
         {
           id: 'bc',
-          projectId: 'C',
+          workPackageId: 'C',
           type: 'FF',
-          predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-          successor: { projectId: 'C', scope: 'whole', workItemId: 'c' },
+          predecessor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
+          successor: { workPackageId: 'C', scope: 'whole', workItemId: 'c' },
         },
       ],
     });
-    const target = projectConnectedTree(captured, 'A');
+    const target = workPackageConnectedTree(captured, 'A');
     expect(target.dependencies.map((relationship) => relationship.id)).toEqual(['ab']);
     expect(target.dependencies[0]?.successor).toMatchObject({
-      endpoint: { projectId: 'B', workItemId: 'b', stepId: 'remote', scope: 'node' },
+      endpoint: { workPackageId: 'B', workItemId: 'b', stepId: 'remote', scope: 'node' },
       workItemNumber: '080.39',
       name: 'Remote',
       stepReference: '080.39.s1-dev',
@@ -302,42 +326,45 @@ describe('detached connected tree projection', () => {
       step: { id: 'remote', name: 'Remote dev' },
     });
     expect(
-      projectConnectedTree(captured, 'B').dependencies.map((relationship) => relationship.id),
+      workPackageConnectedTree(captured, 'B').dependencies.map((relationship) => relationship.id),
     ).toEqual(['ab', 'bc']);
   });
 
   it('retains authored links and readiness on missing calendar and engine unavailable', () => {
-    const missing = projectConnectedTree(live(connectedCapture(connectedReads('A', null))), 'B');
+    const missing = workPackageConnectedTree(
+      live(connectedCapture(connectedReads('A', null))),
+      'B',
+    );
     expect(missing.placement).toMatchObject({
       kind: 'dependency_calendar_missing',
-      projects: [{ projectId: 'A', abbreviation: 'A' }],
+      workPackages: [{ workPackageId: 'A', abbreviation: 'A' }],
     });
     expect(missing.metadata.workItems).toHaveLength(1);
     expect(missing.dependencies[0]?.predecessor.qualifiedReference).toBe('A.010');
     expect(missing.readiness.eligibilityByNode.get(sliceKey('b', 'build'))?.canStart).toBe(false);
     const a = connectedReads('A');
-    const refused = projectConnectedTree(
+    const refused = workPackageConnectedTree(
       live(
         connectedCapture({
           ...a,
-          project: { ...a.project, scheduleEngine: 'optimized', optimizationEnabled: true },
+          workPackage: { ...a.workPackage, scheduleEngine: 'optimized', optimizationEnabled: true },
         }),
       ),
       'B',
     );
-    expect(refused.placement).toMatchObject({ kind: 'engine_unavailable', projects: ['A'] });
+    expect(refused.placement).toMatchObject({ kind: 'engine_unavailable', workPackages: ['A'] });
     expect(refused.dependencies).toHaveLength(1);
     expect(refused.readiness.nodes.readings.get('b')).toEqual({ build: 'unknown' });
   });
 
   it('refuses missing captured member, metadata, readiness and selected placement evidence', () => {
     const captured = live();
-    expect(() => projectConnectedTree(captured, 'foreign')).toThrow('not captured');
-    const metadata = new Map(captured.metadataByProject);
+    expect(() => workPackageConnectedTree(captured, 'foreign')).toThrow('not captured');
+    const metadata = new Map(captured.metadataByWorkPackage);
     metadata.delete('A');
-    expect(() => projectConnectedTree({ ...captured, metadataByProject: metadata }, 'B')).toThrow(
-      'missing connected tree metadata A',
-    );
+    expect(() =>
+      workPackageConnectedTree({ ...captured, metadataByWorkPackage: metadata }, 'B'),
+    ).toThrow('missing connected tree metadata A');
     for (const [name, readiness] of [
       ['status', { ...captured.readiness, statuses: new Map() }],
       [
@@ -351,50 +378,51 @@ describe('detached connected tree projection', () => {
       ['eligibility', { ...captured.readiness, eligibilityByNode: new Map() }],
       ['evidence', { ...captured.readiness, evidenceByNode: new Map() }],
     ] as const) {
-      expect(() => projectConnectedTree({ ...captured, readiness }, 'B')).toThrow(name);
+      expect(() => workPackageConnectedTree({ ...captured, readiness }, 'B')).toThrow(name);
     }
     const componentPlacement = captured.projection.placement;
     if (componentPlacement.kind !== 'scheduled') throw new Error('fixture must schedule');
     expect(() =>
-      projectConnectedTree(
+      workPackageConnectedTree(
         {
           ...captured,
           projection: {
             ...captured.projection,
-            placement: { ...componentPlacement, byProject: new Map() },
+            placement: { ...componentPlacement, byWorkPackage: new Map() },
           },
         },
         'B',
       ),
-    ).toThrow('missing project schedule B');
+    ).toThrow('missing work package schedule B');
   });
 
-  it.each(['row', 'step', 'project-owner', 'row-owner', 'step-owner'] as const)(
+  it.each(['row', 'step', 'work-package-owner', 'row-owner', 'step-owner'] as const)(
     'refuses corrupted %s metadata identities before presenting endpoint labels',
     (fault) => {
       const captured = live();
-      const remote = captured.metadataByProject.get('A')!;
+      const remote = captured.metadataByWorkPackage.get('A')!;
       const metadata = {
         ...remote,
-        project: fault === 'project-owner' ? { ...remote.project, id: 'B' } : remote.project,
+        workPackage:
+          fault === 'work-package-owner' ? { ...remote.workPackage, id: 'B' } : remote.workPackage,
         workItems:
           fault === 'row'
             ? []
             : remote.workItems.map((row) =>
-                fault === 'row-owner' ? { ...row, projectId: 'B' } : row,
+                fault === 'row-owner' ? { ...row, workPackageId: 'B' } : row,
               ),
         steps:
           fault === 'step'
             ? []
             : remote.steps.map((step) =>
-                fault === 'step-owner' ? { ...step, projectId: 'B' } : step,
+                fault === 'step-owner' ? { ...step, workPackageId: 'B' } : step,
               ),
       };
       expect(() =>
-        projectConnectedTree(
+        workPackageConnectedTree(
           {
             ...captured,
-            metadataByProject: new Map([...captured.metadataByProject, ['A', metadata]]),
+            metadataByWorkPackage: new Map([...captured.metadataByWorkPackage, ['A', metadata]]),
           },
           'B',
         ),
@@ -409,7 +437,7 @@ describe('detached connected tree projection', () => {
       ['cause', { ...captured.readiness.nodes, causes: new Map([['b', {}]]) }],
     ] as const) {
       expect(() =>
-        projectConnectedTree(
+        workPackageConnectedTree(
           {
             ...captured,
             readiness: {
@@ -426,7 +454,7 @@ describe('detached connected tree projection', () => {
   it('refuses absent row status instead of publishing an undefined reading', () => {
     const captured = live();
     expect(() =>
-      projectConnectedTree(
+      workPackageConnectedTree(
         {
           ...captured,
           readiness: {
@@ -448,7 +476,10 @@ describe('detached connected tree projection', () => {
       }
     }
     expect(() =>
-      projectConnectedTree({ ...captured, metadataByProject: new UnreadableMetadata() }, 'B'),
+      workPackageConnectedTree(
+        { ...captured, metadataByWorkPackage: new UnreadableMetadata() },
+        'B',
+      ),
     ).toThrow(fault);
   });
 
@@ -457,13 +488,16 @@ describe('detached connected tree projection', () => {
     const capture = connectedCapture(a);
     const relationship = {
       ...capture.relationships[0],
-      predecessor: { projectId: 'A', scope: 'node' as const, workItemId: 'a', stepId: 'build' },
+      predecessor: { workPackageId: 'A', scope: 'node' as const, workItemId: 'a', stepId: 'build' },
     };
-    const before = projectConnectedTree(live({ ...capture, relationships: [relationship] }), 'B');
+    const before = workPackageConnectedTree(
+      live({ ...capture, relationships: [relationship] }),
+      'B',
+    );
     const renamed = live({
       ...capture,
-      projects: capture.projects.map((member) =>
-        member.projectId === 'A'
+      workPackages: capture.workPackages.map((member) =>
+        member.workPackageId === 'A'
           ? {
               ...member,
               abbreviation: 'RENAMED',
@@ -480,11 +514,11 @@ describe('detached connected tree projection', () => {
       ),
       relationships: [relationship],
     });
-    const after = projectConnectedTree(renamed, 'B');
+    const after = workPackageConnectedTree(renamed, 'B');
     expect(before.dependencies[0]?.predecessor.qualifiedReference).toBeNull();
     expect(after.dependencies[0]?.predecessor).toMatchObject({
-      endpoint: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'build' },
-      projectAbbreviation: 'RENAMED',
+      endpoint: { workPackageId: 'A', scope: 'node', workItemId: 'a', stepId: 'build' },
+      workPackageAbbreviation: 'RENAMED',
       workItemNumber: '090',
       name: 'Renamed',
       qualifiedReference: null,
@@ -503,12 +537,12 @@ describe('detached connected tree projection', () => {
         ...capture,
         relationships: capture.relationships.map((relationship) => ({
           ...relationship,
-          predecessor: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'build' },
+          predecessor: { workPackageId: 'A', scope: 'node', workItemId: 'a', stepId: 'build' },
         })),
       });
-      const metadata = structuredClone(captured.metadataByProject.get('A')!);
+      const metadata = structuredClone(captured.metadataByWorkPackage.get('A')!);
       if (fault === 'abbreviation')
-        Object.defineProperty(metadata.project, 'abbreviation', { value: undefined });
+        Object.defineProperty(metadata.workPackage, 'abbreviation', { value: undefined });
       if (fault === 'row name')
         Object.defineProperty(metadata.workItems[0], 'name', { value: undefined });
       if (fault === 'step name')
@@ -516,10 +550,10 @@ describe('detached connected tree projection', () => {
       if (fault === 'step code')
         Object.defineProperty(metadata.steps[0], 'code', { value: undefined });
       expect(() =>
-        projectConnectedTree(
+        workPackageConnectedTree(
           {
             ...captured,
-            metadataByProject: new Map([...captured.metadataByProject, ['A', metadata]]),
+            metadataByWorkPackage: new Map([...captured.metadataByWorkPackage, ['A', metadata]]),
           },
           'B',
         ),
@@ -547,12 +581,12 @@ const sharedLive = (): ConnectedRead => {
 it('resolves a direct foreign person holder without changing captured numerical placement', () => {
   const captured = sharedLive();
   const before = structuredClone(captured);
-  const tree = projectConnectedTree(captured, 'B');
+  const tree = workPackageConnectedTree(captured, 'B');
   expect([...tree.foreignPersonHolders]).toEqual([
-    [sliceKey('b', 'build'), { projectId: 'A', workItemId: 'a' }],
+    [sliceKey('b', 'build'), { workPackageId: 'A', workItemId: 'a' }],
   ]);
   expect(tree.elsewhereHolders).toEqual([
-    { projectId: 'A', projectName: 'A', workItemId: 'a', number: '010', name: 'a' },
+    { workPackageId: 'A', workPackageName: 'A', workItemId: 'a', number: '010', name: 'a' },
   ]);
   if (tree.placement.kind !== 'scheduled') throw new Error('fixture schedule missing');
   expect(tree.placement.schedule.slices.get(sliceKey('b', 'build'))).toMatchObject({
@@ -581,18 +615,18 @@ it.each([
   'foreign nonperson',
   'isolated foreign',
   'local missing referent',
-  'missing holder project name',
+  'missing holder work package name',
   'missing holder row name',
 ] as const)('refuses corrupt captured foreign-person evidence: %s', (fault) => {
   const captured = sharedLive();
   const placement = captured.projection.placement;
   if (placement.kind !== 'scheduled') throw new Error('fixture placement missing');
-  const target = placement.byProject.get('B')!;
+  const target = placement.byWorkPackage.get('B')!;
   const waiter = target.slices.get(sliceKey('b', 'build'))!;
   const predecessor = placement.combined.slices.get(sliceKey('a', 'build'))!;
-  const metadata = captured.metadataByProject.get('A')!;
-  const targetMember = captured.projection.capture.projects.find(
-    (member) => member.projectId === 'B',
+  const metadata = captured.metadataByWorkPackage.get('A')!;
+  const targetMember = captured.projection.capture.workPackages.find(
+    (member) => member.workPackageId === 'B',
   )!;
   let expected = '';
   switch (fault) {
@@ -601,42 +635,42 @@ it.each([
       expected = 'holder predecessor absent';
       break;
     case 'missing ownership':
-      Object.defineProperty(placement.identities, 'projectIdByWorkItem', {
+      Object.defineProperty(placement.identities, 'workPackageIdByWorkItem', {
         value: new Map([['b', 'B']]),
       });
       expected = 'holder ownership a';
       break;
     case 'uncaptured owner':
-      Object.defineProperty(captured, 'metadataByProject', {
+      Object.defineProperty(captured, 'metadataByWorkPackage', {
         value: new Map([
-          ...captured.metadataByProject,
+          ...captured.metadataByWorkPackage,
           [
             'C',
             {
               ...metadata,
-              project: { ...metadata.project, id: 'C' },
-              workItems: metadata.workItems.map((row) => ({ ...row, projectId: 'C' })),
+              workPackage: { ...metadata.workPackage, id: 'C' },
+              workItems: metadata.workItems.map((row) => ({ ...row, workPackageId: 'C' })),
             },
           ],
         ]),
       });
-      Object.defineProperty(placement.identities, 'projectIdByWorkItem', {
+      Object.defineProperty(placement.identities, 'workPackageIdByWorkItem', {
         value: new Map([
           ['a', 'C'],
           ['b', 'B'],
         ]),
       });
-      expected = 'holder project is not captured C';
+      expected = 'holder work package is not captured C';
       break;
     case 'missing metadata':
-      Object.defineProperty(captured, 'metadataByProject', {
-        value: new Map([['B', captured.metadataByProject.get('B')]]),
+      Object.defineProperty(captured, 'metadataByWorkPackage', {
+        value: new Map([['B', captured.metadataByWorkPackage.get('B')]]),
       });
       expected = 'metadata A';
       break;
     case 'missing holder row':
       Object.defineProperty(predecessor, 'workItemId', { value: 'ghost' });
-      Object.defineProperty(placement.identities, 'projectIdByWorkItem', {
+      Object.defineProperty(placement.identities, 'workPackageIdByWorkItem', {
         value: new Map([
           ['ghost', 'A'],
           ['b', 'B'],
@@ -676,7 +710,7 @@ it.each([
       break;
     case 'existing elsewhere':
       Object.defineProperty(waiter, 'elsewhereHolder', {
-        value: { projectId: 'A', workItemId: 'a' },
+        value: { workPackageId: 'A', workItemId: 'a' },
       });
       expected = 'contradictory person blocker';
       break;
@@ -708,16 +742,16 @@ it.each([
       });
       expected = 'local holder is absent from target';
       break;
-    case 'missing holder project name':
-      Object.defineProperty(metadata.project, 'name', { value: null });
-      expected = 'holder project name A';
+    case 'missing holder work package name':
+      Object.defineProperty(metadata.workPackage, 'name', { value: null });
+      expected = 'holder work package name A';
       break;
     case 'missing holder row name':
       Object.defineProperty(metadata.workItems[0], 'name', { value: null });
       expected = 'holder row name a';
       break;
   }
-  expect(() => projectConnectedTree(captured, 'B')).toThrow(expected);
+  expect(() => workPackageConnectedTree(captured, 'B')).toThrow(expected);
 });
 
 it('reuses a holder row label across different foreign-bound target steps', () => {
@@ -742,10 +776,10 @@ it('reuses a holder row label across different foreign-bound target steps', () =
     mode: 'shared',
     relationships: capture.relationships.map((edge) => ({ ...edge, type: 'SS' })),
   });
-  const tree = projectConnectedTree(captured, 'B');
+  const tree = workPackageConnectedTree(captured, 'B');
   expect([...tree.foreignPersonHolders.values()]).toEqual([
-    { projectId: 'A', workItemId: 'a' },
-    { projectId: 'A', workItemId: 'a' },
+    { workPackageId: 'A', workItemId: 'a' },
+    { workPackageId: 'A', workItemId: 'a' },
   ]);
   expect(tree.elsewhereHolders).toHaveLength(1);
 });
@@ -755,24 +789,24 @@ it('labels a lower-ranked direct holder under its captured own number', () => {
   const capture = first.projection.capture;
   const captured = live({
     ...capture,
-    projects: capture.projects.map((member) => ({
+    workPackages: capture.workPackages.map((member) => ({
       ...member,
-      rank: member.projectId === 'A' ? 1 : 0,
+      rank: member.workPackageId === 'A' ? 1 : 0,
     })),
   });
-  Object.defineProperty(captured.metadataByProject.get('A')!.workItems[0], 'frozenNumber', {
+  Object.defineProperty(captured.metadataByWorkPackage.get('A')!.workItems[0], 'frozenNumber', {
     value: '030',
   });
-  const tree = projectConnectedTree(captured, 'B');
+  const tree = workPackageConnectedTree(captured, 'B');
   expect(tree.elsewhereHolders).toEqual([
-    { projectId: 'A', projectName: 'A', workItemId: 'a', number: '030', name: 'a' },
+    { workPackageId: 'A', workPackageName: 'A', workItemId: 'a', number: '030', name: 'a' },
   ]);
 });
 
 it('labels two distinct direct holders without using the incident authored endpoint as a substitute', () => {
   const shared = sharedLive();
-  const a = shared.projection.capture.projects[0].reads;
-  const b = shared.projection.capture.projects[1].reads;
+  const a = shared.projection.capture.workPackages[0].reads;
+  const b = shared.projection.capture.workPackages[1].reads;
   const steps = [...a.steps, { ...a.steps[0], id: 'qa', name: 'QA', position: 1 }];
   const people = [
     { id: 'ana', name: 'Ana', teamIds: [] },
@@ -806,7 +840,7 @@ it('labels two distinct direct holders without using the incident authored endpo
     ],
   };
   const capture = connectedCapture(remote, target);
-  const tree = projectConnectedTree(
+  const tree = workPackageConnectedTree(
     live({
       ...capture,
       mode: 'shared',
@@ -815,12 +849,18 @@ it('labels two distinct direct holders without using the incident authored endpo
     'B',
   );
   expect([...tree.foreignPersonHolders.values()]).toEqual([
-    { projectId: 'A', workItemId: 'a' },
-    { projectId: 'A', workItemId: 'a2' },
+    { workPackageId: 'A', workItemId: 'a' },
+    { workPackageId: 'A', workItemId: 'a2' },
   ]);
   expect(tree.elsewhereHolders).toEqual([
-    { projectId: 'A', projectName: 'A', workItemId: 'a', number: '010', name: 'a' },
-    { projectId: 'A', projectName: 'A', workItemId: 'a2', number: '020', name: 'Second remote' },
+    { workPackageId: 'A', workPackageName: 'A', workItemId: 'a', number: '010', name: 'a' },
+    {
+      workPackageId: 'A',
+      workPackageName: 'A',
+      workItemId: 'a2',
+      number: '020',
+      name: 'Second remote',
+    },
   ]);
 });
 
@@ -851,7 +891,7 @@ it.each(['team', 'resource'] as const)(
     };
     const captured = live({ ...connectedCapture(a, target), relationships: [] });
     const before = structuredClone(captured);
-    const tree = projectConnectedTree(captured, 'B');
+    const tree = workPackageConnectedTree(captured, 'B');
     if (tree.placement.kind !== 'scheduled') throw new Error('fixture placement missing');
     expect(tree.placement.schedule.slices.get(sliceKey('b2', 'build'))).toMatchObject({
       boundBy: 'capacity',
@@ -870,7 +910,7 @@ it('refuses an absent derived holder number from its numbering dependency', () =
     (rows) => new Map([...original(rows)].filter(([id]) => id !== 'a')),
   );
   try {
-    expect(() => projectConnectedTree(captured, 'B')).toThrow('holder number a');
+    expect(() => workPackageConnectedTree(captured, 'B')).toThrow('holder number a');
   } finally {
     numbering.mockRestore();
   }
@@ -878,42 +918,46 @@ it('refuses an absent derived holder number from its numbering dependency', () =
 
 it('preserves valid empty holder and organization-person names', () => {
   const captured = sharedLive();
-  Object.defineProperty(captured.metadataByProject.get('A')!.project, 'name', { value: '' });
-  Object.defineProperty(captured.metadataByProject.get('A')!.workItems[0], 'name', { value: '' });
-  Object.defineProperty(captured.projection.capture.projects[1].reads.people[0], 'name', {
+  Object.defineProperty(captured.metadataByWorkPackage.get('A')!.workPackage, 'name', {
     value: '',
   });
-  const tree = projectConnectedTree(captured, 'B');
+  Object.defineProperty(captured.metadataByWorkPackage.get('A')!.workItems[0], 'name', {
+    value: '',
+  });
+  Object.defineProperty(captured.projection.capture.workPackages[1].reads.people[0], 'name', {
+    value: '',
+  });
+  const tree = workPackageConnectedTree(captured, 'B');
   expect(tree.elsewhereHolders).toEqual([
-    { projectId: 'A', workItemId: 'a', projectName: '', number: '010', name: '' },
+    { workPackageId: 'A', workItemId: 'a', workPackageName: '', number: '010', name: '' },
   ]);
   expect(tree.reads.people[0].name).toBe('');
 });
 
 it.each(['hold', 'step'] as const)(
-  'projects direct and unavailable remote %s labels and clears them after the fact clears',
+  'presents direct and unavailable remote %s labels and clears them after the fact clears',
   (kind) => {
     const captured = createConnectedBlockageRead(kind, true);
-    expect(projectConnectedTree(captured, 'B').remoteBlockageLabels).toEqual(
-      projectConnectedTree(captured, 'C').remoteBlockageLabels,
+    expect(workPackageConnectedTree(captured, 'B').remoteBlockageLabels).toEqual(
+      workPackageConnectedTree(captured, 'C').remoteBlockageLabels,
     );
-    expect(projectConnectedTree(captured, 'C').placement.kind).not.toBe('scheduled');
+    expect(workPackageConnectedTree(captured, 'C').placement.kind).not.toBe('scheduled');
     expect(
-      projectConnectedTree(createConnectedBlockageRead('clear'), 'C').remoteBlockageLabels,
+      workPackageConnectedTree(createConnectedBlockageRead('clear'), 'C').remoteBlockageLabels,
     ).toEqual([]);
   },
 );
 it('refuses a blockage root absent from captured metadata', () => {
   const captured = createConnectedBlockageRead('step');
   captured.readiness.nodes.causes.set('c', { build: [{ kind: 'step', nodeId: 'missing' }] });
-  expect(() => projectConnectedTree(captured, 'C')).toThrow(
+  expect(() => workPackageConnectedTree(captured, 'C')).toThrow(
     'missing connected tree blockage root missing',
   );
 });
 it('refuses malformed transitive root metadata outside incident links', () => {
   const captured = createConnectedBlockageRead('step');
-  Object.defineProperty(captured.metadataByProject.get('A')!.steps[0], 'name', { value: null });
-  expect(() => projectConnectedTree(captured, 'C')).toThrow(
+  Object.defineProperty(captured.metadataByWorkPackage.get('A')!.steps[0], 'name', { value: null });
+  expect(() => workPackageConnectedTree(captured, 'C')).toThrow(
     'missing connected tree endpoint step name build',
   );
 });
@@ -925,7 +969,7 @@ it.each([false, true])(
     const packet = live(
       connectedCapture(connectedReads('A'), {
         ...target,
-        project: { ...target.project, budgetFactor: 1.5 },
+        workPackage: { ...target.workPackage, budgetFactor: 1.5 },
         measureEstimates: [
           {
             workItemId: 'b',
@@ -943,7 +987,7 @@ it.each([false, true])(
         ],
       }),
     );
-    const tree = presentConnectedTree(projectConnectedTree(packet, 'B'));
+    const tree = presentConnectedTree(workPackageConnectedTree(packet, 'B'));
     expect(tree.workItems[0].measureEstimates?.['tokens']?.['build']).toMatchObject({
       expected: 250,
       variance: -200,
@@ -959,7 +1003,7 @@ it.each(['tree', 'treeWithin'] as const)(
     const packet = live(
       connectedCapture(connectedReads('A'), {
         ...target,
-        project: { ...target.project, budgetFactor: 1.5 },
+        workPackage: { ...target.workPackage, budgetFactor: 1.5 },
         measureEstimates: [
           {
             workItemId: 'b',
@@ -976,22 +1020,22 @@ it.each(['tree', 'treeWithin'] as const)(
     const unused = () => {
       throw new Error('unused observation capability');
     };
-    const fixture = inMemoryServices({
+    const fixture = createTestServices(openOwnedSource(), {
       livePlans: {
         read: () => Promise.resolve(packet),
-        readProject: () => Promise.resolve(packet),
+        readWorkPackage: () => Promise.resolve(packet),
         readExport: unused,
         readExecution: unused,
         readAggregate: unused,
       },
     });
     const calls = [
-      spyOn(fixture.stores.measureEstimates, 'listByProject').mockImplementation(unused),
-      spyOn(fixture.stores.budgets, 'listByProject').mockImplementation(unused),
-      spyOn(fixture.stores.measures, 'listByProject').mockImplementation(unused),
+      spyOn(fixture.stores.measureEstimates, 'listByWorkPackage').mockImplementation(unused),
+      spyOn(fixture.stores.budgets, 'listByWorkPackage').mockImplementation(unused),
+      spyOn(fixture.stores.measures, 'listByWorkPackage').mockImplementation(unused),
       spyOn(fixture.stores.measures, 'definitionsFor').mockImplementation(unused),
-      spyOn(fixture.stores.projects, 'findById').mockImplementation(unused),
-      spyOn(fixture.stores.attempts, 'listByProject').mockImplementation(unused),
+      spyOn(fixture.stores.workPackages, 'findById').mockImplementation(unused),
+      spyOn(fixture.stores.attempts, 'listByWorkPackage').mockImplementation(unused),
     ];
     try {
       const tree =
@@ -1036,17 +1080,17 @@ for (const method of ['tree', 'treeWithin'] as const) {
       const unused = () => {
         throw new Error('connected demand presentation reread a live store');
       };
-      const fixture = inMemoryServices({
+      const fixture = createTestServices(openOwnedSource(), {
         livePlans: {
           read: () => Promise.resolve(packet),
-          readProject: () => Promise.resolve(packet),
+          readWorkPackage: () => Promise.resolve(packet),
           readExport: unused,
           readExecution: unused,
           readAggregate: unused,
         },
       });
       const calls = [
-        spyOn(fixture.stores.demands, 'listByProject').mockImplementation(unused),
+        spyOn(fixture.stores.demands, 'listByWorkPackage').mockImplementation(unused),
         spyOn(fixture.stores.directory, 'listResources').mockImplementation(unused),
         spyOn(fixture.stores.directory, 'listInOrganization').mockImplementation(unused),
       ];

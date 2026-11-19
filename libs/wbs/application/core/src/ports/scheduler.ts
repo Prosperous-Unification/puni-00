@@ -17,7 +17,7 @@ import type {
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 interface ScheduleAskBase {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly input: ScheduleInput;
   readonly engine: ScheduleEngine;
   readonly objective: SolverObjectiveName;
@@ -40,13 +40,13 @@ export type ScheduleAsk = LiveScheduleAsk | CapturedScheduleAsk;
  *
  * The whole {@link ScheduleInput}, rather than a hash the service computed,
  * keeps hashing in the adapter that owns the cache key. `objective` is explicit
- * because it is a project setting and the adapter receives no project row.
+ * because it is a work package setting and the adapter receives no work package row.
  * Budget and contract version are deliberately absent: they belong to the
  * installed adapter, so a caller cannot serve an answer from another runtime's
  * cache identity.
  */
 export interface OptimizedScheduleAsk {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly objective: SolverObjectiveName;
   readonly input: ScheduleInput;
   /** False reads identity only: it neither allocates a generation nor admits work. */
@@ -121,7 +121,7 @@ export type FastScheduler = (
   resourceCapacities: PoolSizes,
 ) => Schedule;
 
-/** Fast placement over a graph already resolved under each project's rules. */
+/** Fast placement over a graph already resolved under each work package's rules. */
 export type ResolvedFastScheduler = (input: ResolvedScheduleInput) => Schedule;
 
 /** Installed scheduling capabilities and their non-waiting read. */
@@ -144,7 +144,7 @@ export interface CapturedScheduler {
  * Whether *this deployment* can honour optimized scheduling at all.
  *
  * A predicate rather than a boolean, and never constructed by hand — see
- * {@link optimizerWiring}. The distinction it draws is not about a project: it
+ * {@link optimizerWiring}. The distinction it draws is not about a work package: it
  * is about whether an optimized cache is wired into the process the settings
  * PATCH just landed in.
  */
@@ -152,7 +152,7 @@ export type OptimizerAvailability = () => boolean;
 
 /** Mathematical identity of one objective at an immutable fixed-boundary stage. Hashes belong to the adapter. */
 export interface ConnectedOptimizationQuestion {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly inputHash: string;
   readonly questionHash: string;
   readonly objective: SolverObjectiveName;

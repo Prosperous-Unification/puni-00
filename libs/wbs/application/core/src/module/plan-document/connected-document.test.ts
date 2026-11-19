@@ -7,7 +7,7 @@ import { deriveConnectedPlan } from '../../service/connected-plan';
 import type { ConnectedPlanCapture } from '../../service/connected-plan-values';
 import { deriveConnectedReadiness } from '../../service/connected-readiness';
 import { connectedCapture, connectedReads } from '../../testing/connected-plan-fixture';
-import { projectConnectedDocument } from './connected-document';
+import { workPackageConnectedDocument } from './connected-document';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const live = (
@@ -27,19 +27,22 @@ const live = (
     readiness: deriveConnectedReadiness(
       capture,
       projection.authored,
-      new Map(capture.projects.map((member) => [member.projectId, []])),
+      new Map(capture.workPackages.map((member) => [member.workPackageId, []])),
     ),
-    metadataByProject: new Map(
-      capture.projects.map((member) => [
-        member.projectId,
+    metadataByWorkPackage: new Map(
+      capture.workPackages.map((member) => [
+        member.workPackageId,
         {
-          project: {
-            ...member.reads.project,
+          workPackage: {
+            ...member.reads.workPackage,
             abbreviation: member.abbreviation,
             revision: 7,
             createdAt: 0,
           },
-          steps: member.reads.steps.map((step) => ({ ...step, projectId: member.projectId })),
+          steps: member.reads.steps.map((step) => ({
+            ...step,
+            workPackageId: member.workPackageId,
+          })),
           workItems: member.reads.workItems.map((row) => ({
             ...row,
             externalRefs: row.externalRefs.map((reference) => ({
@@ -61,7 +64,7 @@ const live = (
 
 test('authored connected links belong only to the exported successor and keep stable remote identity', () => {
   const captured = live();
-  const incoming = projectConnectedDocument(captured, 'B');
+  const incoming = workPackageConnectedDocument(captured, 'B');
   expect(incoming.typedDependencies).toEqual([
     {
       id: 'ab',
@@ -69,22 +72,22 @@ test('authored connected links belong only to the exported successor and keep st
       predecessor: {
         kind: 'external',
         scope: 'whole',
-        projectId: 'A',
+        workPackageId: 'A',
         workItemId: 'a',
-        display: { projectName: 'A', abbreviation: 'A', workItemName: 'a', address: 'A.010' },
+        display: { workPackageName: 'A', abbreviation: 'A', workItemName: 'a', address: 'A.010' },
       },
       successor: { kind: 'internal', scope: 'whole', workItem: 'b' },
     },
   ]);
-  expect(projectConnectedDocument(captured, 'A').typedDependencies).toEqual([]);
+  expect(workPackageConnectedDocument(captured, 'A').typedDependencies).toEqual([]);
   expect(incoming.connected.relationships).toEqual([...captured.projection.capture.relationships]);
   expect(JSON.parse(JSON.stringify(incoming))).toEqual(incoming);
 });
 test('scheduled evidence keeps exact component placement and retained stage boundaries', () => {
   const captured = live();
-  const evidence = projectConnectedDocument(captured, 'B').connected;
+  const evidence = workPackageConnectedDocument(captured, 'B').connected;
   expect(
-    evidence.projects.map((member) => [member.projectId, member.revision, member.seq]),
+    evidence.workPackages.map((member) => [member.workPackageId, member.revision, member.seq]),
   ).toEqual([
     ['A', 7, 11],
     ['B', 7, 11],
@@ -92,8 +95,8 @@ test('scheduled evidence keeps exact component placement and retained stage boun
   if (evidence.placement.kind !== 'scheduled' || captured.projection.placement.kind !== 'scheduled')
     throw new Error('expected scheduled');
   expect(evidence.placement.selected).toEqual([
-    { projectId: 'A', workItemId: 'a', stepId: 'build', start: 0, finish: 1 },
-    { projectId: 'B', workItemId: 'b', stepId: 'build', start: 1, finish: 2 },
+    { workPackageId: 'A', workItemId: 'a', stepId: 'build', start: 0, finish: 1 },
+    { workPackageId: 'B', workItemId: 'b', stepId: 'build', start: 1, finish: 2 },
   ]);
   expect(evidence.placement.baseline).toEqual(evidence.placement.selected);
   expect(evidence.placement.stages.map((stage) => stage.boundary.canonical)).toEqual(
@@ -126,21 +129,21 @@ test('remote uncoded steps retain own UUID and row address with step label', () 
         ...relationship,
         type: 'FF',
         predecessor: {
-          projectId: 'A',
+          workPackageId: 'A',
           scope,
           workItemId: scope === 'node' ? 'a' : 'parent',
           stepId: 'build',
         },
       })),
     });
-    expect(projectConnectedDocument(captured, 'B').typedDependencies[0]?.predecessor).toEqual({
+    expect(workPackageConnectedDocument(captured, 'B').typedDependencies[0]?.predecessor).toEqual({
       kind: 'external',
       scope,
-      projectId: 'A',
+      workPackageId: 'A',
       workItemId: scope === 'node' ? 'a' : 'parent',
       stepId: 'build',
       display: {
-        projectName: 'A',
+        workPackageName: 'A',
         abbreviation: 'A',
         workItemName: scope === 'node' ? 'a' : 'a',
         address: 'A.010',
@@ -152,15 +155,20 @@ test('remote uncoded steps retain own UUID and row address with step label', () 
 test('unavailable evidence preserves exact calendar and engine refusals', () => {
   const capture = connectedCapture(connectedReads('A', null));
   const captured = live(capture);
-  expect(JSON.stringify(projectConnectedDocument(captured, 'B').connected.placement)).toBe(
+  expect(JSON.stringify(workPackageConnectedDocument(captured, 'B').connected.placement)).toBe(
     JSON.stringify(captured.projection.placement),
   );
   for (const placement of [
-    { kind: 'engine_unavailable', engine: 'optimized', projects: ['A'], reason: 'adapter_missing' },
     {
       kind: 'engine_unavailable',
       engine: 'optimized',
-      projects: ['B'],
+      workPackages: ['A'],
+      reason: 'adapter_missing',
+    },
+    {
+      kind: 'engine_unavailable',
+      engine: 'optimized',
+      workPackages: ['B'],
       reason: 'connected_optimization_not_supported',
     },
     { kind: 'unavailable', reason: 'cycle' },
@@ -168,7 +176,7 @@ test('unavailable evidence preserves exact calendar and engine refusals', () => 
   ] as const) {
     expect(
       JSON.stringify(
-        projectConnectedDocument(
+        workPackageConnectedDocument(
           { ...captured, projection: { ...captured.projection, placement } },
           'B',
         ).connected.placement,
@@ -181,17 +189,17 @@ test('unavailable document evidence is detached from later capture mutation', ()
   const placement = captured.projection.placement;
   if (placement.kind !== 'dependency_calendar_missing')
     throw new Error('expected calendar refusal');
-  const exported = projectConnectedDocument(captured, 'B');
+  const exported = workPackageConnectedDocument(captured, 'B');
   const retained = structuredClone(exported);
-  const project = placement.projects.at(0);
-  if (project === undefined) throw new Error('expected missing-calendar project');
-  Reflect.set(project, 'name', 'Later remote');
-  Reflect.set(project, 'projectId', 'replacement-project');
-  Reflect.set(placement.projects, 'length', 0);
+  const workPackage = placement.workPackages.at(0);
+  if (workPackage === undefined) throw new Error('expected missing-calendar work package');
+  Reflect.set(workPackage, 'name', 'Later remote');
+  Reflect.set(workPackage, 'workPackageId', 'replacement-work-package');
+  Reflect.set(placement.workPackages, 'length', 0);
   expect(exported).toEqual(retained);
   expect(exported.connected.placement).toEqual({
     kind: 'dependency_calendar_missing',
-    projects: [{ projectId: 'A', name: 'A', abbreviation: 'A' }],
+    workPackages: [{ workPackageId: 'A', name: 'A', abbreviation: 'A' }],
   });
 });
 
@@ -199,10 +207,10 @@ test('export rejects a stored relationship whose owner differs from its successo
   const captured = live();
   const relationships = captured.projection.capture.relationships.map((relationship) => ({
     ...relationship,
-    projectId: 'A',
+    workPackageId: 'A',
   }));
   expect(() =>
-    projectConnectedDocument(
+    workPackageConnectedDocument(
       {
         ...captured,
         projection: {
@@ -224,7 +232,7 @@ test('positions require complete matching baseline and selected ownership', () =
     slices: new Map([...placement.combined.slices].slice(1)),
   };
   expect(() =>
-    projectConnectedDocument(
+    workPackageConnectedDocument(
       {
         ...captured,
         projection: { ...captured.projection, placement: { ...placement, combined: missing } },
@@ -236,14 +244,14 @@ test('positions require complete matching baseline and selected ownership', () =
     ...placement,
     identities: {
       ...placement.identities,
-      projectIdByWorkItem: new Map([
+      workPackageIdByWorkItem: new Map([
         ['a', 'B'],
         ['b', 'B'],
       ]),
     },
   };
   expect(() =>
-    projectConnectedDocument(
+    workPackageConnectedDocument(
       { ...captured, projection: { ...captured.projection, placement: broken } },
       'B',
     ),
@@ -255,12 +263,12 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
   const configured = {
     ...capture,
     relationships: [],
-    projects: capture.projects.map((member) => ({
+    workPackages: capture.workPackages.map((member) => ({
       ...member,
       reads: {
         ...member.reads,
-        project: {
-          ...member.reads.project,
+        workPackage: {
+          ...member.reads.workPackage,
           optimizationEnabled: true,
           scheduleEngine: 'optimized' as const,
           scheduleObjective: 'time' as const,
@@ -273,9 +281,9 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
     {
       readConnectedCaptured: ({ stage }) => {
         const question = {
-          projectId: stage.projectId,
-          inputHash: stage.projectId,
-          questionHash: `question-${stage.projectId}`,
+          workPackageId: stage.workPackageId,
+          inputHash: stage.workPackageId,
+          questionHash: `question-${stage.workPackageId}`,
           objective: 'time' as const,
           contractVersion: 'test',
           budgetMs: 100,
@@ -284,7 +292,7 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
           stageBytes: canonicalConnectedStageInput(stage),
         };
         return {
-          inputHash: stage.projectId,
+          inputHash: stage.workPackageId,
           generation: 7,
           contractVersion: 'test',
           budgetMs: 100,
@@ -296,7 +304,10 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
             time: {
               question,
               starts: new Map([
-                [sliceKey(stage.projectId.toLowerCase(), 'build'), stage.projectId === 'A' ? 0 : 5],
+                [
+                  sliceKey(stage.workPackageId.toLowerCase(), 'build'),
+                  stage.workPackageId === 'A' ? 0 : 5,
+                ],
               ]),
             },
           },
@@ -312,7 +323,7 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
         ]),
       ),
   );
-  const evidence = projectConnectedDocument(captured, 'B').connected;
+  const evidence = workPackageConnectedDocument(captured, 'B').connected;
   if (evidence.placement.kind !== 'scheduled') throw new Error('expected scheduled');
   expect(evidence.placement.baseline.map((position) => position.start)).toEqual([3, 4]);
   expect(evidence.placement.selected.map((position) => position.start)).toEqual([0, 4]);
@@ -320,7 +331,7 @@ test('optimized evidence preserves selected movement, earlier boundary and a bas
   const second = evidence.placement.stages[1];
   expect(first.chosen?.chosen).toBe('optimized');
   expect(second.chosen?.chosen).toBe('baseline');
-  expect(first.chosen?.scope).toEqual({ kind: 'connected-stage', projectId: 'A' });
+  expect(first.chosen?.scope).toEqual({ kind: 'connected-stage', workPackageId: 'A' });
   expect(first.optimization?.candidates.time?.starts).toEqual([
     { sliceId: sliceKey('a', 'build'), start: 0 },
   ]);
@@ -333,17 +344,20 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
   const capture = connectedCapture();
   const configured = {
     ...capture,
-    projects: capture.projects.map((member) => ({
+    workPackages: capture.workPackages.map((member) => ({
       ...member,
-      reads: { ...member.reads, project: { ...member.reads.project, optimizationEnabled: true } },
+      reads: {
+        ...member.reads,
+        workPackage: { ...member.reads.workPackage, optimizationEnabled: true },
+      },
     })),
   };
   const captured = live(configured, {
     readConnectedCaptured: ({ stage }) => {
       const question = {
-        projectId: stage.projectId,
-        inputHash: stage.projectId,
-        questionHash: `question-${stage.projectId}`,
+        workPackageId: stage.workPackageId,
+        inputHash: stage.workPackageId,
+        questionHash: `question-${stage.workPackageId}`,
         objective: 'time' as const,
         contractVersion: 'test',
         budgetMs: 100,
@@ -352,7 +366,7 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
         stageBytes: canonicalConnectedStageInput(stage),
       };
       return {
-        inputHash: stage.projectId,
+        inputHash: stage.workPackageId,
         generation: null,
         contractVersion: 'test',
         budgetMs: 100,
@@ -363,8 +377,8 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
             state: 'plan-infeasible',
             items: [
               {
-                ownerWorkItemId: stage.projectId.toLowerCase(),
-                boundWorkItemId: stage.projectId.toLowerCase(),
+                ownerWorkItemId: stage.workPackageId.toLowerCase(),
+                boundWorkItemId: stage.workPackageId.toLowerCase(),
                 effectiveDeadlineOffset: 0,
               },
             ],
@@ -382,7 +396,7 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
       };
     },
   });
-  const evidence = projectConnectedDocument(captured, 'B').connected;
+  const evidence = workPackageConnectedDocument(captured, 'B').connected;
   if (evidence.placement.kind !== 'scheduled') throw new Error('expected scheduled');
   const stage = evidence.placement.stages[0];
   expect(stage.optimization?.variants.pri).toEqual({
@@ -394,7 +408,7 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
     certificate: {
       kind: 'boundary-infeasible',
       question: {
-        projectId: 'A',
+        workPackageId: 'A',
         inputHash: 'A',
         questionHash: 'question-A',
         objective: 'time',
@@ -429,11 +443,11 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
 test('producer refuses missing and nonfinite captured provenance', () => {
   for (const fault of ['missing sequence', 'nonfinite revision'] as const) {
     const captured = live();
-    const member = captured.metadataByProject.get('A');
+    const member = captured.metadataByWorkPackage.get('A');
     if (member === undefined) throw new Error('expected member');
     if (fault === 'missing sequence') Reflect.deleteProperty(member, 'seq');
-    else Reflect.set(member.project, 'revision', Infinity);
-    expect(() => projectConnectedDocument(captured, 'B')).toThrow(
+    else Reflect.set(member.workPackage, 'revision', Infinity);
+    expect(() => workPackageConnectedDocument(captured, 'B')).toThrow(
       'invalid connected document evidence',
     );
   }
@@ -447,14 +461,14 @@ test('producer refuses foreign stage metadata and comparison scope', () => {
     at === 0 ? { ...selection, engine: 'optimized' as const } : selection,
   );
   expect(() =>
-    projectConnectedDocument(
+    workPackageConnectedDocument(
       { ...captured, projection: { ...captured.projection, placement: { ...placement, stages } } },
       'B',
     ),
   ).toThrow('stage metadata');
   const values = { makespan: 2, priority: 2, movement: 0 };
   const chosen = {
-    scope: { kind: 'connected-stage' as const, projectId: 'foreign' },
+    scope: { kind: 'connected-stage' as const, workPackageId: 'foreign' },
     chosen: 'baseline' as const,
     schedule: placement.baseline,
     baseline: placement.baseline,
@@ -466,7 +480,7 @@ test('producer refuses foreign stage metadata and comparison scope', () => {
     at === 0 ? { ...selection, chosen } : selection,
   );
   expect(() =>
-    projectConnectedDocument(
+    workPackageConnectedDocument(
       {
         ...captured,
         projection: { ...captured.projection, placement: { ...placement, stages: scoped } },

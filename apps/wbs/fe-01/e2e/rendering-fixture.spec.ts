@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 import { fixtureClient, fixtureSuccess } from './plan-fixture';
 import { renderingGeometry, seedRenderingPlan } from './rendering-fixture';
 
@@ -15,16 +15,16 @@ test('rendering setup reports an actual backend refusal', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   await expect(
     fixtureClient(page)
-      .postApiProjectsByIdCommands({
-        params: { id: 'missing-rendering-project' },
+      .postApiWorkPackagesByIdCommands({
+        params: { id: 'missing-rendering-work-package' },
         body: { commands: [{ kind: 'createWorkItem', name: 'Refused' }] },
       })
-      .then((reply) => fixtureSuccess('postApiProjectsByIdCommands', reply)),
-  ).rejects.toThrow(/postApiProjectsByIdCommands refused.*not_found/);
+      .then((reply) => fixtureSuccess('postApiWorkPackagesByIdCommands', reply)),
+  ).rejects.toThrow(/postApiWorkPackagesByIdCommands refused.*not_found/);
 });
 
 test('rendering setup refuses a successful batch without its row identity', async ({ page }) => {
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: { kind: string }[] };
     if (!request.commands.every((command) => command.kind === 'createWorkItem')) {
       await route.continue();
@@ -47,11 +47,11 @@ test('rendering setup refuses a wrong authored result index before its tree read
   let treeReads = 0;
   let authoredBatches = 0;
   let corrupted = false;
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     if (corrupted) treeReads += 1;
     await route.continue();
   });
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: { kind: string }[] };
     if (request.commands.every((command) => command.kind === 'createWorkItem')) {
       await route.continue();
@@ -74,11 +74,11 @@ test('rendering setup refuses a wrong authored result index before its tree read
 test('rendering setup refuses an altered estimate value', async ({ page }) => {
   let alteredEstimates = 0;
   let treeReads = 0;
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     if (alteredEstimates > 0) treeReads += 1;
     await route.continue();
   });
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: Record<string, unknown>[] };
     const commands = request.commands.map((command) => ({ ...command }));
     const estimate = commands.find((command) => command['kind'] === 'setEstimate');
@@ -102,11 +102,11 @@ test('rendering setup refuses a redirected dependency endpoint', async ({ page }
   const createdIds: string[] = [];
   let redirectedEdges = 0;
   let treeReads = 0;
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     if (redirectedEdges > 0) treeReads += 1;
     await route.continue();
   });
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: Record<string, unknown>[] };
     if (request.commands.every((command) => command['kind'] === 'createWorkItem')) {
       const response = await route.fetch();
@@ -140,7 +140,7 @@ test('rendering setup refuses a redirected dependency endpoint', async ({ page }
 test('rendering measurement refuses a frame with no layout area', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Rendering geometry refusal');
+  await createWorkPackage(page, 'Rendering geometry refusal');
   await expect(page.locator('[data-table-frame]')).toBeVisible();
   await page.locator('[data-table-frame]').evaluate((frame) => {
     frame.style.display = 'none';

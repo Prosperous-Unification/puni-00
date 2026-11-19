@@ -16,7 +16,7 @@ import {
 const T = 1_900_000_000_000;
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let stepId: string;
 let leaf: string;
 let codexKey: string;
@@ -39,14 +39,14 @@ beforeEach(async () => {
   h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
+  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
-  projectId = plan.project.id;
+  const plan = created.body as { workPackage: { id: string }; steps: { id: string }[] };
+  workPackageId = plan.workPackage.id;
   const firstStep = plan.steps.at(0);
-  if (firstStep === undefined) throw new Error('project omitted its first workflow step');
+  if (firstStep === undefined) throw new Error('work package omitted its first workflow step');
   stepId = firstStep.id;
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
@@ -71,14 +71,14 @@ function asCodex(commands: unknown[]): Promise<Answer> {
     h,
     codexKey,
     'POST',
-    `/api/projects/${projectId}/commands`,
+    `/api/work-packages/${workPackageId}/commands`,
     { commands },
     { now: T },
   );
 }
 
 function asDany(commands: unknown[]): Promise<Answer> {
-  return h.call('dany', 'POST', `/api/projects/${projectId}/commands`, { commands });
+  return h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
 }
 
 const claim = (): Record<string, unknown> => ({
@@ -97,13 +97,13 @@ function claimRows(): { person: string; run: string | null; lease: number | null
     .all();
 }
 
-/** The journal's (kind, acting person) entries for the project, oldest first. */
+/** The journal's (kind, acting person) entries for the work package, oldest first. */
 function journal(): { kind: string; person: string | null }[] {
   return h.sqlite
     .query<{ kind: string; person: string | null }, [string]>(
-      'SELECT kind, person_id AS person FROM command_journal WHERE project_id = ? ORDER BY seq',
+      'SELECT kind, person_id AS person FROM command_journal WHERE work_package_id = ? ORDER BY seq',
     )
-    .all(projectId)
+    .all(workPackageId)
     .filter(({ kind }) => kind !== 'create');
 }
 
@@ -130,9 +130,16 @@ describe('a claim or release naming no person', () => {
     ]);
 
     expect(
-      await callForwarded(h, codexKey, 'POST', `/api/projects/${projectId}/undo`, undefined, {
-        now: T,
-      }),
+      await callForwarded(
+        h,
+        codexKey,
+        'POST',
+        `/api/work-packages/${workPackageId}/undo`,
+        undefined,
+        {
+          now: T,
+        },
+      ),
     ).toMatchObject({
       status: 200,
     });

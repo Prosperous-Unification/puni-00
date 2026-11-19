@@ -160,16 +160,11 @@ export function selectActivityClass(
   });
 }
 
-/**
- * Accepts exactly the declared unique prompt sources, retaining original bytes as base64.
- * Only immutable strings escape byte acceptance; this grants no runtime authority.
- * @throws {WorkflowBindingError} for an inexact source set or malformed UTF-8.
- */
-export function acceptWorkflowBinding(
-  checked: CheckedBinding,
+/** Accepts each declared original prompt exactly once, preserving byte hashes and immutable content; paths come from a decoded binding. */
+export function acceptWorkflowPrompts(
+  paths: readonly string[],
   prompts: readonly PromptSource[],
-): ValidatedBinding {
-  const paths = listBindingPromptPaths(checked.binding);
+): readonly PromptSnapshot[] {
   // Proof: bypassing this set check accepted duplicate/extra sources and omitted unused
   // prompts in the source-refusal and unused-class prompt tests.
   if (
@@ -211,6 +206,19 @@ export function acceptWorkflowBinding(
       // Proof: removing this freeze allowed text mutation in the acceptance mutation test.
       return Object.freeze({ path, sha256, text, bytesBase64 });
     });
+  return Object.freeze(retained);
+}
+
+/**
+ * Accepts exactly the declared unique prompt sources, retaining original bytes as base64.
+ * Only immutable strings escape byte acceptance; this grants no runtime authority.
+ * @throws {WorkflowBindingError} for an inexact source set or malformed UTF-8.
+ */
+export function acceptWorkflowBinding(
+  checked: CheckedBinding,
+  prompts: readonly PromptSource[],
+): ValidatedBinding {
+  const retained = acceptWorkflowPrompts(listBindingPromptPaths(checked.binding), prompts);
   // Proof: removing snapshot/descriptor and descriptor-array freezes separately let Reflect.set succeed in
   // `acceptance survives caller mutation and binds changed prompt bytes`.
   const snapshot: AcceptanceSnapshot = Object.freeze({

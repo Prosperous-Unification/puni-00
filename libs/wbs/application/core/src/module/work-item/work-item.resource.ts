@@ -1,3 +1,7 @@
+import {prepareFirstChildRelationships} from '../step-catalogue/first-child-relationships';
+import type {FirstChildWrite} from '../step-catalogue/first-child';
+import type {StepNodesInUse} from '../../ports/step-catalogue';
+import type {IncidentTransitionEvidence} from '../../ports/incident-node-transition';
 import type { Permission } from '@wbs/domain';
 import {
   addWorkdays,
@@ -77,7 +81,6 @@ import {
   placeAfter,
   POSITION_STEP,
   type PriorityBand,
-  projectExecutionBlockers,
   readBudgets,
   type Readiness,
   refuseDemand,
@@ -117,6 +120,7 @@ import {
   UNKNOWN,
   workedStepsOf,
   type WorkItemStatus,
+  workPackageExecutionBlockers,
 } from '@wbs/domain';
 import {
   arrangeBySchedule as arrangeSiblingsBySchedule,
@@ -176,12 +180,13 @@ import type {
   OptimizationInput,
 } from '../../ports/optimization-input';
 import {
-  findProjectWithin,
+  findWorkPackageWithin,
   LEGACY_ACCESS,
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { PlanEventStore } from '../../ports/plan-event-store';
+import type { PlanExportReader } from '../../ports/plan-export-reader';
 import type {
   IdentifiedSlice,
   PlanOptimization,
@@ -190,8 +195,6 @@ import type {
 } from '../../ports/plan-tree';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore, StoredProgress } from '../../ports/progress-store';
-import type { Broadcaster } from '../../ports/project-event';
-import type { Project, ProjectStore } from '../../ports/project-store';
 import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
 import type {
   EngineUnavailable,
@@ -228,6 +231,8 @@ import type {
   WorkItemPatch,
   WorkItemStore,
 } from '../../ports/work-item-store';
+import type { Broadcaster } from '../../ports/work-package-event';
+import type { WorkPackage, WorkPackageStore } from '../../ports/work-package-store';
 import type { WriteStamp } from '../../ports/write-stamp';
 import { authorize, authorizePackage } from '../../service/authorize';
 import {
@@ -258,9 +263,12 @@ import {
 } from '../../service/compensating';
 import { resolveConnectedDependencyGraph } from '../../service/connected-dependency-graph';
 import { deriveExecutionReadiness } from '../../service/connected-readiness';
-import { type ConnectedTreeProjection, projectConnectedTree } from '../../service/connected-tree';
+import {
+  type ConnectedTreeProjection,
+  workPackageConnectedTree,
+} from '../../service/connected-tree';
 import { type DependencyGraphChange, resolveDependencyGraph } from '../../service/dependency-graph';
-import { projectNodeReadings } from '../../service/node-readings';
+import { workPackageNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import {
   createReplayAuthorization,
@@ -293,9 +301,9 @@ import {
 import { remapCopiedDependency, selectCopiedDependencies } from './copy-typed-dependencies';
 import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
-import { findProjectClaims, type ProjectClaims } from './project-claims';
 import { findStartableWork, type StartableWork } from './startable';
 import { namedDemandFields, readUntilNamed, withDemands } from './tree-demands';
+import { findWorkPackageClaims, type WorkPackageClaims } from './work-package-claims';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -337,8 +345,8 @@ interface CanonicalScheduleParts {
 }
 
 /**
- * Which schedule a project is **drawn by**: Fast, or the ready optimized
- * variant the project selects.
+ * Which schedule a work package is **drawn by**: Fast, or the ready optimized
+ * variant the work package selects.
  *
  * One rule, two callers with different answers to the same middle case. The
  * plan read draws Fast while a selected variant is still solving — the cue
@@ -352,24 +360,25 @@ interface CanonicalScheduleParts {
  * three conditions and they cannot drift apart.
  */
 function selectedSchedule(
-  project: Project,
+  workPackage: WorkPackage,
   fast: Schedule,
   optimization: OptimizedScheduleRead | null,
 ): { schedule: Schedule; displayed: 'fast' | SolverObjectiveName; awaitingSolve: boolean } {
-  const optimizedSelected = project.optimizationEnabled && project.scheduleEngine === 'optimized';
+  const optimizedSelected =
+    workPackage.optimizationEnabled && workPackage.scheduleEngine === 'optimized';
   if (!optimizedSelected || optimization === null) {
     return { schedule: fast, displayed: 'fast', awaitingSolve: false };
   }
-  if (optimization.variants[project.scheduleObjective].state !== 'ready') {
+  if (optimization.variants[workPackage.scheduleObjective].state !== 'ready') {
     return { schedule: fast, displayed: 'fast', awaitingSolve: true };
   }
-  const ready = optimization.schedules[project.scheduleObjective];
+  const ready = optimization.schedules[workPackage.scheduleObjective];
   if (ready === null) {
     throw new Error('optimized plan reader reported ready without a schedule');
   }
   // Proof: forcing Fast here made the mounted borrowed arrange/freeze command
   // order lower-work before lower-other despite the ready selected schedule.
-  return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
+  return { schedule: ready, displayed: workPackage.scheduleObjective, awaitingSolve: false };
 }
 
 /**
@@ -381,7 +390,7 @@ function selectedSchedule(
  * read that enqueued it.
  */
 function canonicalScheduleParts(
-  project: Project,
+  workPackage: WorkPackage,
   rows: readonly LabelledWorkItem[],
   estimates: readonly StoredEstimate[],
   edges: readonly Pick<StoredDependency, 'predecessorId' | 'successorId'>[],
@@ -389,13 +398,13 @@ function canonicalScheduleParts(
   assignments: readonly Assignment[],
   steps: readonly Step[],
   poolSizes: ReadonlyMap<string, number>,
-  /** Every demand on a work item of the project; a parent's charges nothing. */
+  /** Every demand on a work item of the work package; a parent's charges nothing. */
   demands: readonly Demand[],
-  /** The project's stated resource capacities. */
+  /** The work package's stated resource capacities. */
   resourceCapacities: readonly ResourceCapacity[],
 ): CanonicalScheduleParts {
   return prepareScheduleParts(
-    project,
+    workPackage,
     rows,
     estimates,
     edges,
@@ -425,8 +434,8 @@ function oneCommandOf(commands: readonly CompensatingCommand[]): CompensatingCom
  *
  * Named for what it returns rather than for the word `step`: it was `phasesOf`
  * until `steps-not-phases`, and `stepsOf` would have collided with
- * `ProjectRepository.stepsOf` in this same file, which answers something else
- * entirely — a project's steps, not one row's assignment fields.
+ * `WorkPackageRepository.stepsOf` in this same file, which answers something else
+ * entirely — a work package's steps, not one row's assignment fields.
  */
 function assignmentFieldsOf(assignees: Record<string, string>): {
   assignees: Record<string, string>;
@@ -437,7 +446,7 @@ function assignmentFieldsOf(assignees: Record<string, string>): {
 
 /**
  * What a leaf's attempts witness about when its work ran, as days in the
- * project's zone: the day its first attempt started, and the day its last
+ * work package's zone: the day its first attempt started, and the day its last
  * ended attempt ended, or none while no attempt has ended
  * (`step-node-attempts` D4, the fills `setStatus` writes).
  */
@@ -472,7 +481,7 @@ function attemptWitness(
  * A row's attempts by step id, each list in ascending number, with the
  * {@link Span} of each node and of the row (`step-node-attempts` D4). Empty
  * when the row holds none, so the read carries no key at all: no attempts, no
- * span. Steps are walked in project order, so two reads of an unchanged plan
+ * span. Steps are walked in work package order, so two reads of an unchanged plan
  * answer the same key order.
  */
 function attemptFieldsOf(
@@ -497,7 +506,9 @@ function attemptFieldsOf(
   // at a step this list lacks is trusted state that moved underneath the read,
   // never a history to answer with a hole in it.
   if (answered.length !== held.length) {
-    throw new Error(`${String(held.length - answered.length)} attempts held at no project step`);
+    throw new Error(
+      `${String(held.length - answered.length)} attempts held at no work package step`,
+    );
   }
   const span = spanOfAttempts(answered);
   if (span === undefined) throw new Error('attempts were held but none was answered');
@@ -514,7 +525,7 @@ function readingFieldsOf(
 /**
  * One row's span as calendar days, or null when it cannot have one.
  *
- * Null in two cases, both of them honest: the project is not on a calendar, or
+ * Null in two cases, both of them honest: the work package is not on a calendar, or
  * the schedule could not be computed at all. Printing a date from a schedule
  * that failed would be the same confident lie as printing a page of zeroes,
  * which the banner above the table exists to prevent.
@@ -577,7 +588,7 @@ function finalsOf(charged: ReadonlyMap<string, ChargedEstimate>): {
 export type DeleteStrategy = 'cascade' | 'promote';
 
 export type WorkItemRefusal =
-  | 'project_deleting'
+  | 'work_package_deleting'
   | 'external_dependencies_inactive'
   | 'referenced_by_external_dependency'
   | 'not_found'
@@ -585,7 +596,7 @@ export type WorkItemRefusal =
   | 'strategy_required'
   | 'cycle'
   /**
-   * `arrangeBySchedule` on a project whose selected engine is `optimized` and
+   * `arrangeBySchedule` on a work package whose selected engine is `optimized` and
    * whose displayed variant has not settled.
    *
    * A refusal rather than a fall back to Fast: the rows would be put in the
@@ -623,7 +634,7 @@ export type WorkItemRefusal =
   | 'not_a_parent'
   | 'node_on_parent'
   | 'descendant_step_on_leaf'
-  /** The addressed typed relationship no longer exists in this project. */
+  /** The addressed typed relationship no longer exists in this work package. */
   | 'unknown_dependency'
   /** Another relationship already names these endpoints and this type. */
   | 'duplicate_dependency'
@@ -632,7 +643,7 @@ export type WorkItemRefusal =
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
   | 'too_large'
   /**
-   * A step the project does not hold — usually one somebody removed while this
+   * A step the work package does not hold — usually one somebody removed while this
    * caller had it on screen. `estimate.step_id` and `assignment.step_id` are
    * foreign keys, so without this the write reaches the database and answers
    * 500 for a request whose only fault is being out of date.
@@ -641,8 +652,10 @@ export type WorkItemRefusal =
   | 'minutes_above_max'
   | 'invalid_estimate'
   | 'unknown_step'
+  | 'step_not_resolved'
+  | 'type_conflict'
   /**
-   * A metric naming no measure definition of the project's organization, and
+   * A metric naming no measure definition of the work package's organization, and
    * none of the legacy names (`wbs-measure-budgets` D4; was `unknown_metric`
    * before definitions existed).
    *
@@ -761,7 +774,7 @@ export type WorkItemRefusal =
    */
   | 'not_before_reason_needs_a_date'
   /**
-   * A deadline that falls before the project's day zero, so no placement of
+   * A deadline that falls before the work package's day zero, so no placement of
    * the work could ever meet it.
    *
    * **The only deadline-specific refusal** (`work-item-deadline` 6.1). The shape
@@ -769,18 +782,18 @@ export type WorkItemRefusal =
    * and everything else about a deadline is legal here, including one in the
    * past relative to today and one earlier than an ancestor's.
    *
-   * It refuses the **write** and nothing else. A project start later moved past
+   * It refuses the **write** and nothing else. A work package start later moved past
    * a deadline already stored does not become this: that is resolved at read
    * time and reported as late by the whole span, and the request that moved the
-   * project is not rejected. See the column's JSDoc in `schema.ts`, which is
+   * work package is not rejected. See the column's JSDoc in `schema.ts`, which is
    * where that asymmetry is argued.
    */
-  | 'deadline_before_project_start'
+  | 'deadline_before_work_package_start'
   /** `setStatus` `ready` or `draft` on a leaf whose steps have already spoken. */
   | 'readiness_after_progress'
   /** `setStatus` `on_hold` or `blocked` on a row reading done. */
   | 'cannot_hold_done'
-  /** `setStatus` `in_progress` or `done` in a project with no steps to speak for. */
+  /** `setStatus` `in_progress` or `done` in a work package with no steps to speak for. */
   | 'no_steps'
   /** `startAttempt` on a node stated `done`: reopen it first (`step-node-attempts` D2). */
   | 'node_done'
@@ -809,7 +822,7 @@ export type WorkItemOutcome<T> =
       reason: WorkItemRefusal;
       readonly permission?: Permission;
       /**
-       * Which row was refused, on `deadline_before_project_start` alone.
+       * Which row was refused, on `deadline_before_work_package_start` alone.
        *
        * Optional rather than a fourth arm of the union so that every existing
        * `{ ok: false, reason }` still assigns, and read by the batch runner's
@@ -818,12 +831,12 @@ export type WorkItemOutcome<T> =
        */
       workItemId?: string;
       /**
-       * The project's **day zero** — the first workday on or after its start
+       * The work package's **day zero** — the first workday on or after its start
        * date, which is what `deadlineOffsetOf` compares against — so the client
        * can say what the earliest legal deadline is rather than only that this
        * one was wrong.
        */
-      projectDayZero?: IsoDate;
+      workPackageDayZero?: IsoDate;
       /** Relationships that prevent a structural change from changing endpoint scope. */
       dependencyIds?: string[];
       /** The two bases a `mixed_rate_cards` refusal would add (null: unpriced). */
@@ -917,7 +930,7 @@ export interface CreateWorkItem {
    * The priority to write, or `null` to create the row unprioritised.
    *
    * **Three states, and absent is not null.** Absent means "nobody said", and
-   * {@link WorkItemService.create} stamps the project's own
+   * {@link WorkItemService.create} stamps the work package's own
    * {@link ORDINARY_BAND_RANK} band's default in its place. An explicit `null`
    * means "create this with no priority" and is what a caller wanting the
    * pre-2026-08-29 behaviour sends. The distinction is the one the patch path
@@ -942,7 +955,7 @@ export interface WorkItemServiceOptions {
   workItems: WorkItemStore;
   /** Required scope-bound evidence; create refuses retained facts before any writes. */
   stepParallels: Pick<StepParallelStore, 'listByWorkItems'>;
-  projects: ProjectStore;
+  workPackages: Omit<WorkPackageStore,'setStepUnit'>;
   estimates: EstimateStore;
   /**
    * Where the days actually spent are kept.
@@ -1013,22 +1026,22 @@ export interface WorkItemServiceOptions {
    */
   demands: DemandStore;
   /**
-   * The project's stated resource capacities, read by {@link WorkItemService.resourcesWithin}
+   * The work package's stated resource capacities, read by {@link WorkItemService.resourcesWithin}
    * and by every plan read, which levels demands against them.
    */
   resourceCapacity: ResourceCapacityStore;
   directory: DirectoryStore;
   /**
-   * How many of each team this project may have at work at once — C1's `slotsOf`
-   * seam with the per-project lookup behind it.
+   * How many of each team this work package may have at work at once — C1's `slotsOf`
+   * seam with the per-work-package lookup behind it.
    *
    * A collaborator of its own rather than four methods on `directory`, because
-   * the fact is a **project's** and the directory is what the global list is read
-   * through. `capacity-per-project`'s design.md D3.
+   * the fact is a **work package's** and the directory is what the global list is read
+   * through. `capacity-per-work-package`'s design.md D3.
    */
   capacity: CapacityStore;
   /**
-   * What this project calls its priority numbers, read on the plan's own payload.
+   * What this work package calls its priority numbers, read on the plan's own payload.
    *
    * A read and never a write from here, and read by nothing that computes a date:
    * the leveller orders on `work_item.priority` alone. It is on this service
@@ -1049,15 +1062,16 @@ export interface WorkItemServiceOptions {
    */
   journal: CommandJournalStore;
   /**
-   * The project's plan events, read by {@link WorkItemService.claimHistoryWithin}
+   * The work package's plan events, read by {@link WorkItemService.claimHistoryWithin}
    * (`wbs-claim-display` C13). Optional only for fixtures that predate the
    * claim history: without it that read throws rather than answering.
    */
   planEvents?: Pick<PlanEventStore, 'listFor'>;
   broadcast: Broadcaster;
   /**
-   * Who may write a project through this service: `CREATOR_ADMISSION`
-   * outside a batch that established wider authority. See {@link EditAdmission}.
+   * Composition supplies write authority: `LEGACY_EDIT_ADMISSION` admits
+   * unrestricted ordinary legacy edits; admitted batches supply their policy.
+   * See {@link EditAdmission}.
    */
   admission: EditAdmission;
   /** The installed scheduling capabilities for live plan reads. */
@@ -1076,7 +1090,7 @@ export type UndoRefusal =
   | 'external_dependencies_inactive'
   | 'not_found'
   | 'forbidden'
-  /** The account has nothing left in that half of its stack for this project. */
+  /** The account has nothing left in that half of its stack for this work package. */
   | 'nothing_to_undo'
   /**
    * Something the command touched has been written to since, so reversing it
@@ -1233,7 +1247,7 @@ function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
 /** One row of `rows`, or a throw: an id from the same read is not allowed to be missing. */
 function rowOf<Row extends WorkItem>(rows: readonly Row[], id: string): Row {
   const found = rows.find((row) => row.id === id);
-  if (found === undefined) throw new Error(`${id} is not a row of this project`);
+  if (found === undefined) throw new Error(`${id} is not a row of this work package`);
   return found;
 }
 
@@ -1513,7 +1527,7 @@ function scheduleFinish(schedule: Schedule): number {
 }
 
 /**
- * The cue's figures: Fast's project finish, and for every variant this read
+ * The cue's figures: Fast's work package finish, and for every variant this read
  * materialized, that variant's own finish and its order against Fast.
  *
  * Driven by the **schedules** rather than by `variants`, because a finish can
@@ -1564,7 +1578,7 @@ export interface Recording {
   /** Every work item the command wrote to, whose revisions become its preconditions. */
   touched: string[];
   /**
-   * The project's rows as the mutation read them **before** writing.
+   * The work package's rows as the mutation read them **before** writing.
    *
    * Every mutation already has this: it is what its own guards were decided
    * against. It is here so the entry can record where the entities it touched
@@ -1616,21 +1630,21 @@ export class WorkItemService {
 
   /** Checks changed typed endpoint lifecycle and shape before graph expansion or persistence. */
   private structuralRefusal(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     change: DependencyGraphChange,
   ): Promise<
-    | { ok: false; reason: 'cycle' | 'self_node' | 'project_deleting' }
+    | { ok: false; reason: 'cycle' | 'self_node' | 'work_package_deleting' }
     | { ok: false; reason: 'node_on_parent' | 'descendant_step_on_leaf'; dependencyIds: string[] }
     | null
   > {
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (context) => {
         if (change.typed !== undefined) {
-          const existing = await this.opts.typedDependencies.listByProject(projectId);
+          const existing = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
           for (const proposed of change.typed) {
             const previous = existing.find((relationship) => relationship.id === proposed.id);
             if (
@@ -1641,12 +1655,12 @@ export class WorkItemService {
             // Proof: removing this preflight restored HTTP500 in mounted createWorkItem
             // and duplicateWorkItem implicit-write tests (2026-10-22).
             if (await this.opts.typedDependencies.hasDeletingEndpoint(proposed))
-              return { ok: false, reason: 'project_deleting' };
+              return { ok: false, reason: 'work_package_deleting' };
           }
         }
-        const conflict = await context.graph.findEndpointConflict(projectId, change);
+        const conflict = await context.graph.findEndpointConflict(workPackageId, change);
         if (conflict !== null) return { ok: false, ...conflict };
-        const cycle = await context.graph.findCycle(projectId, change);
+        const cycle = await context.graph.findCycle(workPackageId, change);
         return cycle === null
           ? null
           : { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
@@ -1661,7 +1675,8 @@ export class WorkItemService {
   ): Promise<TypedWriteRefusal | null> {
     if (
       !relationships.some(
-        (relationship) => relationship.predecessor.projectId !== relationship.successor.projectId,
+        (relationship) =>
+          relationship.predecessor.workPackageId !== relationship.successor.workPackageId,
       )
     )
       return Promise.resolve(null);
@@ -1673,7 +1688,7 @@ export class WorkItemService {
 
   /** Checks every doomed incident under current endpoint read authority before a structural delete. */
   private deletionIncidents(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     doomed: readonly string[],
   ): Promise<
@@ -1683,26 +1698,27 @@ export class WorkItemService {
   > {
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (context) => {
         const inside = new Set(doomed);
-        const incident = (await this.opts.typedDependencies.listIncident([projectId])).filter(
+        const incident = (await this.opts.typedDependencies.listIncident([workPackageId])).filter(
           (relationship) =>
-            relationship.predecessor.projectId !== relationship.successor.projectId &&
+            relationship.predecessor.workPackageId !== relationship.successor.workPackageId &&
             [relationship.predecessor, relationship.successor].some(
-              (endpoint) => endpoint.projectId === projectId && inside.has(endpoint.workItemId),
+              (endpoint) =>
+                endpoint.workPackageId === workPackageId && inside.has(endpoint.workItemId),
             ),
         );
-        const checked = await this.typedEvidence(context, projectId, incident);
+        const checked = await this.typedEvidence(context, workPackageId, incident);
         if (!checked.ok) return checked;
         const outgoing = incident
           .filter(
             (relationship) =>
-              relationship.predecessor.projectId === projectId &&
+              relationship.predecessor.workPackageId === workPackageId &&
               inside.has(relationship.predecessor.workItemId) &&
               !(
-                relationship.successor.projectId === projectId &&
+                relationship.successor.workPackageId === workPackageId &&
                 inside.has(relationship.successor.workItemId)
               ),
           )
@@ -1720,7 +1736,8 @@ export class WorkItemService {
           };
         const removing = incident.filter(
           (relationship) =>
-            relationship.projectId === projectId && inside.has(relationship.successor.workItemId),
+            relationship.workPackageId === workPackageId &&
+            inside.has(relationship.successor.workItemId),
         );
         // Proof: omitting selected-removal authorization deleted a remote relationship with only read access; `remote write for implicit delete`
         // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
@@ -1729,7 +1746,8 @@ export class WorkItemService {
         const ownedIncomingIds = incident
           .filter(
             (relationship) =>
-              relationship.projectId === projectId && inside.has(relationship.successor.workItemId),
+              relationship.workPackageId === workPackageId &&
+              inside.has(relationship.successor.workItemId),
           )
           .map((relationship) => relationship.id)
           .sort();
@@ -1739,7 +1757,7 @@ export class WorkItemService {
   }
 
   /**
-   * The self-node pair or directed cycle the project's combined dependency
+   * The self-node pair or directed cycle the work package's combined dependency
    * graph holds as the batch now stands, or `null`.
    *
    * The batch runner asks this after every command that can change the graph
@@ -1748,74 +1766,77 @@ export class WorkItemService {
    * is the state that would be committed. See {@link DependencyGraphGuard}.
    */
   async findDependencyCycle(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     change: DependencyGraphChange = {},
   ): Promise<StepNodeCycle | null> {
-    const project = await this.opts.projects.findById(projectId);
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
     // Proof: graph-helper-owner-admission bypass failed `runner-facing graph inspection requires`'s selected assertion
     // (actual service with memory stores; watched 2026-10-22).
-    if (project === null || !this.opts.admission.admits(project, actorId))
+    if (workPackage === null || !this.opts.admission.admits(workPackage, actorId))
       throw new Error('dependency graph owner is not admitted');
-    return withDependencyContext(this.opts.dependencyContext, projectId, actorId, (context) =>
-      context.graph.findCycle(projectId, change),
+    return withDependencyContext(this.opts.dependencyContext, workPackageId, actorId, (context) =>
+      context.graph.findCycle(workPackageId, change),
     );
   }
 
   /**
    * {@link scheduleInput} through the caller's access: null for a foreign
-   * project, and under scoped access a project whose rows cross the project or
+   * work package, and under scoped access a work package whose rows cross the work package or
    * the organization fails closed rather than scheduling on them.
    */
   async scheduleInputWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): Promise<ScheduleInput | null> {
-    if (!(await this.admits(projectId, access))) return null;
-    return this.scheduleInput(projectId);
+    if (!(await this.admits(workPackageId, access))) return null;
+    return this.scheduleInput(workPackageId);
   }
 
   /** Private detached observation for the connected coordinator integration; never admits work. */
   async optimizationCaptureWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): Promise<OptimizationCapture | AccessRefused> {
-    const captured = await this.opts.livePlans?.read(projectId, access);
+    const captured = await this.opts.livePlans?.read(workPackageId, access);
     if (captured?.kind === 'access_refused') return captured;
     if (captured?.kind === 'not_found') return captured;
-    if (captured?.kind === 'connected') return captureConnectedOptimization(captured, projectId);
+    if (captured?.kind === 'connected')
+      return captureConnectedOptimization(captured, workPackageId);
     if (captured?.kind === 'shared') return captureSharedOptimization(captured);
-    const input = await this.scheduleInputWithin(projectId, access);
+    const input = await this.scheduleInputWithin(workPackageId, access);
     if (input === null) return { kind: 'not_found' };
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) throw new Error('optimizer project disappeared during input capture');
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null)
+      throw new Error('optimizer work package disappeared during input capture');
     return {
       kind: 'scheduled',
       input: { kind: 'local', input },
-      enabled: project.optimizationEnabled,
+      enabled: workPackage.optimizationEnabled,
     };
   }
 
-  /** Private project-owned detached observation; no returned value borrows the snapshot. */
-  async optimizationCapture(projectId: string): Promise<OptimizationCapture> {
-    const captured = await this.opts.livePlans?.readProject(projectId);
+  /** Private work-package-owned detached observation; no returned value borrows the snapshot. */
+  async optimizationCapture(workPackageId: string): Promise<OptimizationCapture> {
+    const captured = await this.opts.livePlans?.readWorkPackage(workPackageId);
     if (captured?.kind === 'not_found') return captured;
-    if (captured?.kind === 'connected') return captureConnectedOptimization(captured, projectId);
+    if (captured?.kind === 'connected')
+      return captureConnectedOptimization(captured, workPackageId);
     if (captured?.kind === 'shared') return captureSharedOptimization(captured);
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { kind: 'not_found' };
-    const input = await this.scheduleInput(projectId);
-    if (input === null) throw new Error('optimizer project disappeared during input capture');
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { kind: 'not_found' };
+    const input = await this.scheduleInput(workPackageId);
+    if (input === null) throw new Error('optimizer work package disappeared during input capture');
     return {
       kind: 'scheduled',
       input: { kind: 'local', input },
-      enabled: project.optimizationEnabled,
+      enabled: workPackage.optimizationEnabled,
     };
   }
 
   /** Human-scoped Retry input; connected pre-selection boundaries and settings leave one closed authorized read. */
   async optimizationInputWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): Promise<
     | {
@@ -1829,16 +1850,16 @@ export class WorkItemService {
     | {
         readonly kind: 'unavailable';
         readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
-        readonly projectId: string;
+        readonly workPackageId: string;
       }
   > {
-    const captured = await this.opts.livePlans?.read(projectId, access);
+    const captured = await this.opts.livePlans?.read(workPackageId, access);
     if (captured?.kind === 'access_refused') return captured;
     if (captured?.kind === 'not_found') return { kind: 'not_found' };
     // Proof: restoring the connected refusal made mounted terminal/stale Retry return 500 instead of 409.
     if (captured?.kind === 'connected') {
-      const observation = captureConnectedOptimization(captured, projectId);
-      return observation.kind === 'unavailable' ? { ...observation, projectId } : observation;
+      const observation = captureConnectedOptimization(captured, workPackageId);
+      return observation.kind === 'unavailable' ? { ...observation, workPackageId } : observation;
     }
     if (captured?.kind === 'shared') {
       if (captured.chain.kind === 'engine_unavailable')
@@ -1846,27 +1867,28 @@ export class WorkItemService {
           kind: 'unavailable',
           reason: 'engine_unavailable',
           // Proof: replacing this with the target ID failed the mounted required-influencer Retry identity case.
-          projectId: captured.chain.projectId,
+          workPackageId: captured.chain.workPackageId,
         };
       if (captured.chain.kind === 'unavailable')
-        return { kind: 'unavailable', reason: captured.chain.reason, projectId };
+        return { kind: 'unavailable', reason: captured.chain.reason, workPackageId };
       // Proof: substituting local-only input failed the mounted upstream-only
       // Retry hash and wire-request holder assertions.
       return {
         kind: 'scheduled',
         input: captured.chain.input,
-        enabled: captured.project.optimizationEnabled,
+        enabled: captured.workPackage.optimizationEnabled,
       };
     }
-    const input = await this.scheduleInputWithin(projectId, access);
+    const input = await this.scheduleInputWithin(workPackageId, access);
     if (input === null) return { kind: 'not_found' };
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) throw new Error('optimizer project disappeared during input capture');
-    return { kind: 'scheduled', input, enabled: project.optimizationEnabled };
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null)
+      throw new Error('optimizer work package disappeared during input capture');
+    return { kind: 'scheduled', input, enabled: workPackage.optimizationEnabled };
   }
 
-  /** Project-owned optimizer capture; shared input and settings leave one closed read snapshot. */
-  async optimizationInput(projectId: string): Promise<
+  /** WorkPackage-owned optimizer capture; shared input and settings leave one closed read snapshot. */
+  async optimizationInput(workPackageId: string): Promise<
     | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
     | { readonly kind: 'not_found' }
     | {
@@ -1874,7 +1896,7 @@ export class WorkItemService {
         readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
       }
   > {
-    const captured = await this.opts.livePlans?.readProject(projectId);
+    const captured = await this.opts.livePlans?.readWorkPackage(workPackageId);
     if (captured?.kind === 'not_found') return { kind: 'not_found' };
     if (captured?.kind === 'connected')
       throw new Error('connected optimization input is unsupported');
@@ -1888,65 +1910,67 @@ export class WorkItemService {
         input: captured.chain.input,
         // Proof: rereading enablement after the snapshot made mounted concurrent
         // settings/input capture launch two children from the old booking.
-        enabled: captured.project.optimizationEnabled,
+        enabled: captured.workPackage.optimizationEnabled,
       };
     }
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { kind: 'not_found' };
-    const input = await this.scheduleInput(projectId);
-    if (input === null) throw new Error('optimizer project disappeared during input capture');
-    return { kind: 'scheduled', input, enabled: project.optimizationEnabled };
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { kind: 'not_found' };
+    const input = await this.scheduleInput(workPackageId);
+    if (input === null) throw new Error('optimizer work package disappeared during input capture');
+    return { kind: 'scheduled', input, enabled: workPackage.optimizationEnabled };
   }
 
   /**
-   * Where the project's event stream has reached, as {@link tree} reads it
+   * Where the work package's event stream has reached, as {@link tree} reads it
    * before its rows: every announced change that can move a date or a name
-   * advances it. What a per-project read memo is keyed on.
+   * advances it. What a per-work-package read memo is keyed on.
    */
-  latestSeq(projectId: string): Promise<number> {
-    return this.opts.broadcast.latestSeq(projectId);
+  latestSeq(workPackageId: string): Promise<number> {
+    return this.opts.broadcast.latestSeq(workPackageId);
   }
 
-  /** Internal detached export bundle from the same authorized observation as its catalogs and markers. */
+  /** Presents the required detached export observation without borrowing ordinary livePlans or rereading stores. */
   async exportWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
+    reader: PlanExportReader,
   ): Promise<
-    | { kind: 'isolated' }
     | { kind: 'not_found' }
     | AccessRefused
     | EngineUnavailable
     | {
         kind: 'connected';
-        project: Project & { timezone: string };
+        workPackage: WorkPackage & { timezone: string };
         tree: PlanTree;
         observation: Extract<LivePlanExportRead, { kind: 'connected' }>;
       }
     | {
-        kind: 'shared';
-        project: Project & { timezone: string };
+        kind: 'local' | 'shared';
+        workPackage: WorkPackage & { timezone: string };
         tree: PlanTree;
         document: PlanDocumentReads;
       }
   > {
-    if (this.opts.livePlans === undefined) return { kind: 'isolated' };
-    const captured = await this.opts.livePlans.readExport(projectId, access);
+    const captured = await reader.readExport(workPackageId, access);
     if (captured.kind === 'connected') {
-      const projection = projectConnectedTree(captured, projectId);
+      const projection = workPackageConnectedTree(captured, workPackageId);
       return {
         kind: 'connected',
-        project: { ...projection.metadata.project, timezone: projection.reads.project.timezone },
+        workPackage: {
+          ...projection.metadata.workPackage,
+          timezone: projection.reads.workPackage.timezone,
+        },
         tree: presentConnectedTree(projection),
         observation: captured,
       };
     }
-    if (captured.kind !== 'shared') return captured;
-    const tree = projectCapturedTree(captured);
+    if (captured.kind !== 'shared' && captured.kind !== 'local') return captured;
+    const tree = workPackageCapturedTree(captured);
     if ('kind' in tree) return tree;
     return {
-      kind: 'shared',
+      kind: captured.kind,
       // The zone from the same observation as the rows: the capture's own.
-      project: { ...captured.project, timezone: captured.chain.reads.project.timezone },
+      workPackage: { ...captured.workPackage, timezone: captured.chain.reads.workPackage.timezone },
       tree,
       document: captured.document,
     };
@@ -1954,50 +1978,51 @@ export class WorkItemService {
 
   /**
    * Every work item's update instant ({@link WorkItemStore.listUpdateInstants})
-   * through the caller's access: null for a project the caller cannot read.
+   * through the caller's access: null for a work package the caller cannot read.
    */
   async updateInstantsWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): Promise<ReadonlyMap<string, number | null> | null> {
-    if (!(await this.admits(projectId, access))) return null;
-    return this.opts.workItems.listUpdateInstants(projectId);
+    if (!(await this.admits(workPackageId, access))) return null;
+    return this.opts.workItems.listUpdateInstants(workPackageId);
   }
 
   /**
-   * The **Startable** steps of a project through the caller's access, filtered
+   * The **Startable** steps of a work package through the caller's access, filtered
    * to one team's allotment when `teamId` is given ({@link findStartableWork}).
    * Statuses come from {@link statusReadsOf}, the fold the claim command uses.
    *
    * Names are the organization's own under scoped access, as {@link treeWithin}
    * names assignees. Under legacy access no directory-wide list is read: the
-   * assignees' names come with the project's assignments and every other
+   * assignees' names come with the work package's assignments and every other
    * person or team is read by id (`DirectoryStore.namesOf`).
    *
-   * Fit (`wbs-resources` R6) reads the project's capacities, demands and
+   * Fit (`wbs-resources` R6) reads the work package's capacities, demands and
    * occupancy once each, whatever the number of leaves, and the resource
    * catalog only when a capacity is stated: the organization's under scoped
    * access, the root list under legacy access.
    *
-   * Null for a project the caller cannot read, refused alike with an absent one;
+   * Null for a work package the caller cannot read, refused alike with an absent one;
    * `unknown_team` for a team the caller's directory does not hold.
    */
   async startableWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
     teamId: string | null,
   ): Promise<StartableWork | { readonly kind: 'unknown_team' } | null> {
     if (this.opts.livePlans !== undefined) {
-      const observed = await this.opts.livePlans.readExecution(projectId, access, teamId);
+      const observed = await this.opts.livePlans.readExecution(workPackageId, access, teamId);
       if (observed.kind === 'not_found' || observed.kind === 'access_refused') return null;
       if (observed.kind === 'unknown_team') return { kind: 'unknown_team' };
       return findStartableWork(observed.reads);
     }
-    if (!(await this.admits(projectId, access))) return null;
+    if (!(await this.admits(workPackageId, access))) return null;
     const { directory } = this.opts;
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const claims = await this.claiming().claims.listStampedByProject(projectId);
-    const { assignments, people: assigned } = await directory.assignmentsInProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+    const claims = await this.claiming().claims.listStampedByWorkPackage(workPackageId);
+    const { assignments, people: assigned } =
+      await directory.assignmentsInWorkPackage(workPackageId);
     const unassigned = claims
       .map((each) => each.personId)
       .filter((id) => !assigned.some((person) => person.id === id));
@@ -2028,9 +2053,9 @@ export class WorkItemService {
       evidenceByNode,
       eligibilityByNode,
       predecessorIdsByLeaf,
-    } = await this.statusReadsOf(projectId, rows);
-    const capacities = await this.resourceCapacitiesOf(projectId);
-    const demands = await this.opts.demands.listByProject(projectId);
+    } = await this.statusReadsOf(workPackageId, rows);
+    const capacities = await this.resourceCapacitiesOf(workPackageId);
+    const demands = await this.opts.demands.listByWorkPackage(workPackageId);
     // The claim's own organization read, over every resource a leaf demands:
     // a leaf the read lists as fitting is one a claim admits.
     const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor(
@@ -2038,8 +2063,8 @@ export class WorkItemService {
     );
     // Names a shortfall may need: any resource a capacity or a directory
     // capacity makes binding.
-    // Proof: with the catalog read only when a project capacity is stated,
-    // `agrees with the claim across projects` threw `resource … is not in this
+    // Proof: with the catalog read only when a work package capacity is stated,
+    // `agrees with the claim across workPackages` threw `resource … is not in this
     // read` on a directory capacity alone; watched 2026-10-25.
     const resources =
       capacities.length === 0 && directoryCapacities.length === 0
@@ -2050,7 +2075,7 @@ export class WorkItemService {
     return findStartableWork({
       rows,
       statuses,
-      stepIds: (await this.opts.projects.stepsOf(projectId)).map((step) => step.id),
+      stepIds: (await this.opts.workPackages.stepsOf(workPackageId)).map((step) => step.id),
       stated,
       claims,
       assignments,
@@ -2063,7 +2088,7 @@ export class WorkItemService {
       teamId,
       capacities,
       demands,
-      occupancy: await this.claiming().claims.occupancyOf(projectId),
+      occupancy: await this.claiming().claims.occupancyOf(workPackageId),
       directoryCapacities,
       organizationOccupied,
       resources: new Map(resources.map((resource) => [resource.id, resource] as const)),
@@ -2072,33 +2097,35 @@ export class WorkItemService {
 
   /**
    * The remaining budget per measure of every claimed or startable step of a
-   * project, through the caller's access (`wbs-measure-budgets` task 3.2,
+   * work package, through the caller's access (`wbs-measure-budgets` task 3.2,
    * {@link findBudgetHeadroom}): the steps {@link startableWithin} reads, every
    * team's, each with the tightest budget among its work item and ancestors,
    * holds for running attempts of unknown usage taken off (design D39–D41).
    *
    * `teamId` narrows the steps to one team's allotment, as the startable
-   * read does. Null for a project the caller cannot read; `unknown_team` for
+   * read does. Null for a work package the caller cannot read; `unknown_team` for
    * a team the caller's organization does not hold. Never refused as a whole:
    * a budget that a rate-card mix keeps from being read is named on its own
-   * step and key (design D44). Served by `GET /api/projects/:id/budget-headroom`
+   * step and key (design D44). Served by `GET /api/work-packages/:id/budget-headroom`
    * (task 4.1).
    */
   async budgetHeadroomWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
     teamId: string | null,
   ): Promise<BudgetHeadroom | { readonly kind: 'unknown_team' } | null> {
-    const startable = await this.startableWithin(projectId, access, teamId);
+    const startable = await this.startableWithin(workPackageId, access, teamId);
     if (startable === null) return null;
     if ('kind' in startable) return startable;
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const estimates = await this.opts.measureEstimates.listByProject(projectId);
-    const budgets = await this.opts.budgets.listByProject(projectId);
-    const facts = await this.opts.measures.listByProject(projectId);
-    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+    const estimates = await this.opts.measureEstimates.listByWorkPackage(workPackageId);
+    const budgets = await this.opts.budgets.listByWorkPackage(workPackageId);
+    const facts = await this.opts.measures.listByWorkPackage(workPackageId);
+    const definitions = definitionsOrUnowned(
+      await this.opts.measures.definitionsFor(workPackageId),
+    );
     const moneyKeys = moneyKeysOf(definitions);
-    const read = await this.budgetReadingsOf(projectId, {
+    const read = await this.budgetReadingsOf(workPackageId, {
       rows,
       definitions,
       budgets,
@@ -2111,25 +2138,25 @@ export class WorkItemService {
   }
 
   /**
-   * One person's assignments and claims in one project
+   * One person's assignments and claims in one work package
    * (`wbs-resources` R7, {@link findPersonWork}), admitted as the tree read is:
-   * `null` for a project the caller may not read, `unknown_person` for a
+   * `null` for a work package the caller may not read, `unknown_person` for a
    * person the caller's organization does not hold.
    *
-   * Bounded (spec `project-assignment-reads`): the project's own assignments
+   * Bounded (spec `work-package-assignment-reads`): the work package's own assignments
    * and claims, and the one person's name — by primary key under legacy
    * access, from the caller's organization under scoped access, as
    * {@link startableWithin} reads its names.
    */
   async personWorkWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
     personId: string,
   ): Promise<PersonWork | { readonly kind: 'unknown_person' } | null> {
     // Proof: with this admission removed, `refuses a stranger exactly as the
     // tree read does` (person-work-organization.controller.db.test.ts) answered
-    // 200 with the foreign project's empty lists instead of 404; watched 2026-10-20.
-    if (!(await this.admits(projectId, access))) return null;
+    // 200 with the foreign work package's empty lists instead of 404; watched 2026-10-20.
+    if (!(await this.admits(workPackageId, access))) return null;
     const { directory } = this.opts;
     // Proof: with `namesOf` replaced by `listPeople()`, `materializes only the
     // person read during a tiny by-person read` (person-work-scope.db.test.ts)
@@ -2143,23 +2170,23 @@ export class WorkItemService {
     // organization does not hold` (person-work-organization.controller.db.test.ts)
     // answered 500 instead of 404; watched 2026-10-20.
     if (found === undefined) return { kind: 'unknown_person' };
-    const { assignments } = await directory.assignmentsInProject(projectId);
+    const { assignments } = await directory.assignmentsInWorkPackage(workPackageId);
     return findPersonWork({
       person: { personId, name: found.name },
-      rows: await this.opts.workItems.listByProject(projectId),
-      stepIds: (await this.opts.projects.stepsOf(projectId)).map((step) => step.id),
+      rows: await this.opts.workItems.listByWorkPackage(workPackageId),
+      stepIds: (await this.opts.workPackages.stepsOf(workPackageId)).map((step) => step.id),
       assignments,
-      claims: await this.claiming().claims.listStampedByProject(projectId),
+      claims: await this.claiming().claims.listStampedByWorkPackage(workPackageId),
     });
   }
 
   /**
-   * Every claim of a project (`wbs-claim-display` C1, C2,
-   * {@link findProjectClaims}), admitted as the tree read is: `null` for a
-   * project the caller may not read, refused alike with an absent one.
+   * Every claim of a work package (`wbs-claim-display` C1, C2,
+   * {@link findWorkPackageClaims}), admitted as the tree read is: `null` for a
+   * work package the caller may not read, refused alike with an absent one.
    *
    * Rows, steps, claims and holder names are one observation
-   * (`ClaimStore.observeProject`), which also rechecks the caller's
+   * (`ClaimStore.observeWorkPackage`), which also rechecks the caller's
    * membership as the tree read's snapshot does: a member removed after
    * admission is refused `not_a_member`, not answered. It reads no schedule,
    * so it answers while the tree read is refused `engine_unavailable`.
@@ -2167,17 +2194,17 @@ export class WorkItemService {
    * remaining time is never overstated.
    */
   async claimsWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
-  ): Promise<ProjectClaims | AccessRefused | null> {
+  ): Promise<WorkPackageClaims | AccessRefused | null> {
     // Proof: with this admission removed, `refuses a stranger exactly as the
-    // tree read does` (project-claims-organization.controller.db.test.ts)
-    // answered 200 with the foreign project's claims; watched 2026-10-23.
-    if (!(await this.admits(projectId, access))) return null;
+    // tree read does` (work-package-claims-organization.controller.db.test.ts)
+    // answered 200 with the foreign work package's claims; watched 2026-10-23.
+    if (!(await this.admits(workPackageId, access))) return null;
     // Every claim, unfiltered by status: a stopped leaf's holder is still on it.
     // Proof: with the claims filtered to leaves whose status is not blocked,
     // on hold, blocked by proxy or done, `lists every claim whatever its leaf
-    // status, …` (project-claims.test.ts) read none of them; watched 2026-10-23.
+    // status, …` (work-package-claims.test.ts) read none of them; watched 2026-10-23.
     // One observation, never separate awaited reads of rows, steps, claims
     // and names: a batch landing between them made a claim name a row the
     // read did not hold, a 500.
@@ -2185,17 +2212,17 @@ export class WorkItemService {
     // `answers whatever a racing claim on a new row lands before or after`
     // (claim-observation.db.test.ts) threw `claim claim-w-8 is on no row of
     // this read` (3 pass, 2 fail with the snapshot case); watched 2026-10-23.
-    const observed = await this.claiming().claims.observeProject(projectId, access);
+    const observed = await this.claiming().claims.observeWorkPackage(workPackageId, access);
     if (observed.kind === 'not_found') return null;
     if (observed.kind === 'access_refused') return observed;
-    return findProjectClaims({ ...observed, readAt: this.clock.now() });
+    return findWorkPackageClaims({ ...observed, readAt: this.clock.now() });
   }
 
   /**
-   * The newest `limit` claim and release acts of a project
+   * The newest `limit` claim and release acts of a work package
    * (`wbs-claim-display` C13, C14): its `claim` and `release` plan events and
    * the acts of the `batch` events that claimed or released, admitted as the tree read is: `null` for a
-   * project the caller may not read, refused alike with an absent one. Each
+   * work package the caller may not read, refused alike with an absent one. Each
    * stored command is decoded with the journal's decoder
    * ({@link decodeClaimEvents}); holders and work items are named as the plan
    * holds them now, `null` once deleted ({@link nameClaimHistory}). Undo and
@@ -2205,15 +2232,15 @@ export class WorkItemService {
    * event does not decode: corrupt history fails the read whole.
    */
   async claimHistoryWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
     limit: number,
   ): Promise<ClaimHistoryEvent[] | null> {
     // Proof: with this admission removed, `refuses a stranger exactly as the
     // tree read does` (claim-history-organization.controller.db.test.ts)
-    // failed: the foreign and absent projects were read (5 pass, 1 fail);
+    // failed: the foreign and absent work packages were read (5 pass, 1 fail);
     // watched 2026-10-24.
-    if (!(await this.admits(projectId, access))) return null;
+    if (!(await this.admits(workPackageId, access))) return null;
     const { planEvents } = this.opts;
     if (planEvents === undefined)
       throw new Error('this work-item service was built without plan events');
@@ -2224,7 +2251,7 @@ export class WorkItemService {
     // Proof: with batches read as a kind and filtered here after the store's
     // limit, `finds a claim batch under newer batches that claim nothing`
     // (claim-history.test.ts) answered nothing; watched 2026-10-24.
-    const events = await planEvents.listFor(projectId, {
+    const events = await planEvents.listFor(workPackageId, {
       kinds: CLAIM_HISTORY_KINDS,
       batchesHolding: CLAIM_HISTORY_COMMANDS,
       limit,
@@ -2235,7 +2262,7 @@ export class WorkItemService {
     // took another as two acts` (claim-history.test.ts) answered two acts for
     // `limit` 1; watched 2026-10-24.
     const decoded = decodeClaimEvents(events).slice(0, limit);
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const names = await this.personNamesWithin(
       access,
       decoded.flatMap(({ claims }) => claims.map(({ personId }) => personId)),
@@ -2250,16 +2277,16 @@ export class WorkItemService {
    * See {@link tree} and {@link scheduleInputWithin}.
    */
   async treeWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): Promise<Awaited<ReturnType<WorkItemService['tree']>> | AccessRefused> {
     if (this.opts.livePlans !== undefined) {
-      const captured = await this.opts.livePlans.read(projectId, access);
+      const captured = await this.opts.livePlans.read(workPackageId, access);
       if (captured.kind === 'connected') {
-        const tree = presentConnectedTree(projectConnectedTree(captured, projectId));
+        const tree = presentConnectedTree(workPackageConnectedTree(captured, workPackageId));
         // Proof: bypassing this capture guard made the borrowed mounted read enter admission.
         if (this.opts.schedulerMode !== 'capture') {
-          const observation = captureConnectedOptimization(captured, projectId);
+          const observation = captureConnectedOptimization(captured, workPackageId);
           // Proof: removing enablement failed the disabled read; bypassing scheduled kind failed the missing-calendar HTTP response.
           if (observation.kind === 'scheduled' && observation.enabled) {
             // Proof: removing this invariant made the configured missing-admission test resolve.
@@ -2269,7 +2296,7 @@ export class WorkItemService {
             // Proof: omitting admission left cold mounted connected reads with zero launches.
             // Proof: reconstructing final positions here failed displaced mounted live stage bytes after C Pri selection.
             await this.opts.admitConnectedOptimization({
-              projectId,
+              workPackageId,
               input: observation.input,
               enabled: observation.enabled,
             });
@@ -2278,7 +2305,10 @@ export class WorkItemService {
         return tree;
       }
       if (captured.kind !== 'isolated') {
-        const projected = await this.withMeasureEstimates(projectId, projectCapturedTree(captured));
+        const projected = await this.withMeasureEstimates(
+          workPackageId,
+          workPackageCapturedTree(captured),
+        );
         // The snapshot's own demands and catalog, already under the
         // organization's names, so a row's demand and its bar are one observation.
         const tree =
@@ -2294,7 +2324,7 @@ export class WorkItemService {
         if (
           captured.kind === 'shared' &&
           captured.chain.kind === 'scheduled' &&
-          captured.project.optimizationEnabled &&
+          captured.workPackage.optimizationEnabled &&
           this.opts.scheduler.supports('optimized')
         ) {
           // The owned snapshot has closed before this live read may reserve a
@@ -2302,28 +2332,30 @@ export class WorkItemService {
           // Proof: skipping this admission left the mounted shared tree with
           // zero holder-bearing requests and zero durable slots.
           await this.opts.scheduler.read({
-            projectId,
+            workPackageId,
             input: captured.chain.input,
-            engine: captured.project.scheduleEngine,
-            objective: captured.project.scheduleObjective,
-            enabled: captured.project.optimizationEnabled,
+            engine: captured.workPackage.scheduleEngine,
+            objective: captured.workPackage.scheduleObjective,
+            enabled: captured.workPackage.optimizationEnabled,
             mode: 'live',
           });
         }
         return tree;
       }
     }
-    if (!(await this.admits(projectId, access))) return null;
+    if (!(await this.admits(workPackageId, access))) return null;
     // Proof: bypassing the public isolated fixture read failed mounted disappearance (200 vs 404) and malformed-core export (200 vs 500).
     const readTree = () =>
-      this.opts.livePlans === undefined ? this.tree(projectId) : this.treeIsolated(projectId);
+      this.opts.livePlans === undefined
+        ? this.tree(workPackageId)
+        : this.treeIsolated(workPackageId);
     if (access.kind === 'legacy') {
       const tree = await readTree();
       if (tree === null || 'kind' in tree) return tree;
       return {
         ...tree,
         ...(await namedDemandFields(
-          () => this.opts.demands.listByProject(projectId),
+          () => this.opts.demands.listByWorkPackage(workPackageId),
           () => this.opts.directory.listResources(),
         )),
       };
@@ -2342,7 +2374,7 @@ export class WorkItemService {
           : answer.resourceLabels.map(({ id }) => id),
     );
     if (tree === null || 'kind' in tree) return tree;
-    const readDemands = () => this.opts.demands.listByProject(projectId);
+    const readDemands = () => this.opts.demands.listByWorkPackage(workPackageId);
     // Assignees under their organization-local names, as the scoped people
     // list shows them; the tree read itself knows only the legacy name.
     // Proof: returning the tree's legacy names made `shows assignees under the
@@ -2388,36 +2420,36 @@ export class WorkItemService {
     if (captured.kind !== 'shared' && captured.kind !== 'isolated-connected') return captured;
     return {
       kind: captured.kind,
-      entries: captured.entries.map(({ projectId, rank, basis, plan }) => {
+      entries: captured.entries.map(({ workPackageId, rank, basis, plan }) => {
         if (plan.kind === 'connected') {
           // Proof: selecting the component's first member failed mounted target identity and dates.
-          const projection = projectConnectedTree(plan, projectId);
+          const projection = workPackageConnectedTree(plan, workPackageId);
           return {
-            projectId,
-            name: projection.metadata.project.name,
+            workPackageId,
+            name: projection.metadata.workPackage.name,
             rank,
-            revision: projection.metadata.project.revision,
+            revision: projection.metadata.workPackage.revision,
             seq: projection.metadata.seq,
             basis,
             tree: presentConnectedTree(projection),
           };
         }
         return {
-          projectId,
-          name: plan.project.name,
+          workPackageId,
+          name: plan.workPackage.name,
           rank,
-          revision: plan.project.revision,
+          revision: plan.workPackage.revision,
           seq: plan.seq,
           basis,
-          tree: projectCapturedTree(plan),
+          tree: workPackageCapturedTree(plan),
         };
       }),
     };
   }
 
   /**
-   * Whether the caller's access reaches the project, and, under scoped access,
-   * that nothing the schedule read follows leaves the project or the
+   * Whether the caller's access reaches the work package, and, under scoped access,
+   * that nothing the schedule read follows leaves the work package or the
    * organization.
    *
    * @throws when a stored reference crosses: corrupt trusted state, which the
@@ -2426,23 +2458,23 @@ export class WorkItemService {
    * Proof: skipping the cross-reference check made `fails the schedule read
    * closed over a crossing estimate_step` in
    * `schedule-organization.controller.db.test.ts` answer 200 instead of 500,
-   * and finding the project unscoped made `answers 404 alike for a foreign and
-   * an absent project` read the foreign tree, and running the check under
-   * legacy access too failed `reads any project deployment-wide, crossing rows
+   * and finding the work package unscoped made `answers 404 alike for a foreign and
+   * an absent workPackage` read the foreign tree, and running the check under
+   * legacy access too failed `reads any workPackage deployment-wide, crossing rows
    * and all`; watched 2026-09-27.
    */
-  private async admits(projectId: string, access: ResourceAccess): Promise<boolean> {
-    const project = await findProjectWithin(this.opts.projects, projectId, access);
-    if (project === null) return false;
+  private async admits(workPackageId: string, access: ResourceAccess): Promise<boolean> {
+    const workPackage = await findWorkPackageWithin(this.opts.workPackages, workPackageId, access);
+    if (workPackage === null) return false;
     if (access.kind === 'scoped') {
-      const crossing = await this.opts.projects.findCrossReferences(
-        projectId,
+      const crossing = await this.opts.workPackages.findCrossReferences(
+        workPackageId,
         access.scope.organizationId,
       );
       if (crossing.length > 0) {
         const kinds = [...new Set(crossing.map((reference) => reference.kind))].sort();
         throw new Error(
-          `project "${projectId}" holds references outside its organization: ${kinds.join(', ')}`,
+          `work package "${workPackageId}" holds references outside its organization: ${kinds.join(', ')}`,
         );
       }
     }
@@ -2450,26 +2482,28 @@ export class WorkItemService {
   }
 
   /**
-   * Whether a replay would name anything outside the project or its
-   * organization: a row that exists in another project, a restored row or
-   * dependency claiming another project, a step of another project, or a
+   * Whether a replay would name anything outside the work package or its
+   * organization: a row that exists in another work package, a restored row or
+   * dependency claiming another work package, a step of another work package, or a
    * directory entry the organization does not own. Checked whole, nested
    * batches included, before the replay writes anything, so no intermediate
    * step can cross and be cleared again before a later check.
    */
   private async namesOutside(
-    projectId: string,
+    workPackageId: string,
     organizationId: string,
     references: CompensatingReferences,
   ): Promise<boolean> {
-    if (references.projects.some((each) => each !== projectId)) return true;
+    if (references.workPackages.some((each) => each !== workPackageId)) return true;
     for (const id of new Set(references.workItems)) {
       const row = await this.opts.workItems.findById(id);
       // Proof: ordinary-reference-partition bypass failed `mixed nested replay`'s selected assertion
       // (actual SQLite boundary; watched 2026-10-22).
-      if (row !== null && row.projectId !== projectId) return true;
+      if (row !== null && row.workPackageId !== workPackageId) return true;
     }
-    const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
+    const steps = new Set(
+      (await this.opts.workPackages.stepsOf(workPackageId)).map((step) => step.id),
+    );
     // Proof: bypassing missing-step references changed removed-step first-child undo/redo from 404 to 409 (step-node-attempt.controller.db.test.ts, 2026-10-14).
     if (references.steps.some((id) => !steps.has(id))) return true;
     const catalogs: [DirectoryCatalog, readonly string[]][] = [
@@ -2493,30 +2527,39 @@ export class WorkItemService {
     return false;
   }
 
-  /** Whether `stepId` names one of this project's steps. */
-  async hasStepInProject(projectId: string, stepId: string): Promise<boolean> {
-    return (await this.opts.projects.stepsOf(projectId)).some((step) => step.id === stepId);
+  /** Current addressed leaf admission; owned unresolved steps stay distinguishable from absent/foreign identities. */
+  async estimateTarget(workPackageId: string, workItemId: string, stepId: string) {
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+    if (!rows.some((row) => row.id === workItemId && row.workPackageId === workPackageId))
+      throw new Error('estimate target work item is absent from the admitted package');
+    if (rows.some((row) => row.parentId === workItemId)) return { kind: 'rolled_up' } as const;
+    return await this.opts.estimates.readTarget(workItemId, stepId);
   }
 
-  /** Whether a batch target is currently a row of this project, including rows created earlier in the batch. */
-  async hasWorkItemInProject(projectId: string, workItemId: string): Promise<boolean> {
-    return (await this.opts.workItems.listByIds(projectId, [workItemId])).some(
-      (row) => row.id === workItemId && row.projectId === projectId,
+  /** Whether `stepId` names one of this work package's steps. */
+  async hasStepInWorkPackage(workPackageId: string, stepId: string): Promise<boolean> {
+    return (await this.opts.workPackages.stepsOf(workPackageId)).some((step) => step.id === stepId);
+  }
+
+  /** Whether a batch target is currently a row of this work package, including rows created earlier in the batch. */
+  async hasWorkItemInWorkPackage(workPackageId: string, workItemId: string): Promise<boolean> {
+    return (await this.opts.workItems.listByIds(workPackageId, [workItemId])).some(
+      (row) => row.id === workItemId && row.workPackageId === workPackageId,
     );
   }
 
-  /** Returns a refusal for a parent or a step outside the project; the caller has checked membership. */
+  /** Returns a refusal for a parent or a step outside the work package; the caller has checked membership. */
   async validateStepNode(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     stepId: string,
   ): Promise<'rolled_up' | 'unknown_step' | null> {
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     // The batch seam checks membership before calling this method.
     // Proof: bypassing node validation made the mounted parent clear return 200
     // instead of 409 (2026-09-27).
     if (rows.some((row) => row.parentId === workItemId)) return 'rolled_up';
-    const steps = await this.opts.projects.stepsOf(projectId);
+    const steps = await this.opts.workPackages.stepsOf(workPackageId);
     // Proof: bypassing node validation made the mounted unknown-step clear return
     // 200 instead of 404 (2026-09-27).
     if (!steps.some((step) => step.id === stepId)) return 'unknown_step';
@@ -2524,32 +2567,32 @@ export class WorkItemService {
   }
 
   /**
-   * Reads only effective numbers and project steps for revision-bound
+   * Reads only effective numbers and work package steps for revision-bound
    * references — the numbers the tree read shows, without scheduling.
    *
-   * @returns `null` for an unknown project.
+   * @returns `null` for an unknown work package.
    * @throws when the numbering misses a row.
    */
   /**
    * {@link readAddresses} through the caller's access: null for a foreign
-   * project exactly as for an absent one, and under scoped access a project
-   * whose rows cross the project or the organization fails closed.
+   * work package exactly as for an absent one, and under scoped access a work package
+   * whose rows cross the work package or the organization fails closed.
    */
   async readAddressesWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): ReturnType<WorkItemService['readAddresses']> {
-    if (!(await this.admits(projectId, access))) return null;
-    return this.readAddresses(projectId);
+    if (!(await this.admits(workPackageId, access))) return null;
+    return this.readAddresses(workPackageId);
   }
 
-  async readAddresses(projectId: string): Promise<{
+  async readAddresses(workPackageId: string): Promise<{
     workItems: { id: string; parentId: string | null; number: string }[];
     steps: Step[];
   } | null> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return null;
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return null;
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const numbers = deriveNumbers(rows);
     return {
       workItems: rows.map((row) => {
@@ -2563,23 +2606,23 @@ export class WorkItemService {
         if (number === undefined) throw new Error(`no effective number for work item ${row.id}`);
         return { id: row.id, parentId: row.parentId, number };
       }),
-      steps: await this.opts.projects.stepsOf(projectId),
+      steps: await this.opts.workPackages.stepsOf(workPackageId),
     };
   }
 
   /** Rebuild the canonical input a durable solver queue entry names. */
-  async scheduleInput(projectId: string): Promise<ScheduleInput | null> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return null;
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const estimates = await this.opts.estimates.listByProject(projectId);
-    const edges = await this.opts.dependencies.listByProject(projectId);
-    const typed = await this.opts.typedDependencies.listByProject(projectId);
+  async scheduleInput(workPackageId: string): Promise<ScheduleInput | null> {
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return null;
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+    const estimates = await this.opts.estimates.listByWorkPackage(workPackageId);
+    const edges = await this.opts.dependencies.listByWorkPackage(workPackageId);
+    const typed = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
     const assignments = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
-    const steps = await this.opts.projects.stepsOf(projectId);
-    const poolSizes = await this.opts.capacity.slotsFor(projectId);
+    const steps = await this.opts.workPackages.stepsOf(workPackageId);
+    const poolSizes = await this.opts.capacity.slotsFor(workPackageId);
     return canonicalScheduleParts(
-      project,
+      workPackage,
       rows,
       estimates,
       edges,
@@ -2587,13 +2630,13 @@ export class WorkItemService {
       assignments,
       steps,
       poolSizes,
-      await this.opts.demands.listByProject(projectId),
-      await this.opts.resourceCapacity.listFor(projectId),
+      await this.opts.demands.listByWorkPackage(workPackageId),
+      await this.opts.resourceCapacity.listFor(workPackageId),
     ).input;
   }
 
   /**
-   * Every work item in the project, each carrying the number derived for it,
+   * Every work item in the work package, each carrying the number derived for it,
    * ordered as the tree reads.
    *
    * Sorting by the derived number rather than by position is what makes the
@@ -2601,7 +2644,7 @@ export class WorkItemService {
    * lexicographic sort produces tree order across every level at once.
    */
   /**
-   * The project's work items, and the event sequence the read happened at.
+   * The work package's work items, and the event sequence the read happened at.
    *
    * The sequence is read *before* the rows rather than after. Reading it after
    * would let an event recorded mid-read be counted as already seen, and the
@@ -2609,15 +2652,15 @@ export class WorkItemService {
    * first, the same event is replayed and the client refetches once too often —
    * the harmless direction.
    */
-  async tree(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
+  async tree(workPackageId: string): Promise<PlanTree | EngineUnavailable | null> {
     if (this.opts.livePlans !== undefined) {
-      const captured = await this.opts.livePlans.readProject(projectId);
+      const captured = await this.opts.livePlans.readWorkPackage(workPackageId);
       if (captured.kind === 'connected')
-        return presentConnectedTree(projectConnectedTree(captured, projectId));
+        return presentConnectedTree(workPackageConnectedTree(captured, workPackageId));
       if (captured.kind !== 'isolated')
-        return this.withMeasureEstimates(projectId, projectCapturedTree(captured));
+        return this.withMeasureEstimates(workPackageId, workPackageCapturedTree(captured));
     }
-    return this.treeIsolated(projectId);
+    return this.treeIsolated(workPackageId);
   }
 
   /**
@@ -2633,17 +2676,19 @@ export class WorkItemService {
    * `measureEstimates`; watched 2026-10-23.
    */
   private async withMeasureEstimates<T extends PlanTree | EngineUnavailable | AccessRefused | null>(
-    projectId: string,
+    workPackageId: string,
     tree: T,
   ): Promise<T> {
     if (tree === null || 'kind' in tree) return tree;
-    const estimates = await this.opts.measureEstimates.listByProject(projectId);
-    const budgets = await this.opts.budgets.listByProject(projectId);
-    const facts = await this.opts.measures.listByProject(projectId);
+    const estimates = await this.opts.measureEstimates.listByWorkPackage(workPackageId);
+    const budgets = await this.opts.budgets.listByWorkPackage(workPackageId);
+    const facts = await this.opts.measures.listByWorkPackage(workPackageId);
     // Nothing to estimate, budget or mix: a mix needs a priced figure.
     if (estimates.length === 0 && budgets.length === 0 && !facts.some(({ basis }) => basis))
       return tree;
-    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const definitions = definitionsOrUnowned(
+      await this.opts.measures.definitionsFor(workPackageId),
+    );
     const moneyKeys = moneyKeysOf(definitions);
     // Facts and trios fold apart (design D44): a mix in one never strips the other.
     const mixedFacts = mixedRateCardsOf(tree.workItems, pricedFactsOf(facts), moneyKeys);
@@ -2656,7 +2701,7 @@ export class WorkItemService {
             estimates,
             definitions,
             // Proof: with `DEFAULT_PERT_WEIGHTS` here, `weighs the trio by the
-            // project's own PERT weights` (measure-estimate-command.test.ts) read
+            // work package's own PERT weights` (measure-estimate-command.test.ts) read
             // 250 where 300 was owed; watched 2026-10-23.
             tree.pertWeights,
           );
@@ -2664,7 +2709,7 @@ export class WorkItemService {
       estimates.length === 0 && budgets.length === 0
         ? new Map<string, Map<string, BudgetReading>>()
         : (
-            await this.budgetReadingsOf(projectId, {
+            await this.budgetReadingsOf(workPackageId, {
               rows: tree.workItems,
               definitions,
               budgets,
@@ -2692,55 +2737,59 @@ export class WorkItemService {
 
   /**
    * {@link readBudgets} over what the caller already read, with the attempts
-   * (for the holds and the derived `agent_minutes`) and the project's budget
+   * (for the holds and the derived `agent_minutes`) and the work package's budget
    * factor read here.
    *
-   * @throws when the project has gone between the plan read and this one: the
+   * @throws when the work package has gone between the plan read and this one: the
    * plan was just read, so a miss is a store that lost it.
    */
   private async budgetReadingsOf(
-    projectId: string,
+    workPackageId: string,
     reads: Omit<BudgetReads, 'attempts' | 'factor' | 'facts'> & {
       facts: readonly StoredMeasure[];
     },
   ): Promise<BudgetRead> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) throw new Error(`project ${projectId} vanished during its plan read`);
-    const attempts = await this.opts.attempts.listByProject(projectId);
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null)
+      throw new Error(`work package ${workPackageId} vanished during its plan read`);
+    const attempts = await this.opts.attempts.listByWorkPackage(workPackageId);
     return readBudgets({
       ...reads,
       facts: [...reads.facts, ...agentMinutesOf(attempts)],
       attempts,
-      // Proof: with 1 in place of the project's factor, `derives a budget from
-      // the pessimistic points times the project's budget factor`
+      // Proof: with 1 in place of the work package's factor, `derives a budget from
+      // the pessimistic points times the work package's budget factor`
       // (budget-command.test.ts) read 600 where 900 was owed; watched 2026-10-23.
-      factor: project.budgetFactor,
+      factor: workPackage.budgetFactor,
     });
   }
 
   /**
    * The strict budget that refuses `attempt`'s start, or null to admit it
-   * ({@link findExhaustedBudget}, `wbs-measure-budgets` D69): the project's
+   * ({@link findExhaustedBudget}, `wbs-measure-budgets` D69): the work package's
    * budgets, facts, trios and attempts as the headroom read folds them, read
    * through this graph's stores so a batch reads them inside its own unit of
-   * work. A project without a strict budget reads nothing past its budgets.
+   * work. A work package without a strict budget reads nothing past its budgets.
    *
-   * @throws when the project has gone since the start's own context read.
+   * @throws when the work package has gone since the start's own context read.
    */
   private async exhaustedBudgetFor(
-    projectId: string,
+    workPackageId: string,
     rows: readonly { readonly id: string; readonly parentId: string | null }[],
     attempt: NodeAttempt,
   ): Promise<BudgetExhausted | null> {
-    const budgets = await this.opts.budgets.listByProject(projectId);
+    const budgets = await this.opts.budgets.listByWorkPackage(workPackageId);
     if (!budgets.some((each) => each.policy === 'strict')) return null;
-    const estimates = await this.opts.measureEstimates.listByProject(projectId);
-    const facts = await this.opts.measures.listByProject(projectId);
-    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const estimates = await this.opts.measureEstimates.listByWorkPackage(workPackageId);
+    const facts = await this.opts.measures.listByWorkPackage(workPackageId);
+    const definitions = definitionsOrUnowned(
+      await this.opts.measures.definitionsFor(workPackageId),
+    );
     const moneyKeys = moneyKeysOf(definitions);
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) throw new Error(`project ${projectId} vanished during an attempt start`);
-    const attempts = await this.opts.attempts.listByProject(projectId);
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null)
+      throw new Error(`work package ${workPackageId} vanished during an attempt start`);
+    const attempts = await this.opts.attempts.listByWorkPackage(workPackageId);
     return findExhaustedBudget(
       {
         rows,
@@ -2749,7 +2798,7 @@ export class WorkItemService {
         facts: [...facts, ...agentMinutesOf(attempts)],
         estimates,
         attempts,
-        factor: project.budgetFactor,
+        factor: workPackage.budgetFactor,
         mixedFacts: mixedRateCardsOf(rows, pricedFactsOf(facts), moneyKeys),
         mixedEstimates: mixedRateCardsOf(rows, estimates, moneyKeys),
       },
@@ -2758,47 +2807,47 @@ export class WorkItemService {
   }
 
   private async treeIsolated(
-    projectId: string,
+    workPackageId: string,
     isRetry = false,
   ): Promise<PlanTree | EngineUnavailable | null> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return null;
-    const seq = await this.opts.broadcast.latestSeq(projectId);
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const stored = await this.opts.estimates.listByProject(projectId);
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return null;
+    const seq = await this.opts.broadcast.latestSeq(workPackageId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+    const stored = await this.opts.estimates.listByWorkPackage(workPackageId);
     // Read beside the estimates and used for nothing but the payload. It is
     // handed to no scheduling function — not `slicesOf`, not `schedule` — and
     // that absence is this change's whole claim about itself: R6 reports, it
     // does not plan. See `openspec/changes/actual-days/design.md` D3.
-    const recorded = await this.opts.actuals.listByProject(projectId);
+    const recorded = await this.opts.actuals.listByWorkPackage(workPackageId);
     // Read beside the actuals and, like them, handed to nothing that schedules.
     // What it is for is the tense of the number above it: 8 days against an
     // estimate of 5 is "overran by 3" or "is 3 over so far", and until this row
     // says which, a variance is a figure nobody can act on.
-    const stated = await this.opts.progress.listByProject(projectId);
+    const stated = await this.opts.progress.listByWorkPackage(workPackageId);
     // One read for all three metrics, filtered per metric inside the fold. The
-    // store's `listByProject` takes no metric for exactly this call site — see
+    // store's `listByWorkPackage` takes no metric for exactly this call site — see
     // {@link MeasureStore}.
-    const measured = await this.opts.measures.listByProject(projectId);
-    const edges = await this.opts.dependencies.listByProject(projectId);
-    const authored = await this.opts.typedDependencies.listByProject(projectId);
+    const measured = await this.opts.measures.listByWorkPackage(workPackageId);
+    const edges = await this.opts.dependencies.listByWorkPackage(workPackageId);
+    const authored = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
     // Proof: restoring listPeople() followed by the assigned-id filter made
-    // `materializes only assigned project rows and names during a tiny tree read`
+    // `materializes only assigned workPackage rows and names during a tiny tree read`
     // fail on 41 materialized people, expected at most 1, with the same payload.
     const { assignments: assigned, people: assignedPeople } =
-      await this.opts.directory.assignmentsInProject(projectId);
-    const steps = await this.opts.projects.stepsOf(projectId);
-    const slotsOf = await this.opts.capacity.slotsFor(projectId);
+      await this.opts.directory.assignmentsInWorkPackage(workPackageId);
+    const steps = await this.opts.workPackages.stepsOf(workPackageId);
+    const slotsOf = await this.opts.capacity.slotsFor(workPackageId);
     // Plan data both engines level (`wbs-resources` R5). Never a claim and never
     // an occupancy: a schedule reads what the plan states, not who holds what.
     // Proof: `[]` for both at the canonical call made `levels a demanded
     // resource (isolated)` (resource-schedule.controller.db.test.ts) schedule
     // overlapping blocks; watched 2026-10-20.
-    const demands = await this.opts.demands.listByProject(projectId);
-    const resourceCapacities = await this.opts.resourceCapacity.listFor(projectId);
-    const priorityBands = await this.opts.priorityBands.listFor(projectId);
+    const demands = await this.opts.demands.listByWorkPackage(workPackageId);
+    const resourceCapacities = await this.opts.resourceCapacity.listFor(workPackageId);
+    const priorityBands = await this.opts.priorityBands.listFor(workPackageId);
     const canonical = canonicalScheduleParts(
-      project,
+      workPackage,
       // Proof: removing owners with a direct blockage from this Fast input made
       // `keeps the actual Fast request... (isolated)` fail; watched 2026-10-13.
       rows,
@@ -2814,11 +2863,11 @@ export class WorkItemService {
     let scheduling: TreeSchedule;
     try {
       scheduling = await this.opts.scheduler.read({
-        projectId,
+        workPackageId,
         input: canonical.input,
-        engine: project.scheduleEngine,
-        objective: project.scheduleObjective,
-        enabled: project.optimizationEnabled,
+        engine: workPackage.scheduleEngine,
+        objective: workPackage.scheduleObjective,
+        enabled: workPackage.optimizationEnabled,
         mode: this.opts.schedulerMode ?? 'live',
       });
     } catch (failure) {
@@ -2828,9 +2877,9 @@ export class WorkItemService {
         scheduling = { kind: 'unavailable', reason: 'calendar_range' };
       else throw failure;
     }
-    const tree = projectTree(
+    const tree = workPackageTree(
       {
-        project,
+        workPackage,
         rows,
         stored,
         recorded,
@@ -2841,10 +2890,10 @@ export class WorkItemService {
         assigned,
         assignedPeople,
         // Read for the payload alone, like the actuals above: no engine sees it.
-        attempts: await this.opts.attempts.listByProject(projectId),
+        attempts: await this.opts.attempts.listByWorkPackage(workPackageId),
         // Proof: replacing this read with [] failed `reads a direct timestamp
         // and the exact downstream root (isolated)`; watched 2026-10-13.
-        blockages: await this.opts.blockages.listByProject(projectId),
+        blockages: await this.opts.blockages.listByWorkPackage(workPackageId),
         seq,
         steps,
         slotsOf,
@@ -2856,7 +2905,7 @@ export class WorkItemService {
       },
       scheduling,
     );
-    const estimated = await this.withMeasureEstimates(projectId, tree);
+    const estimated = await this.withMeasureEstimates(workPackageId, tree);
     // The resource labels are read only for a schedule that names a resource,
     // so a plan stating none reads no catalog and keeps its payload shape.
     if ('kind' in estimated || !namesAResource(estimated)) return estimated;
@@ -2866,13 +2915,14 @@ export class WorkItemService {
     // Proof: with the re-read skipped, `labels a bar of a resource removed
     // between the two reads` (legacy-demands-read.test.ts) threw `a bar waited
     // for resource …`; watched 2026-10-25.
-    if (!isRetry && !slicesNamedIn(estimated, catalog)) return this.treeIsolated(projectId, true);
+    if (!isRetry && !slicesNamedIn(estimated, catalog))
+      return this.treeIsolated(workPackageId, true);
     return withResourceLabels(estimated, catalog);
   }
 
   /**
    * Creates a work item. When a leaf gains its first child, moves its step facts
-   * and assignments to that child and returns the node mapping in project step order.
+   * and assignments to that child and returns the node mapping in work package step order.
    * Blockage keeps its original time through create, undo and redo; conditional
    * replacements refuse newer facts inside the structural command transaction.
    * Retained step parallel facts refuse a nonnull parent before stamping or
@@ -2883,25 +2933,27 @@ export class WorkItemService {
    * the created work item ID alone.
    */
   async create(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     input: CreateWorkItem,
   ): Promise<
     (
       | WorkItemOutcome<WorkItem>
       | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+      | ({ok:false;reason:'step_nodes_in_use'} & StepNodesInUse)
     ) & { stepNodeMapping?: { from: string; to: string }[] }
   > {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
 
-    const rows = await this.opts.workItems.listByProject(projectId);
-    // `rows` is this project only, so a parent that is not among them belongs to
-    // another project — or to none. The schema cannot catch it: `parent_id`
-    // references `work_item.id` alone, not `(project_id, id)`. Accepting it
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+    // `rows` is this work package only, so a parent that is not among them belongs to
+    // another work package — or to none. The schema cannot catch it: `parent_id`
+    // references `work_item.id` alone, not `(work_package_id, id)`. Accepting it
     // makes the row unreachable from any root here, and every later read of the
-    // project throws instead of rendering.
+    // work package throws instead of rendering.
     if (input.parentId !== null && !rows.some((row) => row.id === input.parentId)) {
       return { ok: false, reason: 'not_found' };
     }
@@ -2910,25 +2962,27 @@ export class WorkItemService {
       // a child and clear parent statements; observed 2026-10-17.
       // Moving this below the first apply changed parent readiness/hold in the
       // snapshot (mutation-late-guard.txt); unconditional refusal blocked empty policy.
-      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [input.parentId]);
+      const parallels = await this.opts.stepParallels.listByWorkItems(workPackageId, [
+        input.parentId,
+      ]);
       if (parallels.length > 0) {
         return {
           ok: false,
           reason: 'referenced_by_step_parallel',
           // Proof: aliasing the supplied facts failed exact detached-node assertions
-          // (mutation-aliased-nodes.txt); wrong parent/project and project-wide reads
+          // (mutation-aliased-nodes.txt); wrong parent/work-package and work-package-wide reads
           // separately failed selected-policy tests, 2026-10-17.
           nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
         };
       }
     }
     const placed = placeAfter(this.groupUnder(rows, input.parentId), input.afterId);
-    // Read here, per create, against **this** project's ladder — not hoisted to
+    // Read here, per create, against **this** work package's ladder — not hoisted to
     // the caller and not carried in on the command. A default fetched by a
     // client is a number the server cannot tell from one somebody typed, and
     // undo/redo would replay it as an intentional priority. design.md D1.
     const priority =
-      input.priority === undefined ? await this.ordinaryPriorityOf(projectId) : input.priority;
+      input.priority === undefined ? await this.ordinaryPriorityOf(workPackageId) : input.priority;
     // Past every refusal, so nothing is stamped for a request that wrote
     // nothing. One stamp for the row, for the four hand-downs below it and for
     // the journal entry: a create and the estimates it moves are one act.
@@ -2941,7 +2995,7 @@ export class WorkItemService {
         : undefined;
     const workItem: WorkItem = {
       id: this.clock.newId(),
-      projectId,
+      workPackageId,
       parentId: input.parentId,
       position: placed.position,
       name: input.name ?? '',
@@ -2982,11 +3036,26 @@ export class WorkItemService {
       // at 1 — see {@link NumberedWorkItem.revision}.
       revision: 0,
     };
-    const construct = () =>
-      this.insertWorkItem(projectId, actorId, input, rows, workItem, firstChildOf, placed, stamp);
+    type Construction = Awaited<
+      | ReturnType<WorkItemService['insertFirstChild']>
+      | ReturnType<WorkItemService['insertWorkItem']>
+    >;
+    const construct = (evidence: IncidentTransitionEvidence): Promise<Construction> =>
+      firstChildOf!==undefined
+        ?this.insertFirstChild(workPackageId,actorId,rows,workItem,placed,stamp,evidence)
+        :this.insertWorkItem(
+        workPackageId,
+        actorId,
+        input,
+        rows,
+        workItem,
+        firstChildOf,
+        placed,
+        stamp,
+      );
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (context) => {
         const handDown =
@@ -2997,11 +3066,11 @@ export class WorkItemService {
           handDown === null
             ? {
                 ok: true as const,
-                value: await construct(),
+                value: await construct({receipts:[],externalBefore:[]}),
                 evidence: { receipts: [], externalBefore: [] },
               }
             : await context.incidents.run(
-                projectId,
+                workPackageId,
                 actorId,
                 { kind: 'fresh', ...handDown },
                 stamp,
@@ -3009,9 +3078,8 @@ export class WorkItemService {
               );
         if (!transition.ok) {
           if (transition.reason === 'structure_refused') return transition.value;
-          if ('authorization' in transition) return transition;
           return {
-            ok: false as const,
+            ...transition,
             reason: transition.reason === 'stale_undo' ? ('not_found' as const) : transition.reason,
           };
         }
@@ -3019,13 +3087,13 @@ export class WorkItemService {
         if (!built.ok) return built;
         const { receipts, externalBefore } = transition.evidence;
         const recording: Recording =
-          receipts.length === 0 || handDown === null
+          handDown === null
             ? built.recording
             : {
                 ...built.recording,
                 forward: {
                   do: 'transition_incident_nodes',
-                  projectId,
+                  workPackageId,
                   fromWorkItemId: handDown.fromWorkItemId,
                   toWorkItemId: workItem.id,
                   structural: built.recording.forward,
@@ -3033,7 +3101,7 @@ export class WorkItemService {
                 },
                 inverse: {
                   do: 'transition_incident_nodes',
-                  projectId,
+                  workPackageId,
                   fromWorkItemId: workItem.id,
                   toWorkItemId: handDown.fromWorkItemId,
                   structural: built.recording.inverse,
@@ -3048,16 +3116,64 @@ export class WorkItemService {
             ...touchedBy(recording.inverse),
           ]),
         ];
-        await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, recording);
-        await this.announceTree(projectId);
+        await this.record(
+          workPackageId,
+          stamp,
+          'create',
+          `add ${quoteName(workItem.name)}`,
+          recording,
+        );
+        await this.announceTree(workPackageId);
         return { ok: true as const, value: workItem, stepNodeMapping: built.stepNodeMapping };
       },
     );
   }
 
-  /** Prepares the complete local recording inside its caller's admitted structural transition. */
+  /** Current first-child creation delegates every live fact mutation to one same-writer structural operation. */
+  private async insertFirstChild(
+    workPackageId:string, actorId:string, rows:readonly WorkItem[], workItem:WorkItem,
+    placed:ReturnType<typeof placeAfter>, stamp:WriteStamp, evidence:IncidentTransitionEvidence,
+  ) {
+    if(workItem.parentId===null)throw new Error('first child has no parent');
+    const child={...workItem,parentId:workItem.parentId};
+    const localDependencies=(await this.opts.typedDependencies.listByWorkPackage(workPackageId))
+      .filter(({predecessor,successor})=>predecessor.workPackageId===workPackageId&&successor.workPackageId===workPackageId);
+    const write:FirstChildWrite={kind:'fresh',child,respaced:placed.renumbered,localDependencies,detachedIncidents:evidence.receipts};
+    const {localAfter}=prepareFirstChildRelationships(write,localDependencies);
+    const estimates=(await this.opts.estimates.listByWorkPackage(workPackageId)).map(estimate=>estimate.workItemId===child.parentId?{...estimate,workItemId:child.id}:estimate);
+    const structural=await this.structuralRefusal(workPackageId,actorId,{rows:[...rows,child],typed:localAfter,estimates});
+    if(structural!==null)return structural;
+    const written=await this.opts.subtrees.writeFirstChild(write,stamp);
+    if(written.kind==='step_nodes_in_use')return {ok:false as const,reason:'step_nodes_in_use' as const,count:written.count,pairs:written.pairs};
+    if(written.kind!=='written')return {ok:false as const,reason:'not_found' as const};
+    const forward:CompensatingCommand={do:'transition_first_child',direction:'down',record:written.record,respaced:placed.renumbered,localDependencies};
+    const inverse:CompensatingCommand={do:'transition_first_child',direction:'up',record:written.record,respaced:[],localDependencies:localAfter};
+    const recording:Recording={forward,inverse,touched:[...new Set([...touchedBy(forward),...touchedBy(inverse)])],before:rows};
+    return {ok:true as const,recording,stepNodeMapping:written.record.stepIds.map(stepId=>({from:sliceKey(child.parentId,stepId),to:sliceKey(child.id,stepId)}))};
+  }
+
+  /** Replay uses the actual incident owner's evidence and moves current rows without restoring expired leases or revoked claim state. */
+  private async applyFirstChild(
+    workPackageId:string,command:Extract<CompensatingCommand,{do:'transition_first_child'}>,stamp:WriteStamp,evidence:IncidentTransitionEvidence,
+  ):Promise<ApplyOutcome>{
+    const child=command.record.child;
+    if(child.workPackageId!==workPackageId)throw new Error('first child replay owner mismatch');
+    const rows=await this.opts.workItems.listByWorkPackage(workPackageId);
+    const write:FirstChildWrite={kind:'replay',direction:command.direction,record:command.record,respaced:command.respaced,localDependencies:command.localDependencies,detachedIncidents:evidence.receipts};
+    const actualLocal=(await this.opts.typedDependencies.listByWorkPackage(workPackageId)).filter(({predecessor,successor})=>predecessor.workPackageId===workPackageId&&successor.workPackageId===workPackageId);
+    const {localAfter}=prepareFirstChildRelationships(write,actualLocal);
+    const from=command.direction==='down'?child.parentId:child.id,to=command.direction==='down'?child.id:child.parentId;
+    const proposed=command.direction==='down'?[...rows,child]:rows.filter(({id})=>id!==child.id);
+    const estimates=(await this.opts.estimates.listByWorkPackage(workPackageId)).map(estimate=>estimate.workItemId===from?{...estimate,workItemId:to}:estimate);
+    const structural=await this.structuralRefusal(workPackageId,stamp.by,{rows:proposed,typed:localAfter,estimates});
+    if(structural!==null)return {ok:false,detail:'first child relationship transition refused: '+structural.reason};
+    const written=await this.opts.subtrees.writeFirstChild(write,stamp);
+    return written.kind==='written'?{ok:true,detail:null}:{ok:false,detail:'first child transition refused: '+written.kind};
+  }
+
+  /** Historical non-first-child construction; current first-child writes use insertFirstChild. */
   private async insertWorkItem(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     input: CreateWorkItem,
     rows: readonly WorkItem[],
@@ -3089,13 +3205,13 @@ export class WorkItemService {
     // holding a statement while a first child is created` failed on the read
     // taken between the two writes; watched 2026-09-29.
     if (statementsHandedDown !== undefined) {
-      const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
+      const handed = await this.apply(workPackageId, statementsHandedDown.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
     }
     const blockedHandedDown =
       firstChildOf === undefined
         ? []
-        : await this.opts.blockages.listByWorkItems(projectId, [firstChildOf.id]);
+        : await this.opts.blockages.listByWorkItems(workPackageId, [firstChildOf.id]);
     const clearParentBlockages: CompensatingCommand[] = blockedHandedDown.map(
       ({ workItemId, stepId, blockedAt }) => ({
         do: 'replace_blockage',
@@ -3136,28 +3252,28 @@ export class WorkItemService {
       input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)
         ? input.parentId
         : null;
-    const proposedTyped = (await this.opts.typedDependencies.listByProject(projectId)).map(
+    const proposedTyped = (await this.opts.typedDependencies.listByWorkPackage(workPackageId)).map(
       (relationship) => ({
         ...relationship,
         predecessor:
           gainsFirstChild !== null &&
-          relationship.successor.projectId === projectId &&
+          relationship.successor.workPackageId === workPackageId &&
           relationship.predecessor.scope === 'node' &&
-          relationship.predecessor.projectId === projectId &&
+          relationship.predecessor.workPackageId === workPackageId &&
           relationship.predecessor.workItemId === gainsFirstChild
             ? { ...relationship.predecessor, workItemId: workItem.id }
             : relationship.predecessor,
         successor:
           gainsFirstChild !== null &&
-          relationship.predecessor.projectId === projectId &&
+          relationship.predecessor.workPackageId === workPackageId &&
           relationship.successor.scope === 'node' &&
-          relationship.successor.projectId === projectId &&
+          relationship.successor.workPackageId === workPackageId &&
           relationship.successor.workItemId === gainsFirstChild
             ? { ...relationship.successor, workItemId: workItem.id }
             : relationship.successor,
       }),
     );
-    const proposedEstimates = (await this.opts.estimates.listByProject(projectId)).map(
+    const proposedEstimates = (await this.opts.estimates.listByWorkPackage(workPackageId)).map(
       (estimate) =>
         gainsFirstChild !== null && estimate.workItemId === gainsFirstChild
           ? { ...estimate, workItemId: workItem.id }
@@ -3165,7 +3281,7 @@ export class WorkItemService {
     );
     // Proof: bypassing this call failed `connected create refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const structural = await this.structuralRefusal(projectId, actorId, {
+    const structural = await this.structuralRefusal(workPackageId, actorId, {
       rows: [...rows, workItem],
       typed: proposedTyped,
       estimates: proposedEstimates,
@@ -3174,14 +3290,14 @@ export class WorkItemService {
     // The repository validates leaf ownership even while clearing; capture and clear
     // before insertion, then restore only after undo has removed the child.
     for (const command of clearParentBlockages) {
-      const cleared = await this.apply(projectId, command, stamp);
+      const cleared = await this.apply(workPackageId, command, stamp);
       // Proof: removing this guard failed the refused parent-clear test on its expected error; watched 2026-10-14.
       if (!cleared.ok) throw new Error(`cannot clear first-child blockage: ${cleared.detail}`);
     }
     await this.opts.workItems.insert(workItem, placed.renumbered, stamp);
     // Proof: skipping these writes failed exact blockage preservation in memory and mounted SQLite; watched 2026-10-14.
     for (const command of setChildBlockages) {
-      const written = await this.apply(projectId, command, stamp);
+      const written = await this.apply(workPackageId, command, stamp);
       // Proof: removing this guard let the refused child write resolve; watched 2026-10-14.
       if (!written.ok) throw new Error(`cannot hand blockage to first child: ${written.detail}`);
     }
@@ -3194,7 +3310,7 @@ export class WorkItemService {
     const handedDown =
       gainsFirstChild === null
         ? []
-        : (await this.opts.estimates.listByProject(projectId)).filter(
+        : (await this.opts.estimates.listByWorkPackage(workPackageId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
     // The actuals go down with them, and for a sharper reason than the
@@ -3206,7 +3322,7 @@ export class WorkItemService {
     const recordedHandedDown =
       gainsFirstChild === null
         ? []
-        : (await this.opts.actuals.listByProject(projectId)).filter(
+        : (await this.opts.actuals.listByWorkPackage(workPackageId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
     // The statements go down with the figures, and the reason is the sharpest of
@@ -3217,7 +3333,7 @@ export class WorkItemService {
     const statedHandedDown =
       gainsFirstChild === null
         ? []
-        : (await this.opts.progress.listByProject(projectId)).filter(
+        : (await this.opts.progress.listByWorkPackage(workPackageId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
     // The tokens and hours go down with the days, in every metric at once —
@@ -3227,7 +3343,7 @@ export class WorkItemService {
     const measuredHandedDown =
       gainsFirstChild === null
         ? []
-        : (await this.opts.measures.listByProject(projectId)).filter(
+        : (await this.opts.measures.listByWorkPackage(workPackageId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
     // The trios in measures other than time go down with the facts, every key
@@ -3236,7 +3352,7 @@ export class WorkItemService {
     const estimatedHandedDown =
       gainsFirstChild === null
         ? []
-        : (await this.opts.measureEstimates.listByProject(projectId)).filter(
+        : (await this.opts.measureEstimates.listByWorkPackage(workPackageId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
     // The attempts go down with the statements, numbers kept. Read before the
@@ -3253,7 +3369,7 @@ export class WorkItemService {
     const issuedHandedDown =
       gainsFirstChild === null
         ? []
-        : await this.opts.attempts.listIssued(projectId, [gainsFirstChild]);
+        : await this.opts.attempts.listIssued(workPackageId, [gainsFirstChild]);
     const assignedHandedDown =
       gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
     // And the claims: left on a row that is no longer a leaf, a step claim is
@@ -3264,7 +3380,7 @@ export class WorkItemService {
     const claimedHandedDown =
       gainsFirstChild === null || this.opts.claims === undefined
         ? []
-        : (await this.opts.claims.listByProject(projectId)).filter(
+        : (await this.opts.claims.listByWorkPackage(workPackageId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
     // The leaf's resource demands go down with its step facts (`wbs-resources`):
@@ -3273,25 +3389,25 @@ export class WorkItemService {
     const demandedHandedDown =
       gainsFirstChild === null
         ? []
-        : (await this.opts.demands.listByProject(projectId)).filter(
+        : (await this.opts.demands.listByWorkPackage(workPackageId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
     const stepNodeMapping =
       gainsFirstChild === null
         ? []
-        : (await this.opts.projects.stepsOf(projectId)).map((step) => ({
+        : (await this.opts.workPackages.stepsOf(workPackageId)).map((step) => ({
             from: formatStepNodeId({ workItemId: gainsFirstChild, stepId: step.id }),
             to: formatStepNodeId({ workItemId: workItem.id, stepId: step.id }),
           }));
     const nodeRemaps =
       gainsFirstChild === null
         ? []
-        : (await this.opts.typedDependencies.listByProject(projectId))
+        : (await this.opts.typedDependencies.listByWorkPackage(workPackageId))
             .filter((dependency) =>
               [dependency.predecessor, dependency.successor].some(
                 (endpoint) =>
                   endpoint.scope === 'node' &&
-                  endpoint.projectId === projectId &&
+                  endpoint.workPackageId === workPackageId &&
                   endpoint.workItemId === gainsFirstChild,
               ),
             )
@@ -3301,13 +3417,13 @@ export class WorkItemService {
                 ...original,
                 predecessor:
                   original.predecessor.scope === 'node' &&
-                  original.predecessor.projectId === projectId &&
+                  original.predecessor.workPackageId === workPackageId &&
                   original.predecessor.workItemId === gainsFirstChild
                     ? { ...original.predecessor, workItemId: workItem.id }
                     : original.predecessor,
                 successor:
                   original.successor.scope === 'node' &&
-                  original.successor.projectId === projectId &&
+                  original.successor.workPackageId === workPackageId &&
                   original.successor.workItemId === gainsFirstChild
                     ? { ...original.successor, workItemId: workItem.id }
                     : original.successor,
@@ -3317,7 +3433,7 @@ export class WorkItemService {
     // preserving its node relationship; watched 2026-09-27.
     const remapRefusal = await withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       (context) =>
         this.authorizeTypedWrites(
@@ -3632,8 +3748,8 @@ export class WorkItemService {
     }
     // The one deadline-specific refusal, and it is here rather than at the
     // controller for the reason the not-before pair is decided in the store:
-    // this is the first layer that has the **project** as well as the payload,
-    // and day zero is the project's. `null` clears the deadline and is asked
+    // this is the first layer that has the **work package** as well as the payload,
+    // and day zero is the work package's. `null` clears the deadline and is asked
     // nothing — there is no date to be before anything.
     //
     // `deadlineOffsetOf` is the same function the fold and Fast read, so the
@@ -3641,25 +3757,25 @@ export class WorkItemService {
     // would have placed it against. Duplicating the comparison here with a
     // plain `<` is what would let the two drift.
     //
-    // Proof: this refusal deleted, and `refuses a deadline before the project's
+    // Proof: this refusal deleted, and `refuses a deadline before the workPackage's
     // first working day, naming the row and day zero` fails on `Expected: 422,
     // Received: 200` — the
     // row takes a date that no placement of the work can meet and every later
-    // read of the project reports it late by a span nobody asked for.
+    // read of the work package reports it late by a span nobody asked for.
     //
-    // A project with no start date is asked nothing, for the reason the plan
+    // A work package with no start date is asked nothing, for the reason the plan
     // read gives one screen down about the not-before floors: there is nothing
     // to count from, so there is no day zero for a date to fall before. A plan
     // off the calendar takes any deadline and applies none of them.
-    const projectStart = context.value.project.startDate;
-    if (projectStart !== null && patch.deadline !== undefined && patch.deadline !== null) {
-      const offset = deadlineOffsetOf(projectStart, patch.deadline);
-      if (offset.kind === 'before-project-start') {
+    const workPackageStart = context.value.workPackage.startDate;
+    if (workPackageStart !== null && patch.deadline !== undefined && patch.deadline !== null) {
+      const offset = deadlineOffsetOf(workPackageStart, patch.deadline);
+      if (offset.kind === 'before-work-package-start') {
         return {
           ok: false,
-          reason: 'deadline_before_project_start',
+          reason: 'deadline_before_work_package_start',
           workItemId: id,
-          projectDayZero: nextWorkday(projectStart),
+          workPackageDayZero: nextWorkday(workPackageStart),
         };
       }
     }
@@ -3667,13 +3783,13 @@ export class WorkItemService {
     const written = await this.opts.workItems.patch(id, patch, stamp);
     if (!written.ok) return { ok: false, reason: written.reason };
     const updated = written.workItem;
-    await this.announceTree(updated.projectId);
+    await this.announceTree(updated.workPackageId);
     // A patch naming no field wrote nothing — the store returns the row it
     // found — so there is nothing to reverse. Journalling it would put an
     // entry on the stack whose undo is visibly a no-op.
     if (fieldsOf(patch).length > 0) {
       await this.record(
-        updated.projectId,
+        updated.workPackageId,
         stamp,
         'patch',
         patch.name === undefined
@@ -3708,7 +3824,7 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.value;
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before =
       (await this.opts.directory.assignmentsFor(id)).find((each) => each.stepId === stepId)
@@ -3716,9 +3832,9 @@ export class WorkItemService {
     const stamp = this.clock.stampFor(actorId);
     const assigned = await this.opts.directory.assign(id, stepId, personId, stamp);
     if (!assigned.ok) return { ok: false, reason: assigned.reason };
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       personId === null ? 'unassign' : 'assign',
       personId === null
@@ -3762,7 +3878,7 @@ export class WorkItemService {
     // the direct caller's guard. Proof: removed, `answers unknown_step from the
     // service itself` (assignee-commands.db.test.ts) answered ok on the memory
     // store, which keeps no step check of its own; watched 2026-10-20.
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const lineage = lineageOf(rows, id);
     const below = new Set(lineage.descendantIds);
@@ -3783,7 +3899,7 @@ export class WorkItemService {
       // refuse; the batch's unit of work rolls back anything before a refusal.
       if (!assigned.ok) return { ok: false, reason: assigned.reason };
     }
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     const forward: CompensatingCommand[] = leafIds.map((leafId) => ({
       do: 'assign',
       workItemId: leafId,
@@ -3800,7 +3916,7 @@ export class WorkItemService {
       personId: previous.get(leafId) ?? null,
     }));
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       personId === null ? 'unassign' : 'assign',
       personId === null
@@ -3813,7 +3929,7 @@ export class WorkItemService {
         before: rows,
       },
     );
-    const claims = await this.claiming().claims.listByProject(workItem.projectId);
+    const claims = await this.claiming().claims.listByWorkPackage(workItem.workPackageId);
     return {
       ok: true,
       value: {
@@ -3859,16 +3975,16 @@ export class WorkItemService {
       if (refusal !== null) return { ok: false, reason: refusal };
     }
     const before =
-      (await demands.listByProject(workItem.projectId)).find(
+      (await demands.listByWorkPackage(workItem.workPackageId)).find(
         (each) => each.workItemId === id && each.resourceId === resourceId,
       )?.units ?? null;
     const stamp = this.clock.stampFor(actorId);
     const written = await demands.set(id, resourceId, units, stamp);
     if (written === 'unknown_resource') return { ok: false, reason: 'unknown_resource' };
     if (written === 'unknown_work_item') return { ok: false, reason: 'not_found' };
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       units === null ? 'clear_demand' : 'set_demand',
       units === null
@@ -3884,60 +4000,60 @@ export class WorkItemService {
     return { ok: true, value: null };
   }
 
-  /** Every demand stated on a work item of the project, by work item then resource. */
-  demandsOf(projectId: string): Promise<Demand[]> {
-    return this.opts.demands.listByProject(projectId);
+  /** Every demand stated on a work item of the work package, by work item then resource. */
+  demandsOf(workPackageId: string): Promise<Demand[]> {
+    return this.opts.demands.listByWorkPackage(workPackageId);
   }
 
   /**
-   * The measure definitions of the organization owning the project, null when
+   * The measure definitions of the organization owning the work package, null when
    * none owns it (`wbs-measure-budgets` D19): what the export names its
    * measures by.
    */
-  measureDefinitionsOf(projectId: string): Promise<MeasureDefinition[] | null> {
-    return this.opts.measures.definitionsFor(projectId);
+  measureDefinitionsOf(workPackageId: string): Promise<MeasureDefinition[] | null> {
+    return this.opts.measures.definitionsFor(workPackageId);
   }
 
-  /** Every stored fact of the project with its basis; derived `agent_minutes` are not stored. */
-  measuresOf(projectId: string): Promise<StoredMeasure[]> {
-    return this.opts.measures.listByProject(projectId);
+  /** Every stored fact of the work package with its basis; derived `agent_minutes` are not stored. */
+  measuresOf(workPackageId: string): Promise<StoredMeasure[]> {
+    return this.opts.measures.listByWorkPackage(workPackageId);
   }
 
-  /** Every trio of the project in measures other than time, single-point tokens trios included. */
-  measureEstimatesOf(projectId: string): Promise<StoredMeasureEstimate[]> {
-    return this.opts.measureEstimates.listByProject(projectId);
+  /** Every trio of the work package in measures other than time, single-point tokens trios included. */
+  measureEstimatesOf(workPackageId: string): Promise<StoredMeasureEstimate[]> {
+    return this.opts.measureEstimates.listByWorkPackage(workPackageId);
   }
 
-  /** Every stated budget of the project; derived budgets are computed on read. */
-  budgetsOf(projectId: string): Promise<StoredBudget[]> {
-    return this.opts.budgets.listByProject(projectId);
+  /** Every stated budget of the work package; derived budgets are computed on read. */
+  budgetsOf(workPackageId: string): Promise<StoredBudget[]> {
+    return this.opts.budgets.listByWorkPackage(workPackageId);
   }
 
   /**
-   * The project's **Occupancy** (`wbs-resources` R3), per resource: the units
+   * The work package's **Occupancy** (`wbs-resources` R3), per resource: the units
    * its leaves' claims hold with their holders, and the free units of every
    * resource it states a capacity for. Nothing that schedules reads it (R5).
    */
   async occupancyOf(
-    projectId: string,
+    workPackageId: string,
   ): Promise<{ occupied: ResourceOccupancy[]; free: ResourceUnits[] }> {
-    const rows = await this.claiming().claims.occupancyOf(projectId);
+    const rows = await this.claiming().claims.occupancyOf(workPackageId);
     return {
       occupied: occupancyByResource(rows),
-      free: freeUnitsOf(await this.resourceCapacitiesOf(projectId), rows),
+      free: freeUnitsOf(await this.resourceCapacitiesOf(workPackageId), rows),
     };
   }
 
-  /** The project's stated resource capacities, in resource-id order. */
-  resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]> {
+  /** The work package's stated resource capacities, in resource-id order. */
+  resourceCapacitiesOf(workPackageId: string): Promise<ResourceCapacity[]> {
     const { resourceCapacity } = this.opts;
-    return resourceCapacity.listFor(projectId);
+    return resourceCapacity.listFor(workPackageId);
   }
 
   /**
-   * The project's resource read (`wbs-resources`): the resources the caller's
-   * directory holds, the project's stated capacities and every demand on its
-   * work items. Refused as the tree read refuses: null for a project the
+   * The work package's resource read (`wbs-resources`): the resources the caller's
+   * directory holds, the work package's stated capacities and every demand on its
+   * work items. Refused as the tree read refuses: null for a work package the
    * caller cannot read, alike foreign and absent.
    *
    * Proof: with the scoped branch reading the root catalog, `creates the same
@@ -3946,14 +4062,14 @@ export class WorkItemService {
    * roots under their opaque names; watched 2026-10-20.
    */
   async resourcesWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): Promise<{
     resources: (Resource & { directoryCapacity: number | null })[];
     capacities: ResourceCapacity[];
     demands: Demand[];
   } | null> {
-    if (!(await this.admits(projectId, access))) return null;
+    if (!(await this.admits(workPackageId, access))) return null;
     const { resourceCapacity } = this.opts;
     const listed =
       access.kind === 'scoped'
@@ -3962,7 +4078,7 @@ export class WorkItemService {
     // Each resource's directory capacity beside it (`wbs-shared-occupancy`
     // S6), null when unstated; never its holders.
     // Proof: with null answered for every resource, `states a directory
-    // capacity on either route and reads it from both projects`
+    // capacity on either route and reads it from both work packages`
     // (directory-capacity.controller.db.test.ts) read null; watched 2026-10-25.
     const stated = new Map(
       (await this.opts.directory.directoryCapacitiesOf(listed.map(({ id }) => id))).map(
@@ -3975,21 +4091,21 @@ export class WorkItemService {
     }));
     return {
       resources,
-      capacities: await resourceCapacity.listFor(projectId),
-      demands: await this.opts.demands.listByProject(projectId),
+      capacities: await resourceCapacity.listFor(workPackageId),
+      demands: await this.opts.demands.listByWorkPackage(workPackageId),
     };
   }
 
   /**
    * What setting a resource's directory capacity to `units` would leave
    * (`wbs-shared-occupancy` S12), writing nothing: the units before
-   * and after, each project of the organization that holds, states or demands
+   * and after, each work package of the organization that holds, states or demands
    * the resource with the units its leaves hold, the free units after (null
    * when it would be unstated), and the refusal the write would meet.
    *
-   * Every project of the caller's organization is readable to its members
-   * today, so none is hidden; `hiddenProjects` folds the projects
-   * `mayReadProjectWithin` denies once permission visibility task3.1 is wired.
+   * Every work package of the caller's organization is readable to its members
+   * today, so none is hidden; `hiddenWorkPackages` folds the work packages
+   * `mayReadWorkPackageWithin` denies once permission visibility task3.1 is wired.
    * The cap check the write will meet is task 7.1's; until it lands the
    * refusal is always null for a resource the organization owns.
    *
@@ -4014,8 +4130,8 @@ export class WorkItemService {
           resourceId: string;
           before: number | null;
           after: number | null;
-          projects: { projectId: string; name: string; units: number }[];
-          hiddenProjects: { count: number; units: number };
+          workPackages: { workPackageId: string; name: string; units: number }[];
+          hiddenWorkPackages: { count: number; units: number };
           free: number | null;
           refusal: null;
         };
@@ -4042,37 +4158,40 @@ export class WorkItemService {
       )?.units ?? null;
     const rows = await this.claiming().claims.organizationOccupancyOf([resourceId]);
     const usage = await directory.usageOfResource(resourceId);
-    const projectIds = [
+    const workPackageIds = [
       ...new Set([
-        ...rows.map(({ projectId }) => projectId),
-        ...usage.capacities.map(({ projectId }) => projectId),
-        ...usage.rows.projects.map(({ id }) => id),
+        ...rows.map(({ workPackageId }) => workPackageId),
+        ...usage.capacities.map(({ workPackageId }) => workPackageId),
+        ...usage.rows.workPackages.map(({ id }) => id),
       ]),
     ].sort();
-    const projects: { projectId: string; name: string; units: number }[] = [];
-    for (const projectId of projectIds) {
-      const project = await this.opts.projects.findInOrganization(projectId, scope.organizationId);
-      // A project of another organization naming the resource is corrupt
+    const workPackages: { workPackageId: string; name: string; units: number }[] = [];
+    for (const workPackageId of workPackageIds) {
+      const workPackage = await this.opts.workPackages.findInOrganization(
+        workPackageId,
+        scope.organizationId,
+      );
+      // A work package of another organization naming the resource is corrupt
       // trusted state: a plan can name only its organization's resources.
-      if (project === null)
+      if (workPackage === null)
         throw new Error(
-          `project ${projectId} names resource ${resourceId} outside its organization`,
+          `work package ${workPackageId} names resource ${resourceId} outside its organization`,
         );
       const held =
-        occupancyByResource(rows.filter((row) => row.projectId === projectId)).find(
+        occupancyByResource(rows.filter((row) => row.workPackageId === workPackageId)).find(
           (each) => each.resourceId === resourceId,
         )?.occupied ?? 0;
-      projects.push({ projectId, name: project.name, units: held });
+      workPackages.push({ workPackageId, name: workPackage.name, units: held });
     }
-    const occupied = projects.reduce((sum, each) => sum + each.units, 0);
+    const occupied = workPackages.reduce((sum, each) => sum + each.units, 0);
     return {
       ok: true,
       value: {
         resourceId,
         before,
         after: units,
-        projects,
-        hiddenProjects: { count: 0, units: 0 },
+        workPackages,
+        hiddenWorkPackages: { count: 0, units: 0 },
         free: units === null ? null : units - occupied,
         refusal: null,
       },
@@ -4092,22 +4211,22 @@ export class WorkItemService {
    * else is the decision's one refusal, holders named.
    */
   private async mayClaimForOthers(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     access: ResourceAccess,
   ): Promise<boolean> {
     if (access.kind === 'legacy') return false;
-    const project = await this.opts.projects.findInOrganization(
-      projectId,
+    const workPackage = await this.opts.workPackages.findInOrganization(
+      workPackageId,
       access.scope.organizationId,
     );
-    if (project === null) throw new Error('admitted claim project disappeared');
+    if (workPackage === null) throw new Error('admitted claim work package disappeared');
     // Proof: claim-extra-grant fault failed 'claiming for another account without' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
     return (
       await authorizePackage(
         this.opts.accessDecisions,
         access,
-        project,
+        workPackage,
         actorId,
         'package.claim_for_others',
       )
@@ -4125,18 +4244,18 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
     const { claims, identity } = this.claiming();
-    const projectId = workItem.projectId;
-    const steps = await this.opts.projects.stepsOf(projectId);
+    const workPackageId = workItem.workPackageId;
+    const steps = await this.opts.workPackages.stepsOf(workPackageId);
     if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
       return { ok: false, reason: 'unknown_step' };
     const lineage = lineageOf(rows, id);
-    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const near = claimsAround(await claims.listByWorkPackage(workPackageId), id, lineage);
     // Read inside the batch's transaction: the write coordinator admits one
     // batch at a time, so a concurrent claim's units are already here or not
     // yet written (claim-occupancy-race.db.test.ts).
-    const occupancy = await claims.occupancyOf(projectId);
+    const occupancy = await claims.occupancyOf(workPackageId);
     const demand = lineage.isLeaf
-      ? (await this.opts.demands.listByProject(projectId))
+      ? (await this.opts.demands.listByWorkPackage(workPackageId))
           .filter((each) => each.workItemId === id)
           .map(({ resourceId, units }) => ({ resourceId, units }))
       : [];
@@ -4174,16 +4293,16 @@ export class WorkItemService {
       }
     }
     const stated = new Map(
-      (await this.opts.progress.listByWorkItems(projectId, [id])).map((each) => [
+      (await this.opts.progress.listByWorkItems(workPackageId, [id])).map((each) => [
         each.stepId,
         each.state,
       ]),
     );
-    const observed = await this.opts.livePlans?.readExecution(projectId, access, null);
+    const observed = await this.opts.livePlans?.readExecution(workPackageId, access, null);
     if (observed !== undefined && observed.kind !== 'ready')
       return { ok: false, reason: 'not_found' };
     const execution =
-      observed === undefined ? await this.statusReadsOf(projectId, rows) : observed.reads;
+      observed === undefined ? await this.statusReadsOf(workPackageId, rows) : observed.reads;
     const status = execution.statuses.get(id);
     if (status === undefined) throw new Error(`work item ${id} has no derived status`);
     const admission = new Map(
@@ -4199,7 +4318,9 @@ export class WorkItemService {
             started: evidence?.started === true,
             canStart: eligibility?.canStart === true,
             blockers:
-              eligibility === undefined ? [] : projectExecutionBlockers(eligibility.startBlockers),
+              eligibility === undefined
+                ? []
+                : workPackageExecutionBlockers(eligibility.startBlockers),
           },
         ] as const;
       }),
@@ -4207,7 +4328,7 @@ export class WorkItemService {
     const pinnedPersonId = await identity.pinnedPersonOf(credential);
     const caller: ClaimCaller = {
       accountId: actorId,
-      isAdmin: await this.mayClaimForOthers(projectId, actorId, access),
+      isAdmin: await this.mayClaimForOthers(workPackageId, actorId, access),
       pinnedPersonId,
       pinnedRunId: pinnedRunOf(credential),
     };
@@ -4240,17 +4361,19 @@ export class WorkItemService {
       parentClaimId: input.parentClaimId,
       assign: input.assign,
       parentClaim:
-        input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
+        input.parentClaimId === null
+          ? null
+          : await claims.findById(workPackageId, input.parentClaimId),
       claims: near,
       demand,
       resources: input.resources,
-      capacities: await this.resourceCapacitiesOf(projectId),
+      capacities: await this.resourceCapacitiesOf(workPackageId),
       occupancy,
       directoryCapacities,
       organizationOccupied,
     });
     if (decided.kind === 'refused')
-      return this.refusedWithHolders(decided.refusal, id, projectId, access, nameOf);
+      return this.refusedWithHolders(decided.refusal, id, workPackageId, access, nameOf);
     // The run the decision wrote and compared: the caller's opted-in run for
     // its own person (M15), else the command's.
     const run = claimRunOf(caller, input.personId, input.runId);
@@ -4333,7 +4456,7 @@ export class WorkItemService {
       if (!assigned.ok)
         throw new Error(`claim of ${id} could not assign ${stepId}: ${assigned.reason}`);
     }
-    await this.announceTree(projectId);
+    await this.announceTree(workPackageId);
     const assigning: CompensatingCommand[] = decided.assignStepIds.map((stepId) => ({
       do: 'assign',
       workItemId: id,
@@ -4347,7 +4470,7 @@ export class WorkItemService {
       personId: previous.get(stepId) ?? null,
     }));
     await this.record(
-      projectId,
+      workPackageId,
       stamp,
       'claim',
       `claim ${quoteName(workItem.name)}`,
@@ -4404,12 +4527,12 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
     const { claims, identity } = this.claiming();
-    const projectId = workItem.projectId;
-    const steps = await this.opts.projects.stepsOf(projectId);
+    const workPackageId = workItem.workPackageId;
+    const steps = await this.opts.workPackages.stepsOf(workPackageId);
     if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
       return { ok: false, reason: 'unknown_step' };
     const lineage = lineageOf(rows, id);
-    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const near = claimsAround(await claims.listByWorkPackage(workPackageId), id, lineage);
     const nameOf = await this.claimantNamesWithin(access, input.personId, near);
     if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     const boundAccountId = await identity.boundAccountOf(input.personId);
@@ -4422,7 +4545,7 @@ export class WorkItemService {
       target: { workItemId: id, isLeaf: lineage.isLeaf },
       caller: {
         accountId: actorId,
-        isAdmin: await this.mayClaimForOthers(projectId, actorId, access),
+        isAdmin: await this.mayClaimForOthers(workPackageId, actorId, access),
         pinnedPersonId: await identity.pinnedPersonOf(credential),
         pinnedRunId: pinnedRunOf(credential),
       },
@@ -4442,14 +4565,14 @@ export class WorkItemService {
     // Proof: with `[]` in place of these rows, `undo of a release re-acquires
     // the units` (resource-occupancy.db.test.ts) put the claims back holding
     // nothing, on both stores; watched 2026-10-20.
-    const occupancy = (await claims.occupancyOf(projectId))
+    const occupancy = (await claims.occupancyOf(workPackageId))
       .filter((row) => ids.has(row.claimId))
       .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
-    const leased = await this.leasedAmong(projectId, ids);
+    const leased = await this.leasedAmong(workPackageId, ids);
     await claims.remove(removed, [], stamp);
-    await this.announceTree(projectId);
+    await this.announceTree(workPackageId);
     await this.record(
-      projectId,
+      workPackageId,
       stamp,
       'release',
       `release ${quoteName(workItem.name)}`,
@@ -4465,19 +4588,19 @@ export class WorkItemService {
   }
 
   /**
-   * Renews every lease of `personId` due at this instant, in every project
+   * Renews every lease of `personId` due at this instant, in every work package
    * (`wbs-claim-leases` L4), scoped to `runId` when the caller opted into one
    * (`wbs-mcp-agent-surface` M15; null renews every lease of the person), and
    * answers the standing after it. The store writes only when one is due, so a
    * call within the resolution of the last one writes nothing, and names the
-   * projects whose leases it moved.
+   * work packages whose leases it moved.
    */
   renewLeases(personId: string, runId: string | null): Promise<LeaseRenewal> {
     return this.claiming().claims.renewLeases(personId, runId, () => this.clock.now());
   }
 
   /**
-   * Releases every claim of the project whose lease has run out now
+   * Releases every claim of the work package whose lease has run out now
    * (`wbs-claim-leases` L5–L10, L15), with every claim delegated under one,
    * and answers how many claims went. Expiry is read here, so a caller that
    * holds the write turn decides against the state its turn commits: a renewal
@@ -4486,12 +4609,12 @@ export class WorkItemService {
    * call, stamped by that account, and one history event (kind `release`, the
    * reason in its label and its `after`) that no account's undo reaches.
    */
-  async releaseExpiredLeases(projectId: string): Promise<number> {
+  async releaseExpiredLeases(workPackageId: string): Promise<number> {
     const { claims } = this.claiming();
     const at = this.clock.now();
-    const expired = await claims.expiredLeasesOf(projectId, at);
+    const expired = await claims.expiredLeasesOf(workPackageId, at);
     if (expired.length === 0) return 0;
-    const stored = await claims.listStampedByProject(projectId);
+    const stored = await claims.listStampedByWorkPackage(workPackageId);
     const byId = new Map(stored.map((each) => [each.id, each]));
     const taken = new Set<string>();
     const groups = new Map<
@@ -4502,7 +4625,7 @@ export class WorkItemService {
       if (taken.has(claimId)) continue;
       const root = byId.get(claimId);
       if (root === undefined)
-        throw new Error(`expired claim ${claimId} is not a claim of ${projectId}`);
+        throw new Error(`expired claim ${claimId} is not a claim of ${workPackageId}`);
       const key = JSON.stringify([root.accountId, reason]);
       const group = groups.get(key) ?? { accountId: root.accountId, reason, ids: [] };
       groups.set(key, group);
@@ -4519,8 +4642,8 @@ export class WorkItemService {
         for (const each of stored) if (each.parentClaimId === next) frontier.push(each.id);
       }
     }
-    const occupancy = await claims.occupancyOf(projectId);
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const occupancy = await claims.occupancyOf(workPackageId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const nameOf = new Map(rows.map((row) => [row.id, row.name]));
     for (const { accountId, reason, ids } of groups.values()) {
       const going = new Set(ids);
@@ -4548,7 +4671,7 @@ export class WorkItemService {
       };
       await this.opts.journal.appendEvent({
         id: this.clock.newId(),
-        projectId,
+        workPackageId,
         userId: accountId,
         kind: 'release',
         label: `release ${what} (${why})`,
@@ -4559,13 +4682,13 @@ export class WorkItemService {
         createdAt: at,
       });
     }
-    await this.announceTree(projectId);
+    await this.announceTree(workPackageId);
     return taken.size;
   }
 
-  /** The ids among `ids` of the project's claims that carry a lease (L11). */
-  private async leasedAmong(projectId: string, ids: ReadonlySet<string>): Promise<string[]> {
-    return (await this.claiming().claims.listStampedByProject(projectId))
+  /** The ids among `ids` of the work package's claims that carry a lease (L11). */
+  private async leasedAmong(workPackageId: string, ids: ReadonlySet<string>): Promise<string[]> {
+    return (await this.claiming().claims.listStampedByWorkPackage(workPackageId))
       .filter((each) => ids.has(each.id) && each.leaseExpiresAt !== null)
       .map(({ id }) => id);
   }
@@ -4640,13 +4763,15 @@ export class WorkItemService {
 
   /**
    * The bound claims putting `claims` back would add: distinct
-   * `(work item, person, run)` triples among them that the project holds no
+   * `(work item, person, run)` triples among them that the work package holds no
    * claim of now (L5).
    */
-  private async boundClaimsAdded(projectId: string, claims: readonly Claim[]): Promise<number> {
+  private async boundClaimsAdded(workPackageId: string, claims: readonly Claim[]): Promise<number> {
     const tripleOf = (each: Pick<Claim, 'workItemId' | 'personId' | 'runId'>) =>
       JSON.stringify([each.workItemId, each.personId, each.runId]);
-    const held = new Set((await this.claiming().claims.listByProject(projectId)).map(tripleOf));
+    const held = new Set(
+      (await this.claiming().claims.listByWorkPackage(workPackageId)).map(tripleOf),
+    );
     return new Set(claims.map(tripleOf).filter((triple) => !held.has(triple))).size;
   }
 
@@ -4656,7 +4781,7 @@ export class WorkItemService {
    * (task 2.1) the claim store itself answers those reads, so both come from it.
    */
   /**
-   * Why putting `command`'s claims back would take units the project no longer
+   * Why putting `command`'s claims back would take units the work package no longer
    * has free, as a sentence, or null when it would not: the redo of a claim and
    * the undo of a release re-acquire, so they pass {@link refuseOccupancy} as a
    * fresh claim does (`wbs-resources` R3), leaf by leaf. A refusal reads as
@@ -4668,7 +4793,7 @@ export class WorkItemService {
    * stores; watched 2026-10-20.
    */
   private async refuseReacquiring(
-    projectId: string,
+    workPackageId: string,
     command: { claims: readonly Claim[]; occupancy?: readonly ClaimOccupancy[] },
     access: ResourceAccess,
   ): Promise<string | null> {
@@ -4684,11 +4809,11 @@ export class WorkItemService {
       vector.set(resourceId, Math.max(vector.get(resourceId) ?? 0, units));
       askedBy.set(leaf, vector);
     }
-    const capacities = await this.resourceCapacitiesOf(projectId);
+    const capacities = await this.resourceCapacitiesOf(workPackageId);
     // Leaf by leaf, each admitted leaf's rows joining both snapshots before
     // the next is checked: one entry may put back several leaves (a cascading
     // release), and units the first re-takes are not free for the second, in
-    // the project or across the organization.
+    // the work package or across the organization.
     // Proof: with the admitted rows left out of the snapshot, `undo of a
     // cascading release re-acquires leaf by leaf, refused once the second leaf
     // no longer fits` (resource-occupancy.db.test.ts) answered the undo ok, over 8 GB
@@ -4697,9 +4822,11 @@ export class WorkItemService {
     // `refuses an undo of a release in A once B took the directory's 16`
     // (shared-occupancy.db.test.ts) re-acquired 16 over B's 16, on both
     // stores; with only the first leaf of a cascade checked against them,
-    // `refuses an undo of a cascading release leaf by leaf across projects`
+    // `refuses an undo of a cascading release leaf by leaf across workPackages`
     // put both leaves back; watched 2026-10-25.
-    const occupancy: OccupancyRow[] = [...(await this.claiming().claims.occupancyOf(projectId))];
+    const occupancy: OccupancyRow[] = [
+      ...(await this.claiming().claims.occupancyOf(workPackageId)),
+    ];
     const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor(
       asked.map(({ resourceId }) => resourceId),
     );
@@ -4762,7 +4889,7 @@ export class WorkItemService {
           ? ''
           : exhausted.scope === 'organization'
             ? ' across the organization'
-            : ' in this project';
+            : ' in this work package';
       return `resources_exhausted: that needs ${String(exhausted.asked)}${label} of ${quoteName(resource.name)} and ${String(Math.max(exhausted.free, 0))} are free now${where}.`;
     }
     return null;
@@ -4773,7 +4900,7 @@ export class WorkItemService {
    * leaf of their organizations holds of each, summed per resource
    * (`ClaimStore.organizationUnitsOf`, `wbs-shared-occupancy` S4), read through this
    * graph's stores: inside a batch, on the batch's own connection after it
-   * took its write turn, so a concurrent batch of another project is ordered
+   * took its write turn, so a concurrent batch of another work package is ordered
    * before or after it and an earlier claim of this batch is seen. Nothing is
    * read past the capacities when none is stated, so a resource no admin
    * sized costs one indexed read.
@@ -4797,7 +4924,7 @@ export class WorkItemService {
   /**
    * A claim's refusal as the service answers it, holders named. A
    * `resources_exhausted` the organization bound is given its holders here,
-   * read only now (`organizationOccupancyOf`), each with its project; then
+   * read only now (`organizationOccupancyOf`), each with its work package; then
    * every holder's name is read. A claim that fits reads neither.
    *
    * Proof: with the organization holders left unread, `refuses B’s 16 GB while
@@ -4807,7 +4934,7 @@ export class WorkItemService {
   private async refusedWithHolders(
     refusal: ClaimRefusal,
     workItemId: string,
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
     nameOf: ReadonlyMap<string, string>,
   ): Promise<ClaimRefusalOutcome> {
@@ -4817,19 +4944,19 @@ export class WorkItemService {
       .map(({ resourceId }) => resourceId);
     const rows =
       bound.length === 0 ? [] : await this.claiming().claims.organizationOccupancyOf(bound);
-    const projectOf = new Map(rows.map((row) => [row.workItemId, row.projectId]));
+    const workPackageOf = new Map(rows.map((row) => [row.workItemId, row.workPackageId]));
     const holdersOf = new Map(
       occupancyByResource(rows.filter((row) => row.workItemId !== workItemId)).map((each) => [
         each.resourceId,
         each.holders.map((holder) => {
-          const held = projectOf.get(holder.workItemId);
+          const held = workPackageOf.get(holder.workItemId);
           if (held === undefined)
-            throw new Error(`holder ${holder.workItemId} has no project in its own read`);
-          // Named only for another project's holder (`OccupancyHolder.projectId`).
-          // Proof: with the asking project's id kept too, `names a holder's
-          // project only when it is another project` (shared-occupancy.db.test.ts)
+            throw new Error(`holder ${holder.workItemId} has no work package in its own read`);
+          // Named only for another work package's holder (`OccupancyHolder.workPackageId`).
+          // Proof: with the asking work package's id kept too, `names a holder's
+          // work package only when it is another work package` (shared-occupancy.db.test.ts)
           // failed on both stores; watched 2026-10-25.
-          return held === projectId ? holder : { ...holder, projectId: held };
+          return held === workPackageId ? holder : { ...holder, workPackageId: held };
         }),
       ]),
     );
@@ -4856,12 +4983,12 @@ export class WorkItemService {
    * store holds no claims to take.
    */
   private async claimsGoingWith(
-    projectId: string,
+    workPackageId: string,
     removed: readonly string[],
   ): Promise<ClaimsTaken> {
     const { claims } = this.opts;
     if (claims === undefined) return { claims: [], occupancy: [] };
-    const stored = await claims.listByProject(projectId);
+    const stored = await claims.listByWorkPackage(workPackageId);
     const owners = new Set(removed);
     const going = new Set(
       stored.filter(({ workItemId }) => owners.has(workItemId)).map(({ id }) => id),
@@ -4893,29 +5020,29 @@ export class WorkItemService {
       ordered.push(next);
       placed.add(next.id);
     }
-    const occupancy = (await claims.occupancyOf(projectId))
+    const occupancy = (await claims.occupancyOf(workPackageId))
       .filter(({ claimId }) => going.has(claimId))
       .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
     return { claims: ordered, occupancy };
   }
 
   /**
-   * Refuses a replay naming a step the project no longer holds: every step
+   * Refuses a replay naming a step the work package no longer holds: every step
    * {@link referencesOf} reads off `command` (progress, assignments, attempts,
    * blockages, claims). Removing a step with `cascade` takes only the rows it
    * can see; the ones an undo is about to put back are in the journal.
    */
   private async stepRemovedSince(
-    projectId: string,
+    workPackageId: string,
     command: CompensatingCommand,
   ): Promise<ApplyOutcome | null> {
     const named = referencesOf(command).steps;
     if (named.length === 0) return null;
-    const held = new Set((await this.opts.projects.stepsOf(projectId)).map(({ id }) => id));
+    const held = new Set((await this.opts.workPackages.stepsOf(workPackageId)).map(({ id }) => id));
     const gone = named.find((stepId) => !held.has(stepId));
     return gone === undefined
       ? null
-      : { ok: false, detail: `step ${gone} has been removed from this project since.` };
+      : { ok: false, detail: `step ${gone} has been removed from this work package since.` };
   }
 
   private claiming(): { claims: ClaimStore; identity: ClaimIdentity } {
@@ -4928,43 +5055,43 @@ export class WorkItemService {
   /**
    * Every work item's derived status, by the folds the plan read uses: progress
    * rolled up over worked steps and running attempts, then
-   * {@link workItemStatusesOf} over the project's own dependency edges.
+   * {@link workItemStatusesOf} over the work package's own dependency edges.
    */
   private async statusesOf(
-    projectId: string,
+    workPackageId: string,
     rows: readonly LabelledWorkItem[],
   ): Promise<Map<string, WorkItemStatus>> {
-    return (await this.statusReadsOf(projectId, rows)).statuses;
+    return (await this.statusReadsOf(workPackageId, rows)).statuses;
   }
 
   /**
    * {@link statusesOf} with the reads it folded, so a caller that needs the
    * same progress statements and dependency edges reads them once.
    */
-  private async statusReadsOf(projectId: string, rows: readonly LabelledWorkItem[]) {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) throw new Error(`execution project ${projectId} is missing`);
-    const steps = await this.opts.projects.stepsOf(projectId);
-    const stated = await this.opts.progress.listByProject(projectId);
-    const attempted = await this.opts.attempts.listByProject(projectId);
-    const estimates = await this.opts.estimates.listByProject(projectId);
-    const actuals = await this.opts.actuals.listByProject(projectId);
-    const blockages = await this.opts.blockages.listByProject(projectId);
+  private async statusReadsOf(workPackageId: string, rows: readonly LabelledWorkItem[]) {
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) throw new Error(`execution work package ${workPackageId} is missing`);
+    const steps = await this.opts.workPackages.stepsOf(workPackageId);
+    const stated = await this.opts.progress.listByWorkPackage(workPackageId);
+    const attempted = await this.opts.attempts.listByWorkPackage(workPackageId);
+    const estimates = await this.opts.estimates.listByWorkPackage(workPackageId);
+    const actuals = await this.opts.actuals.listByWorkPackage(workPackageId);
+    const blockages = await this.opts.blockages.listByWorkPackage(workPackageId);
     const dependencies = {
-      edges: await this.opts.dependencies.listByProject(projectId),
-      typed: await this.opts.typedDependencies.listByProject(projectId),
+      edges: await this.opts.dependencies.listByWorkPackage(workPackageId),
+      typed: await this.opts.typedDependencies.listByWorkPackage(workPackageId),
     };
     const authored = resolveConnectedDependencyGraph({
-      projects: [
+      workPackages: [
         {
-          projectId,
+          workPackageId,
           state: {
             rows,
             steps,
             estimates,
             legacy: dependencies.edges,
             typed: dependencies.typed,
-            reach: project.depReach,
+            reach: workPackage.depReach,
           },
         },
       ],
@@ -4973,7 +5100,7 @@ export class WorkItemService {
     const readiness = deriveExecutionReadiness(
       [
         {
-          projectId,
+          workPackageId,
           reads: {
             workItems: rows,
             steps,
@@ -4987,7 +5114,7 @@ export class WorkItemService {
       ],
       dependencies.typed,
       authored,
-      new Map([[projectId, attempted]]),
+      new Map([[workPackageId, attempted]]),
     );
     return { ...readiness, statuses: new Map(readiness.statuses), stated, dependencies };
   }
@@ -5026,14 +5153,14 @@ export class WorkItemService {
     // which needed frozen labels to ascend along position — and that walk is
     // gone.
 
-    // Same reason as in `create`: a parent outside this project detaches the row
+    // Same reason as in `create`: a parent outside this work package detaches the row
     // from every root here.
     if (input.parentId !== null && !rows.some((row) => row.id === input.parentId)) {
       return { ok: false, reason: 'not_found' };
     }
 
     // Moving a work item beneath itself detaches its whole subtree from every
-    // root: the rows survive, no number can be derived for them, and the project
+    // root: the rows survive, no number can be derived for them, and the work package
     // reads as though the work vanished.
     if (input.parentId !== null && isWithin(parentIndexOf(rows), input.parentId, id)) {
       return { ok: false, reason: 'cycle' };
@@ -5042,7 +5169,7 @@ export class WorkItemService {
     // The dependencies already drawn must survive the new parent. Decided
     // here, on rows and edges read inside this write's lock, because the drag
     // preview is a client's guess and a direct command skips it entirely.
-    const edges = await this.opts.dependencies.listByProject(workItem.projectId);
+    const edges = await this.opts.dependencies.listByWorkPackage(workItem.workPackageId);
     const broken = canReparent(rows, edges, id, input.parentId);
     // Proof: this return disabled, the mounted `answers 409 ancestor for a move
     // under its own predecessor…` and `answers 409 cycle for a move whose
@@ -5050,7 +5177,7 @@ export class WorkItemService {
     // command reparented. Watched 2026-09-27.
     if (broken !== null) return { ok: false, reason: broken };
     if (input.parentId !== workItem.parentId) {
-      const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
+      const authored = await this.opts.typedDependencies.listByWorkPackage(workItem.workPackageId);
       const oldParent = workItem.parentId;
       const stranded =
         oldParent !== null && rows.filter((row) => row.parentId === oldParent).length === 1
@@ -5086,14 +5213,14 @@ export class WorkItemService {
       }
     }
 
-    // Proof: omitted guard/wrong moving owner accepted retained pairs; project-wide
+    // Proof: omitted guard/wrong moving owner accepted retained pairs; work-package-wide
     // selection refused incoming-subtree policy. Lookup before actor/membership
     // leaked the poisoned reader; swallowing it resolved the required failure.
     // Skipping existing parents missed selected corruption; lost nodes failed exact
     // mounted 409. Empty admitted reads committed the preceding patch. Moving this
     // below stamp allocation spent a stamp on refusal (all watched 2026-10-17).
     if (input.parentId !== null) {
-      const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, [
+      const parallels = await this.opts.stepParallels.listByWorkItems(workItem.workPackageId, [
         input.parentId,
       ]);
       if (parallels.length > 0) {
@@ -5119,7 +5246,7 @@ export class WorkItemService {
       !rows.some((row) => row.parentId === input.parentId)
     ) {
       const destinationId = input.parentId;
-      const held = (await this.opts.claims.listByProject(workItem.projectId)).filter(
+      const held = (await this.opts.claims.listByWorkPackage(workItem.workPackageId)).filter(
         (each) => each.workItemId === destinationId && each.stepId !== null,
       );
       if (held.length > 0) {
@@ -5151,7 +5278,7 @@ export class WorkItemService {
     const placed = placeAfter(group, input.afterId);
     // Proof: bypassing this call failed `connected move refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+    const structural = await this.structuralRefusal(workItem.workPackageId, actorId, {
       rows: rows.map((row) => (row.id === id ? { ...row, parentId: input.parentId } : row)),
     });
     if (structural !== null) return structural;
@@ -5217,15 +5344,15 @@ export class WorkItemService {
     const leftProgress =
       leftParentId === null
         ? undefined
-        : await this.opts.progress.listByWorkItems(workItem.projectId, [leftParentId]);
+        : await this.opts.progress.listByWorkItems(workItem.workPackageId, [leftParentId]);
     const destinationProgress =
       becomesParent === undefined
         ? []
-        : await this.opts.progress.listByWorkItems(workItem.projectId, [becomesParent.id]);
+        : await this.opts.progress.listByWorkItems(workItem.workPackageId, [becomesParent.id]);
     const destinationBlockages =
       becomesParent === undefined
         ? []
-        : await this.opts.blockages.listByWorkItems(workItem.projectId, [becomesParent.id]);
+        : await this.opts.blockages.listByWorkItems(workItem.workPackageId, [becomesParent.id]);
     // And its resource demands (`wbs-resources`): a parent's demand charges
     // nothing, and the moved row is other work that keeps its own demand and
     // never inherits this one. Cleared with the statements, put back on undo.
@@ -5233,7 +5360,7 @@ export class WorkItemService {
     const destinationDemands =
       becomesParent === undefined
         ? []
-        : (await this.opts.demands.listByProject(workItem.projectId)).filter(
+        : (await this.opts.demands.listByWorkPackage(workItem.workPackageId)).filter(
             ({ workItemId }) => workItemId === becomesParent.id,
           );
     const clearDestinationDemands: CompensatingCommand[] = destinationDemands.map(
@@ -5246,12 +5373,12 @@ export class WorkItemService {
       leftParentId === null
         ? []
         : await this.opts.blockages.listByWorkItems(
-            workItem.projectId,
+            workItem.workPackageId,
             movedLeaves.map(({ id }) => id),
           );
     const handedBlockages: StoredStepBlockage[] = [];
     if (leftParentId !== null) {
-      for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
+      for (const step of await this.opts.workPackages.stepsOf(workItem.workPackageId)) {
         const facts = movedBlockages.filter(({ stepId }) => stepId === step.id);
         // Proof: accepting any direct fact failed the missing-former-leaf regression; watched 2026-10-14.
         if (movedLeaves.every((leaf) => facts.some(({ workItemId }) => workItemId === leaf.id))) {
@@ -5292,7 +5419,7 @@ export class WorkItemService {
       // Proof: this write skipped made `clears the readiness and hold of a leaf
       // another row moves under…` fail on `parent … holds a readiness or a
       // hold`; watched 2026-09-29.
-      const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
+      const cleared = await this.apply(workItem.workPackageId, statementsCleared.forward, stamp);
       if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
     }
     // Proof: skipping clears failed the pre-store-move destination ownership assertions; watched 2026-10-14.
@@ -5304,7 +5431,7 @@ export class WorkItemService {
       ...clearDestinationBlockages,
       ...clearDestinationDemands,
     ]) {
-      const cleared = await this.apply(workItem.projectId, command, stamp);
+      const cleared = await this.apply(workItem.workPackageId, command, stamp);
       // Proof: removing this refusal failed `reports a refused move destination clear before reparenting`; watched 2026-10-14.
       if (!cleared.ok) throw new Error(`cannot clear move destination: ${cleared.detail}`);
     }
@@ -5313,12 +5440,12 @@ export class WorkItemService {
       // Proof: this write skipped made `gives the parent a moved last child
       // leaves the statements it agreed on` fail on `readiness: null` where
       // `ready` was owed; watched 2026-09-29.
-      const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
+      const handed = await this.apply(workItem.workPackageId, statementsHandedUp.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
     }
     // Proof: skipping these writes failed unanimous hand-up, including negative timestamps and done facts; watched 2026-10-14.
     for (const command of setHandedBlockages) {
-      const handed = await this.apply(workItem.projectId, command, stamp);
+      const handed = await this.apply(workItem.workPackageId, command, stamp);
       // Proof: removing this refusal made `reports a refused move blockage hand-up` resolve; watched 2026-10-14.
       if (!handed.ok) throw new Error(`cannot hand move blockage up: ${handed.detail}`);
     }
@@ -5355,8 +5482,8 @@ export class WorkItemService {
       ...restoreDestinationDemands,
       ...(statementsCleared === undefined ? [] : [statementsCleared.inverse]),
     ];
-    await this.announceTree(workItem.projectId);
-    await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
+    await this.announceTree(workItem.workPackageId);
+    await this.record(workItem.workPackageId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
       forward: { do: 'batch', steps: forwardSteps },
       inverse: { do: 'batch', steps: inverseSteps },
       touched: [
@@ -5418,13 +5545,16 @@ export class WorkItemService {
     const originals = subtreeOf(rows, id);
     if (originals.length > MAX_DUPLICATED_ROWS) return { ok: false, reason: 'too_large' };
 
-    // Proof: omitted/root-only/wrong-project/broad/leaves-only reads failed retained,
+    // Proof: omitted/root-only/wrong-work-package/broad/leaves-only reads failed retained,
     // nested, parent-corruption and unrelated-policy production cases. Early reads
     // failed auth/size precedence; catch/optional defaults accepted required failures.
     // Late IDs/stamps/writes failed zero-allocation snapshots; reversed/lost nodes
     // and aliased facts failed exact detached refusal tests. Public graph selection
     // committed the admitted-policy mixed batch (all watched 2026-10-17).
-    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, originals);
+    const parallels = await this.opts.stepParallels.listByWorkItems(
+      workItem.workPackageId,
+      originals,
+    );
     if (parallels.length > 0) {
       return {
         ok: false,
@@ -5459,7 +5589,7 @@ export class WorkItemService {
     const placed = placeAfter(this.groupUnder(rows, workItem.parentId), id);
     const copies = originals.map((originalId, index) => {
       const source = sourceOf.get(originalId);
-      if (source === undefined) throw new Error(`${originalId} is not a row of this project`);
+      if (source === undefined) throw new Error(`${originalId} is not a row of this work package`);
       const isRoot = index === 0;
       return {
         ...source,
@@ -5492,10 +5622,10 @@ export class WorkItemService {
       };
     });
 
-    const stored = await this.opts.estimates.listByProject(workItem.projectId);
+    const stored = await this.opts.estimates.listByWorkPackage(workItem.workPackageId);
     const assigned = await this.opts.directory.assignmentsOf(originals);
-    const edges = await this.opts.dependencies.listByProject(workItem.projectId);
-    const typed = await this.opts.typedDependencies.listByProject(workItem.projectId);
+    const edges = await this.opts.dependencies.listByWorkPackage(workItem.workPackageId);
+    const typed = await this.opts.typedDependencies.listByWorkPackage(workItem.workPackageId);
 
     const copiedEstimates = stored
       .filter((each) => inside.has(each.workItemId))
@@ -5509,19 +5639,19 @@ export class WorkItemService {
     // particular piece of work cost, so they do not copy for the actuals'
     // reason. Every other structural rule in this file applies to a table;
     // this one applies to rows inside one. Design D1, D8.
-    const copiedMeasures = (await this.opts.measures.listByProject(workItem.projectId))
+    const copiedMeasures = (await this.opts.measures.listByWorkPackage(workItem.workPackageId))
       .filter((each) => inside.has(each.workItemId) && each.metric === 'token_estimate')
       .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     // Every trio in a measure other than time copies, for the days estimate's
     // reason: it describes the work. The single-point tokens trios ride with
     // the copied legacy token estimates above as well, and agree with them.
     const copiedMeasureEstimates = (
-      await this.opts.measureEstimates.listByProject(workItem.projectId)
+      await this.opts.measureEstimates.listByWorkPackage(workItem.workPackageId)
     )
       .filter((each) => inside.has(each.workItemId))
       .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     // And every stated budget of the branch, with its trios (design D42).
-    const copiedBudgets = (await this.opts.budgets.listByProject(workItem.projectId))
+    const copiedBudgets = (await this.opts.budgets.listByWorkPackage(workItem.workPackageId))
       .filter((each) => inside.has(each.workItemId))
       .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     const copiedAssignments = assigned.map((each) => ({
@@ -5534,39 +5664,48 @@ export class WorkItemService {
     // Proof: with the copy's list emptied, `duplicate copies the demands with
     // the subtree` (resource-occupancy.db.test.ts) read no copied demand on
     // both stores; watched 2026-10-20.
-    const copiedDemands = (await this.opts.demands.listByProject(workItem.projectId))
+    const copiedDemands = (await this.opts.demands.listByWorkPackage(workItem.workPackageId))
       .filter((each) => inside.has(each.workItemId))
       .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     const copiedEdges = edges
       .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
       .map((edge) => ({
         id: this.clock.newId(),
-        projectId: edge.projectId,
+        workPackageId: edge.workPackageId,
         predecessorId: copyOf(edge.predecessorId),
         successorId: copyOf(edge.successorId),
       }));
     const selection = {
-      sourceProjectId: workItem.projectId,
-      destinationProjectId: workItem.projectId,
+      sourceWorkPackageId: workItem.workPackageId,
+      destinationWorkPackageId: workItem.workPackageId,
       workItemIds: newIds,
       stepIds: new Map(
-        (await this.opts.projects.stepsOf(workItem.projectId)).map((step) => [step.id, step.id]),
+        (await this.opts.workPackages.stepsOf(workItem.workPackageId)).map((step) => [
+          step.id,
+          step.id,
+        ]),
       ),
     };
     const selected = selectCopiedDependencies(typed, selection);
     const checked = await withDependencyContext(
       this.opts.dependencyContext,
-      workItem.projectId,
+      workItem.workPackageId,
       actorId,
       async (dependencyContext) => {
         // Proof: skipping source evidence changed the absent-row copy's modeled
         // refusal into a later recording throw; watched 2026-10-22.
-        const evidence = await this.typedEvidence(dependencyContext, workItem.projectId, selected);
+        const evidence = await this.typedEvidence(
+          dependencyContext,
+          workItem.workPackageId,
+          selected,
+        );
         if (!evidence.ok) return evidence;
         // Proof: bypassing current capability made the production mounted dormant
         // copy return 200 instead of 409 with zero expected changes, 2026-10-22.
         if (
-          selected.some((dependency) => dependency.predecessor.projectId !== workItem.projectId) &&
+          selected.some(
+            (dependency) => dependency.predecessor.workPackageId !== workItem.workPackageId,
+          ) &&
           !permitsExternalDependencies(this.opts.externalDependencyAuthoring)
         )
           return { ok: false as const, reason: 'external_dependencies_inactive' as const };
@@ -5584,7 +5723,7 @@ export class WorkItemService {
 
     // Proof: bypassing this call failed `connected duplicate refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+    const structural = await this.structuralRefusal(workItem.workPackageId, actorId, {
       rows: [...rows, ...copies],
       estimates: [...stored, ...copiedEstimates],
       legacy: [...edges, ...copiedEdges],
@@ -5595,7 +5734,7 @@ export class WorkItemService {
     // every row it writes — work items, estimates, measures, assignments, dependencies
     // and the respacing of the originals' siblings — carries one instant.
     const stamp = this.clock.stampFor(actorId);
-    await this.opts.subtrees.insertSubtree(
+    const inserted=await this.opts.subtrees.insertSubtree(
       {
         rows: copies,
         respaced: placed.renumbered,
@@ -5625,6 +5764,7 @@ export class WorkItemService {
       },
       stamp,
     );
+    if(inserted!=='written')return{ok:false,reason:inserted.reason};
     for (const dependency of copiedTyped) {
       await this.opts.typedDependencies.add(dependency, stamp);
     }
@@ -5641,7 +5781,7 @@ export class WorkItemService {
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
     // than the rows that were written.
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     const copyIds = copies.map((copy) => copy.id);
     const restore: CompensatingCommand = {
       do: 'restore_subtree',
@@ -5675,7 +5815,7 @@ export class WorkItemService {
       setMeasures: [],
     };
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'duplicate',
       `duplicate ${quoteName(workItem.name)}`,
@@ -5713,7 +5853,7 @@ export class WorkItemService {
             ...copyIds,
             ...copiedTyped
               .flatMap((dependency) => [dependency.predecessor, dependency.successor])
-              .filter((endpoint) => endpoint.projectId === workItem.projectId)
+              .filter((endpoint) => endpoint.workPackageId === workItem.workPackageId)
               .map((endpoint) => endpoint.workItemId),
           ]),
         ],
@@ -5761,13 +5901,13 @@ export class WorkItemService {
     // which of the two things they meant is theirs to say.
     if (children.length > 0 && strategy === null) return { ok: false, reason: 'strategy_required' };
 
-    // Proof: omission/root-only/wrong-owner/project and broad selection each failed
+    // Proof: omission/root-only/wrong-owner/work-package and broad selection each failed
     // exact leaf/cascade or promote-policy tests; early lookup broke missing/auth/
     // strategy precedence, and late lookup changed the statement snapshot, 2026-10-17.
     const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
-    const incidents = await this.deletionIncidents(workItem.projectId, actorId, doomed);
+    const incidents = await this.deletionIncidents(workItem.workPackageId, actorId, doomed);
     if (!incidents.ok) return incidents;
-    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, doomed);
+    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.workPackageId, doomed);
     if (parallels.length > 0) {
       return {
         ok: false,
@@ -5783,49 +5923,49 @@ export class WorkItemService {
     // parent belong to the same instant as the removal itself.
     const stamp = this.clock.stampFor(actorId);
     const label = `delete ${quoteName(workItem.name)}`;
-    const storedEstimates = await this.opts.estimates.listByProject(workItem.projectId);
+    const storedEstimates = await this.opts.estimates.listByWorkPackage(workItem.workPackageId);
     // Read before anything is deleted, exactly like the estimates and the
     // assignments: `actual.work_item_id` cascades, so a moment later there is
     // nothing left to read and the restore would put the branch back with the
     // days nobody recorded again.
-    const storedActuals = await this.opts.actuals.listByProject(workItem.projectId);
+    const storedActuals = await this.opts.actuals.listByWorkPackage(workItem.workPackageId);
     // Read before anything is deleted, for the actuals' reason:
     // `step_progress.work_item_id` cascades, so a moment later there is nothing
     // left to read and the restore would put the branch back reading as work
     // nobody had started.
-    const storedProgress = await this.opts.progress.listByProject(workItem.projectId);
+    const storedProgress = await this.opts.progress.listByWorkPackage(workItem.workPackageId);
     // Proof: omitting deletion capture left an orphaned fact and failed root-leaf delete/undo; watched 2026-10-14.
-    const storedBlockages = await this.opts.blockages.listByProject(workItem.projectId);
+    const storedBlockages = await this.opts.blockages.listByWorkPackage(workItem.workPackageId);
     // Read before anything is deleted, for the same cascade the two above name,
     // and in every metric at once: one read feeds three folds, which is what
-    // `listByProject` takes no metric for.
-    const storedMeasures = await this.opts.measures.listByProject(workItem.projectId);
+    // `listByWorkPackage` takes no metric for.
+    const storedMeasures = await this.opts.measures.listByWorkPackage(workItem.workPackageId);
     // Read before anything is deleted, for the same cascade:
     // `measure_estimate.work_item_id` cascades, and an undo must put the branch
     // back with its estimates in every measure, not only the days.
-    const storedMeasureEstimates = await this.opts.measureEstimates.listByProject(
-      workItem.projectId,
+    const storedMeasureEstimates = await this.opts.measureEstimates.listByWorkPackage(
+      workItem.workPackageId,
     );
     // Read before anything is deleted, for the same cascade:
     // `work_item_budget.work_item_id` cascades, and an undo must put the
     // branch back with its budgets (design D42). Never handed up: the parent
     // keeps its own.
-    const storedBudgets = await this.opts.budgets.listByProject(workItem.projectId);
+    const storedBudgets = await this.opts.budgets.listByWorkPackage(workItem.workPackageId);
     // Read before anything is deleted, for the same cascade:
     // `step_node_attempt.work_item_id` cascades, and an undo must put the
     // branch back with the history of every attempt at it.
-    const storedAttempts = await this.opts.attempts.listByProject(workItem.projectId);
+    const storedAttempts = await this.opts.attempts.listByWorkPackage(workItem.workPackageId);
     // Read before anything is deleted, for the same cascade:
     // `work_item_resource_demand.work_item_id` cascades, and an undo must put
     // the branch back with the units it states it needs.
-    const storedDemands = await this.opts.demands.listByProject(workItem.projectId);
+    const storedDemands = await this.opts.demands.listByWorkPackage(workItem.workPackageId);
     // And the claims the delete takes, with their occupancy: those on the
     // removed rows and every claim delegated under one of them, which the
     // parent reference cascades (a promotion's children keep their rows and
     // lose theirs).
-    const removedClaims = await this.claimsGoingWith(workItem.projectId, doomed);
-    const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
-    const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
+    const removedClaims = await this.claimsGoingWith(workItem.workPackageId, doomed);
+    const allEdges = await this.opts.dependencies.listByWorkPackage(workItem.workPackageId);
+    const authored = await this.opts.typedDependencies.listByWorkPackage(workItem.workPackageId);
     const survivor = workItem.parentId;
     const inside = new Set(doomed);
     const deletedBlockages = storedBlockages.filter((fact) => inside.has(fact.workItemId));
@@ -5840,7 +5980,7 @@ export class WorkItemService {
     // Read before anything is deleted, for the attempts' cascade: the marks go
     // with their work items, and an undo that wrote back only the attempts
     // would let a number removed while it was a node's highest be issued again.
-    const storedIssued = await this.opts.attempts.listIssued(workItem.projectId, doomed);
+    const storedIssued = await this.opts.attempts.listIssued(workItem.workPackageId, doomed);
     if (
       survivor !== null &&
       (children.length === 0 || strategy === 'cascade') &&
@@ -5878,7 +6018,9 @@ export class WorkItemService {
     // which cannot be done across two rate cards (design D44): refused before
     // any write, naming both.
     if (promotes) {
-      const moneyKeys = moneyKeysOf(await this.opts.measures.definitionsFor(workItem.projectId));
+      const moneyKeys = moneyKeysOf(
+        await this.opts.measures.definitionsFor(workItem.workPackageId),
+      );
       // Facts and trios hand up apart, so a mix counts within one kind only
       // (design D44): a fact on one card beside a trio on another adds nothing.
       // Proof: with the two kinds folded together, `hands up a fact on one card
@@ -5909,7 +6051,7 @@ export class WorkItemService {
     const parentClaims =
       claimedHandedUp.length === 0 || this.opts.claims === undefined
         ? []
-        : (await this.opts.claims.listByProject(workItem.projectId)).filter(
+        : (await this.opts.claims.listByWorkPackage(workItem.workPackageId)).filter(
             ({ workItemId }) => workItemId === survivor,
           );
     // Proof: with this refusal disabled, `refuses a promoting delete whose
@@ -6020,7 +6162,7 @@ export class WorkItemService {
             )?.units ?? null;
           demandedHandedUp.push({ resourceId, units, previous });
         }
-        for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
+        for (const step of await this.opts.workPackages.stepsOf(workItem.workPackageId)) {
           const facts = deletedBlockages.filter((fact) => fact.stepId === step.id);
           // Proof: changing every to some handed up partial QA agreement; mounted deletion fold failed, watched 2026-10-14.
           if (formerLeaves.every((leaf) => facts.some((fact) => fact.workItemId === leaf.id))) {
@@ -6119,7 +6261,7 @@ export class WorkItemService {
       }
       // Proof: bypassing this call failed `connected cascade refuses an injected failed graph read`
       // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-      const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+      const structural = await this.structuralRefusal(workItem.workPackageId, actorId, {
         rows: rows.filter((row) => !inside.has(row.id)),
         estimates: [
           ...storedEstimates.filter((estimate) => !inside.has(estimate.workItemId)),
@@ -6132,23 +6274,12 @@ export class WorkItemService {
           (relationship) =>
             ![relationship.predecessor, relationship.successor].some(
               (endpoint) =>
-                endpoint.projectId === workItem.projectId && inside.has(endpoint.workItemId),
+                endpoint.workPackageId === workItem.workPackageId &&
+                inside.has(endpoint.workItemId),
             ),
         ),
       });
       if (structural !== null) return structural;
-      for (const each of handedUp) await this.opts.estimates.set(each, stamp);
-      for (const each of recordedHandedUp) await this.opts.actuals.set(each, stamp);
-      for (const each of statedHandedUp) await this.opts.progress.set(each, stamp);
-      for (const each of measuredHandedUp) await this.opts.measures.set(each, stamp);
-      // After the facts, whose legacy token estimate a mixed tokens sum retires.
-      // Proof: skipped, `hands a deleted last child's trios up to the parent and
-      // takes them off again on undo` (measure-estimate-command.test.ts) read no
-      // trio on the parent; watched 2026-10-23.
-      // Single-point trios ride with the legacy rows just written, whose
-      // `recordedAt` a second write would restamp (design D28).
-      for (const each of estimatedHandedUp.filter(isRanged))
-        await this.opts.measureEstimates.set(each, stamp);
       // Proof: skipped, `hands the last child’s demand back up when its delete
       // promotes the parent, and back on undo` (resource-occupancy.db.test.ts)
       // read no demand on the parent, on both stores; watched 2026-10-20.
@@ -6200,7 +6331,7 @@ export class WorkItemService {
       const claimsTaken =
         claimsMovedUp.length === 0
           ? removedClaims
-          : await this.claimsGoingWith(workItem.projectId, doomed);
+          : await this.claimsGoingWith(workItem.workPackageId, doomed);
       // Edges first, and every one touching anything in the subtree. The
       // foreign keys refuse a delete that would orphan one, so this is not
       // tidiness: without it, deleting a work item anything depends on fails
@@ -6210,9 +6341,33 @@ export class WorkItemService {
       // journal record; mounted node-and-whole delete restored 0 instead of 2
       // relationships on undo, watched 2026-09-27.
       const removedTyped = await this.opts.typedDependencies.removeAllFor(doomed, stamp);
-      await this.replaceDeletionBlockages(workItem.projectId, deletedBlockages, true, stamp);
+      await this.replaceDeletionBlockages(workItem.workPackageId, deletedBlockages, true, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
-      await this.replaceDeletionBlockages(workItem.projectId, blockedHandedUp, false, stamp);
+      for (const each of handedUp) {
+        const written = await this.opts.estimates.set(each, stamp);
+        if (written !== 'written') return { ok: false, reason: written };
+      }
+      for (const fact of recordedHandedUp) {
+        const written=await this.opts.actuals.set(fact,stamp);
+        if(written!=='written')return{ok:false,reason:written};
+      }
+      for (const fact of statedHandedUp) {
+        const written=await this.opts.progress.set(fact,stamp);
+        if(written!=='written')return{ok:false,reason:written};
+      }
+      for (const fact of measuredHandedUp) {
+        const written=await this.opts.measures.set(fact,stamp);
+        if(written!=='written')return{ok:false,reason:written};
+      }
+      // After the facts, whose legacy token estimate a mixed tokens sum retires.
+      // Proof: skipped, `hands a deleted last child's trios up to the parent and
+      // takes them off again on undo` (measure-estimate-command.test.ts) read no
+      // trio on the parent; watched 2026-10-23.
+      // Single-point trios ride with the legacy rows just written, whose
+      // `recordedAt` a second write would restamp (design D28).
+      for (const each of estimatedHandedUp.filter(isRanged))
+        await this.opts.measureEstimates.set(each, stamp);
+      await this.replaceDeletionBlockages(workItem.workPackageId, blockedHandedUp, false, stamp);
       // The parent becoming a leaf again takes a readiness or hold only where
       // every former leaf agreed on it (`add-work-item-statuses`).
       const statementsHandedUp =
@@ -6243,11 +6398,11 @@ export class WorkItemService {
         // Proof: this write skipped made `gives a parent losing its last child
         // the readiness and hold every former leaf agreed on` fail on
         // `readiness: null` where `draft` was owed; watched 2026-09-29.
-        const handed = await this.apply(workItem.projectId, handUpStep.forward, stamp);
+        const handed = await this.apply(workItem.workPackageId, handUpStep.forward, stamp);
         if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
       }
-      await this.announceTree(workItem.projectId);
-      await this.record(workItem.projectId, stamp, 'delete', label, {
+      await this.announceTree(workItem.workPackageId);
+      await this.record(workItem.workPackageId, stamp, 'delete', label, {
         // Proof: replacing both delete before-images with [] made the admitted
         // successor delete fail exact journal coverage and roll back (2026-10-22).
         externalBefore: incidents.externalBefore,
@@ -6434,7 +6589,7 @@ export class WorkItemService {
     // leaves here — its children are promoted, and their edges stay valid.
     // Proof: bypassing this call failed `connected promote refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+    const structural = await this.structuralRefusal(workItem.workPackageId, actorId, {
       rows: rows
         .filter((row) => row.id !== id)
         .map((row) => (row.parentId === id ? { ...row, parentId: workItem.parentId } : row)),
@@ -6443,7 +6598,8 @@ export class WorkItemService {
       typed: authored.filter(
         (relationship) =>
           ![relationship.predecessor, relationship.successor].some(
-            (endpoint) => endpoint.projectId === workItem.projectId && endpoint.workItemId === id,
+            (endpoint) =>
+              endpoint.workPackageId === workItem.workPackageId && endpoint.workItemId === id,
           ),
       ),
     });
@@ -6452,8 +6608,8 @@ export class WorkItemService {
     // Proof: broadening this promotion to subtreeOf(rows, id) made mounted promote replay return 500 instead of 200 (2026-10-22).
     const removedTyped = await this.opts.typedDependencies.removeAllFor([id], stamp);
     await this.opts.workItems.remove([id], promoted, stamp);
-    await this.announceTree(workItem.projectId);
-    await this.record(workItem.projectId, stamp, 'delete', label, {
+    await this.announceTree(workItem.workPackageId);
+    await this.record(workItem.workPackageId, stamp, 'delete', label, {
       // Proof: replacing both delete before-images with [] made the admitted
       // successor delete fail exact journal coverage and roll back (2026-10-22).
       // Proof: omitting only the promotion before-image made mounted promote replay return 500 instead of 200 (2026-10-22).
@@ -6547,30 +6703,31 @@ export class WorkItemService {
    * capped at 200, orders from a read that may already be stale, and makes every
    * `afterId` in it a second implementation of the arrangement. ADR 0023.
    *
-   * **A project on the optimized engine whose variant is still solving is
+   * **A work package on the optimized engine whose variant is still solving is
    * refused**, never quietly arranged by Fast: the read draws Fast there and the
    * cue beside it says so, but an arrangement leaves no mark saying which engine
    * decided it. {@link selectedSchedule} holds both halves of that rule.
    *
-   * A project already in schedule order writes nothing, journals nothing and
+   * A work package already in schedule order writes nothing, journals nothing and
    * announces nothing — {@link freeze}'s precedent for a write that pinned
    * nothing, and what keeps a second press off the undo stack. Connected commands
    * borrow the final target placement; selected readiness comes from its retained
    * optimization stage. No command read admits optimizer work.
    */
-  async arrangeBySchedule(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+  async arrangeBySchedule(workPackageId: string, actorId: string): Promise<WorkItemOutcome<null>> {
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
 
-    const captured = await this.opts.livePlans?.readProject(projectId);
+    const captured = await this.opts.livePlans?.readWorkPackage(workPackageId);
     if (captured?.kind === 'not_found') return { ok: false, reason: 'not_found' };
     let rows: readonly LabelledWorkItem[];
     let arrangement: ReturnType<typeof arrangeSiblingsBySchedule>;
     // Proof: routing connected observations through the local scheduler made the mounted
     // connected arrangement fail with a foreign endpoint error (500); watched 2026-10-23.
     if (captured?.kind === 'connected') {
-      const view = projectConnectedTree(captured, projectId);
+      const view = workPackageConnectedTree(captured, workPackageId);
       // Proof: removing calendar refusal changed all three mounted missing-calendar
       // cases from typed 409 to 500; prior collected edit still rolled back (2026-10-23).
       if (view.placement.kind === 'dependency_calendar_missing')
@@ -6583,7 +6740,7 @@ export class WorkItemService {
       // throw instead of returning calendar_range (2026-10-23).
       if (view.placement.kind === 'unavailable')
         return { ok: false, reason: view.placement.reason };
-      const settings = view.reads.project;
+      const settings = view.reads.workPackage;
       // Proof: bypassing readiness let pending and boundary-infeasible selected
       // objectives arrange successfully in connected-arrange.test.ts (2026-10-23).
       if (
@@ -6603,23 +6760,23 @@ export class WorkItemService {
       if (!allocation.ok) return { ok: false, reason: 'arrangement_positions_unavailable' };
       arrangement = allocation.arrangement;
     } else {
-      rows = await this.opts.workItems.listByProject(projectId);
-      const stored = await this.opts.estimates.listByProject(projectId);
-      const edges = await this.opts.dependencies.listByProject(projectId);
+      rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+      const stored = await this.opts.estimates.listByWorkPackage(workPackageId);
+      const edges = await this.opts.dependencies.listByWorkPackage(workPackageId);
       const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
-      const steps = await this.opts.projects.stepsOf(projectId);
-      const slotsOf = await this.opts.capacity.slotsFor(projectId);
+      const steps = await this.opts.workPackages.stepsOf(workPackageId);
+      const slotsOf = await this.opts.capacity.slotsFor(workPackageId);
       const canonical = canonicalScheduleParts(
-        project,
+        workPackage,
         rows,
         stored,
         edges,
-        await this.opts.typedDependencies.listByProject(projectId),
+        await this.opts.typedDependencies.listByWorkPackage(workPackageId),
         assigned,
         steps,
         slotsOf,
-        await this.opts.demands.listByProject(projectId),
-        await this.opts.resourceCapacity.listFor(projectId),
+        await this.opts.demands.listByWorkPackage(workPackageId),
+        await this.opts.resourceCapacity.listFor(workPackageId),
       );
 
       const shared = captured?.kind === 'shared' ? captured.chain : undefined;
@@ -6632,15 +6789,15 @@ export class WorkItemService {
           shared?.kind === 'scheduled'
             ? shared.scheduled
             : await this.opts.scheduler.read({
-                projectId: project.id,
+                workPackageId: workPackage.id,
                 input: canonical.input,
-                engine: project.scheduleEngine,
-                objective: project.scheduleObjective,
-                enabled: project.optimizationEnabled,
+                engine: workPackage.scheduleEngine,
+                objective: workPackage.scheduleObjective,
+                enabled: workPackage.optimizationEnabled,
                 mode: this.opts.schedulerMode ?? 'live',
               });
         if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
-        selected = selectedSchedule(project, read.fast, read.optimization);
+        selected = selectedSchedule(workPackage, read.fast, read.optimization);
       } catch (err) {
         // Only the modeled failure, for the plan read's reason exactly: an
         // unqualified catch would turn any future mistake in `slicesOf` into
@@ -6651,15 +6808,15 @@ export class WorkItemService {
       if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
       arrangement = arrangeSiblingsBySchedule(input.rows, selected.schedule.workItems);
     }
-    // Nothing to arrange. Not an error and not a write: the project already
+    // Nothing to arrange. Not an error and not a write: the work package already
     // reads in the order it is drawn in.
     if (arrangement.placements.length === 0) return { ok: true, value: null };
 
     const before = new Map(rows.map((row) => [row.id, row]));
     const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setPositions(arrangement.placements, arrangement.moved, stamp);
-    await this.announceTree(projectId);
-    await this.record(projectId, stamp, 'arrange', 'arrange the plan by schedule', {
+    await this.announceTree(workPackageId);
+    await this.record(workPackageId, stamp, 'arrange', 'arrange the plan by schedule', {
       forward: {
         do: 'set_positions',
         placements: [...arrangement.placements],
@@ -6686,7 +6843,7 @@ export class WorkItemService {
   }
 
   /**
-   * Sets a project step's estimate allowance: one journalled, undoable edit.
+   * Sets a work package step's estimate allowance: one journalled, undoable edit.
    *
    * Here rather than on `StepService` because an allowance changes what every
    * estimate of the step charges, and the journal that makes it one undo lives
@@ -6702,29 +6859,30 @@ export class WorkItemService {
    * answering `nothing_to_undo` (2026-09-27).
    */
   async setStepAllowance(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     stepId: string,
     allowancePercent: AllowancePercent,
   ): Promise<WorkItemOutcome<null>> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
 
     const stamp = this.clock.stampFor(actorId);
-    const written = await this.opts.projects.setStepAllowance(
-      projectId,
+    const written = await this.opts.workPackages.setStepAllowance(
+      workPackageId,
       stepId,
       allowancePercent,
       stamp,
     );
     if (!written.ok) return { ok: false, reason: 'not_found' };
-    await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
-    await this.announceTree(projectId);
+    await this.opts.broadcast.publish(workPackageId, { type: 'step_updated', step: written.step });
+    await this.announceTree(workPackageId);
     if (written.previousPercent !== allowancePercent) {
-      const rows = await this.opts.workItems.listByProject(projectId);
+      const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
       await this.record(
-        projectId,
+        workPackageId,
         stamp,
         'set_step_allowance',
         `set the ${written.step.name} allowance to +${String(allowancePercent)}%`,
@@ -6745,29 +6903,30 @@ export class WorkItemService {
   /**
    * Writes the currently derived number of every work item that has none stored.
    *
-   * Work items added afterwards keep deriving, so a project can be frozen,
+   * Work items added afterwards keep deriving, so a work package can be frozen,
    * planned into further, and frozen again — each freeze pinning only what was
    * unpinned at the time. Numbers already stored are not rewritten, which is the
    * whole point: they are what left the tool.
    */
-  async freeze(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+  async freeze(workPackageId: string, actorId: string): Promise<WorkItemOutcome<null>> {
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
 
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const numbers = deriveNumbers(rows);
     const updates = rows
       .filter((row) => row.frozenNumber === null)
       .map((row) => ({ id: row.id, frozenNumber: numbers.get(row.id) ?? null }));
     const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers(updates, stamp);
-    await this.announceTree(projectId);
+    await this.announceTree(workPackageId);
     // A freeze that pinned nothing — every number was already written down —
     // is not a change to reverse.
     if (updates.length > 0) {
       await this.record(
-        projectId,
+        workPackageId,
         stamp,
         'freeze',
         'freeze the numbers',
@@ -6793,9 +6952,9 @@ export class WorkItemService {
     const { workItem } = context.value;
     const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers([{ id, frozenNumber: null }], stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'unfreeze',
       `unfreeze ${quoteName(workItem.name)}`,
@@ -6812,12 +6971,16 @@ export class WorkItemService {
     return { ok: true, value: null };
   }
 
-  async unfreezeProject(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+  async unfreezeWorkPackage(
+    workPackageId: string,
+    actorId: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
 
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const frozen = rows.filter((row) => row.frozenNumber !== null);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers(
@@ -6829,10 +6992,10 @@ export class WorkItemService {
       })),
       stamp,
     );
-    await this.announceTree(projectId);
+    await this.announceTree(workPackageId);
     if (frozen.length > 0) {
       await this.record(
-        projectId,
+        workPackageId,
         stamp,
         'unfreeze',
         'unfreeze the whole plan',
@@ -6871,21 +7034,20 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    const step = (await this.opts.projects.stepsOf(workItem.projectId)).find(
-      (each) => each.id === stepId,
-    );
-    if (step === undefined) return { ok: false, reason: 'unknown_step' };
+    const target = await this.opts.estimates.readTarget(id, stepId);
+    if (target.kind !== 'resolved') return { ok: false, reason: target.kind };
+    const step = target.values;
     // Proof: skipping the unit branch admitted 1.5 minutes, 200 instead of 422 in the mounted estimate-unit boundary test (2026-10-12).
     if (step.estimateUnit === 'minutes') {
       const problem = minuteTrioProblem(days);
       if (problem !== null) return { ok: false, reason: problem };
     } else if (days.pessimistic > MAX_ESTIMATE_DAYS)
       return { ok: false, reason: 'invalid_estimate' };
-    const before = await this.storedTrio(workItem.projectId, id, stepId);
-    const estimates = await this.opts.estimates.listByProject(workItem.projectId);
+    const before = await this.storedTrio(workItem.workPackageId, id, stepId);
+    const estimates = await this.opts.estimates.listByWorkPackage(workItem.workPackageId);
     // Proof: bypassing this call failed `connected set-estimate refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+    const structural = await this.structuralRefusal(workItem.workPackageId, actorId, {
       estimates: [
         ...estimates.filter((estimate) => estimate.workItemId !== id || estimate.stepId !== stepId),
         { workItemId: id, stepId },
@@ -6894,10 +7056,10 @@ export class WorkItemService {
     if (structural !== null) return structural;
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp);
-    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
-    await this.announceTree(workItem.projectId);
+    if (written !== 'written') return { ok: false, reason: written };
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'estimate',
       `estimate ${quoteName(workItem.name)}`,
@@ -6930,7 +7092,7 @@ export class WorkItemService {
    *
    * Proof: dropping the `estimates.remove` call fails four tests across
    * `estimate.test.ts` and `work-item.controller.test.ts`, including the
-   * parent roll-up one; dropping the announce fails `tells the project's
+   * parent roll-up one; dropping the announce fails `tells the workPackage's
    * subscribers, with the ancestors whose totals moved` alone. Both watched
    * 2026-08-06 — see `openspec/changes/clear-estimate/verify.md`.
    */
@@ -6938,11 +7100,11 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.value;
-    const before = await this.storedTrio(workItem.projectId, id, stepId);
-    const estimates = await this.opts.estimates.listByProject(workItem.projectId);
+    const before = await this.storedTrio(workItem.workPackageId, id, stepId);
+    const estimates = await this.opts.estimates.listByWorkPackage(workItem.workPackageId);
     // Proof: bypassing this call failed `connected clear-estimate refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+    const structural = await this.structuralRefusal(workItem.workPackageId, actorId, {
       estimates: estimates.filter(
         (estimate) => estimate.workItemId !== id || estimate.stepId !== stepId,
       ),
@@ -6953,12 +7115,12 @@ export class WorkItemService {
     // act begins at the write, not at the recording of it.
     const stamp = this.clock.stampFor(actorId);
     await this.opts.estimates.remove(id, stepId, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     // Clearing a trio that was not there changed nothing — the call is
     // idempotent by design — so there is nothing to put back.
     if (before !== null) {
       await this.record(
-        workItem.projectId,
+        workItem.workPackageId,
         stamp,
         'clear_estimate',
         `clear the estimate on ${quoteName(workItem.name)}`,
@@ -6980,7 +7142,7 @@ export class WorkItemService {
    * refusals are the same two for the same reasons: a row with children is
    * `rolled_up`, because its figures are the sum of what is below it and a
    * stored number there would be ignored or double-counted; a `stepId` this
-   * project does not hold is `unknown_step`.
+   * work package does not hold is `unknown_step`.
    *
    * **Nothing about this reaches the schedule.** The engine's input map is built
    * from estimates in `slicesOf` and this number is not in it, so recording an
@@ -7004,9 +7166,9 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
-    const before = await this.storedActual(workItem.projectId, id, stepId);
+    const before = await this.storedActual(workItem.workPackageId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     // `recordedAt` off the act's own stamp: the day this was recorded and the
     // day the row was written are the same day, and reading the clock twice
@@ -7015,10 +7177,10 @@ export class WorkItemService {
       { workItemId: id, stepId, days, recordedAt: stamp.at },
       stamp,
     );
-    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
-    await this.announceTree(workItem.projectId);
+    if (written !== 'written') return { ok: false, reason: written };
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'actual',
       `record days on ${quoteName(workItem.name)}`,
@@ -7053,16 +7215,16 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.value;
-    const before = await this.storedActual(workItem.projectId, id, stepId);
+    const before = await this.storedActual(workItem.workPackageId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.actuals.remove(id, stepId, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     // Nothing was stored, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` makes, and the reason a plan does not gain
     // a history row every time somebody empties an empty box.
     if (before !== null) {
       await this.record(
-        workItem.projectId,
+        workItem.workPackageId,
         stamp,
         'clear_actual',
         `clear the recorded days on ${quoteName(workItem.name)}`,
@@ -7084,7 +7246,7 @@ export class WorkItemService {
    *
    * Guarded exactly as {@link WorkItemService.setActual} is, plus **the
    * refusals that pair does not have**, decided by {@link decideMeasureFact}
-   * against the definitions of the organization owning the project
+   * against the definitions of the organization owning the work package
    * (`wbs-measure-budgets` D4): `unknown_measure` (404, see
    * {@link WorkItemRefusal} for why it is not a 400), `derived_measure` and
    * `scale_mismatch` (409). `token_actual` and `hours_actual` stay aliases of
@@ -7121,7 +7283,7 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
-    const definitions = await this.opts.measures.definitionsFor(workItem.projectId);
+    const definitions = await this.opts.measures.definitionsFor(workItem.workPackageId);
     // Proof: with this refusal skipped, `refuses a fact in a measure the
     // organization does not define, in a derived measure or in the wrong
     // scale` (measure-fact-command.test.ts) reached the store and threw
@@ -7135,14 +7297,14 @@ export class WorkItemService {
     const priced = rateCardOf(definitions, metric, rateCardDigest, true);
     if (!priced.ok) return priced;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
-    const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
+    const before = await this.storedMeasure(workItem.workPackageId, id, stepId, metric);
     // A legacy token estimate written over a three-point tokens trio replaces
     // the trio (design D28), so the undo puts the trio back, not an absence.
     const replacedTrio =
       metric === 'token_estimate'
-        ? await this.storedMeasureEstimate(workItem.projectId, id, stepId, TOKEN_ESTIMATE_KEY)
+        ? await this.storedMeasureEstimate(workItem.workPackageId, id, stepId, TOKEN_ESTIMATE_KEY)
         : null;
     const stamp = this.clock.stampFor(actorId);
     // `recordedAt` off the act's own stamp — {@link setActual}'s reading.
@@ -7151,10 +7313,10 @@ export class WorkItemService {
       { workItemId: id, stepId, metric, value, recordedAt: stamp.at, ...basis },
       stamp,
     );
-    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
-    await this.announceTree(workItem.projectId);
+    if (written !== 'written') return { ok: false, reason: written };
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'measure',
       `record ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
@@ -7204,21 +7366,21 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem } = context.value;
     const decided = decideMeasureFact(
-      await this.opts.measures.definitionsFor(workItem.projectId),
+      await this.opts.measures.definitionsFor(workItem.workPackageId),
       requested,
       null,
     );
     if (!decided.ok) return decided;
     const { metric } = decided;
-    const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
+    const before = await this.storedMeasure(workItem.workPackageId, id, stepId, metric);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.measures.remove(id, stepId, metric, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     // Nothing was stored in this metric, so nothing changed and there is
     // nothing to put back — `clearActual`'s skip, per metric.
     if (before !== null) {
       await this.record(
-        workItem.projectId,
+        workItem.workPackageId,
         stamp,
         'clear_measure',
         `clear the recorded ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
@@ -7238,7 +7400,7 @@ export class WorkItemService {
    * time (`wbs-measure-budgets` D3, task 2.1), in that measure's unit.
    *
    * Decided by {@link decideMeasureEstimate} against the definitions of the
-   * organization owning the project: `unknown_measure` (404),
+   * organization owning the work package: `unknown_measure` (404),
    * `scheduling_measure_estimate`, `three_point_forbidden` and
    * `scale_mismatch` (409). The ordering was parsed at the command boundary
    * with the time trio's `EstimateTrio`. Leaf only, like
@@ -7266,7 +7428,7 @@ export class WorkItemService {
     // (measure-estimate-command.test.ts) reached the store and threw; watched
     // 2026-10-23.
     const decided = decideMeasureEstimate(
-      await this.opts.measures.definitionsFor(workItem.projectId),
+      await this.opts.measures.definitionsFor(workItem.workPackageId),
       requested,
       trio,
     );
@@ -7281,9 +7443,9 @@ export class WorkItemService {
     // rolled_up` (measure-estimate-command.test.ts) stored one on `P`;
     // watched 2026-10-23.
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
-    const before = await this.storedMeasureEstimate(workItem.projectId, id, stepId, key);
+    const before = await this.storedMeasureEstimate(workItem.workPackageId, id, stepId, key);
     const stamp = this.clock.stampFor(actorId);
     const estimate: StoredMeasureEstimate = {
       workItemId: id,
@@ -7296,10 +7458,10 @@ export class WorkItemService {
       ...(priced.basis === null ? {} : { basis: priced.basis }),
     };
     const written = await this.opts.measureEstimates.set(estimate, stamp);
-    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
-    await this.announceTree(workItem.projectId);
+    if (written !== 'written') return { ok: false, reason: written };
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'measure_estimate',
       `estimate ${key} on ${quoteName(workItem.name)}`,
@@ -7335,7 +7497,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem } = context.value;
     const decided = decideMeasureEstimate(
-      await this.opts.measures.definitionsFor(workItem.projectId),
+      await this.opts.measures.definitionsFor(workItem.workPackageId),
       requested,
       null,
     );
@@ -7346,13 +7508,13 @@ export class WorkItemService {
     // answered three_point_forbidden; watched 2026-10-23.
     if (!decided.ok && decided.reason !== 'three_point_forbidden') return decided;
     const key = requested;
-    const before = await this.storedMeasureEstimate(workItem.projectId, id, stepId, key);
+    const before = await this.storedMeasureEstimate(workItem.workPackageId, id, stepId, key);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.measureEstimates.remove(id, stepId, key, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     if (before !== null) {
       await this.record(
-        workItem.projectId,
+        workItem.workPackageId,
         stamp,
         'clear_measure_estimate',
         `clear the ${key} estimate on ${quoteName(workItem.name)}`,
@@ -7392,13 +7554,13 @@ export class WorkItemService {
     // negative or fractional budget and stores nothing`
     // (budget-command.test.ts) reached the store; watched 2026-10-23.
     const decided = decideBudget(
-      await this.opts.measures.definitionsFor(workItem.projectId),
+      await this.opts.measures.definitionsFor(workItem.workPackageId),
       requested,
       figures,
     );
     if (!decided.ok) return decided;
     const { key } = decided.definition;
-    const before = await this.storedBudget(workItem.projectId, id, key);
+    const before = await this.storedBudget(workItem.workPackageId, id, key);
     const stamp = this.clock.stampFor(actorId);
     const budget: StoredBudget = {
       workItemId: id,
@@ -7408,9 +7570,9 @@ export class WorkItemService {
       holdPerAttempt: figures.holdPerAttempt,
     };
     await this.opts.budgets.set(budget, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'budget',
       `budget ${key} on ${quoteName(workItem.name)}`,
@@ -7448,19 +7610,19 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem } = context.value;
     const decided = decideBudget(
-      await this.opts.measures.definitionsFor(workItem.projectId),
+      await this.opts.measures.definitionsFor(workItem.workPackageId),
       requested,
       null,
     );
     if (!decided.ok) return decided;
     const { key } = decided.definition;
-    const before = await this.storedBudget(workItem.projectId, id, key);
+    const before = await this.storedBudget(workItem.workPackageId, id, key);
     if (before === null) return { ok: true, value: null };
     const stamp = this.clock.stampFor(actorId);
     await this.opts.budgets.remove(id, key, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'clear_budget',
       `clear the ${key} budget on ${quoteName(workItem.name)}`,
@@ -7482,7 +7644,7 @@ export class WorkItemService {
    * Guarded exactly as {@link WorkItemService.setActual} is, and the two
    * refusals are the same two for the same reasons: a row with children is
    * `rolled_up`, because its reading is folded from what is below it and a
-   * stored state there would be ignored by every reader; a `stepId` this project
+   * stored state there would be ignored by every reader; a `stepId` this work package
    * does not hold is `unknown_step`.
    *
    * **Nothing about this reaches the schedule.** Recording that a step is done
@@ -7513,9 +7675,9 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
-    const before = await this.storedProgress(workItem.projectId, id, stepId);
+    const before = await this.storedProgress(workItem.workPackageId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     // `statedAt` off the act's own stamp — {@link setActual}'s reading of
     // `recordedAt`, in this method's tense.
@@ -7523,10 +7685,10 @@ export class WorkItemService {
       { workItemId: id, stepId, state, statedAt: stamp.at },
       stamp,
     );
-    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
-    await this.announceTree(workItem.projectId);
+    if (written !== 'written') return { ok: false, reason: written };
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'progress',
       `${state === 'done' ? 'finish' : 'start'} work on ${quoteName(workItem.name)}`,
@@ -7548,7 +7710,7 @@ export class WorkItemService {
   }
 
   /**
-   * Sets the independent direct blockage fact on a project leaf. Validates
+   * Sets the independent direct blockage fact on a work package leaf. Validates
    * ownership, leaf and step before equivalence; equivalent presence changes
    * no stamps, events or journal. New blockage on done is refused, while a
    * retained fact may be cleared. Conditional replay preserves its exact time,
@@ -7567,16 +7729,16 @@ export class WorkItemService {
     // Proof: removing leaf guard let mounted absent-parent clear succeed; watched 2026-10-14.
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     // Proof: removing step guard let unknown-service-step clear succeed; watched 2026-10-14.
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before =
-      (await this.opts.blockages.listByWorkItems(workItem.projectId, [id])).find(
+      (await this.opts.blockages.listByWorkItems(workItem.workPackageId, [id])).find(
         (fact) => fact.workItemId === id && fact.stepId === stepId,
       )?.blockedAt ?? null;
     // Proof: removing equivalence changed the mounted no-op full snapshot; watched 2026-10-14.
     if ((before !== null) === isBlocked) return { ok: true, value: null };
     // Proof: removing done guard committed the mounted forbidden batch; watched 2026-10-14.
-    if (isBlocked && (await this.storedProgress(workItem.projectId, id, stepId)) === 'done')
+    if (isBlocked && (await this.storedProgress(workItem.workPackageId, id, stepId)) === 'done')
       return { ok: false, reason: 'node_done' };
     const stamp = this.clock.stampFor(actorId);
     const after = isBlocked ? stamp.at : null;
@@ -7590,9 +7752,9 @@ export class WorkItemService {
       // Proof: ignoring store refusal committed the memory batch's prior patch; watched 2026-10-14.
       if (written !== 'written') throw new Error(`cannot set step blockage: ${written}`);
     }
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'step_blockage',
       `${isBlocked ? 'block' : 'unblock'} a step on ${quoteName(workItem.name)}`,
@@ -7635,16 +7797,16 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.value;
-    const before = await this.storedProgress(workItem.projectId, id, stepId);
+    const before = await this.storedProgress(workItem.workPackageId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.progress.remove(id, stepId, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     // Nothing was stated, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` and `clearActual` make, and the reason a
     // plan does not gain a history row every time somebody clears an empty box.
     if (before !== null) {
       await this.record(
-        workItem.projectId,
+        workItem.workPackageId,
         stamp,
         'clear_progress',
         `clear the progress on ${quoteName(workItem.name)}`,
@@ -7693,7 +7855,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     // The fast path only: the store reads the node's state again inside the
     // start's `BEGIN IMMEDIATE`, which is the refusal another process cannot
@@ -7702,7 +7864,7 @@ export class WorkItemService {
     // in `step-node-attempt.controller.db.test.ts` still refused on the store's
     // read; with that removed as well the batch answered 200 (`- "error":
     // "node_done"` / `+ "results": [...]`).
-    if ((await this.storedProgress(workItem.projectId, id, stepId)) === 'done')
+    if ((await this.storedProgress(workItem.workPackageId, id, stepId)) === 'done')
       return { ok: false, reason: 'node_done' };
     // Proof: this refusal removed, the same case still passed on the store's
     // own `attempt_running` — the partial index's face, as D1 intends; with
@@ -7731,7 +7893,7 @@ export class WorkItemService {
     // 500 holding 300, naming the budget` and two more cases of
     // budget-admission.controller.db.test.ts started the attempts (1 pass,
     // 3 fail); watched 2026-10-24.
-    const exhausted = await this.exhaustedBudgetFor(workItem.projectId, rows, {
+    const exhausted = await this.exhaustedBudgetFor(workItem.workPackageId, rows, {
       workItemId: id,
       stepId,
       attemptNumber: 0,
@@ -7756,9 +7918,9 @@ export class WorkItemService {
     );
     if (!started.ok) return { ok: false, reason: started.reason };
     const { attempt } = started;
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'start_attempt',
       `started attempt ${String(attempt.attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)}`,
@@ -7800,7 +7962,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const running = await this.runningAttempt(id, stepId);
     // Proof: this refusal removed made `refuses no_running_attempt and
@@ -7827,9 +7989,9 @@ export class WorkItemService {
       stamp,
     );
     if (!ended.ok) return { ok: false, reason: ended.reason };
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'end_attempt',
       `ended attempt ${String(ended.attempt.attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)} ${end.outcome}`,
@@ -7866,7 +8028,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
+    if (!(await this.holdsStep(workItem.workPackageId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const stamp = this.clock.stampFor(actorId);
     const removed = await this.opts.attempts.remove(id, stepId, attemptNumber, stamp);
@@ -7874,9 +8036,9 @@ export class WorkItemService {
     // `step-node-attempt.controller.db.test.ts` answered 200 where 404 was
     // owed; watched 2026-10-12.
     if (removed === null) return { ok: false, reason: 'unknown_attempt' };
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'remove_attempt',
       `removed attempt ${String(attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)}`,
@@ -7895,7 +8057,7 @@ export class WorkItemService {
    * face to — by writing the statements the status is folded from, never a
    * status of its own.
    *
-   * `done` writes `done` on every step of the project for the leaf, or for
+   * `done` writes `done` on every step of the work package for the leaf, or for
    * every leaf beneath a parent; a step already saying so is left alone. Every
    * work item the act speaks for — the leaves and, for a parent, the parent
    * itself — takes `on` as its fact end when it holds none, and `factStart`,
@@ -7904,11 +8066,11 @@ export class WorkItemService {
    * its last attempt ended, and every other row the day of this act's own
    * stamp; `factStart` absent, `done` and `in_progress` give a leaf holding
    * any attempt the day its first attempt started (`step-node-attempts` D4).
-   * Every such day is read in the project's timezone
-   * ({@link isoDateOfInstantIn}), so a `UTC` project with no attempts fills
+   * Every such day is read in the work package's timezone
+   * ({@link isoDateOfInstantIn}), so a `UTC` work package with no attempts fills
    * exactly what it always did: one clock read, never a second `now()`.
    *
-   * @throws when the project has no stored timezone: trusted state.
+   * @throws when the work package has no stored timezone: trusted state.
    *
    * `unknown` takes every statement off every leaf in scope and, off every
    * in-scope work item that **read done** before the act — the leaves and the
@@ -7943,7 +8105,7 @@ export class WorkItemService {
    * the fact end instead. On a parent it starts one leaf: the first in tree
    * order with no statement, unheld preferred; a parent reading done reopens
    * its first leaf and clears its own fact end; a parent already in progress
-   * writes nothing. A project with no steps refuses `in_progress` and `done`
+   * writes nothing. A work package with no steps refuses `in_progress` and `done`
    * with `no_steps`.
    *
    * Proof: the `steps.length === 0` return deleted and `writes nothing when
@@ -7971,10 +8133,10 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     const stamp = this.clock.stampFor(actorId);
-    const zone = await this.opts.projects.timezoneOf(workItem.projectId);
-    // `contextFor` has just read the project, so a missing zone is a store
-    // that lost its row, never a project to read in some default zone.
-    if (zone === null) throw new Error(`project ${workItem.projectId} has no timezone`);
+    const zone = await this.opts.workPackages.timezoneOf(workItem.workPackageId);
+    // `contextFor` has just read the work package, so a missing zone is a store
+    // that lost its row, never a work package to read in some default zone.
+    if (zone === null) throw new Error(`work package ${workItem.workPackageId} has no timezone`);
     // Proof: `zone` replaced by 'UTC' here made `Kyiv at 23:30Z fills the
     // next day` read `factEnd: "2026-09-12"` for `"2026-09-13"`; watched
     // 2026-10-12.
@@ -7985,37 +8147,37 @@ export class WorkItemService {
       .filter((each) => !hasChildren.has(each))
       .sort((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
     const witness = attemptWitness(
-      await this.opts.attempts.listByWorkItems(workItem.projectId, leaves),
+      await this.opts.attempts.listByWorkItems(workItem.workPackageId, leaves),
       zone,
     );
-    const projectSteps = await this.opts.projects.stepsOf(workItem.projectId);
+    const workPackageSteps = await this.opts.workPackages.stepsOf(workItem.workPackageId);
     // Proof: this refusal removed made `refuses in progress and done with
     // no_steps` fail on `Expected: {ok: false, reason: "no_steps"}, Received:
     // {ok: true}` — a done mark with no step to write; watched 2026-09-29.
-    if ((status === 'done' || status === 'in_progress') && projectSteps.length === 0) {
+    if ((status === 'done' || status === 'in_progress') && workPackageSteps.length === 0) {
       return { ok: false, reason: 'no_steps' };
     }
-    const stated = await this.opts.progress.listByProject(workItem.projectId);
+    const stated = await this.opts.progress.listByWorkPackage(workItem.workPackageId);
     const statedOf = new Map(
       stated.map((each) => [progressKey(each.workItemId, each.stepId), each.state]),
     );
     const rowsById = new Map(rows.map((row) => [row.id, row]));
     const rowOf = (rowId: string): WorkItem => {
       const row = rowsById.get(rowId);
-      if (row === undefined) throw new Error(`${rowId} is not a row of this project`);
+      if (row === undefined) throw new Error(`${rowId} is not a row of this work package`);
       return row;
     };
     // What each row read before this act: the read's own progress fold, never
     // a stored flag, so the cell and this method agree about "was done".
-    const attempted = await this.opts.attempts.listByProject(workItem.projectId);
+    const attempted = await this.opts.attempts.listByWorkPackage(workItem.workPackageId);
     const wasDone = rollUpWorkItemStatuses(
       rows,
       rollUpProgress(
         rows,
         stated,
         workedStepsOf(
-          await this.opts.estimates.listByProject(workItem.projectId),
-          await this.opts.actuals.listByProject(workItem.projectId),
+          await this.opts.estimates.listByWorkPackage(workItem.workPackageId),
+          await this.opts.actuals.listByWorkPackage(workItem.workPackageId),
           stated,
           attempted,
         ),
@@ -8074,17 +8236,17 @@ export class WorkItemService {
       });
     };
     const hasStatement = (leafId: string) =>
-      projectSteps.some((step) => statedOf.has(progressKey(leafId, step.id)));
+      workPackageSteps.some((step) => statedOf.has(progressKey(leafId, step.id)));
     /** Starts one leaf: reopen it when it reads done, else speak for its first silent step. */
     const startLeaf = (leafId: string) => {
       if (readsDone(leafId)) {
-        const last = projectSteps.at(-1);
+        const last = workPackageSteps.at(-1);
         if (last === undefined) throw new Error('no_steps was refused above');
         setStep(leafId, last.id, 'in_progress');
         patchRow(leafId, { factEnd: null, hold: null });
         return;
       }
-      const silent = projectSteps.find((step) => !statedOf.has(progressKey(leafId, step.id)));
+      const silent = workPackageSteps.find((step) => !statedOf.has(progressKey(leafId, step.id)));
       if (silent !== undefined) setStep(leafId, silent.id, 'in_progress');
       patchRow(leafId, {
         hold: null,
@@ -8096,7 +8258,7 @@ export class WorkItemService {
 
     if (status === 'done') {
       for (const leafId of leaves) {
-        for (const step of projectSteps) setStep(leafId, step.id, 'done');
+        for (const step of workPackageSteps) setStep(leafId, step.id, 'done');
         patchRow(leafId, { hold: null });
       }
       for (const spokenFor of new Set([...leaves, id])) {
@@ -8105,7 +8267,7 @@ export class WorkItemService {
         // the work ended when its last attempt did, and began with its first.
         // Proof: the witness skipped (`attempted` read as undefined) made
         // `done fills the fact end from the last attempt's end day in the
-        // project zone` read the act's day — `factEnd: "2026-10-11"` for
+        // work package zone` read the act's day — `factEnd: "2026-10-11"` for
         // `"2026-10-10"` and `factStart: null` for `"2026-10-08"`; watched
         // 2026-10-12.
         const attempted = witness.get(spokenFor);
@@ -8169,10 +8331,10 @@ export class WorkItemService {
       // whose progress fold reads in progress…` fail — nothing was written;
       // watched 2026-09-29.
       const reading = workItemStatusesOf(rows, wasDone, {
-        edges: (await this.opts.dependencies.listByProject(workItem.projectId)).filter(
+        edges: (await this.opts.dependencies.listByWorkPackage(workItem.workPackageId)).filter(
           (edge) => rowsById.has(edge.predecessorId) && rowsById.has(edge.successorId),
         ),
-        typed: await this.opts.typedDependencies.listByProject(workItem.projectId),
+        typed: await this.opts.typedDependencies.listByWorkPackage(workItem.workPackageId),
       });
       if (reading.get(id) === 'in_progress') return { ok: true, value: null };
       if (readsDone(id)) {
@@ -8191,17 +8353,17 @@ export class WorkItemService {
 
     if (steps.length === 0) return { ok: true, value: null };
     for (const { forward } of steps) {
-      const applied = await this.apply(workItem.projectId, forward, stamp);
+      const applied = await this.apply(workItem.workPackageId, forward, stamp);
       // Every step was built from rows and steps read a moment ago in this same
       // act, so a refusal here is the world moving underneath a write — an
       // invariant break to report loudly, not an outcome to model.
       if (!applied.ok) throw new Error(`setStatus could not ${forward.do}: ${applied.detail}`);
     }
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     const touched = [...new Set(steps.flatMap((each) => touchedBy(each.forward)))];
     const [only] = steps;
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'status',
       statusSentence(status, quoteName(workItem.name)),
@@ -8220,7 +8382,7 @@ export class WorkItemService {
   /** Checked detached facts for every old/new endpoint, before labels or mutation. */
   private async typedEvidence(
     context: DependencyContext,
-    projectId: string,
+    workPackageId: string,
     relationships: readonly StoredTypedDependency[],
   ): Promise<
     | {
@@ -8232,8 +8394,8 @@ export class WorkItemService {
   > {
     const external = relationships.some(
       (relationship) =>
-        relationship.predecessor.projectId !== projectId ||
-        relationship.successor.projectId !== projectId,
+        relationship.predecessor.workPackageId !== workPackageId ||
+        relationship.successor.workPackageId !== workPackageId,
     );
     const endpoints = new Map<string, EndpointEvidence>();
     for (const relationship of relationships)
@@ -8256,9 +8418,9 @@ export class WorkItemService {
         endpoints.set(key, evidence);
       }
     const remote = [...endpoints.values()]
-      .filter((evidence) => evidence.endpoint.projectId !== projectId)
+      .filter((evidence) => evidence.endpoint.workPackageId !== workPackageId)
       .map((evidence) => ({
-        projectId: evidence.endpoint.projectId,
+        workPackageId: evidence.endpoint.workPackageId,
         workItemId: evidence.endpoint.workItemId,
       }));
     const revisions = await context.endpoints.readRevisions(remote);
@@ -8268,7 +8430,7 @@ export class WorkItemService {
 
   /** Complete proposed owner set checked against the fresh connected graph. */
   private async typedRefusal(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     existing: readonly StoredTypedDependency[],
     proposed: StoredTypedDependency,
@@ -8277,20 +8439,26 @@ export class WorkItemService {
     // Proof: removing only this guard changed misowned resulting-relationship redo
     // from stale_undo/not_found to the working-plan owner throw, before storage
     // (admitted redo test, 2026-10-22); entry guards stayed installed.
-    if (proposed.projectId !== projectId || proposed.successor.projectId !== projectId)
+    if (
+      proposed.workPackageId !== workPackageId ||
+      proposed.successor.workPackageId !== workPackageId
+    )
       return 'not_found';
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (context) => {
-        const evidence = await this.typedEvidence(context, projectId, [proposed]);
+        const evidence = await this.typedEvidence(context, workPackageId, [proposed]);
         if (!evidence.ok) return evidence.reason;
         // Proof: bypassing this consumer restored mounted pending-endpoint add/update
         // HTTP500 instead of modeled HTTP409; all-table refusal snapshots pass (2026-10-22).
         if (await this.opts.typedDependencies.hasDeletingEndpoint(proposed))
-          return 'project_deleting';
-        if (proposed.predecessor.projectId !== projectId && !this.externalDependenciesActive)
+          return 'work_package_deleting';
+        if (
+          proposed.predecessor.workPackageId !== workPackageId &&
+          !this.externalDependenciesActive
+        )
           return 'external_dependencies_inactive';
         if (
           existing.some(
@@ -8308,7 +8476,7 @@ export class WorkItemService {
         // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
         // Proof: suppressing this consumer changed both synthetic mounted compound remote-cycle
         // undo/redo details to the final cycle fallback; A/B revisions stayed unchanged (2026-10-23).
-        const cycle = await context.graph.findCycle(projectId, {
+        const cycle = await context.graph.findCycle(workPackageId, {
           typed: [...existing.filter((row) => row.id !== proposed.id), proposed],
         });
         return cycle === null ? null : cycle.kind === 'self_node' ? 'self_node' : 'cycle';
@@ -8324,9 +8492,9 @@ export class WorkItemService {
   ): string {
     const found = evidence.get(JSON.stringify(endpoint));
     if (found === undefined) throw new Error('checked typed endpoint evidence is missing');
-    return endpoint.projectId === ownerId
+    return endpoint.workPackageId === ownerId
       ? found.name
-      : `${found.projectAbbreviation}.${found.workItemNumber} ${found.name}`;
+      : `${found.workPackageAbbreviation}.${found.workItemNumber} ${found.name}`;
   }
 
   /**
@@ -8342,16 +8510,16 @@ export class WorkItemService {
     if (left === undefined) return false;
     return (
       left.id === right.id &&
-      left.projectId === right.projectId &&
+      left.workPackageId === right.workPackageId &&
       // Proof: bypassing this consumer failed `corrupt scoped stored-row delivery`
       // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
       formatScopedDependencyKey(left) === formatScopedDependencyKey(right)
     );
   }
 
-  /** Adds a scoped relationship; explicit endpoint projects are never overwritten. */
+  /** Adds a scoped relationship; explicit endpoint work packages are never overwritten. */
   async addTypedDependency(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     input: {
       predecessor: ScopedDependencyEndpoint;
@@ -8359,44 +8527,45 @@ export class WorkItemService {
       type: string;
     },
   ): Promise<WorkItemOutcome<string>> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
     if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
     // Proof: independently removing this entry guard read the protected second
     // successor in the corresponding add/update SQLite test (2026-10-22).
-    if (input.successor.projectId !== projectId) return { ok: false, reason: 'not_found' };
+    if (input.successor.workPackageId !== workPackageId) return { ok: false, reason: 'not_found' };
     const dependency: StoredTypedDependency = {
       id: this.clock.newId(),
-      projectId,
+      workPackageId,
       ...input,
       type: input.type,
     };
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (context) => {
-        const evidence = await this.typedEvidence(context, projectId, [dependency]);
+        const evidence = await this.typedEvidence(context, workPackageId, [dependency]);
         if (!evidence.ok) return evidence;
-        if (input.predecessor.projectId !== projectId && !this.externalDependenciesActive)
+        if (input.predecessor.workPackageId !== workPackageId && !this.externalDependenciesActive)
           return { ok: false, reason: 'external_dependencies_inactive' };
-        const rows = await this.opts.workItems.listByProject(projectId);
-        const existing = await this.opts.typedDependencies.listByProject(projectId);
-        const refusal = await this.typedRefusal(projectId, actorId, existing, dependency);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+        const existing = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
+        const refusal = await this.typedRefusal(workPackageId, actorId, existing, dependency);
         if (refusal !== null) return { ok: false, reason: refusal };
         const writeRefusal = await this.authorizeTypedWrites(context, [dependency]);
         if (writeRefusal !== null) return writeRefusal;
         const stamp = this.clock.stampFor(actorId);
-        context.assertUsable(projectId, actorId);
+        context.assertUsable(workPackageId, actorId);
         await this.opts.typedDependencies.add(dependency, stamp);
-        await this.announceTree(projectId);
+        await this.announceTree(workPackageId);
         await this.record(
-          projectId,
+          workPackageId,
           stamp,
           'add_typed_dependency',
-          `make ${quoteName(this.endpointLabel(input.successor, evidence.endpoints, projectId))} wait for ${quoteName(this.endpointLabel(input.predecessor, evidence.endpoints, projectId))}`,
+          `make ${quoteName(this.endpointLabel(input.successor, evidence.endpoints, workPackageId))} wait for ${quoteName(this.endpointLabel(input.predecessor, evidence.endpoints, workPackageId))}`,
           {
             forward: { do: 'add_typed_dependency', dependency },
             inverse: { do: 'remove_typed_dependency', dependency },
@@ -8414,7 +8583,7 @@ export class WorkItemService {
 
   /** Updates an owned relationship, rechecking old and new endpoint authority first. */
   async updateTypedDependency(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     dependencyId: string,
     input: {
@@ -8423,46 +8592,52 @@ export class WorkItemService {
       type: string;
     },
   ): Promise<WorkItemOutcome<null>> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
     if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
     // Proof: independently removing this entry guard read the protected second
     // successor in the corresponding add/update SQLite test (2026-10-22).
-    if (input.successor.projectId !== projectId) return { ok: false, reason: 'not_found' };
-    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    if (input.successor.workPackageId !== workPackageId) return { ok: false, reason: 'not_found' };
+    const existing = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
     const from = existing.find((row) => row.id === dependencyId);
     if (from === undefined) return { ok: false, reason: 'unknown_dependency' };
-    const to: StoredTypedDependency = { id: dependencyId, projectId, ...input, type: input.type };
+    const to: StoredTypedDependency = {
+      id: dependencyId,
+      workPackageId,
+      ...input,
+      type: input.type,
+    };
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (context) => {
         // Proof: old-update-evidence bypass failed `update refuses an injected denial`'s selected assertion
         // (actual SQLite boundary; watched 2026-10-22).
-        const evidence = await this.typedEvidence(context, projectId, [from, to]);
+        const evidence = await this.typedEvidence(context, workPackageId, [from, to]);
         if (!evidence.ok) return evidence;
         if (
-          [from, to].some((dependency) => dependency.predecessor.projectId !== projectId) &&
+          [from, to].some((dependency) => dependency.predecessor.workPackageId !== workPackageId) &&
           !this.externalDependenciesActive
         )
           return { ok: false, reason: 'external_dependencies_inactive' };
-        const rows = await this.opts.workItems.listByProject(projectId);
-        const refusal = await this.typedRefusal(projectId, actorId, existing, to);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+        const refusal = await this.typedRefusal(workPackageId, actorId, existing, to);
         if (refusal !== null) return { ok: false, reason: refusal };
         const writeRefusal = await this.authorizeTypedWrites(context, [from, to]);
         if (writeRefusal !== null) return writeRefusal;
         const stamp = this.clock.stampFor(actorId);
-        context.assertUsable(projectId, actorId);
+        context.assertUsable(workPackageId, actorId);
         await this.opts.typedDependencies.update(to, stamp);
-        await this.announceTree(projectId);
+        await this.announceTree(workPackageId);
         await this.record(
-          projectId,
+          workPackageId,
           stamp,
           'update_typed_dependency',
-          `change dependency from ${quoteName(this.endpointLabel(to.predecessor, evidence.endpoints, projectId))} to ${quoteName(this.endpointLabel(to.successor, evidence.endpoints, projectId))}`,
+          `change dependency from ${quoteName(this.endpointLabel(to.predecessor, evidence.endpoints, workPackageId))} to ${quoteName(this.endpointLabel(to.successor, evidence.endpoints, workPackageId))}`,
           {
             forward: { do: 'update_typed_dependency', from, to },
             inverse: { do: 'update_typed_dependency', from: to, to: from },
@@ -8480,46 +8655,50 @@ export class WorkItemService {
 
   /** Removes an owned relationship only while both original endpoints remain readable. */
   async removeTypedDependency(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     dependencyId: string,
   ): Promise<WorkItemOutcome<null>> {
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
-    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
+    const existing = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
     const dependency = existing.find((row) => row.id === dependencyId);
     if (dependency === undefined) return { ok: false, reason: 'unknown_dependency' };
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (context) => {
         // Proof: old-remove-evidence bypass failed `remove refuses an injected denial`'s selected assertion
         // (actual SQLite boundary; watched 2026-10-22).
-        const evidence = await this.typedEvidence(context, projectId, [dependency]);
+        const evidence = await this.typedEvidence(context, workPackageId, [dependency]);
         if (!evidence.ok) return evidence;
-        if (dependency.predecessor.projectId !== projectId && !this.externalDependenciesActive)
+        if (
+          dependency.predecessor.workPackageId !== workPackageId &&
+          !this.externalDependenciesActive
+        )
           return { ok: false, reason: 'external_dependencies_inactive' };
         // Proof: bypassing this consumer failed `connected typed-remove refuses`
         // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
-        const cycle = await context.graph.findCycle(projectId, {
+        const cycle = await context.graph.findCycle(workPackageId, {
           typed: existing.filter((row) => row.id !== dependencyId),
         });
         if (cycle !== null)
           return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         const writeRefusal = await this.authorizeTypedWrites(context, [dependency]);
         if (writeRefusal !== null) return writeRefusal;
         const stamp = this.clock.stampFor(actorId);
-        context.assertUsable(projectId, actorId);
+        context.assertUsable(workPackageId, actorId);
         await this.opts.typedDependencies.remove(dependencyId, stamp);
-        await this.announceTree(projectId);
+        await this.announceTree(workPackageId);
         await this.record(
-          projectId,
+          workPackageId,
           stamp,
           'remove_typed_dependency',
-          `remove dependency from ${quoteName(this.endpointLabel(dependency.predecessor, evidence.endpoints, projectId))} to ${quoteName(this.endpointLabel(dependency.successor, evidence.endpoints, projectId))}`,
+          `remove dependency from ${quoteName(this.endpointLabel(dependency.predecessor, evidence.endpoints, workPackageId))} to ${quoteName(this.endpointLabel(dependency.successor, evidence.endpoints, workPackageId))}`,
           {
             forward: { do: 'remove_typed_dependency', dependency },
             inverse: { do: 'add_typed_dependency', dependency },
@@ -8552,9 +8731,9 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
 
-    const existing = await this.opts.dependencies.listByProject(workItem.projectId);
-    // `rows` is this project's only, so a predecessor from another project is
-    // simply not among them and comes back `not_found` — the cross-project case
+    const existing = await this.opts.dependencies.listByWorkPackage(workItem.workPackageId);
+    // `rows` is this work package's only, so a predecessor from another work package is
+    // simply not among them and comes back `not_found` — the cross-work-package case
     // is unrepresentable rather than separately guarded.
     const refusal = canDepend(rows, existing, predecessorId, id);
     if (refusal !== null) return { ok: false, reason: refusal };
@@ -8564,10 +8743,10 @@ export class WorkItemService {
     // `{ ok: true, value: null }` instead of `cycle`; watched 2026-09-28.
     // Proof: bypassing this consumer failed `connected add-legacy refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const cycle = await this.findDependencyCycle(workItem.projectId, actorId, {
+    const cycle = await this.findDependencyCycle(workItem.workPackageId, actorId, {
       legacy: [
         ...existing,
-        { id: 'proposed', projectId: workItem.projectId, predecessorId, successorId: id },
+        { id: 'proposed', workPackageId: workItem.workPackageId, predecessorId, successorId: id },
       ],
     });
     if (cycle !== null)
@@ -8577,15 +8756,15 @@ export class WorkItemService {
     await this.opts.dependencies.add(
       {
         id: this.clock.newId(),
-        projectId: workItem.projectId,
+        workPackageId: workItem.workPackageId,
         predecessorId,
         successorId: id,
       },
       stamp,
     );
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     await this.record(
-      workItem.projectId,
+      workItem.workPackageId,
       stamp,
       'add_dependency',
       `make ${quoteName(workItem.name)} wait for ${quoteName(nameOf(rows, predecessorId))}`,
@@ -8609,13 +8788,13 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
 
-    const existing = await this.opts.dependencies.listByProject(workItem.projectId);
+    const existing = await this.opts.dependencies.listByWorkPackage(workItem.workPackageId);
     const existed = existing.some(
       (edge) => edge.predecessorId === predecessorId && edge.successorId === id,
     );
     // Proof: bypassing this consumer failed `connected remove-legacy refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-    const cycle = await this.findDependencyCycle(workItem.projectId, actorId, {
+    const cycle = await this.findDependencyCycle(workItem.workPackageId, actorId, {
       legacy: existing.filter(
         (edge) => edge.predecessorId !== predecessorId || edge.successorId !== id,
       ),
@@ -8624,12 +8803,12 @@ export class WorkItemService {
       return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
     const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.remove(predecessorId, id, stamp);
-    await this.announceTree(workItem.projectId);
+    await this.announceTree(workItem.workPackageId);
     // The removal is idempotent, so a request for an edge that was not there
     // changed nothing and there is nothing to put back.
     if (existed) {
       await this.record(
-        workItem.projectId,
+        workItem.workPackageId,
         stamp,
         'remove_dependency',
         `stop ${quoteName(workItem.name)} waiting for ${quoteName(nameOf(rows, predecessorId))}`,
@@ -8658,20 +8837,20 @@ export class WorkItemService {
   }
 
   /**
-   * The project's IANA zone, which the tree read carries so a step card reads
+   * The work package's IANA zone, which the tree read carries so a step card reads
    * attempt instants in it without a second request (`step-node-attempts` D7).
    *
-   * @throws when the project has no zone row: the caller has just read its
+   * @throws when the work package has no zone row: the caller has just read its
    * tree, so a miss is a store that lost it, never a plan to draw without one.
    */
-  async timezoneOf(projectId: string): Promise<string> {
-    const timezone = await this.opts.projects.timezoneOf(projectId);
-    if (timezone === null) throw new Error(`project ${projectId} has no timezone`);
+  async timezoneOf(workPackageId: string): Promise<string> {
+    const timezone = await this.opts.workPackages.timezoneOf(workPackageId);
+    if (timezone === null) throw new Error(`work package ${workPackageId} has no timezone`);
     return timezone;
   }
 
   /**
-   * Reverses this account's own newest command on this project — **if nothing
+   * Reverses this account's own newest command on this work package — **if nothing
    * it touched has moved since**. The account acting as itself, with no agent
    * person: legacy access carries no credential, as the legacy `run` pins none.
    *
@@ -8687,16 +8866,20 @@ export class WorkItemService {
    * later would still conceal the conflict already reported, so keeping it would jam the stack,
    * refusing every later press of the key for a change nobody can reach.
    */
-  undo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack({ projectId, userId: actorId, personId: null }, 'undo', LEGACY_ACCESS);
+  undo(workPackageId: string, actorId: string): Promise<UndoOutcome> {
+    return this.walkStack(
+      { workPackageId, userId: actorId, personId: null },
+      'undo',
+      LEGACY_ACCESS,
+    );
   }
 
   /**
    * {@link undo} of `stack` through the caller's access. Under scoped access the entry is
    * refused as `not_found` before anything is written when a row it would
-   * write exists in another project: an entry journalled before activation
-   * may name one, and the project's own closure would not show the write.
-   * The caller owns the project check and the closure check around it.
+   * write exists in another work package: an entry journalled before activation
+   * may name one, and the work package's own closure would not show the write.
+   * The caller owns the work package check and the closure check around it.
    */
   undoWithin(stack: UndoStack, access: ResourceAccess): Promise<UndoOutcome> {
     return this.walkStack(stack, 'undo', access);
@@ -8708,7 +8891,7 @@ export class WorkItemService {
   }
 
   /**
-   * Re-applies the command this account most recently undid on this project,
+   * Re-applies the command this account most recently undid on this work package,
    * under exactly the same condition.
    *
    * A redo is as much a write from a stale read as an undo is, and the
@@ -8717,8 +8900,12 @@ export class WorkItemService {
    * moment this account makes any forward change, because re-applying a
    * command on top of a plan that has moved on is a different command.
    */
-  redo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack({ projectId, userId: actorId, personId: null }, 'redo', LEGACY_ACCESS);
+  redo(workPackageId: string, actorId: string): Promise<UndoOutcome> {
+    return this.walkStack(
+      { workPackageId, userId: actorId, personId: null },
+      'redo',
+      LEGACY_ACCESS,
+    );
   }
 
   private async walkStack(
@@ -8726,17 +8913,17 @@ export class WorkItemService {
     direction: 'undo' | 'redo',
     access: ResourceAccess,
   ): Promise<UndoOutcome> {
-    const { projectId, userId: actorId } = stack;
-    const project = await this.opts.projects.findById(projectId);
-    if (project === null) return { ok: false, reason: 'not_found', detail: null };
-    // An undo is a mutation. Being allowed to read a restricted project is not
+    const { workPackageId, userId: actorId } = stack;
+    const workPackage = await this.opts.workPackages.findById(workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found', detail: null };
+    // An undo is a mutation. Being allowed to read a restricted work package is not
     // being allowed to reverse somebody's work in it.
-    if (!this.opts.admission.admits(project, actorId))
+    if (!this.opts.admission.admits(workPackage, actorId))
       return { ok: false, reason: 'forbidden', detail: null };
 
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (dependencyContext) => {
         // The whole stack, because applying one entry re-stamps its neighbours.
@@ -8755,55 +8942,44 @@ export class WorkItemService {
           if (payload.authorization === null)
             return { ok: false, reason: 'replay_provenance_unavailable', detail: null };
           for (const requirement of payload.authorization.requirements) {
-            const addressed = await findProjectWithin(
-              this.opts.projects,
+            const addressed = await findWorkPackageWithin(
+              this.opts.workPackages,
               requirement.target.workPackageId,
               access,
             );
             if (addressed === null) return { ok: false, reason: 'not_found', detail: null };
-            if (requirement.target.kind === 'budget_owner') {
-              // Proof: omitting this P5 evaluation admitted both restricted budget undo and redo despite no effective budget permission on the package, 2026-11-09.
-              const packageAuthority = await authorizePackage(
-                this.opts.accessDecisions,
-                access,
-                addressed,
-                actorId,
-                requirement.permission,
-              );
-              // Proof: budget-package-replay fault failed 'restricted budget undo' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
-              if (!packageAuthority.ok) return { ...packageAuthority, detail: null };
-            }
-            const authority =
-              requirement.target.kind === 'budget_owner'
-                ? await authorize(
-                    this.opts.accessDecisions,
-                    access.principal,
-                    { kind: 'organization', organizationId: access.scope.organizationId },
-                    requirement.permission,
-                  )
-                : await authorizePackage(
-                    this.opts.accessDecisions,
-                    access,
-                    addressed,
-                    actorId,
-                    requirement.permission,
-                  );
+            // Both semantic anchors use the addressed package's actual current parent,
+            // applying its restriction, actor coherence and cap once per requirement.
+            // Proof: omitting this P5 evaluation admitted both restricted budget undo and redo despite no effective budget permission on the package, 2026-11-09.
+            // Proof: budget-package-replay fault failed 'restricted budget undo' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+            const authority = await authorizePackage(
+              this.opts.accessDecisions,
+              access,
+              addressed,
+              actorId,
+              requirement.permission,
+            );
+            // Historical organization-target fault, superseded by current parent-chain semantics.
             // Proof: budget-owner-replay fault failed 'budget-owner authority independently.*replay' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+            // Proof: omitting this current requirement refusal admitted the first ungranted new-parent undo in 'replays immutable budget obligations' (budget refusal); canonical passed before/after, 2026-11-14.
             if (!authority.ok) return { ...authority, detail: null };
           }
         }
         const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
         const preconditions = readPreconditions(entry.preconditions);
         const bothDirections = [payload.forward, readCommand(entry.inverse)];
-        const external = requireExternalRevisions(preconditions, projectId, bothDirections);
+        const external = requireExternalRevisions(preconditions, workPackageId, bothDirections);
         const endpointKeys = new Set<string>();
         // Proof: scanning both directions changed the SQLite other-direction
         // not_found to application-time stale_undo (round1 ordering diagnostic).
-        const restoredTyped = restoredTypedAddressesOf(command, projectId);
+        const restoredTyped = restoredTypedAddressesOf(command, workPackageId);
         let localEndpointDefect = false;
         for (const directionCommand of bothDirections)
           for (const endpoint of referencesOf(directionCommand).scopedEndpoints) {
-            if (endpoint.projectId !== projectId && endpointKeys.has(JSON.stringify(endpoint)))
+            if (
+              endpoint.workPackageId !== workPackageId &&
+              endpointKeys.has(JSON.stringify(endpoint))
+            )
               continue;
             endpointKeys.add(JSON.stringify(endpoint));
             const checked = await dependencyContext.endpoints.readEndpoint(endpoint);
@@ -8812,14 +8988,14 @@ export class WorkItemService {
               // SQLite redo. Exempting delivered forbidden/unknown_step outcomes
               // instead returned ok:true in their round1 refusal-fault regressions.
               if (
-                endpoint.projectId === projectId &&
+                endpoint.workPackageId === workPackageId &&
                 checked.reason === 'not_found' &&
                 restoredTyped.has(scopedRevisionKey(endpoint))
               )
                 continue;
               if (
                 external === null &&
-                endpoint.projectId === projectId &&
+                endpoint.workPackageId === workPackageId &&
                 checked.reason !== 'forbidden'
               ) {
                 localEndpointDefect = true;
@@ -8884,24 +9060,24 @@ export class WorkItemService {
 
         const replayReferences = referencesOf(command);
         for (const endpoint of replayReferences.scopedEndpoints)
-          if (endpoint.projectId === projectId) {
+          if (endpoint.workPackageId === workPackageId) {
             replayReferences.workItems.push(endpoint.workItemId);
             if (endpoint.scope !== 'whole') replayReferences.steps.push(endpoint.stepId);
           }
         for (const [owner, facts] of Object.entries(preconditions.moveProgress ?? {})) {
-          // Proof: omitting owners with empty snapshots admitted foreign-project metadata; watched 2026-10-14.
+          // Proof: omitting owners with empty snapshots admitted foreign-work-package metadata; watched 2026-10-14.
           replayReferences.workItems.push(owner);
           // Proof: omitting snapshot step references changed scoped metadata refusal from 404 to 409; watched 2026-10-14.
           replayReferences.steps.push(...facts.map(({ stepId }) => stepId));
         }
         // Proof: disabling this check made `command-organization.controller.db.test.ts`
         // answer 200 instead of 404 for `refuses an undo whose entry names another
-        // project's row`, for the nested foreign label and for the restored row of
-        // another project, and 409 `stale_undo` (discarding the entry) for a step
-        // of another project; watched 2026-09-27.
+        // work package's row`, for the nested foreign label and for the restored row of
+        // another work package, and 409 `stale_undo` (discarding the entry) for a step
+        // of another work package; watched 2026-09-27.
         if (
           access.kind === 'scoped' &&
-          (await this.namesOutside(projectId, access.scope.organizationId, replayReferences))
+          (await this.namesOutside(workPackageId, access.scope.organizationId, replayReferences))
         ) {
           return { ok: false, reason: 'not_found', detail: null };
         }
@@ -8916,7 +9092,7 @@ export class WorkItemService {
           };
         }
         const steps = new Map(
-          (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step]),
+          (await this.opts.workPackages.stepsOf(workPackageId)).map((step) => [step.id, step]),
         );
         for (const [stepId, unit] of Object.entries(bindings)) {
           const current = steps.get(stepId);
@@ -8931,14 +9107,14 @@ export class WorkItemService {
             };
           }
         }
-        const moved = await this.staleness(projectId, preconditions.expected);
+        const moved = await this.staleness(workPackageId, preconditions.expected);
         if (moved !== null) {
           await this.opts.journal.discard(entry.id);
           return { ok: false, reason: 'stale_undo', detail: moved, entryId: entry.id };
         }
 
         for (const [owner, expected] of Object.entries(preconditions.moveProgress ?? {})) {
-          const current = await this.opts.progress.listByWorkItems(projectId, [owner]);
+          const current = await this.opts.progress.listByWorkItems(workPackageId, [owner]);
           // Proof: bypassing this pre-batch comparison deleted changed recorded destination facts during mounted/memory redo; watched 2026-10-14.
           // Proof: bypassing this comparison lost peer deletion-parent progress (200 vs 409); watched 2026-10-14.
           if (!matchesProgress(current, expected)) {
@@ -8951,7 +9127,12 @@ export class WorkItemService {
             };
           }
         }
-        const neighbors = await this.captureReplayNeighbors(entries, entry, direction, projectId);
+        const neighbors = await this.captureReplayNeighbors(
+          entries,
+          entry,
+          direction,
+          workPackageId,
+        );
         // Proof: broadening these pairs to all owner facts accepted stale mounted/memory replay; watched 2026-10-14.
         const written = new Set(
           progressKeysOf(command).map(({ workItemId, stepId }) => progressKey(workItemId, stepId)),
@@ -8961,7 +9142,7 @@ export class WorkItemService {
         // undo is not itself journalled — so this stamp is spent only on the rows
         // {@link apply} rewrites.
         const stamp = this.clock.stampFor(actorId);
-        const applied = await this.apply(projectId, command, stamp, access);
+        const applied = await this.apply(workPackageId, command, stamp, access);
         if (!applied.ok) {
           if (applied.authorization !== undefined)
             return { ...applied.authorization, detail: null };
@@ -8983,7 +9164,7 @@ export class WorkItemService {
         // finding replays return 200, persist the preceding patch and relationship,
         // flip history and publish; the genuine earlier typed guard stayed active
         // and staged reattachment was observed before injection (2026-10-23).
-        const cycle = await this.findDependencyCycle(projectId, actorId);
+        const cycle = await this.findDependencyCycle(workPackageId, actorId);
         if (cycle !== null) {
           await this.opts.journal.discard(entry.id);
           return {
@@ -8998,7 +9179,7 @@ export class WorkItemService {
         // this application left and remembers the ones it started from. Nothing is
         // appended: an undo that was itself journalled would be undoable, and the
         // key would toggle one change forever instead of walking back through two.
-        const now = await this.revisionsOf(projectId, [
+        const now = await this.revisionsOf(workPackageId, [
           ...touchedBy(command),
           // Proof: omitting both direction owners let the second undo ignore a changed parent revision; watched 2026-10-14.
           ...expectedProgressOwnersOf(payload.forward),
@@ -9010,7 +9191,7 @@ export class WorkItemService {
           if (!current.ok) throw new Error('replayed external revision evidence became unreadable');
           externalNow = current.revisions;
         }
-        dependencyContext.assertUsable(projectId, actorId);
+        dependencyContext.assertUsable(workPackageId, actorId);
         await this.opts.journal.flip(stack, entry.id, direction === 'undo', {
           ...(external === null
             ? {}
@@ -9022,7 +9203,7 @@ export class WorkItemService {
             ? {}
             : {
                 moveProgress: await this.captureMoveProgress(
-                  projectId,
+                  workPackageId,
                   Object.keys(preconditions.moveProgress),
                 ),
               }),
@@ -9038,7 +9219,7 @@ export class WorkItemService {
           external?.from ?? [],
           externalNow,
         );
-        await this.announceTree(projectId);
+        await this.announceTree(workPackageId);
         return { ok: true, value: { done: payload.label, detail: applied.detail } };
       },
     );
@@ -9049,7 +9230,7 @@ export class WorkItemService {
     stack: readonly JournalEntry[],
     selected: JournalEntry,
     direction: 'undo' | 'redo',
-    projectId: string,
+    workPackageId: string,
   ): Promise<ReplayNeighbor[]> {
     const neighbors: ReplayNeighbor[] = [];
     for (const entry of stack) {
@@ -9057,7 +9238,7 @@ export class WorkItemService {
       const ahead = direction === 'undo' ? entry.seq < selected.seq : entry.seq > selected.seq;
       if (!ahead) continue;
       const preconditions = readPreconditions(entry.preconditions);
-      requireExternalRevisions(preconditions, projectId, [
+      requireExternalRevisions(preconditions, workPackageId, [
         readPayload(entry.payload).forward,
         readCommand(entry.inverse),
       ]);
@@ -9068,7 +9249,7 @@ export class WorkItemService {
           Object.entries(preconditions.moveProgress ?? {}).map(async ([owner, expected]) => ({
             owner,
             expected,
-            before: await this.opts.progress.listByWorkItems(projectId, [owner]),
+            before: await this.opts.progress.listByWorkItems(workPackageId, [owner]),
           })),
         ),
       });
@@ -9136,7 +9317,7 @@ export class WorkItemService {
             );
             // Proof: bypassing outside-pair equality changed stale QA snapshots through Dev replay; watched 2026-10-14.
             if (matchesProgress(before, unchanged)) {
-              const after = await this.opts.progress.listByWorkItems(applied.projectId, [id]);
+              const after = await this.opts.progress.listByWorkItems(applied.workPackageId, [id]);
               // Proof: omitting refresh refused valid neighboring progress undo/redo after restamping; watched 2026-10-14.
               moveProgress[id] = [
                 ...unchanged,
@@ -9179,14 +9360,14 @@ export class WorkItemService {
 
   /** Captures the current complete set for each destination, including empty sets after clearing. */
   private async captureMoveProgress(
-    projectId: string,
+    workPackageId: string,
     owners: readonly string[],
   ): Promise<Record<string, StoredProgress[]>> {
     return Object.fromEntries(
       await Promise.all(
         owners.map(async (owner): Promise<[string, StoredProgress[]]> => [
           owner,
-          await this.opts.progress.listByWorkItems(projectId, [owner]),
+          await this.opts.progress.listByWorkItems(workPackageId, [owner]),
         ]),
       ),
     );
@@ -9200,10 +9381,10 @@ export class WorkItemService {
    * anything, and the change that removed it is a change the undo would be
    * computed against.
    */
-  private async staleness(projectId: string, expected: Revisions): Promise<string | null> {
-    const rows = await this.opts.workItems.listByProject(projectId);
+  private async staleness(workPackageId: string, expected: Revisions): Promise<string | null> {
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const byId = new Map(rows.map((row) => [row.id, row]));
-    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
+    const stepRevisions = await this.opts.workPackages.stepAllowanceRevisions(workPackageId);
     for (const [id, revision] of Object.entries(expected)) {
       const stepId = stepOfRevisionKey(id);
       if (stepId !== null) {
@@ -9236,12 +9417,12 @@ export class WorkItemService {
    * that should stay gone is `restore_subtree` refusing to write over an id
    * that is there.
    */
-  private async revisionsOf(projectId: string, ids: readonly string[]): Promise<Revisions> {
-    const rows = await this.opts.workItems.listByProject(projectId);
+  private async revisionsOf(workPackageId: string, ids: readonly string[]): Promise<Revisions> {
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const out = revisionsIn(rows, ids);
     const stepIds = ids.flatMap((id) => stepOfRevisionKey(id) ?? []);
     if (stepIds.length === 0) return out;
-    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
+    const stepRevisions = await this.opts.workPackages.stepAllowanceRevisions(workPackageId);
     for (const stepId of stepIds) {
       const revision = stepRevisions.get(stepId);
       if (revision !== undefined) out[stepRevisionKey(stepId)] = revision;
@@ -9273,7 +9454,7 @@ export class WorkItemService {
    * carries the dead id.
    */
   private async apply(
-    projectId: string,
+    workPackageId: string,
     command: CompensatingCommand,
     stamp: WriteStamp,
     // The replay's access, which names what a refusal detail shows; absent on
@@ -9281,16 +9462,18 @@ export class WorkItemService {
     access?: ResourceAccess,
   ): Promise<ApplyOutcome> {
     switch (command.do) {
+      case 'transition_first_child':
+        throw new Error('first child replay lacks its admitted incident transition owner');
       case 'transition_incident_nodes': {
-        if (command.projectId !== projectId)
+        if (command.workPackageId !== workPackageId)
           throw new Error('incident replay structural owner mismatch');
         return withDependencyContext(
           this.opts.dependencyContext,
-          projectId,
+          workPackageId,
           stamp.by,
           async (context) => {
             const transition = await context.incidents.run(
-              projectId,
+              workPackageId,
               stamp.by,
               {
                 kind: 'replay',
@@ -9299,7 +9482,9 @@ export class WorkItemService {
                 receipts: command.receipts,
               },
               stamp,
-              () => this.apply(projectId, command.structural, stamp),
+              (evidence) => command.structural.do==='transition_first_child'
+                ?this.applyFirstChild(workPackageId,command.structural,stamp,evidence)
+                :this.apply(workPackageId, command.structural, stamp),
             );
             if (!transition.ok && 'authorization' in transition)
               return {
@@ -9327,7 +9512,7 @@ export class WorkItemService {
           (command.patch.readiness !== undefined && command.patch.readiness !== null) ||
           (command.patch.hold !== undefined && command.patch.hold !== null)
         ) {
-          const rows = await this.opts.workItems.listByProject(projectId);
+          const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
           if (rows.some((row) => row.parentId === command.workItemId)) {
             return {
               ok: false,
@@ -9367,7 +9552,7 @@ export class WorkItemService {
         return { ok: true, detail: null };
       }
       case 'set_estimate': {
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
@@ -9375,8 +9560,8 @@ export class WorkItemService {
         // figures back would be a foreign key error on a key somebody pressed
         // to be safe, so the entry is refused and discarded like any other
         // command the plan has moved past.
-        if (!(await this.holdsStep(projectId, command.stepId))) {
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (!(await this.holdsStep(workPackageId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this work package.' };
         }
         const restored = await this.opts.estimates.set(
           {
@@ -9386,23 +9571,23 @@ export class WorkItemService {
           },
           stamp,
         );
-        if (restored === 'unknown_step')
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (restored !== 'written')
+          return { ok: false, detail: 'step value restore refused: ' + restored + '.' };
         return { ok: true, detail: null };
       }
       case 'clear_estimate':
         await this.opts.estimates.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
       case 'set_actual': {
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
         // The step the days were recorded against has been removed since.
         // `actual.step_id` is a foreign key, so putting the number back would be
         // a constraint error on a key somebody pressed to be safe.
-        if (!(await this.holdsStep(projectId, command.stepId))) {
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (!(await this.holdsStep(workPackageId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this work package.' };
         }
         const restored = await this.opts.actuals.set(
           {
@@ -9418,23 +9603,23 @@ export class WorkItemService {
           },
           stamp,
         );
-        if (restored === 'unknown_step')
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (restored !== 'written')
+          return { ok: false, detail: 'step value restore refused: ' + restored + '.' };
         return { ok: true, detail: null };
       }
       case 'clear_actual':
         await this.opts.actuals.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
       case 'set_measure': {
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
         // The step the figure was recorded against has been removed since.
         // `step_measure.step_id` is a foreign key, so putting the number back
         // would be a constraint error on a key somebody pressed to be safe.
-        if (!(await this.holdsStep(projectId, command.stepId))) {
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (!(await this.holdsStep(workPackageId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this work package.' };
         }
         // A defined measure may have been deleted since its fact was cleared;
         // the store would throw on a key its organization no longer defines.
@@ -9443,7 +9628,7 @@ export class WorkItemService {
         // threw from the store instead of refusing; watched 2026-10-23.
         if (
           !decideMeasureFact(
-            await this.opts.measures.definitionsFor(projectId),
+            await this.opts.measures.definitionsFor(workPackageId),
             command.metric,
             null,
           ).ok
@@ -9454,7 +9639,7 @@ export class WorkItemService {
         // unpriced one would be a basis of its own beside every priced figure.
         // Proof: with this refusal skipped, `refuses an undo that would put an
         // unpriced cost fact back` (budget-command.test.ts) wrote it; watched 2026-10-23.
-        const unpriced = await this.unpricedRefusal(projectId, command.metric, command.basis);
+        const unpriced = await this.unpricedRefusal(workPackageId, command.metric, command.basis);
         if (unpriced !== null) return unpriced;
         const restored = await this.opts.measures.set(
           {
@@ -9473,36 +9658,36 @@ export class WorkItemService {
           },
           stamp,
         );
-        if (restored === 'unknown_step')
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (restored !== 'written')
+          return { ok: false, detail: 'step value restore refused: ' + restored + '.' };
         return { ok: true, detail: null };
       }
       case 'clear_measure':
         await this.opts.measures.remove(command.workItemId, command.stepId, command.metric, stamp);
         return { ok: true, detail: null };
       case 'set_measure_estimate': {
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
-        if (!(await this.holdsStep(projectId, command.stepId))) {
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (!(await this.holdsStep(workPackageId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this work package.' };
         }
         // A defined measure deleted since: the store would throw on a key the
         // organization no longer defines.
         // Proof: with this check skipped, `refuses an undo that would put a
         // trio back in a measure deleted since` (measure-estimate-command.test.ts)
         // threw from the store instead of refusing; watched 2026-10-23.
-        const refused = await this.measureEstimatesRefusal(projectId, [command]);
+        const refused = await this.measureEstimatesRefusal(workPackageId, [command]);
         if (refused !== null) return refused;
         // Proof: with this refusal skipped, `refuses an undo that would put an
         // unpriced cost trio back` (budget-command.test.ts) wrote it; watched 2026-10-23.
-        const unpriced = await this.unpricedRefusal(projectId, command.key, command.basis);
+        const unpriced = await this.unpricedRefusal(workPackageId, command.key, command.basis);
         if (unpriced !== null) return unpriced;
         const { do: _kind, ...estimate } = command;
         const restored = await this.opts.measureEstimates.set(estimate, stamp);
-        if (restored === 'unknown_step')
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (restored !== 'written')
+          return { ok: false, detail: 'step value restore refused: ' + restored + '.' };
         return { ok: true, detail: null };
       }
       case 'clear_measure_estimate':
@@ -9518,7 +9703,7 @@ export class WorkItemService {
         // Proof: with this check skipped, `refuses an undo that would put a
         // budget back in a measure deleted since` (budget-command.test.ts)
         // threw from the store instead of refusing; watched 2026-10-23.
-        const refused = await this.budgetsRefusal(projectId, [command]);
+        const refused = await this.budgetsRefusal(workPackageId, [command]);
         if (refused !== null) return refused;
         const { do: _kind, ...budget } = command;
         await this.opts.budgets.set(budget, stamp);
@@ -9528,15 +9713,15 @@ export class WorkItemService {
         await this.opts.budgets.remove(command.workItemId, command.key, stamp);
         return { ok: true, detail: null };
       case 'set_progress': {
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
         // The step the statement was made about has been removed since.
         // `step_progress.step_id` is a foreign key, so putting the statement
         // back would be a constraint error on a key somebody pressed to be safe.
-        if (!(await this.holdsStep(projectId, command.stepId))) {
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (!(await this.holdsStep(workPackageId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this work package.' };
         }
         const restored = await this.opts.progress.set(
           {
@@ -9550,8 +9735,8 @@ export class WorkItemService {
           },
           stamp,
         );
-        if (restored === 'unknown_step')
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (restored !== 'written')
+          return { ok: false, detail: 'step value restore refused: ' + restored + '.' };
         return { ok: true, detail: null };
       }
       case 'clear_progress':
@@ -9570,7 +9755,7 @@ export class WorkItemService {
         if (written === 'unknown_resource')
           return { ok: false, detail: 'that resource is no longer in the directory.' };
         if (written === 'unknown_work_item')
-          return { ok: false, detail: 'that work item is no longer in this project.' };
+          return { ok: false, detail: 'that work item is no longer in this work package.' };
         return { ok: true, detail: null };
       }
       case 'add_claims': {
@@ -9585,10 +9770,10 @@ export class WorkItemService {
         // threw a FOREIGN KEY failure on SQLite and `progress for unknown step` on
         // memory; with the restore's alone removed, memory was refused here.
         // Watched 2026-10-20.
-        const stepGone = await this.stepRemovedSince(projectId, command);
+        const stepGone = await this.stepRemovedSince(workPackageId, command);
         if (stepGone !== null) return stepGone;
         const replayed = new Set(command.claims.map(({ id }) => id));
-        const held = new Set((await claims.listByProject(projectId)).map(({ id }) => id));
+        const held = new Set((await claims.listByWorkPackage(workPackageId)).map(({ id }) => id));
         if (
           command.claims.some(
             ({ parentClaimId }) =>
@@ -9605,20 +9790,20 @@ export class WorkItemService {
             return { ok: false, detail: 'a person who held it is no longer in the directory.' };
         if (access === undefined)
           throw new Error('claims are put back only by a replay, which names its access');
-        const exhausted = await this.refuseReacquiring(projectId, command, access);
+        const exhausted = await this.refuseReacquiring(workPackageId, command, access);
         if (exhausted !== null) return { ok: false, detail: exhausted };
         // Only a recorded fresh progress statement recreates a governed start.
         // Release undo and historical structural restoration have no new statement.
         const newStarts = command.stated;
         if (newStarts.length > 0) {
-          const observed = await this.opts.livePlans?.readExecution(projectId, access, null);
+          const observed = await this.opts.livePlans?.readExecution(workPackageId, access, null);
           if (observed !== undefined && observed.kind !== 'ready')
             return { ok: false, detail: 'execution evidence is no longer readable.' };
           const execution =
             observed === undefined
               ? await this.statusReadsOf(
-                  projectId,
-                  await this.opts.workItems.listByProject(projectId),
+                  workPackageId,
+                  await this.opts.workItems.listByWorkPackage(workPackageId),
                 )
               : observed.reads;
           for (const statement of newStarts) {
@@ -9640,7 +9825,7 @@ export class WorkItemService {
         // took the last place`, `refuses an undo of a release once another
         // took the freed place` and `refuses an undo of a delete once another
         // took the freed place` put the claim back over the cap (10 pass, 3 fail).
-        const adding = await this.boundClaimsAdded(projectId, command.claims);
+        const adding = await this.boundClaimsAdded(workPackageId, command.claims);
         if (adding > 0) {
           const crossed = await this.refuseBoundClaims(access, adding);
           if (crossed !== null)
@@ -9677,7 +9862,7 @@ export class WorkItemService {
       }
       case 'remove_claims': {
         const { claims } = this.claiming();
-        const stored = await claims.listByProject(projectId);
+        const stored = await claims.listByWorkPackage(workPackageId);
         const held = new Set(stored.map(({ id }) => id));
         if (command.claims.some(({ id }) => !held.has(id)))
           return { ok: false, detail: 'that claim has been released since.' };
@@ -9708,7 +9893,7 @@ export class WorkItemService {
       }
       case 'move_claims': {
         const { claims } = this.claiming();
-        const stored = await claims.listByProject(projectId);
+        const stored = await claims.listByWorkPackage(workPackageId);
         const onFrom = stored
           .filter(({ workItemId }) => workItemId === command.fromWorkItemId)
           .map(({ id }) => id)
@@ -9723,18 +9908,18 @@ export class WorkItemService {
         return { ok: true, detail: null };
       }
       case 'replace_blockage': {
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         if (
           !rows.some(({ id }) => id === command.workItemId) ||
           rows.some(({ parentId }) => parentId === command.workItemId)
         ) {
-          return { ok: false, detail: 'that work item is no longer a leaf in this project.' };
+          return { ok: false, detail: 'that work item is no longer a leaf in this work package.' };
         }
-        if (!(await this.holdsStep(projectId, command.stepId))) {
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (!(await this.holdsStep(workPackageId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this work package.' };
         }
         const current =
-          (await this.opts.blockages.listByWorkItems(projectId, [command.workItemId])).find(
+          (await this.opts.blockages.listByWorkItems(workPackageId, [command.workItemId])).find(
             ({ workItemId, stepId }) =>
               workItemId === command.workItemId && stepId === command.stepId,
           )?.blockedAt ?? null;
@@ -9755,11 +9940,11 @@ export class WorkItemService {
         );
         return written === 'written'
           ? { ok: true, detail: null }
-          : { ok: false, detail: 'that step is no longer in this project.' };
+          : { ok: false, detail: 'that step is no longer in this work package.' };
       }
       case 'assign':
-        if (command.personId !== null && !(await this.holdsStep(projectId, command.stepId))) {
-          return { ok: false, detail: 'that step is no longer in this project.' };
+        if (command.personId !== null && !(await this.holdsStep(workPackageId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this work package.' };
         }
         {
           const reassigned = await this.opts.directory.assign(
@@ -9769,7 +9954,7 @@ export class WorkItemService {
             stamp,
           );
           if (!reassigned.ok && reassigned.reason === 'unknown_step') {
-            return { ok: false, detail: 'that step is no longer in this project.' };
+            return { ok: false, detail: 'that step is no longer in this work package.' };
           }
           // The person was removed after the command ran. Undo never
           // resurrects one, so the entry is refused and discarded like any
@@ -9780,7 +9965,7 @@ export class WorkItemService {
         }
         return { ok: true, detail: null };
       case 'restore_attempt':
-        return this.applyRestoreAttempt(projectId, command.attempt, stamp);
+        return this.applyRestoreAttempt(workPackageId, command.attempt, stamp);
       case 'remove_attempt': {
         const removed = await this.opts.attempts.remove(
           command.workItemId,
@@ -9793,8 +9978,8 @@ export class WorkItemService {
           : { ok: true, detail: null };
       }
       case 'add_dependency': {
-        const rows = await this.opts.workItems.listByProject(projectId);
-        const existing = await this.opts.dependencies.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
+        const existing = await this.opts.dependencies.listByWorkPackage(workPackageId);
         const refusal = canDepend(rows, existing, command.predecessorId, command.successorId);
         if (refusal !== null) {
           return { ok: false, detail: `that dependency would now be refused: ${refusal}` };
@@ -9802,7 +9987,7 @@ export class WorkItemService {
         await this.opts.dependencies.add(
           {
             id: this.clock.newId(),
-            projectId,
+            workPackageId,
             predecessorId: command.predecessorId,
             successorId: command.successorId,
           },
@@ -9814,19 +9999,24 @@ export class WorkItemService {
         await this.opts.dependencies.remove(command.predecessorId, command.successorId, stamp);
         return { ok: true, detail: null };
       case 'add_typed_dependency': {
-        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        const existing = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
         // Proof: bypassing this identity check made `refuses redo when its relationship
         // ID has been reused` receive 500 instead of 409; watched 2026-09-27.
         if (existing.some((row) => row.id === command.dependency.id))
           return { ok: false, detail: 'that relationship identity is already in use.' };
-        const refusal = await this.typedRefusal(projectId, stamp.by, existing, command.dependency);
+        const refusal = await this.typedRefusal(
+          workPackageId,
+          stamp.by,
+          existing,
+          command.dependency,
+        );
         if (refusal !== null)
           return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
         await this.opts.typedDependencies.add(command.dependency, stamp);
         return { ok: true, detail: null };
       }
       case 'remove_typed_dependency': {
-        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        const existing = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
         // Proof: bypassing this comparison made `refuses undo when the stored relationship
         // changed outside the journal` return 200 instead of 409; watched 2026-09-27.
         if (
@@ -9840,7 +10030,7 @@ export class WorkItemService {
         return { ok: true, detail: null };
       }
       case 'update_typed_dependency': {
-        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        const existing = await this.opts.typedDependencies.listByWorkPackage(workPackageId);
         // Proof: this comparison disabled made `refuses undo of an update when
         // the stored relationship changed outside the journal` fail on
         // `Expected: 409, Received: 200`; watched 2026-09-27.
@@ -9851,7 +10041,7 @@ export class WorkItemService {
           )
         )
           return { ok: false, detail: 'that relationship has changed since this command.' };
-        const refusal = await this.typedRefusal(projectId, stamp.by, existing, command.to);
+        const refusal = await this.typedRefusal(workPackageId, stamp.by, existing, command.to);
         if (refusal !== null)
           return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
         await this.opts.typedDependencies.update(command.to, stamp);
@@ -9859,7 +10049,7 @@ export class WorkItemService {
       }
       case 'move':
         return this.applyMove(
-          projectId,
+          workPackageId,
           command.workItemId,
           command.parentId,
           command.afterId,
@@ -9867,9 +10057,9 @@ export class WorkItemService {
           command.expectedProgress,
         );
       case 'set_positions':
-        return this.applySetPositions(projectId, command.placements, command.moved, stamp);
+        return this.applySetPositions(workPackageId, command.placements, command.moved, stamp);
       case 'set_frozen': {
-        const rows = await this.opts.workItems.listByProject(projectId);
+        const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
         const gone = command.updates.find((each) => !rows.some((row) => row.id === each.id));
         if (gone !== undefined) {
           return {
@@ -9883,18 +10073,22 @@ export class WorkItemService {
       case 'set_step_allowance': {
         // Unconditional here: `staleness` has already compared the step's
         // allowance revision, inside this same unit of work.
-        const written = await this.opts.projects.setStepAllowance(
-          projectId,
+        const written = await this.opts.workPackages.setStepAllowance(
+          workPackageId,
           command.stepId,
           command.allowancePercent,
           stamp,
         );
-        if (!written.ok) return { ok: false, detail: 'that step is no longer in this project.' };
-        await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
+        if (!written.ok)
+          return { ok: false, detail: 'that step is no longer in this work package.' };
+        await this.opts.broadcast.publish(workPackageId, {
+          type: 'step_updated',
+          step: written.step,
+        });
         return { ok: true, detail: null };
       }
       case 'delete_subtree':
-        return this.applyDelete(projectId, command, stamp);
+        return this.applyDelete(workPackageId, command, stamp);
       case 'batch': {
         // The steps in the order the inverse holds them — reversed forwards for
         // an undo, forwards for a redo. A step that cannot apply refuses the
@@ -9904,36 +10098,36 @@ export class WorkItemService {
         // The batch's own stamp, passed down rather than one per step: undoing a
         // batch is one act, exactly as running it was one request.
         for (const step of command.steps) {
-          const applied = await this.apply(projectId, step, stamp, access);
+          const applied = await this.apply(workPackageId, step, stamp, access);
           if (!applied.ok) return applied;
         }
         return { ok: true, detail: null };
       }
       case 'restore_subtree':
-        return this.applyRestore(projectId, command, stamp);
+        return this.applyRestore(workPackageId, command, stamp);
     }
   }
 
   private async applyMove(
-    projectId: string,
+    workPackageId: string,
     id: string,
     parentId: string | null,
     afterId: string | null,
     stamp: WriteStamp,
     expectedProgress: readonly StoredProgress[] = [],
   ): Promise<ApplyOutcome> {
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const moving = rows.find((row) => row.id === id);
     if (moving === undefined) return { ok: false, detail: 'the work item is no longer there.' };
     if (parentId !== null && !rows.some((row) => row.id === parentId)) {
       return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
     }
-    // Proof: omitted guard accepted newly retained policy on undo/redo; project-wide
+    // Proof: omitted guard accepted newly retained policy on undo/redo; work-package-wide
     // selection refused unrelated policy. Catching read/corruption as stale returned
     // 409 instead of 500 and discarded history. Real preceding replay patches roll
     // back before stale discard; thrown reads preserve history (watched 2026-10-17).
     if (parentId !== null) {
-      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [parentId]);
+      const parallels = await this.opts.stepParallels.listByWorkItems(workPackageId, [parentId]);
       if (parallels.length > 0) {
         return {
           ok: false,
@@ -9951,18 +10145,18 @@ export class WorkItemService {
     if (moving.parentId !== parentId) {
       if (parentId !== null && !rows.some((row) => row.parentId === parentId)) {
         // Proof: bypassing snapshot equality accepted changed state/time, extra and missing facts in mounted and memory runner cases; watched 2026-10-14.
-        const currentProgress = await this.opts.progress.listByWorkItems(projectId, [parentId]);
+        const currentProgress = await this.opts.progress.listByWorkItems(workPackageId, [parentId]);
         if (!matchesProgress(currentProgress, expectedProgress)) {
           return { ok: false, detail: 'the destination leaf progress changed since this move.' };
         }
         // Proof: bypassing this guard returned 500 in mounted other-step blockage undo/redo; watched 2026-10-14.
-        if ((await this.opts.blockages.listByWorkItems(projectId, [parentId])).length > 0) {
+        if ((await this.opts.blockages.listByWorkItems(workPackageId, [parentId])).length > 0) {
           return { ok: false, detail: 'the destination leaf has blockage stated since this move.' };
         }
       }
       // Proof: bypassing this consumer failed `connected replay-move refuses`
       // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
-      const structural = await this.structuralRefusal(projectId, stamp.by, {
+      const structural = await this.structuralRefusal(workPackageId, stamp.by, {
         rows: rows.map((row) => (row.id === id ? { ...row, parentId } : row)),
       });
       if (structural !== null)
@@ -9993,12 +10187,12 @@ export class WorkItemService {
    * and the undo takes nothing away.
    */
   private async applySetPositions(
-    projectId: string,
+    workPackageId: string,
     placements: readonly Reparented[],
     moved: readonly string[],
     stamp: WriteStamp,
   ): Promise<ApplyOutcome> {
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const parentOf = new Map(rows.map((row) => [row.id, row.parentId]));
     for (const placed of placements) {
       if (!parentOf.has(placed.id)) {
@@ -10014,14 +10208,14 @@ export class WorkItemService {
 
   /** Replaces captured facts conditionally while each owner is a leaf; throws on store refusal. */
   private async replaceDeletionBlockages(
-    projectId: string,
+    workPackageId: string,
     facts: readonly StoredStepBlockage[],
     isClear: boolean,
     stamp: WriteStamp,
   ): Promise<void> {
     for (const fact of facts) {
       const replaced = await this.apply(
-        projectId,
+        workPackageId,
         {
           do: 'replace_blockage',
           ...fact,
@@ -10037,14 +10231,14 @@ export class WorkItemService {
 
   /** Refuses complete parent blockage drift before restore can clear facts or create children. */
   private async deletionRefusal(
-    projectId: string,
+    workPackageId: string,
     state: DeletionState,
   ): Promise<ApplyOutcome | null> {
     if (state.parentId === null) return null;
     // Proof: bypassing equality exposed an unrecorded parent fact during insertion (500 vs 409); watched 2026-10-14.
     if (
       !matchesBlockages(
-        await this.opts.blockages.listByWorkItems(projectId, [state.parentId]),
+        await this.opts.blockages.listByWorkItems(workPackageId, [state.parentId]),
         state.parentBlockages,
       )
     )
@@ -10058,11 +10252,11 @@ export class WorkItemService {
    * valid retained policy follows the existing stale-history discard outcome.
    */
   private async applyDelete(
-    projectId: string,
+    workPackageId: string,
     command: Extract<CompensatingCommand, { do: 'delete_subtree' }>,
     stamp: WriteStamp,
   ): Promise<ApplyOutcome> {
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     if (!rows.some((row) => row.id === command.rootId)) {
       return { ok: false, detail: 'the work item is no longer there.' };
     }
@@ -10076,12 +10270,12 @@ export class WorkItemService {
       return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
     if (command.deletionState !== undefined) {
-      const refused = await this.deletionRefusal(projectId, command.deletionState);
+      const refused = await this.deletionRefusal(workPackageId, command.deletionState);
       if (refused !== null) return refused;
       // Proof: bypassing complete-set equality deleted an added subtree fact on redo (200 vs 409); watched 2026-10-14.
       if (
         !matchesBlockages(
-          await this.opts.blockages.listByWorkItems(projectId, command.remove),
+          await this.opts.blockages.listByWorkItems(workPackageId, command.remove),
           command.deletionState.blockages,
         )
       )
@@ -10092,7 +10286,7 @@ export class WorkItemService {
     // Proof: bypassing this replay admission made undo-create with a newly
     // linked predecessor throw at the later graph guard rather than return
     // stale_undo; watched against the admitted SQLite UoW, 2026-10-22.
-    const incidents = await this.deletionIncidents(projectId, stamp.by, command.remove);
+    const incidents = await this.deletionIncidents(workPackageId, stamp.by, command.remove);
     if (!incidents.ok) {
       if ('authorization' in incidents)
         return {
@@ -10136,17 +10330,17 @@ export class WorkItemService {
         const moved = reparented.get(row.id);
         return moved === undefined ? row : { ...row, parentId: moved.parentId };
       });
-    const authored = (await this.opts.typedDependencies.listByProject(projectId)).filter(
+    const authored = (await this.opts.typedDependencies.listByWorkPackage(workPackageId)).filter(
       (relationship) =>
         ![relationship.predecessor, relationship.successor].some((endpoint) =>
           removed.has(endpoint.workItemId),
         ),
     );
-    const estimates = await this.opts.estimates.listByProject(projectId);
-    const legacy = await this.opts.dependencies.listByProject(projectId);
+    const estimates = await this.opts.estimates.listByWorkPackage(workPackageId);
+    const legacy = await this.opts.dependencies.listByWorkPackage(workPackageId);
     // Proof: bypassing this consumer failed `connected replay-delete refuses`
     // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
-    const structural = await this.structuralRefusal(projectId, stamp.by, {
+    const structural = await this.structuralRefusal(workPackageId, stamp.by, {
       rows: projected,
       typed: authored,
       estimates: [
@@ -10165,13 +10359,13 @@ export class WorkItemService {
             ? `relationship ${structural.dependencyIds.join(', ')} no longer fits this tree.`
             : 'that would now close a dependency cycle between steps.',
       };
-    const attemptsRefused = await this.attemptsRefusal(projectId, command.setAttempts ?? []);
+    const attemptsRefused = await this.attemptsRefusal(workPackageId, command.setAttempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
     // Proof: omission, root-only and operation-restricted reads erased retained
     // owners on redo-delete/undo-create/undo-duplicate; broad reads blocked unrelated
     // and promoted facts. Catch-to-stale returned 409 rather than 500 and late lookup
     // failed owned-policy replay; observed preceding patches rolled back, 2026-10-17.
-    const parallels = await this.opts.stepParallels.listByWorkItems(projectId, command.remove);
+    const parallels = await this.opts.stepParallels.listByWorkItems(workPackageId, command.remove);
     if (parallels.length > 0)
       return {
         ok: false,
@@ -10182,7 +10376,7 @@ export class WorkItemService {
     // Proof: with this refusal removed, `refuses an undo of a first-child create
     // whose handed-down fact is in a measure deleted since`
     // (measure-fact-command.test.ts) threw from the store; watched 2026-10-23.
-    const measuresRefused = await this.measuresRefusal(projectId, command.setMeasures);
+    const measuresRefused = await this.measuresRefusal(workPackageId, command.setMeasures);
     if (measuresRefused !== null) return measuresRefused;
     // The hand-up below writes trios too; one in a measure deleted since would
     // throw from the store.
@@ -10190,27 +10384,42 @@ export class WorkItemService {
     // create whose handed-down trio is in a measure deleted since`
     // (measure-estimate-command.test.ts) threw from the store; watched 2026-10-23.
     const estimatesRefused = await this.measureEstimatesRefusal(
-      projectId,
+      workPackageId,
       command.setMeasureEstimates ?? [],
     );
     if (estimatesRefused !== null) return estimatesRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     if (command.deletionState !== undefined)
-      await this.replaceDeletionBlockages(projectId, command.deletionState.blockages, true, stamp);
+      await this.replaceDeletionBlockages(
+        workPackageId,
+        command.deletionState.blockages,
+        true,
+        stamp,
+      );
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
-    for (const each of command.setEstimates) await this.opts.estimates.set(each, stamp);
+    for (const each of command.setEstimates) {
+      const restored = await this.opts.estimates.set(each, stamp);
+      if (restored !== 'written')
+        return { ok: false, detail: 'step value restore refused: ' + restored + '.' };
+    }
     // The hand-up again, actuals with estimates. A re-applied delete that put
     // back only half of what the original handed to the surviving parent would
     // leave the plan reporting an estimate with no record beside it.
-    for (const each of command.setActuals) await this.opts.actuals.set(each, stamp);
+    for (const fact of command.setActuals) {
+      const written=await this.opts.actuals.set(fact,stamp);
+      if(written!=='written')return{ok:false,detail:'step value restore refused: '+written+'.'};
+    }
     // And the statements, for the same reason one line up: a re-applied delete
     // that put back the figures and not the reading would leave the surviving
     // parent reporting a finished branch's work as work nobody has started.
-    for (const each of command.setProgress) await this.opts.progress.set(each, stamp);
+    for (const fact of command.setProgress) {
+      const written=await this.opts.progress.set(fact,stamp);
+      if(written!=='written')return{ok:false,detail:'step value restore refused: '+written+'.'};
+    }
     if (command.deletionState !== undefined)
       await this.replaceDeletionBlockages(
-        projectId,
+        workPackageId,
         command.deletionState.handedBlockages ?? [],
         false,
         stamp,
@@ -10218,7 +10427,10 @@ export class WorkItemService {
     // And the figures that are not days, per metric as they were folded. A
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
-    for (const each of command.setMeasures) await this.opts.measures.set(each, stamp);
+    for (const fact of command.setMeasures) {
+      const written=await this.opts.measures.set(fact,stamp);
+      if(written!=='written')return{ok:false,detail:'step value restore refused: '+written+'.'};
+    }
     // And the trios in every other measure, after the facts for the order the
     // original hand-up wrote them in.
     // Proof: skipped, `hands a leaf's trios down to its first child and back up
@@ -10240,11 +10452,11 @@ export class WorkItemService {
    * the node now.
    */
   private async applyRestoreAttempt(
-    projectId: string,
+    workPackageId: string,
     attempt: StoredAttempt,
     stamp: WriteStamp,
   ): Promise<ApplyOutcome> {
-    const refused = await this.attemptsRefusal(projectId, [attempt]);
+    const refused = await this.attemptsRefusal(workPackageId, [attempt]);
     if (refused !== null) return refused;
     const running = await this.runningAttempt(attempt.workItemId, attempt.stepId);
     if (
@@ -10259,16 +10471,16 @@ export class WorkItemService {
   }
 
   /**
-   * Why these facts cannot be written back: one is in a measure the project's
+   * Why these facts cannot be written back: one is in a measure the work package's
    * organization no longer defines (design D24). Null when nothing stands in
    * the way, and without a read when there are none.
    */
   private async measuresRefusal(
-    projectId: string,
+    workPackageId: string,
     measures: readonly StoredMeasure[],
   ): Promise<ApplyOutcome | null> {
     if (measures.length === 0) return null;
-    const definitions = await this.opts.measures.definitionsFor(projectId);
+    const definitions = await this.opts.measures.definitionsFor(workPackageId);
     return measures.some(({ metric }) => !decideMeasureFact(definitions, metric, null).ok)
       ? { ok: false, detail: 'a measure it recorded is no longer defined.' }
       : null;
@@ -10280,7 +10492,7 @@ export class WorkItemService {
    * and carries no basis, `rate_card_required` (design D44). Null otherwise.
    */
   private async unpricedRefusal(
-    projectId: string,
+    workPackageId: string,
     metric: string,
     basis: MoneyBasis | undefined,
   ): Promise<ApplyOutcome | null> {
@@ -10288,7 +10500,7 @@ export class WorkItemService {
     const key = definitionKeyOf(metric);
     if (key === null) return null;
     const definition = definitionsOrUnowned(
-      await this.opts.measures.definitionsFor(projectId),
+      await this.opts.measures.definitionsFor(workPackageId),
     ).find((each) => each.key === key);
     return definition?.kind === 'money'
       ? {
@@ -10300,22 +10512,22 @@ export class WorkItemService {
 
   /**
    * Why these budgets cannot be written back: one is in a measure the
-   * project's organization no longer defines (design D37). Null when nothing
+   * work package's organization no longer defines (design D37). Null when nothing
    * stands in the way, and without a read when there are none.
    */
   private async budgetsRefusal(
-    projectId: string,
+    workPackageId: string,
     budgets: readonly BudgetKey[],
   ): Promise<ApplyOutcome | null> {
     if (budgets.length === 0) return null;
-    const definitions = await this.opts.measures.definitionsFor(projectId);
+    const definitions = await this.opts.measures.definitionsFor(workPackageId);
     return budgets.some(({ key }) => !decideBudget(definitions, key, null).ok)
       ? { ok: false, detail: 'a measure it budgeted is no longer defined.' }
       : null;
   }
 
   /**
-   * Why these trios cannot be written back: one is in a measure the project's
+   * Why these trios cannot be written back: one is in a measure the work package's
    * organization no longer defines (design D32, D24 for estimates). Null when
    * nothing stands in the way, and without a read when there are none.
    *
@@ -10329,12 +10541,12 @@ export class WorkItemService {
    * (measure-estimate-command.test.ts) answered the undo stale; watched 2026-10-23.
    */
   private async measureEstimatesRefusal(
-    projectId: string,
+    workPackageId: string,
     estimates: readonly MeasureEstimateKey[],
   ): Promise<ApplyOutcome | null> {
     if (estimates.length === 0) return null;
     const held = new Set(
-      definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId)).map(
+      definitionsOrUnowned(await this.opts.measures.definitionsFor(workPackageId)).map(
         ({ key }) => key,
       ),
     );
@@ -10349,12 +10561,12 @@ export class WorkItemService {
    * directory no longer holds. Null when nothing stands in the way.
    */
   private async attemptsRefusal(
-    projectId: string,
+    workPackageId: string,
     attempts: readonly StoredAttempt[],
   ): Promise<ApplyOutcome | null> {
     for (const attempt of attempts) {
-      if (!(await this.holdsStep(projectId, attempt.stepId))) {
-        return { ok: false, detail: 'that step is no longer in this project.' };
+      if (!(await this.holdsStep(workPackageId, attempt.stepId))) {
+        return { ok: false, detail: 'that step is no longer in this work package.' };
       }
       if (
         attempt.executorPersonId !== null &&
@@ -10374,13 +10586,13 @@ export class WorkItemService {
    * the graph guard and writes share that selection and report omitted edges.
    */
   private async applyRestore(
-    projectId: string,
+    workPackageId: string,
     command: Extract<CompensatingCommand, { do: 'restore_subtree' }>,
     stamp: WriteStamp,
   ): Promise<ApplyOutcome> {
     const root = command.rows.at(0);
     if (root === undefined) throw new Error('a restore was journalled with no rows in it');
-    const rows = await this.opts.workItems.listByProject(projectId);
+    const rows = await this.opts.workItems.listByWorkPackage(workPackageId);
     const taken = command.rows.find((row) => rows.some((each) => each.id === row.id));
     if (taken !== undefined) {
       // Nothing recreates an id, so this means something else is using one
@@ -10399,13 +10611,13 @@ export class WorkItemService {
       }),
       ...command.rows,
     ];
-    const estimates = await this.opts.estimates.listByProject(projectId);
+    const estimates = await this.opts.estimates.listByWorkPackage(workPackageId);
     const removedEstimateKeys = new Set(
       command.removedEstimates.map((estimate) =>
         JSON.stringify([estimate.workItemId, estimate.stepId]),
       ),
     );
-    const legacy = await this.opts.dependencies.listByProject(projectId);
+    const legacy = await this.opts.dependencies.listByWorkPackage(workPackageId);
     const projectedLegacy = [...legacy, ...command.internalDependencies];
     const externalDependencies: StoredDependency[] = [];
     const skipped: string[] = [];
@@ -10427,7 +10639,7 @@ export class WorkItemService {
     }
     // Proof: bypassing this consumer failed `connected replay-restore refuses`
     // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
-    const structural = await this.structuralRefusal(projectId, stamp.by, {
+    const structural = await this.structuralRefusal(workPackageId, stamp.by, {
       rows: projectedTree,
       estimates: [
         ...estimates.filter(
@@ -10470,29 +10682,29 @@ export class WorkItemService {
     // its claims and progress name was removed` (resource-occupancy.db.test.ts)
     // threw a FOREIGN KEY failure on SQLite (memory was still refused by the
     // `add_claims` guard below); watched 2026-10-20.
-    const stepGone = await this.stepRemovedSince(projectId, command);
+    const stepGone = await this.stepRemovedSince(workPackageId, command);
     if (stepGone !== null) return stepGone;
-    const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
+    const attemptsRefused = await this.attemptsRefusal(workPackageId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
     // A fact in a defined measure deleted since the subtree went: the store
     // would throw on a key the organization no longer defines.
     // Proof: with this refusal removed, `refuses an undo of a delete whose
     // fact is in a measure deleted since` (measure-fact-command.test.ts) threw
     // from the store instead of refusing; watched 2026-10-23.
-    const measuresRefused = await this.measuresRefusal(projectId, command.measures);
+    const measuresRefused = await this.measuresRefusal(workPackageId, command.measures);
     if (measuresRefused !== null) return measuresRefused;
     // Proof: with this refusal removed, `refuses an undo of a delete whose trio
     // is in a measure deleted since` (measure-estimate-command.test.ts) threw
     // from the store instead of refusing; watched 2026-10-23.
     const estimatesRefused = await this.measureEstimatesRefusal(
-      projectId,
+      workPackageId,
       command.measureEstimates ?? [],
     );
     if (estimatesRefused !== null) return estimatesRefused;
     // Proof: with this refusal removed, `refuses an undo of a delete whose
     // budget is in a measure deleted since` (budget-command.test.ts) threw from
     // the store instead of refusing; watched 2026-10-23.
-    const budgetsRefused = await this.budgetsRefusal(projectId, command.budgets ?? []);
+    const budgetsRefused = await this.budgetsRefusal(workPackageId, command.budgets ?? []);
     if (budgetsRefused !== null) return budgetsRefused;
     const demands = command.demands ?? [];
     if (demands.length > 0) {
@@ -10506,7 +10718,7 @@ export class WorkItemService {
     }
 
     if (command.deletionState !== undefined) {
-      const refused = await this.deletionRefusal(projectId, command.deletionState);
+      const refused = await this.deletionRefusal(workPackageId, command.deletionState);
       if (refused !== null) return refused;
     }
     // Proof: omitted guard accepted redo-create/undo-delete and nested duplicate
@@ -10516,7 +10728,9 @@ export class WorkItemService {
     // or inserted rows before refusal. Root reads and source rereads broke controls
     // (mounted restore-step-parallel cases, independently watched 2026-10-17).
     if (root.parentId !== null) {
-      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [root.parentId]);
+      const parallels = await this.opts.stepParallels.listByWorkItems(workPackageId, [
+        root.parentId,
+      ]);
       if (parallels.length > 0)
         return {
           ok: false,
@@ -10525,13 +10739,13 @@ export class WorkItemService {
     }
     if (command.deletionState !== undefined) {
       await this.replaceDeletionBlockages(
-        projectId,
+        workPackageId,
         command.deletionState.parentBlockages,
         true,
         stamp,
       );
     }
-    await this.opts.subtrees.insertSubtree(
+    const inserted=await this.opts.subtrees.insertSubtree(
       {
         rows: command.rows.map((row) => ({
           ...row,
@@ -10562,6 +10776,7 @@ export class WorkItemService {
       },
       stamp,
     );
+    if(inserted!=='written')return{ok:false,detail:'a restored '+(inserted.kind==='estimate_refused'?'estimate':inserted.fact)+' no longer applies: '+inserted.reason};
     if (command.deletionState !== undefined) {
       // Proof: skipping these writes lost historical parent state/time in mounted deletion undo; watched 2026-10-14.
       for (const fact of command.deletionState.restoredParentProgress) {
@@ -10571,7 +10786,12 @@ export class WorkItemService {
           throw new Error(`cannot restore historical parent progress: ${written}`);
       }
       // Proof: skipping this restore lost the exact done-leaf blockage on mounted undo; watched 2026-10-14.
-      await this.replaceDeletionBlockages(projectId, command.deletionState.blockages, false, stamp);
+      await this.replaceDeletionBlockages(
+        workPackageId,
+        command.deletionState.blockages,
+        false,
+        stamp,
+      );
     }
     // The trios after the rows they hang off: off the surviving parent first
     // (undoing a hand-up, or the redo of a first-child create), then onto the
@@ -10610,7 +10830,9 @@ export class WorkItemService {
       if (stray !== undefined) {
         throw new Error(`a restore carries a mark for ${stray.workItemId}, outside its branch`);
       }
-      const held = new Set((await this.opts.projects.stepsOf(projectId)).map((each) => each.id));
+      const held = new Set(
+        (await this.opts.workPackages.stepsOf(workPackageId)).map((each) => each.id),
+      );
       await this.opts.attempts.raiseIssued(marks.filter((mark) => held.has(mark.stepId)));
     }
 
@@ -10618,7 +10840,7 @@ export class WorkItemService {
       await this.opts.dependencies.add(
         {
           id: this.clock.newId(),
-          projectId,
+          workPackageId,
           predecessorId: edge.predecessorId,
           successorId: edge.successorId,
         },
@@ -10636,14 +10858,14 @@ export class WorkItemService {
 
   /**
    * Writes one command down — to the actor's {@link UndoStack} and to the
-   * project's history — after it has been applied and announced.
+   * work package's history — after it has been applied and announced.
    *
    * **Ordering, and what it costs.** The change is applied and broadcast
    * first, then journalled. A journal write that throws therefore fails the
    * request for a change that has already happened — the client refetches and
    * sees it — while everybody else's view of the plan stays correct. The
    * alternative, journalling before the broadcast, would trade an accurate
-   * error for a project full of readers sitting on a tree that has moved.
+   * error for a work package full of readers sitting on a tree that has moved.
    * Neither swallows the failure: the one thing this must never do is report
    * success for a command it did not record, because the symptom would be an
    * undo key that quietly skips a change. See `design.md`.
@@ -10654,7 +10876,7 @@ export class WorkItemService {
    *
    * **The history row is written from here and from nowhere else.** Every
    * journalled command — all fifteen kinds — becomes one `plan_event` row, per
-   * project rather than per account and never pruned by anybody's undo, which is
+   * work package rather than per account and never pruned by anybody's undo, which is
    * the whole of R5's "examine the history of estimates changes". It is one extra
    * `INSERT` in the transaction the journal append already opens rather than a
    * second call, so a command cannot be undoable without also being recorded; see
@@ -10705,7 +10927,7 @@ export class WorkItemService {
     recordings: readonly CollectedRecording[],
   ): Promise<void> {
     if (recordings.length === 0) return;
-    const { projectId, personId } = stack;
+    const { workPackageId, personId } = stack;
     // The batch's own act, and its own stamp: the steps it gathered each dated
     // their rows when they ran, and this is the one entry and one event standing
     // for all of them.
@@ -10713,7 +10935,7 @@ export class WorkItemService {
     const [only] = recordings;
     if (recordings.length === 1) {
       await this.appendRecording(
-        projectId,
+        workPackageId,
         stamp,
         personId,
         only.kind,
@@ -10724,7 +10946,7 @@ export class WorkItemService {
       return;
     }
     await this.appendRecording(
-      projectId,
+      workPackageId,
       stamp,
       personId,
       'batch',
@@ -10775,8 +10997,8 @@ export class WorkItemService {
   }
 
   /** Broadcasts the whole tree now — what a batch does once, after its commit. */
-  announceTreeNow(projectId: string): Promise<void> {
-    return this.announceTree(projectId);
+  announceTreeNow(workPackageId: string): Promise<void> {
+    return this.announceTree(workPackageId);
   }
 
   /**
@@ -10786,7 +11008,7 @@ export class WorkItemService {
    * point — the history is ordered by these columns.
    */
   private async record(
-    projectId: string,
+    workPackageId: string,
     stamp: WriteStamp,
     kind: string,
     label: string,
@@ -10794,10 +11016,10 @@ export class WorkItemService {
     permissions: readonly ReplayPermission[] = ['package.write'],
   ): Promise<void> {
     const authorization = createReplayAuthorization(
-      projectId,
+      workPackageId,
       permissions,
-      externalAddressesOf([recording.forward, recording.inverse], projectId).map(
-        (address) => address.projectId,
+      externalAddressesOf([recording.forward, recording.inverse], workPackageId).map(
+        (address) => address.workPackageId,
       ),
     );
     if (this.collector !== null) {
@@ -10806,7 +11028,7 @@ export class WorkItemService {
     }
     // Outside a batch no credential reaches this service, so the act is the
     // account's own: the legacy `run`'s `credential: null`.
-    await this.appendRecording(projectId, stamp, null, kind, label, recording, authorization);
+    await this.appendRecording(workPackageId, stamp, null, kind, label, recording, authorization);
   }
 
   /**
@@ -10815,7 +11037,7 @@ export class WorkItemService {
    * account acting as itself.
    */
   private async appendRecording(
-    projectId: string,
+    workPackageId: string,
     stamp: WriteStamp,
     personId: string | null,
     kind: string,
@@ -10826,7 +11048,7 @@ export class WorkItemService {
     authorization = structuredClone(authorization);
     const externalAddresses = externalAddressesOf(
       [recording.forward, recording.inverse],
-      projectId,
+      workPackageId,
     );
     let externalRevisions: ExternalRevisionPreconditions | null = null;
     if (externalAddresses.length > 0) {
@@ -10834,20 +11056,23 @@ export class WorkItemService {
         throw new Error('recording external revision before-image is missing');
       const expected = await withDependencyContext(
         this.opts.dependencyContext,
-        projectId,
+        workPackageId,
         stamp.by,
         (context) => context.endpoints.readRevisions(externalAddresses),
       );
       if (!expected.ok)
         throw new Error('recording external revision evidence is no longer readable');
       externalRevisions = { expected: expected.revisions, from: recording.externalBefore };
-      requireExternalRevisions({ expected: {}, from: {}, externalRevisions }, projectId, [
+      requireExternalRevisions({ expected: {}, from: {}, externalRevisions }, workPackageId, [
         recording.forward,
         recording.inverse,
       ]);
     }
     const units = new Map(
-      (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step.estimateUnit]),
+      (await this.opts.workPackages.stepsOf(workPackageId)).map((step) => [
+        step.id,
+        step.estimateUnit,
+      ]),
     );
     const estimateUnits = Object.fromEntries(
       [...estimateStepsOf([recording.forward, recording.inverse])].map((stepId) => [
@@ -10859,7 +11084,7 @@ export class WorkItemService {
     await this.opts.journal.append(
       {
         id: this.clock.newId(),
-        projectId,
+        workPackageId,
         userId: stamp.by,
         personId,
         kind,
@@ -10872,11 +11097,11 @@ export class WorkItemService {
             ? {}
             : {
                 moveProgress: await this.captureMoveProgress(
-                  projectId,
+                  workPackageId,
                   recording.moveProgressOwners ?? [],
                 ),
               }),
-          expected: await this.revisionsOf(projectId, recording.touched),
+          expected: await this.revisionsOf(workPackageId, recording.touched),
           // The same entities as they were before the mutation, read off the row
           // list the mutation's own guard produced. Nothing is checked against
           // it — it is what tells a later undo whether the entry beneath this
@@ -10887,7 +11112,7 @@ export class WorkItemService {
       },
       {
         id: this.clock.newId(),
-        projectId,
+        workPackageId,
         userId: stamp.by,
         kind,
         label,
@@ -10908,11 +11133,11 @@ export class WorkItemService {
   }
 
   /**
-   * Whether the project still holds this step.
+   * Whether the work package still holds this step.
    *
    * Asked on every write that names one, because a step can be removed while a
    * client has it on screen — and both `estimate` and `assignment` reference it
-   * by foreign key. Reading the project's steps rather than taking a step store
+   * by foreign key. Reading the work package's steps rather than taking a step store
    * of its own: the answer is one column of a list this service already reads.
    *
    * Proof: with both calls removed, `refuses an estimate and an assignee for a
@@ -10920,18 +11145,18 @@ export class WorkItemService {
    * undo whose step has gone refusing as stale, not writing` 500s too; watched
    * 2026-08-08.
    */
-  private async holdsStep(projectId: string, stepId: string): Promise<boolean> {
-    const steps = await this.opts.projects.stepsOf(projectId);
+  private async holdsStep(workPackageId: string, stepId: string): Promise<boolean> {
+    const steps = await this.opts.workPackages.stepsOf(workPackageId);
     return steps.some((each) => each.id === stepId);
   }
 
   /** One work item's stored trio for one step, or null when it holds none. */
   private async storedTrio(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     stepId: string,
   ): Promise<Days | null> {
-    const found = (await this.opts.estimates.listByProject(projectId)).find(
+    const found = (await this.opts.estimates.listByWorkPackage(workPackageId)).find(
       (each) => each.workItemId === workItemId && each.stepId === stepId,
     );
     if (found === undefined) return null;
@@ -10951,11 +11176,11 @@ export class WorkItemService {
    * puts back.
    */
   private async storedActual(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     stepId: string,
   ): Promise<number | null> {
-    const found = (await this.opts.actuals.listByProject(projectId)).find(
+    const found = (await this.opts.actuals.listByWorkPackage(workPackageId)).find(
       (each) => each.workItemId === workItemId && each.stepId === stepId,
     );
     return found?.days ?? null;
@@ -10963,13 +11188,13 @@ export class WorkItemService {
 
   /** One step node's trio in one measure as stored, or null when it has none. */
   private async storedMeasureEstimate(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     stepId: string,
     key: string,
   ): Promise<StoredMeasureEstimate | null> {
     return (
-      (await this.opts.measureEstimates.listByProject(projectId)).find(
+      (await this.opts.measureEstimates.listByWorkPackage(workPackageId)).find(
         (each) => each.workItemId === workItemId && each.stepId === stepId && each.key === key,
       ) ?? null
     );
@@ -10977,12 +11202,12 @@ export class WorkItemService {
 
   /** One work item's stated budget in one key, or null when it states none. */
   private async storedBudget(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     key: string,
   ): Promise<StoredBudget | null> {
     return (
-      (await this.opts.budgets.listByProject(projectId)).find(
+      (await this.opts.budgets.listByWorkPackage(workPackageId)).find(
         (each) => each.workItemId === workItemId && each.key === key,
       ) ?? null
     );
@@ -10998,13 +11223,13 @@ export class WorkItemService {
    * rather than a zero beside a real figure.
    */
   private async storedMeasure(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     stepId: string,
     metric: string,
   ): Promise<StoredMeasure | null> {
     return (
-      (await this.opts.measures.listByProject(projectId)).find(
+      (await this.opts.measures.listByWorkPackage(workPackageId)).find(
         (each) =>
           each.workItemId === workItemId && each.stepId === stepId && each.metric === metric,
       ) ?? null
@@ -11020,11 +11245,11 @@ export class WorkItemService {
    * the row rather than by writing a third value into the column.
    */
   private async storedProgress(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     stepId: string,
   ): Promise<StepState | null> {
-    const found = (await this.opts.progress.listByProject(projectId)).find(
+    const found = (await this.opts.progress.listByWorkPackage(workPackageId)).find(
       (each) => each.workItemId === workItemId && each.stepId === stepId,
     );
     return found?.state ?? null;
@@ -11065,37 +11290,37 @@ export class WorkItemService {
     workItem: WorkItem,
     stepId: string,
   ): Promise<string> {
-    const ordered = orderSteps(await this.opts.projects.stepsOf(workItem.projectId));
+    const ordered = orderSteps(await this.opts.workPackages.stepsOf(workItem.workPackageId));
     const stepAt = ordered.findIndex((each) => each.id === stepId);
-    if (stepAt === -1) throw new Error(`step ${stepId} left the project mid-write`);
+    if (stepAt === -1) throw new Error(`step ${stepId} left the work package mid-write`);
     const step = ordered[stepAt];
     if (step.code === null) return `${step.name} of ${quoteName(workItem.name)}`;
     const number = deriveNumbers(rows).get(workItem.id);
     if (number === undefined) throw new Error(`no effective number for work item ${workItem.id}`);
     // The canonical reference `readStepAddresses` writes: the displayed ordinal
-    // padded to the project's step count, then the code.
+    // padded to the work package's step count, then the code.
     return formatStepReference(number, step.code, stepAt + 1, ordered.length);
   }
 
-  private async announceTree(projectId: string): Promise<void> {
+  private async announceTree(workPackageId: string): Promise<void> {
     if (this.collector !== null) {
       this.collector.dirty = true;
       return;
     }
-    const tree = await this.tree(projectId);
+    const tree = await this.tree(workPackageId);
     if (tree === null) return;
     if ('kind' in tree) {
       // Proof: publishing an empty `tree_replaced` here made the real-runner
       // test receive `{ type: 'tree_replaced', workItems: [] }` instead of the
       // durable `plan_unavailable` event after the mutation had committed.
-      await this.opts.broadcast.publish(projectId, {
+      await this.opts.broadcast.publish(workPackageId, {
         type: 'plan_unavailable',
         error: tree.error,
         engine: tree.engine,
       });
       return;
     }
-    await this.opts.broadcast.publish(projectId, {
+    await this.opts.broadcast.publish(workPackageId, {
       type: 'tree_replaced',
       workItems: tree.workItems,
     });
@@ -11106,17 +11331,17 @@ export class WorkItemService {
   }
 
   /**
-   * What a create stamps when the command names no priority: this project's
+   * What a create stamps when the command names no priority: this work package's
    * {@link ORDINARY_BAND_RANK} band's own default value.
    *
-   * Read from the project being written to, every time — see the comment at its
+   * Read from the work package being written to, every time — see the comment at its
    * one call site in {@link WorkItemService.create}.
    *
    * **Throws on a short ladder rather than falling back to the default one.**
    * `PriorityBandStore.listFor` answers five bands or the default five, and
    * `priorityLadderProblem` refuses a write of any other count, so a ladder with
    * no middle rung is a store that has stopped keeping its contract — and
-   * quietly stamping 50 there would write a number from a ladder this project
+   * quietly stamping 50 there would write a number from a ladder this work package
    * does not use into a band it may not own (`AGENTS.md` R5: unknown is not OK).
    *
    * Proof: the throw replaced by `?? DEFAULT_PRIORITY_BANDS[ORDINARY_BAND_RANK]`,
@@ -11125,30 +11350,33 @@ export class WorkItemService {
    * create returned `ok` having stored 50. Watched 2026-08-29,
    * `work-item.service.test.ts`.
    */
-  private async ordinaryPriorityOf(projectId: string): Promise<number> {
-    const bands = await this.opts.priorityBands.listFor(projectId);
+  private async ordinaryPriorityOf(workPackageId: string): Promise<number> {
+    const bands = await this.opts.priorityBands.listFor(workPackageId);
     const ordinary = bands.at(ORDINARY_BAND_RANK);
     if (ordinary === undefined) {
       throw new Error(
-        `project ${projectId} has a priority ladder of ${String(bands.length)} bands, ` +
+        `work package ${workPackageId} has a priority ladder of ${String(bands.length)} bands, ` +
           `so it has no rank ${String(ORDINARY_BAND_RANK)} rung to create work items at`,
       );
     }
     return ordinary.defaultValue;
   }
 
-  /** The work item, its project and the project's rows — or the refusal that stops the caller. */
+  /** The work item, its work package and the work package's rows — or the refusal that stops the caller. */
   private async contextFor(
     id: string,
     actorId: string,
-  ): Promise<WorkItemOutcome<{ workItem: WorkItem; project: Project; rows: LabelledWorkItem[] }>> {
+  ): Promise<
+    WorkItemOutcome<{ workItem: WorkItem; workPackage: WorkPackage; rows: LabelledWorkItem[] }>
+  > {
     const workItem = await this.opts.workItems.findById(id);
     if (workItem === null) return { ok: false, reason: 'not_found' };
-    const project = await this.opts.projects.findById(workItem.projectId);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
-    const rows = await this.opts.workItems.listByProject(workItem.projectId);
-    return { ok: true, value: { workItem, project, rows } };
+    const workPackage = await this.opts.workPackages.findById(workItem.workPackageId);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(workPackage, actorId))
+      return { ok: false, reason: 'forbidden' };
+    const rows = await this.opts.workItems.listByWorkPackage(workItem.workPackageId);
+    return { ok: true, value: { workItem, workPackage, rows } };
   }
 }
 export type {
@@ -11160,7 +11388,7 @@ export type {
 export type { NumberedWorkItem } from '../../service/numbered-work-item';
 
 interface TreeReads {
-  project: Project;
+  workPackage: WorkPackage;
   rows: LabelledWorkItem[];
   stored: readonly StoredEstimate[];
   recorded: readonly StoredActual[];
@@ -11170,7 +11398,7 @@ interface TreeReads {
   authored: readonly TypedDependency[];
   assigned: readonly Assignment[];
   assignedPeople: { id: string; name: string }[];
-  /** Every attempt in the project, read beside the statements and handed to no engine. */
+  /** Every attempt in the work package, read beside the statements and handed to no engine. */
   attempts: readonly StoredAttempt[];
   blockages: readonly StoredStepBlockage[];
   seq: number;
@@ -11184,28 +11412,28 @@ interface TreeReads {
   elsewhereHolders: readonly ElsewhereHolderLabel[];
 }
 
-/** Projects detached singleton or shared schedules without reading stores or admitting work. */
-function projectCapturedTree(
+/** Work packages detached singleton or shared schedules without reading stores or admitting work. */
+function workPackageCapturedTree(
   captured: Extract<LivePlanRead, { readonly kind: 'shared' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable;
-function projectCapturedTree(
+function workPackageCapturedTree(
   captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' | 'connected' }>,
 ): PlanTree | EngineUnavailable | null;
-function projectCapturedTree(
+function workPackageCapturedTree(
   captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable | AccessRefused | null;
-function projectCapturedTree(
+function workPackageCapturedTree(
   captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable | AccessRefused | null {
   if (captured.kind === 'access_refused') return captured;
   if (captured.kind === 'not_found') return null;
-  const { chain, project, workItems: rows, steps, seq } = captured;
+  const { chain, workPackage, workItems: rows, steps, seq } = captured;
   if (chain.kind === 'engine_unavailable') return chain;
   const reads = chain.reads;
   const people = new Set(reads.assignments.map((assignment) => assignment.personId));
-  const tree = projectTree(
+  const tree = workPackageTree(
     {
-      project,
+      workPackage,
       rows,
       steps,
       seq,
@@ -11251,9 +11479,9 @@ export function presentConnectedTree(projection: ConnectedTreeProjection): PlanT
   const { reads, metadata } = projection;
   const people = new Set(reads.assignments.map((assignment) => assignment.personId));
   const measured = withCapturedMeasures(
-    projectTree(
+    workPackageTree(
       {
-        project: metadata.project,
+        workPackage: metadata.workPackage,
         rows: [...metadata.workItems],
         steps: [...metadata.steps],
         seq: metadata.seq,
@@ -11353,7 +11581,7 @@ function withCapturedMeasures(tree: PlanTree, projection: ConnectedTreeProjectio
     // Proof: substituting [] failed both mounted closed-snapshot cost hold cases.
     attempts: metadata.attempts,
     // Proof: substituting 1 failed both mounted closed-snapshot derived-cap cases.
-    factor: metadata.project.budgetFactor,
+    factor: metadata.workPackage.budgetFactor,
     mixedFacts,
     mixedEstimates,
   }).readings;
@@ -11362,7 +11590,12 @@ function withCapturedMeasures(tree: PlanTree, projection: ConnectedTreeProjectio
   return {
     ...tree,
     workItems: withBudgets(
-      withMeasureEstimates(tree.workItems, estimates, definitions, metadata.project.pertWeights),
+      withMeasureEstimates(
+        tree.workItems,
+        estimates,
+        definitions,
+        metadata.workPackage.pertWeights,
+      ),
       readings,
       { facts: mixedFacts, estimates: mixedEstimates },
       {
@@ -11384,7 +11617,7 @@ function isRanged(estimate: StoredMeasureEstimate): boolean {
 
 /**
  * The basis a figure in `metric` (a fact's metric or a definition key) is
- * written under ({@link decideRateCard}) against the project's definitions:
+ * written under ({@link decideRateCard}) against the work package's definitions:
  * none for `token_estimate`, which names no definition, and a digest sent
  * with one is refused there as on any measure that is not money. Called after
  * the measure itself was decided, so the definition is held.
@@ -11436,7 +11669,7 @@ function pricedFactsOf(
   });
 }
 
-/** The keys of the money definitions a project's figures are in. */
+/** The keys of the money definitions a work package's figures are in. */
 function moneyKeysOf(definitions: readonly MeasureDefinition[] | null): Set<string> {
   return new Set(
     definitionsOrUnowned(definitions)
@@ -11514,11 +11747,11 @@ type TreeSchedule =
   | ConnectedTreeProjection
   | { readonly kind: 'unavailable'; readonly reason: Exclude<ScheduleError, null> };
 
-function projectTree(reads: TreeReads, scheduling: ConnectedTreeProjection): PlanTree;
-function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable;
-function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable {
+function workPackageTree(reads: TreeReads, scheduling: ConnectedTreeProjection): PlanTree;
+function workPackageTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable;
+function workPackageTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable {
   const {
-    project,
+    workPackage,
     rows,
     stored,
     recorded,
@@ -11543,7 +11776,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // One fold over a tree already in memory per metric held, because adding
   // a token to an hour is the thing `rollUpMeasures` exists to make
   // impossible. Built as a map of metric to the whole fold rather than as a
-  // per-row object here, so the recursion runs once per metric for the project
+  // per-row object here, so the recursion runs once per metric for the work package
   // instead of once per metric per row.
   //
   // `agent_minutes` joins the stored facts here, derived from the ended
@@ -11601,14 +11834,14 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   const nodeProjection =
     scheduling.kind === 'connected'
       ? scheduling.readiness.nodes
-      : projectNodeReadings({
+      : workPackageNodeReadings({
           graph: resolveDependencyGraph({
             rows,
             steps,
             estimates: stored,
             legacy: edges,
             typed: authored,
-            reach: project.depReach,
+            reach: workPackage.depReach,
           }),
           holdOf: new Map(rows.map((row) => [row.id, row.hold] as const)),
           statusOf: itemStatuses,
@@ -11618,27 +11851,27 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
         });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the
-  // graph as they read it. If one ever lands, every read of this project must
+  // graph as they read it. If one ever lands, every read of this work package must
   // still work: the rows are there, and a plan nobody can open is worse than
   // one with no dates in it. The dates go, the rows stay, and the reason is
   // reported rather than left as a page of zeroes.
-  // Step order comes from the project, because the order the steps are read
-  // in is the order the work runs in — see `ProjectRepository.stepsOf`.
+  // Step order comes from the work package, because the order the steps are read
+  // in is the order the work runs in — see `WorkPackageRepository.stepsOf`.
 
-  // How many slots this project may take of each team, read here rather than
+  // How many slots this work package may take of each team, read here rather than
   // inside `slicesOf` so the adapter stays a pure function of what it is
   // handed.
   //
   // `slotsOf` in name and in shape, and the seam C1 built is now doing the job
   // it was built for. C1's own comment here predicted "one additive table and a
-  // first lookup, with this as the fallback"; `capacity-per-project` (Dany,
+  // first lookup, with this as the fallback"; `capacity-per-work-package` (Dany,
   // 2026-08-13) kept the first half and refused the second, so this is the one
   // lookup and there is **no fallback to `serviceTeam.size`** — a team this
-  // project has stated nothing about is absent from the map, and an absent key
+  // work package has stated nothing about is absent from the map, and an absent key
   // is unconstrained.
   //
-  // Keyed on the team alone, not on the (project, team) pair: this is called
-  // once per project, so a project component inside the map would be constant
+  // Keyed on the team alone, not on the (work package, team) pair: this is called
+  // once per work package, so a work package component inside the map would be constant
   // for the whole call and every engine test would have to spell it. The pair
   // is the key in the **store**. design.md D3.
 
@@ -11647,7 +11880,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // claim about itself: `git diff` on this file shows one read and one field.
 
   const canonical = canonicalScheduleParts(
-    project,
+    workPackage,
     rows,
     stored,
     edges,
@@ -11741,30 +11974,30 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
           : scheduling;
       // The projection **and** the slices: a row's column shows its own span,
       // and a chart draws the slices the span is a projection of.
-      // The reach comes off the project being scheduled, read beside the ladder
+      // The reach comes off the work package being scheduled, read beside the ladder
       // and the capacity above and handed straight to the engine. It is
       // deliberately **not** a request parameter: the schedule is the server's
       // answer, and a client-supplied scheduling rule is a rule two clients can
       // disagree about while looking at the same plan.
       //
-      // Read from `project`, which is this call's own row, so two projects on
+      // Read from `workPackage`, which is this call's own row, so two work packages on
       // different reaches in one process each get their own.
       //
-      // Proof: `project.depReach` replaced by a module-level `let heldReach`
+      // Proof: `workPackage.depReach` replaced by a module-level `let heldReach`
       // memoised on the first plan read — the read hoisted out of the run — and
-      // `each project is scheduled by its own reach` failed on `Expected: 5 /
-      // Received: 3` for the second project's successor; watched 2026-08-29.
+      // `each workPackage is scheduled by its own reach` failed on `Expected: 5 /
+      // Received: 3` for the second workPackage's successor; watched 2026-08-29.
       if (scheduleRead.kind === 'engine_unavailable') return scheduleRead;
       const fast = scheduleRead.fast;
       const optimizationRead = scheduleRead.optimization;
       let optimized: Schedule | null = null;
       if (
         optimizationRead !== null &&
-        project.optimizationEnabled &&
-        project.scheduleEngine === 'optimized' &&
-        optimizationRead.variants[project.scheduleObjective].state === 'ready'
+        workPackage.optimizationEnabled &&
+        workPackage.scheduleEngine === 'optimized' &&
+        optimizationRead.variants[workPackage.scheduleObjective].state === 'ready'
       ) {
-        const selected = optimizationRead.schedules[project.scheduleObjective];
+        const selected = optimizationRead.schedules[workPackage.scheduleObjective];
         if (selected === null) {
           throw new Error('optimized plan reader reported ready without a schedule');
         }
@@ -11777,16 +12010,16 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // lines above: this read builds `optimized` on its way to `displayed` and
       // the optimization payload, and rewriting it to call the helper would
       // move four more decisions for no gain.
-      const selected = selectedSchedule(project, fast, optimizationRead);
+      const selected = selectedSchedule(workPackage, fast, optimizationRead);
       if (selected.schedule !== planned) {
         throw new Error('the plan read and `selectedSchedule` disagree about the drawn schedule');
       }
       if (optimizationRead !== null) {
-        const displayed = optimized === null ? 'fast' : project.scheduleObjective;
+        const displayed = optimized === null ? 'fast' : workPackage.scheduleObjective;
         optimization = {
-          enabled: project.optimizationEnabled,
-          engine: project.scheduleEngine,
-          objective: project.scheduleObjective,
+          enabled: workPackage.optimizationEnabled,
+          engine: workPackage.scheduleEngine,
+          objective: workPackage.scheduleObjective,
           inputHash: optimizationRead.inputHash,
           generation: optimizationRead.generation,
           contractVersion: optimizationRead.contractVersion,
@@ -11794,8 +12027,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
           displayed,
           variants: optimizationRead.variants,
           // Unconditional, and that is the change: the figures used to be
-          // computed only for the variant on screen, so a project sitting on
-          // Fast — the state a project spends its first solve in, and the state
+          // computed only for the variant on screen, so a work package sitting on
+          // Fast — the state a work package spends its first solve in, and the state
           // the toggle leaves it in — had nothing to compare and the indicator
           // drew nothing at all.
           ...comparedWithFast(fast, optimizationRead),
@@ -11807,12 +12040,12 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // Proof: remove this preflight and the mounted controller case
       // `models a plan beyond the calendar range without partial dates` fails
       // on the unhandled invalid-Date projection.
-      if (project.startDate !== null) {
-        let projectFinish = 0;
+      if (workPackage.startDate !== null) {
+        let workPackageFinish = 0;
         for (const placed of planned.workItems.values()) {
-          if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
+          if (placed.earliestFinish > workPackageFinish) workPackageFinish = placed.earliestFinish;
         }
-        addWorkdays(project.startDate, lastWorkdayOf(0, projectFinish));
+        addWorkdays(workPackage.startDate, lastWorkdayOf(0, workPackageFinish));
       }
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
@@ -11855,7 +12088,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       found.predecessorId,
     ]);
   }
-  // The project's own ids, once. `dependsOn` below filters every row's stored
+  // The work package's own ids, once. `dependsOn` below filters every row's stored
   // predecessors down to the ones on this plan, and it did that with
   // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
   // on the read every write and every socket frame performs.
@@ -11914,7 +12147,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // for the pair. `rollUpFinals` holds that decision and its proof.
       ...finalsOf(charged.get(row.id) ?? new Map()),
       rolledUp: hasChildren.has(row.id),
-      // Only predecessors that are in this project. A stored edge naming a
+      // Only predecessors that are in this work package. A stored edge naming a
       // work item from elsewhere — which the schema does not prevent — would
       // otherwise be reported as a dependency on a number nobody can see.
       dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
@@ -11950,7 +12183,11 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
           : null,
       dates:
         !connectedUnavailable && scheduledIds.has(row.id)
-          ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
+          ? datesOf(
+              workPackage.startDate,
+              timing.get(row.id) ?? UNSCHEDULED,
+              scheduleError !== null,
+            )
           : null,
     }))
     // **Tree order, not the number string** (ADR 0023). The two agreed for as
@@ -11981,7 +12218,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     // Present exactly with the engine's own count, so a plan nothing outranks
     // keeps its shape.
     // Proof: the labels left out made `names whom a slice waits for in the
-    // project above` (`schedule-organization.controller.db.test.ts`) find no
+    // work package above` (`schedule-organization.controller.db.test.ts`) find no
     // `elsewhereHolders`; watched 2026-10-11.
     ...(waitingElsewhere === undefined
       ? {}
@@ -12001,12 +12238,12 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
       .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
     priorityBands,
-    estimateMethod: project.estimateMethod,
-    pertWeights: project.pertWeights,
-    estimateRounding: project.estimateRounding,
-    depReach: project.depReach,
-    startDate: project.startDate,
-    projectRevision: project.revision,
+    estimateMethod: workPackage.estimateMethod,
+    pertWeights: workPackage.pertWeights,
+    estimateRounding: workPackage.estimateRounding,
+    depReach: workPackage.depReach,
+    startDate: workPackage.startDate,
+    workPackageRevision: workPackage.revision,
     ...(optimization === undefined ? {} : { optimization }),
   };
 }
@@ -12046,7 +12283,7 @@ function deletionParentsOf(commands: readonly CompensatingCommand[]): string[] {
 /** Select the target's existing immutable stage rather than rebuilding from final dates. */
 function captureConnectedOptimization(
   captured: Extract<LivePlanRead, { kind: 'connected' }>,
-  projectId: string,
+  workPackageId: string,
 ):
   | Exclude<OptimizationCapture, { readonly kind: 'scheduled' }>
   | {
@@ -12054,21 +12291,22 @@ function captureConnectedOptimization(
       readonly input: Extract<OptimizationInput, { readonly kind: 'connected' }>;
       readonly enabled: boolean;
     } {
-  const member = captured.projection.capture.projects.find(
-    (project) => project.projectId === projectId,
+  const member = captured.projection.capture.workPackages.find(
+    (workPackage) => workPackage.workPackageId === workPackageId,
   );
   // Invariant diagnostic: live capture already checks target membership before derivation.
-  if (member === undefined) throw new Error(`uncaptured optimization project ${projectId}`);
+  if (member === undefined)
+    throw new Error(`uncaptured optimization work package ${workPackageId}`);
   const placement = captured.projection.placement;
   if (placement.kind === 'dependency_calendar_missing') return placement;
   if (placement.kind === 'engine_unavailable')
     return { kind: 'unavailable', reason: 'engine_unavailable' };
   if (placement.kind === 'unavailable') return placement;
-  const enabled = member.reads.project.optimizationEnabled;
-  if (placement.idleProjects.includes(projectId)) return { kind: 'idle', enabled };
-  const selection = placement.stages.find((stage) => stage.stage.projectId === projectId);
-  // Invariant diagnostic: the selector partitions captured members into stages and idle projects.
-  if (selection === undefined) throw new Error(`missing optimization stage ${projectId}`);
+  const enabled = member.reads.workPackage.optimizationEnabled;
+  if (placement.idleWorkPackages.includes(workPackageId)) return { kind: 'idle', enabled };
+  const selection = placement.stages.find((stage) => stage.stage.workPackageId === workPackageId);
+  // Invariant diagnostic: the selector partitions captured members into stages and idle work packages.
+  if (selection === undefined) throw new Error(`missing optimization stage ${workPackageId}`);
   // Proof: final maps failed displaced live bytes; Retry expected stale-input-hash but observed not-retryable idle.
   return { kind: 'scheduled', input: { kind: 'connected', stage: selection.stage }, enabled };
 }
@@ -12083,6 +12321,6 @@ function captureSharedOptimization(
   return {
     kind: 'scheduled',
     input: { kind: 'local', input: captured.chain.input },
-    enabled: captured.project.optimizationEnabled,
+    enabled: captured.workPackage.optimizationEnabled,
   };
 }

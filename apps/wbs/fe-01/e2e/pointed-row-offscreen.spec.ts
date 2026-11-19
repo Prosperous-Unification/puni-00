@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 import { openSeededPlan, seedPlan } from './plan-fixture';
 

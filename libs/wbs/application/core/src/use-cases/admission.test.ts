@@ -1,15 +1,14 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
-import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
 import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixture';
 import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
-import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { inMemorySteps } from '@wbs/store-memory/step-fixture';
 import {
   testCalendarMarkerService,
-  testProjectService,
   testStepService,
+  testWorkPackageService,
 } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, test } from 'bun:test';
 
 import { retentionSweep } from '../module/bounded-replay-sweep/bounded-replay-sweep.feature';
@@ -20,7 +19,8 @@ import { PlanEventService } from '../module/plan-event/plan-event.resource';
 import { replay } from '../module/realtime/realtime.feature';
 import { savePlan } from '../module/saved-plans/save-plan';
 import { LEGACY_ACCESS } from '../ports/organization-access';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 import { localCommandAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 
@@ -38,21 +38,30 @@ describe('runCommandBatch', () => {
         },
         runDirectoryWithin: () => Promise.reject(new Error('directory runner must not be called')),
       },
-      { projectId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
+      { workPackageId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
     );
     // Proof: deleting the write-scope branch returned ok:true here instead of this refusal.
     expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
     expect(mutations).toEqual([]);
   });
 
-  test('refuses a trusted actor absent from the account and project authorization state', async () => {
-    const accounts = inMemoryUsers();
-    const projects = inMemoryProjects(accounts);
-    await projects.create(projectRow({ id: 'p1', ownerId: 'owner', restricted: true }), [], {
-      at: 1,
-      by: 'owner',
-    });
-    const plan = inMemoryServices({ projects });
+  test('refuses a trusted actor absent from the account and work package authorization state', async () => {
+    const owned = await createLegacyWorkPackageFixture(
+      'owner',
+      'admission-legacy',
+      'admission-parent',
+    );
+    const accounts = owned.source.stores.users;
+    const workPackages = owned.workPackages;
+    await workPackages.create(
+      workPackageRow({ id: 'p1', projectId: 'admission-parent', restricted: true }),
+      [],
+      {
+        at: 1,
+        by: 'owner',
+      },
+    );
+    const plan = createTestServices(owned.source, { workPackages });
     const writes = testWrites(undefined, batchServices(plan));
     const runner = createPlanCommandRunner({
       commandAccess: localCommandAccess,
@@ -68,10 +77,10 @@ describe('runCommandBatch', () => {
     };
 
     expect(await accounts.findById(absent.id)).toBeNull();
-    expect(await plan.stores.workItems.listByProject('p1')).toEqual([]);
+    expect(await plan.stores.workItems.listByWorkPackage('p1')).toEqual([]);
     expect(
       await runCommandBatch(runner, {
-        projectId: 'p1',
+        workPackageId: 'p1',
         actor: absent,
         access: LEGACY_ACCESS,
         commands: [
@@ -85,7 +94,7 @@ describe('runCommandBatch', () => {
       }),
     ).toEqual({ ok: false, at: 0, kind: 'createWorkItem', reason: 'forbidden' });
     // Proof: replacing absent.id with "owner" returned ok:true and created one work item.
-    expect(await plan.stores.workItems.listByProject('p1')).toEqual([]);
+    expect(await plan.stores.workItems.listByWorkPackage('p1')).toEqual([]);
     expect(writes.uow.calls).toEqual(['begin', 'rollback']);
   });
 });
@@ -95,13 +104,13 @@ describe('runCommandBatchAfter', () => {
     const writes: string[] = [];
     const outcome = await runCommandBatchAfter(
       {
-        runAfterWithin: async (_projectId, _actorId, prelude) => {
+        runAfterWithin: async (_work_packageId, _actorId, prelude) => {
           writes.push('ran');
           await prelude({} as never, LEGACY_ACCESS);
           return { ok: true, results: [], undoable: false, redoable: false };
         },
       },
-      { projectId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
+      { workPackageId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
       () => {
         writes.push('renamed');
         return Promise.resolve(null);
@@ -116,14 +125,16 @@ describe('runCommandBatchAfter', () => {
 
 describe('savePlan', () => {
   function graph(
-    project: { ownerId: string; restricted: boolean } | null,
+    workPackage: { projectId: string; restricted: boolean } | null,
     saved: 'saved' | 'refused' | 'snapshot_busy',
   ) {
     const effects: string[] = [];
     return {
       effects,
       value: {
-        projects: { readWithin: () => Promise.resolve(project === null ? null : { project }) },
+        workPackages: {
+          readWithin: () => Promise.resolve(workPackage === null ? null : { workPackage }),
+        },
         plans: {
           save: () => {
             effects.push('save');
@@ -144,17 +155,17 @@ describe('savePlan', () => {
     };
   }
 
-  test('refuses read-only, wrong-owner, and absent-project calls before save', async () => {
-    for (const [actor, project, error] of [
-      [reader, { ownerId: 'owner', restricted: true }, 'insufficient_scope'],
-      [writer, { ownerId: 'other', restricted: true }, 'forbidden'],
+  test('refuses read-only, restricted legacy, and absent-work-package calls before save', async () => {
+    for (const [actor, workPackage, error] of [
+      [reader, { projectId: 'admission-parent', restricted: true }, 'insufficient_scope'],
+      [writer, { projectId: 'admission-parent', restricted: true }, 'forbidden'],
       [writer, null, 'not_found'],
     ] as const) {
-      const fixture = graph(project, 'saved');
+      const fixture = graph(workPackage, 'saved');
       // Proof: deleting the owner check returned outcome:saved for the wrong-owner row.
       expect(
         await savePlan(fixture.value as never, {
-          projectId: 'p1',
+          workPackageId: 'p1',
           actor,
           name: 'Baseline',
           access: LEGACY_ACCESS,
@@ -168,18 +179,18 @@ describe('savePlan', () => {
 
   test('publishes exactly once after success and never for quota or busy refusals', async () => {
     for (const stored of ['refused', 'snapshot_busy'] as const) {
-      const fixture = graph({ ownerId: 'owner', restricted: true }, stored);
+      const fixture = graph({ projectId: 'admission-parent', restricted: false }, stored);
       await savePlan(fixture.value as never, {
-        projectId: 'p1',
+        workPackageId: 'p1',
         actor: writer,
         access: LEGACY_ACCESS,
       });
       // Proof: publishing before save produced ["publish", "save"] for the quota refusal.
       expect(fixture.effects).toEqual(['save']);
     }
-    const fixture = graph({ ownerId: 'owner', restricted: true }, 'saved');
+    const fixture = graph({ projectId: 'admission-parent', restricted: false }, 'saved');
     await savePlan(fixture.value as never, {
-      projectId: 'p1',
+      workPackageId: 'p1',
       actor: writer,
       access: LEGACY_ACCESS,
     });
@@ -222,53 +233,63 @@ test('retention refuses a noninternal principal without pruning either store', a
 });
 
 for (const operation of [
-  'project-write',
-  'project-retry',
-  'project-settings',
+  'work-package-write',
+  'work-package-retry',
+  'work-package-settings',
   'step',
   'marker',
 ] as const) {
   test('retains the legacy restricted creator refusal at ' + operation, async () => {
-    const projects = inMemoryProjects();
-    await projects.create(
-      projectRow({ id: 'restricted', ownerId: 'owner', restricted: true }),
+    const { source, workPackages } = await createLegacyWorkPackageFixture(
+      'owner',
+      'admission-legacy',
+      'admission-parent',
+    );
+    await source.stores.users.create(
+      { id: 'stranger', username: 'stranger', passwordHash: null, createdAt: 1 },
+      { at: 1, by: 'stranger' },
+    );
+    await workPackages.create(
+      workPackageRow({ id: 'restricted', projectId: 'admission-parent', restricted: true }),
       [],
       { at: 1, by: 'owner' },
     );
     const steps = inMemorySteps();
     const markers = inMemoryCalendarMarkers();
-    const projectService = testProjectService(projects);
-    const before = await projects.findById('restricted');
-    const answer =
-      operation === 'project-write'
-        ? await projectService.authorizeWrite('restricted', 'stranger', LEGACY_ACCESS)
-        : operation === 'project-retry'
-          ? await projectService.authorizeRetry('restricted', 'stranger', LEGACY_ACCESS)
-          : operation === 'project-settings'
-            ? await projectService.updateWithin(
-                'restricted',
-                'stranger',
-                { name: 'Must not rename' },
-                LEGACY_ACCESS,
-              )
-            : operation === 'step'
-              ? await testStepService(projects, steps).addWithin(
+    const workPackageService = testWorkPackageService(workPackages);
+    const before = await workPackages.findById('restricted');
+    for (const actor of ['owner', 'stranger']) {
+      const answer =
+        operation === 'work-package-write'
+          ? await workPackageService.authorizeWrite('restricted', actor, LEGACY_ACCESS)
+          : operation === 'work-package-retry'
+            ? await workPackageService.authorizeRetry('restricted', actor, LEGACY_ACCESS)
+            : operation === 'work-package-settings'
+              ? await workPackageService.updateWithin(
                   'restricted',
-                  'stranger',
-                  'Must not add',
-                  0,
-                  undefined,
+                  actor,
+                  { name: 'Must not rename' },
                   LEGACY_ACCESS,
                 )
-              : await testCalendarMarkerService(projects, markers).createWithin(
-                  'restricted',
-                  'stranger',
-                  { date: '2026-11-10', name: 'Must not add', color: '#ff0000' },
-                  LEGACY_ACCESS,
-                );
-    expect(answer).toMatchObject({ ok: false, reason: 'forbidden' });
-    expect(await projects.findById('restricted')).toEqual(before);
-    expect(await steps.listByProject('restricted')).toEqual([]);
-    expect(await markers.listFor('restricted')).toEqual([]);
+              : operation === 'step'
+                ? await testStepService(workPackages, steps).addWithin(
+                    'restricted',
+                    actor,
+                    'Must not add',
+                    0,
+                    undefined,
+                    LEGACY_ACCESS,
+                  )
+                : await testCalendarMarkerService(workPackages, markers).createWithin(
+                    'restricted',
+                    actor,
+                    { date: '2026-11-10', name: 'Must not add', color: '#ff0000' },
+                    LEGACY_ACCESS,
+                  );
+      expect(answer).toMatchObject({ ok: false, reason: 'forbidden' });
+      expect(await workPackages.findById('restricted')).toEqual(before);
+      expect(await steps.listByWorkPackage('restricted')).toEqual([]);
+      expect(await markers.listFor('restricted')).toEqual([]);
+    }
   });
 }

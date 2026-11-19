@@ -667,3 +667,186 @@ it('does not read a legacy shared report without a published pointer', async () 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+import { spyOn } from 'bun:test';
+
+it('uses the selected Bun executable for real Browser discovery and execution', async () => {
+  const parent = await mkdtemp(join(tmpdir(), 'puni-browser-bun-dispatch-'));
+  const candidate = join(parent, 'candidate');
+  const previousPath = process.env['PATH'];
+  const previousHome = process.env['HOME'];
+  const previousGitGlobal = process.env['GIT_CONFIG_GLOBAL'];
+  const previousGitSystem = process.env['GIT_CONFIG_SYSTEM'];
+  const previousGitNoSystem = process.env['GIT_CONFIG_NOSYSTEM'];
+  const nativeSpawn = Bun.spawn;
+  let restoreSpawn: (() => void) | null = null;
+  let primary: { cause: unknown } | null = null;
+  const cleanupFailures: unknown[] = [];
+  interface BrowserSpawn {
+    argv: string[];
+    cwd: string;
+    selection: { CI: string | undefined; LANG: string | undefined };
+  }
+  const observed: BrowserSpawn[] = [];
+  try {
+    if (previousPath === undefined || previousPath === '')
+      throw new Error('Browser dispatch observation requires the configured tool PATH');
+    // The fixture and production collector's synchronous Git calls share this isolated basis.
+    const home = join(parent, 'home');
+    await mkdir(home);
+    process.env['HOME'] = home;
+    process.env['GIT_CONFIG_GLOBAL'] = '/dev/null';
+    process.env['GIT_CONFIG_SYSTEM'] = '/dev/null';
+    process.env['GIT_CONFIG_NOSYSTEM'] = '1';
+    const aliases = join(parent, 'alias');
+    await mkdir(aliases);
+    // Observation-only baseline bridge, matching the accepted Performance vector control:
+    // a node-named Bun alias lets the old vector reach its own assertion without installed Node.
+    // It is not evidence of execution without a node name and changes no production lookup.
+    await symlink(process.execPath, join(aliases, 'node'));
+    process.env['PATH'] = aliases + ':' + previousPath;
+    for (const executable of ['bun', 'git'])
+      expect(Bun.which(executable)).toBe(Bun.which(executable, { PATH: previousPath }));
+    await mkdir(join(candidate, 'libs/wbs/application/core/testing'), { recursive: true });
+    await writeFile(
+      join(candidate, '.gitignore'),
+      'tmp/\nnode_modules\ndist/\ntest-results/\nplaywright-report/\n',
+    );
+    await writeFile(
+      join(candidate, 'libs/wbs/application/core/testing/portable-composition.ts'),
+      'export const browserDispatchFixture = "actual Bun build";\n',
+    );
+    await writeFile(
+      join(candidate, 'libs/wbs/application/core/playwright.config.ts'),
+      "import { defineConfig } from '@playwright/test';\nexport default defineConfig({ testDir: './testing', testMatch: '**/dispatch.spec.ts', projects: [{ name: 'chromium' }], workers: 1, retries: 0, timeout: 30000 });\n",
+    );
+    await writeFile(
+      join(candidate, 'libs/wbs/application/core/testing/dispatch.spec.ts'),
+      "import { expect, test } from '@playwright/test';\ntest('records a controlled Browser runner case', () => { expect(typeof process.versions.bun).toBe('string'); });\n",
+    );
+    const git = (args: string[]): void => {
+      const invocation = Bun.spawnSync(['git', '-C', candidate, ...args], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      if (invocation.exitCode !== 0)
+        throw new Error('Browser dispatch fixture Git failed: ' + invocation.stderr.toString());
+    };
+    git(['init']);
+    git(['config', 'user.name', 'Browser Dispatch Fixture']);
+    git(['config', 'user.email', 'browser.dispatch@example.invalid']);
+    git(['add', '.']);
+    git(['commit', '-m', 'controlled Browser dispatch fixture']);
+
+    // Test-only controlled array launches: observe the real call, then forward it unchanged.
+    const observeSpawn = ((...args: Parameters<typeof Bun.spawn>) => {
+      const argv = args[0];
+      const options = args[1];
+      if (!Array.isArray(argv) || typeof options?.cwd !== 'string')
+        throw new Error('Browser dispatch used an unexpected spawn form');
+      observed.push({
+        argv: [...argv],
+        cwd: options.cwd,
+        selection: { CI: options.env?.['CI'], LANG: options.env?.['LANG'] },
+      });
+      return nativeSpawn(...args);
+    }) as typeof Bun.spawn;
+    const observer = spyOn(Bun, 'spawn').mockImplementation(observeSpawn);
+    restoreSpawn = () => {
+      observer.mockRestore();
+    };
+
+    await runBrowserLevel(candidate, 'portable');
+    const cli = join(import.meta.dir, '../../../node_modules/playwright/cli.js');
+    const playwright = observed.filter((launch) => launch.argv[1] === cli);
+    expect(playwright).toHaveLength(2);
+    expect(playwright.map((launch) => launch.argv[0])).toEqual([
+      process.execPath,
+      process.execPath,
+    ]);
+    expect(playwright.map((launch) => launch.argv.slice(1))).toEqual([
+      [
+        cli,
+        'test',
+        '--config',
+        'libs/wbs/application/core/playwright.config.ts',
+        '--list',
+        '--reporter=json',
+      ],
+      [
+        cli,
+        'test',
+        '--config',
+        'libs/wbs/application/core/playwright.config.ts',
+        '--reporter=json,junit',
+      ],
+    ]);
+    const discovery = playwright.at(0);
+    const execution = playwright.at(1);
+    if (discovery === undefined || execution === undefined)
+      throw new Error('Actual Browser dispatch observations are absent');
+    expect(discovery.cwd).toBe(execution.cwd);
+    expect(discovery.cwd.startsWith(join(tmpdir(), 'puni-browser-portable-'))).toBe(true);
+    expect(discovery.cwd.endsWith('/candidate')).toBe(true);
+    expect(playwright.map((launch) => launch.selection)).toEqual([
+      { CI: '1', LANG: 'C.UTF-8' },
+      { CI: '1', LANG: 'C.UTF-8' },
+    ]);
+    const publication = await readBrowserPublication(candidate, 'portable');
+    expect(publication.manifest['certifies']).toBe(false);
+    expect(publication.manifest['coverage']).toEqual({ passingCases: 1, skippedDebt: 0 });
+    expect(publication.report).toContain('tests="1" failures="0"');
+  } catch (cause) {
+    primary = { cause };
+  }
+  try {
+    if (restoreSpawn !== null) restoreSpawn();
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  try {
+    if (previousPath === undefined) delete process.env['PATH'];
+    else process.env['PATH'] = previousPath;
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  try {
+    if (previousHome === undefined) delete process.env['HOME'];
+    else process.env['HOME'] = previousHome;
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  try {
+    if (previousGitGlobal === undefined) delete process.env['GIT_CONFIG_GLOBAL'];
+    else process.env['GIT_CONFIG_GLOBAL'] = previousGitGlobal;
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  try {
+    if (previousGitSystem === undefined) delete process.env['GIT_CONFIG_SYSTEM'];
+    else process.env['GIT_CONFIG_SYSTEM'] = previousGitSystem;
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  try {
+    if (previousGitNoSystem === undefined) delete process.env['GIT_CONFIG_NOSYSTEM'];
+    else process.env['GIT_CONFIG_NOSYSTEM'] = previousGitNoSystem;
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  try {
+    await rm(parent, { recursive: true, force: true });
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  if (cleanupFailures.length > 0) {
+    if (primary !== null)
+      throw new AggregateError(
+        [primary.cause, ...cleanupFailures],
+        'Browser dispatch control and cleanup failed',
+        { cause: primary.cause },
+      );
+    throw new AggregateError(cleanupFailures, 'Browser dispatch control cleanup failed');
+  }
+  if (primary !== null) throw primary.cause;
+}, 30_000);

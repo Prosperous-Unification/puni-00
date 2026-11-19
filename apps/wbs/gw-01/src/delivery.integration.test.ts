@@ -8,10 +8,10 @@ import { SocketDelivery } from './service/delivery';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { Presence } from './service/presence';
 import { SubscriptionMap } from './service/subscription-map';
-import { grantingAccess } from './testing/project-access';
+import { grantingAccess } from './testing/work-package-access';
 
 const SECRET = 's'.repeat(32);
-const PROJECT = 'project:11111111-1111-4111-8111-111111111111';
+const WORK_PACKAGE = 'work-package:11111111-1111-4111-8111-111111111111';
 
 function deferred() {
   let release: () => void = () => {
@@ -41,7 +41,7 @@ test('push awaits asynchronous recipient outcome and never counts a failed send'
   const subs = new SubscriptionMap<WsSocket>();
   const retired: string[] = [];
   subs.subscribe(
-    PROJECT,
+    WORK_PACKAGE,
     new SocketDelivery({
       admit: async () => {
         await gate.pending;
@@ -59,7 +59,7 @@ test('push awaits asynchronous recipient outcome and never counts a failed send'
       },
     }),
   );
-  subs.subscribe(PROJECT, { send: () => Promise.resolve('sent') });
+  subs.subscribe(WORK_PACKAGE, { send: () => Promise.resolve('sent') });
   const metrics = new GatewayMetrics();
   const app = new Elysia().use(internalController({ secret: SECRET, subs, metrics })).listen(0);
   const port = app.server?.port;
@@ -69,7 +69,7 @@ test('push awaits asynchronous recipient outcome and never counts a failed send'
     const pushing = fetch(`http://localhost:${String(port)}/internal/push`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-internal-auth': SECRET },
-      body: JSON.stringify({ subscription: PROJECT, seq: 10, message: { text: 'live' } }),
+      body: JSON.stringify({ subscription: WORK_PACKAGE, seq: 10, message: { text: 'live' } }),
     }).then(async (response) => {
       settled = true;
       expect(response.status).toBe(202);
@@ -92,7 +92,7 @@ test('delayed replay reaches its recipient before later replay and resume acknow
   const written: string[] = [];
   let attempted = false;
   const replaying = handleWsMessage({
-    frame: { type: 'resume', resume_points: { [PROJECT]: 0 } },
+    frame: { type: 'resume', resume_points: { [WORK_PACKAGE]: 0 } },
     socket: {
       send: async (payload) => {
         if ((JSON.parse(payload) as { seq?: number }).seq === 1) {
@@ -113,7 +113,7 @@ test('delayed replay reaches its recipient before later replay and resume acknow
     forward: () => Promise.resolve({ ack: true }),
     resume: () =>
       Promise.resolve({
-        [PROJECT]: {
+        [WORK_PACKAGE]: {
           status: 'replaying',
           events: [
             { seq: 1, message: 'first' },
@@ -151,9 +151,9 @@ test('presence exposes asynchronous delivery failure while reaching healthy reci
       return Promise.resolve('sent');
     },
   });
-  presence.enterProject('failed', PROJECT);
-  presence.enterProject('healthy', PROJECT);
-  const failure: unknown = await presence.broadcast([PROJECT]).then(
+  presence.enterWorkPackage('failed', WORK_PACKAGE);
+  presence.enterWorkPackage('healthy', WORK_PACKAGE);
+  const failure: unknown = await presence.broadcast([WORK_PACKAGE]).then(
     () => null,
     (caught: unknown) => caught,
   );
@@ -164,7 +164,7 @@ test('presence exposes asynchronous delivery failure while reaching healthy reci
 test('a retired replay stops before any later event or acknowledgement', async () => {
   const attempted: string[] = [];
   await handleWsMessage({
-    frame: { type: 'resume', resume_points: { [PROJECT]: 0 } },
+    frame: { type: 'resume', resume_points: { [WORK_PACKAGE]: 0 } },
     socket: {
       send: (payload) => {
         attempted.push(payload);
@@ -181,7 +181,7 @@ test('a retired replay stops before any later event or acknowledgement', async (
     forward: () => Promise.resolve({ ack: true }),
     resume: () =>
       Promise.resolve({
-        [PROJECT]: {
+        [WORK_PACKAGE]: {
           status: 'replaying',
           events: [
             { seq: 1, message: 'first' },
@@ -210,7 +210,7 @@ test('fresh admission stops replay when authority changes after the first accept
     onRetired: () => undefined,
   });
   await handleWsMessage({
-    frame: { type: 'resume', resume_points: { [PROJECT]: 0 } },
+    frame: { type: 'resume', resume_points: { [WORK_PACKAGE]: 0 } },
     socket,
     subs: new SubscriptionMap(),
     connectionId: 'retained',
@@ -222,7 +222,7 @@ test('fresh admission stops replay when authority changes after the first accept
     forward: () => Promise.resolve({ ack: true }),
     resume: () =>
       Promise.resolve({
-        [PROJECT]: {
+        [WORK_PACKAGE]: {
           status: 'replaying',
           events: [
             { seq: 1, message: 'first' },
@@ -232,17 +232,17 @@ test('fresh admission stops replay when authority changes after the first accept
       }),
   });
   expect(accepted.map((payload) => JSON.parse(payload) as unknown)).toEqual([
-    { subscription: PROJECT, seq: 1, message: 'first' },
+    { subscription: WORK_PACKAGE, seq: 1, message: 'first' },
   ]);
 });
 
-test('held project admission cannot restore subscription after connection cancellation', async () => {
+test('held work package admission cannot restore subscription after connection cancellation', async () => {
   const gate = deferred();
   const cancellation = new AbortController();
   const subs = new SubscriptionMap<WsSocket>();
   const socket: WsSocket = { send: () => Promise.resolve('retired') };
   const subscribing = handleWsMessage({
-    frame: { type: 'subscribe', subscription: PROJECT },
+    frame: { type: 'subscribe', subscription: WORK_PACKAGE },
     signal: cancellation.signal,
     socket,
     subs,
@@ -265,7 +265,7 @@ test('held project admission cannot restore subscription after connection cancel
   cancellation.abort();
   gate.release();
   await subscribing;
-  expect([...subs.socketsFor(PROJECT)]).toEqual([]);
+  expect([...subs.socketsFor(WORK_PACKAGE)]).toEqual([]);
 });
 
 test('mounted push cannot write after held admission cancellation or exact expiry with withheld timer', async () => {
@@ -277,7 +277,7 @@ test('mounted push cannot write after held admission cancellation or exact expir
     const cancellation = new AbortController();
     const subs = new SubscriptionMap<WsSocket>();
     subs.subscribe(
-      PROJECT,
+      WORK_PACKAGE,
       new SocketDelivery({
         admit: async () => {
           admitted = true;
@@ -302,7 +302,7 @@ test('mounted push cannot write after held admission cancellation or exact expir
       new Request('http://localhost/internal/push', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-auth': SECRET },
-        body: JSON.stringify({ subscription: PROJECT, seq: 1, message: 'sentinel' }),
+        body: JSON.stringify({ subscription: WORK_PACKAGE, seq: 1, message: 'sentinel' }),
       }),
     );
     await until(() => admitted);
@@ -321,7 +321,7 @@ test('mounted expired FIFO head never asks authority even when timer callback is
   let reads = 0;
   const subs = new SubscriptionMap<WsSocket>();
   subs.subscribe(
-    PROJECT,
+    WORK_PACKAGE,
     new SocketDelivery({
       admit: () => {
         inspections++;
@@ -342,7 +342,7 @@ test('mounted expired FIFO head never asks authority even when timer callback is
     new Request('http://localhost/internal/push', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-internal-auth': SECRET },
-      body: JSON.stringify({ subscription: PROJECT, seq: 1, message: 'sentinel' }),
+      body: JSON.stringify({ subscription: WORK_PACKAGE, seq: 1, message: 'sentinel' }),
     }),
   );
   expect(await response.json()).toEqual({ delivered_to_sockets: 0 });

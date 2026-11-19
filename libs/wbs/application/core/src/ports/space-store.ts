@@ -1,8 +1,8 @@
 import type { WriteStamp } from './write-stamp';
 
 /**
- * An organization-owned, named lens over an ordered set of its projects
- * (ADR 0033). It owns nothing: deleting it changes no project.
+ * An organizational unit containing ordered projects and linked people/teams
+ * (ADR 0063). A project belongs to one space or none; deleting a space detaches it.
  *
  * `revision` counts every write to the space or its membership, so a reader
  * holding an older revision knows its rows are stale.
@@ -17,7 +17,7 @@ export interface Space {
   createdAt: number;
 }
 
-/** One project's place in one space. */
+/** One work package's place in one space. */
 export interface SpaceMember {
   projectId: string;
   position: number;
@@ -35,11 +35,13 @@ export type SpaceWritten =
 
 /**
  * A membership write's decision: the member's position, or why nothing was
- * written. `not_found` covers the space, a project the organization does not
+ * written. `not_found` covers the space, a work package the organization does not
  * own, and an `afterProjectId` that is not a member.
  */
 export type MembershipWritten =
-  { ok: true; position: number } | { ok: false; reason: 'not_found' | 'already_in_space' };
+  | { ok: true; position: number }
+  | { ok: false; reason: 'not_found' | 'already_in_space' }
+  | { ok: false; reason: 'project_in_other_space'; spaceId: string };
 
 /**
  * An organization's spaces and their membership (`add-spaces`, design D2).
@@ -47,8 +49,8 @@ export type MembershipWritten =
  * **Every method is scoped by `organizationId` in its query**, which is what
  * makes a foreign space answer `not_found` a property of the read rather than
  * of a caller remembering to compare. The store knows nothing of access, roles
- * or which projects a caller may open; those belong to the resource, which
- * filters members through the project routes' own predicate.
+ * or which work packages a caller may open; those belong to the resource, which
+ * filters members through the work package routes' own predicate.
  *
  * Refusals are typed answers, never thrown constraint errors. A thrown error
  * is a fault: an unknown organization, or storage failing.
@@ -74,8 +76,8 @@ export interface SpaceStore {
     name: string,
     stamp: WriteStamp,
   ): Promise<SpaceWritten>;
-  /** Deletes the space and its membership; no project changes. False when absent. */
-  remove(organizationId: string, spaceId: string): Promise<boolean>;
+  /** Deletes the space and its membership; no work package changes. False when absent. */
+  remove(organizationId: string, spaceId: string, stamp: WriteStamp): Promise<boolean>;
   /**
    * The members in display order: `position`, ties by `projectId` (ADR 0016's
    * rule, so two reads of unchanged rows agree). Null when the space is absent.
@@ -88,7 +90,7 @@ export interface SpaceStore {
    */
   membersIn(organizationId: string): Promise<Map<string, SpaceMember[]>>;
   /**
-   * Adds a project the organization owns after `afterProjectId`, or first on
+   * Adds a work package the organization owns after `afterProjectId`, or first on
    * null, by `placeAfter`; a respace rewrites the group in the same write.
    */
   addProject(
@@ -113,4 +115,30 @@ export interface SpaceStore {
     afterProjectId: string | null,
     stamp: WriteStamp,
   ): Promise<MembershipWritten>;
+  peopleOf(organizationId: string, spaceId: string): Promise<readonly string[] | null>;
+  teamsOf(organizationId: string, spaceId: string): Promise<readonly string[] | null>;
+  addPerson(
+    organizationId: string,
+    spaceId: string,
+    personId: string,
+    stamp: WriteStamp,
+  ): Promise<boolean>;
+  removePerson(
+    organizationId: string,
+    spaceId: string,
+    personId: string,
+    stamp: WriteStamp,
+  ): Promise<boolean>;
+  addTeam(
+    organizationId: string,
+    spaceId: string,
+    serviceTeamId: string,
+    stamp: WriteStamp,
+  ): Promise<boolean>;
+  removeTeam(
+    organizationId: string,
+    spaceId: string,
+    serviceTeamId: string,
+    stamp: WriteStamp,
+  ): Promise<boolean>;
 }

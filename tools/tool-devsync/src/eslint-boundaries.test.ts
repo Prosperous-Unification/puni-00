@@ -421,7 +421,7 @@ describe('the effective production and test boundaries', () => {
       );
   }, 30_000);
 
-  it('Dash runtime history consumes only the public WBS contract at four exact paths', async () => {
+  it('Dash runtime history consumes only the public WBS contract at seven exact paths', async () => {
     const peers = [
       'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/plan-runtime.ts',
@@ -434,12 +434,15 @@ describe('the effective production and test boundaries', () => {
       'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-records.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-receipt.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-scope-boundary.test.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-rename.db.test.ts',
     ]) {
       const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
       if (!isRecord(options)) throw new Error('Dash runtime boundary options are malformed');
       const [admission] = await lint.lintText(
-        "import type { RuntimeScope } from '@wbs/contracts';\nconst scope: RuntimeScope = { organizationId: 'o', projectId: 'p', personId: 'a' };\nvoid scope;",
+        "import type { RuntimeScope1 } from '@wbs/contracts';\nconst scope: RuntimeScope1 = { organizationId: 'o', projectId: 'p', personId: 'a' };\nvoid scope;",
         { filePath: path },
       );
       expect(admission.fatalErrorCount).toBe(0);
@@ -1527,7 +1530,7 @@ const ACTIVATION_IMPORTS = [
       '@wbs/store-sqlite/db',
       '@wbs/store-sqlite/backup',
       '@wbs/store-sqlite/migration-set',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
     ],
   ],
   ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
@@ -1536,13 +1539,13 @@ const ACTIVATION_IMPORTS = [
   ['lib/initial-handoff-graph.ts', ['@wbs/contracts/dependency-runtime']],
   [
     'lib/complete-dependency-exclusion.test.ts',
-    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-work-package-dependency-activation'],
   ],
   [
     'lib/dependency-activation-storage.test.ts',
     [
       '@wbs/store-sqlite/db',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
       '@wbs/store-sqlite/migration-set',
     ],
   ],
@@ -1844,7 +1847,7 @@ describe('fixed source migration worker boundary', () => {
       '@wbs/store-sqlite/db',
       '@wbs/store-sqlite/backup',
       '@wbs/store-sqlite/source',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
       ...MIGRATION_IMPORTS.flatMap(([alias]) => [
         `${alias}/foreign`,
         `${alias}-extra`,
@@ -1948,7 +1951,7 @@ describe('fixed source parent ledger boundary', () => {
       '@wbs/store-sqlite/db',
       '@wbs/store-sqlite/backup',
       '@wbs/store-sqlite/source',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
       '@wbs/store-sqlite/migration-set/foreign',
       '@wbs/store-sqlite/migration-set-extra',
       '@wbs/store-sqlite/foreign@wbs/store-sqlite/migration-set',
@@ -2259,6 +2262,7 @@ describe('Task3 exact write recovery policy', () => {
     '@wbs/observability',
     prefix + 'app',
     prefix + 'boot',
+    prefix + 'repository/migrate',
     prefix + 'testing/auth-fixture',
     prefix + 'testing/machine-grant-fixture',
     prefix + 'testing/organization-limits-fixture',
@@ -2290,6 +2294,7 @@ describe('Task3 exact write recovery policy', () => {
       ...[
         'app',
         'boot',
+        'repository/migrate',
         'testing/organization-harness',
         'testing/auth-fixture',
         'testing/machine-grant-fixture',

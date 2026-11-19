@@ -8,11 +8,11 @@ import {
 import { formatTypedDependencyKey, type ScopedTypedDependency } from './typed-dependency';
 
 /**
- * One project's graph prepared using its own tree, steps, reach and estimate presence.
+ * One work package's graph prepared using its own tree, steps, reach and estimate presence.
  * Authored contexts retain held work; placement contexts use the held-reduced tree and slices.
  */
-export interface ConnectedProjectGraph {
-  readonly projectId: string;
+export interface ConnectedWorkPackageGraph {
+  readonly workPackageId: string;
   readonly tree: TreeIndex;
   readonly slicesByLeaf: ReadonlyMap<string, readonly GraphSlice[]>;
   readonly graph: StepNodeGraph;
@@ -21,66 +21,68 @@ export interface ConnectedProjectGraph {
 
 /** Local graphs and the external authored relationships joining them. */
 export interface ConnectedGraphInput {
-  readonly projects: readonly ConnectedProjectGraph[];
+  readonly workPackages: readonly ConnectedWorkPackageGraph[];
   readonly external: readonly ScopedTypedDependency[];
 }
 
 /** The resolved node graph and detached ownership/provenance needed to explain it. */
 export interface ConnectedGraph {
   readonly graph: StepNodeGraph;
-  readonly projectIdByWorkItem: ReadonlyMap<string, string>;
+  readonly workPackageIdByWorkItem: ReadonlyMap<string, string>;
   readonly relationships: ReadonlyMap<string, ScopedTypedDependency>;
 }
 
 /** Stable scoped relationship meaning, independent of object property insertion order. */
 export function formatScopedDependencyKey(dependency: ScopedTypedDependency): string {
   return JSON.stringify([
-    dependency.predecessor.projectId,
-    dependency.successor.projectId,
+    dependency.predecessor.workPackageId,
+    dependency.successor.workPackageId,
     formatTypedDependencyKey(dependency),
   ]);
 }
 
 /**
  * Combines already prepared local graphs, expanding external selectors under
- * their actual endpoint projects through {@link resolveAuthoredEdges}.
+ * their actual endpoint work packages through {@link resolveAuthoredEdges}.
  * Authored graphs retain held work. Only {@link findStepNodeCycle} decides
- * cycles; revisiting a project through different nodes is valid.
- * Throws on conflicting identities, ownership, missing projects/items/slices
- * and invalid selectors. Never substitutes another project's steps or reach.
+ * cycles; revisiting a work package through different nodes is valid.
+ * Throws on conflicting identities, ownership, missing work-packages/items/slices
+ * and invalid selectors. Never substitutes another work package's steps or reach.
  */
 export function resolveConnectedGraph(input: ConnectedGraphInput): ConnectedGraph {
-  const projects = new Map<string, ConnectedProjectGraph>();
-  const projectIdByWorkItem = new Map<string, string>();
+  const workPackages = new Map<string, ConnectedWorkPackageGraph>();
+  const workPackageIdByWorkItem = new Map<string, string>();
   const relationships = new Map<string, ScopedTypedDependency>();
   const graph: StepNodeGraph = { nodes: [], edges: [] };
-  for (const project of input.projects) {
-    // Proof: omitting project identity uniqueness made `refuses duplicate empty project identities without ownership masking` accept duplicate empty projects (2026-10-22).
-    if (projects.has(project.projectId)) throw new Error(`duplicate project ${project.projectId}`);
-    projects.set(project.projectId, project);
-    for (const workItemId of project.tree.leavesUnder.keys()) {
-      // Proof: omitting work-item ownership uniqueness made `refuses duplicate project and work-item ownership` accept the cross-owned leaf (2026-10-22).
-      if (projectIdByWorkItem.has(workItemId))
+  for (const workPackage of input.workPackages) {
+    // Proof: omitting work package identity uniqueness made `refuses duplicate empty workPackage identities without ownership masking` accept duplicate empty work packages (2026-10-22).
+    if (workPackages.has(workPackage.workPackageId))
+      throw new Error(`duplicate work package ${workPackage.workPackageId}`);
+    workPackages.set(workPackage.workPackageId, workPackage);
+    for (const workItemId of workPackage.tree.leavesUnder.keys()) {
+      // Proof: omitting work-item ownership uniqueness made `refuses duplicate workPackage and work-item ownership` accept the cross-owned leaf (2026-10-22).
+      if (workPackageIdByWorkItem.has(workItemId))
         throw new Error(`work item ${workItemId} has duplicate ownership`);
-      projectIdByWorkItem.set(workItemId, project.projectId);
+      workPackageIdByWorkItem.set(workItemId, workPackage.workPackageId);
     }
-    graph.nodes.push(...project.graph.nodes);
-    graph.edges.push(...project.graph.edges);
+    graph.nodes.push(...workPackage.graph.nodes);
+    graph.edges.push(...workPackage.graph.edges);
   }
-  const contextOf = (projectId: string): AuthoredEndpointContext => {
-    const project = projects.get(projectId);
-    // Proof (diagnostic): bypassing this refusal made `refuses missing endpoint project` throw a property-access error instead of naming the missing project (2026-10-22).
-    if (project === undefined) throw new Error(`no project ${projectId} in connected graph`);
+  const contextOf = (workPackageId: string): AuthoredEndpointContext => {
+    const workPackage = workPackages.get(workPackageId);
+    // Proof (diagnostic): bypassing this refusal made `refuses missing endpoint workPackage` throw a property-access error instead of naming the missing work package (2026-10-22).
+    if (workPackage === undefined)
+      throw new Error(`no work package ${workPackageId} in connected graph`);
     return {
       leavesUnder: (workItemId) => {
-        const leaves = project.tree.leavesUnder.get(workItemId);
-        // Proof (diagnostic): bypassing this refusal made the cross-owned endpoint case in `refuses missing endpoint project` throw on leaves.length instead of naming the work item (2026-10-22).
+        const leaves = workPackage.tree.leavesUnder.get(workItemId);
+        // Proof (diagnostic): bypassing this refusal made the cross-owned endpoint case in `refuses missing endpoint workPackage` throw on leaves.length instead of naming the work item (2026-10-22).
         if (leaves === undefined)
-          throw new Error(`no work item ${workItemId} in project ${projectId}`);
+          throw new Error(`no work item ${workItemId} in work package ${workPackageId}`);
         return leaves;
       },
       slicesOf: (leafId) => {
-        const slices = project.slicesByLeaf.get(leafId);
+        const slices = workPackage.slicesByLeaf.get(leafId);
         // Proof: allowing empty slices made `refuses absent and empty slices` accept an edge at -1. Allowing absent slices instead produced a downstream property-access error (diagnostic only); both watched 2026-10-22.
         if (slices === undefined || slices.length === 0)
           throw new Error(`no slice for work item ${leafId}`);
@@ -99,15 +101,15 @@ export function resolveConnectedGraph(input: ConnectedGraphInput): ConnectedGrap
     relationships.set(dependency.id, dependency);
     return true;
   };
-  for (const project of input.projects) {
-    for (const dependency of project.relationships) {
-      // Proof: bypassing either local endpoint equality independently made `refuses each foreign local endpoint project independently` accept the foreign-scoped relationship (2026-10-22).
+  for (const workPackage of input.workPackages) {
+    for (const dependency of workPackage.relationships) {
+      // Proof: bypassing either local endpoint equality independently made `refuses each foreign local endpoint workPackage independently` accept the foreign-scoped relationship (2026-10-22).
       if (
-        dependency.predecessor.projectId !== project.projectId ||
-        dependency.successor.projectId !== project.projectId
+        dependency.predecessor.workPackageId !== workPackage.workPackageId ||
+        dependency.successor.workPackageId !== workPackage.workPackageId
       )
         throw new Error(`local relationship ${dependency.id} has foreign endpoints`);
-      const context = contextOf(project.projectId);
+      const context = contextOf(workPackage.workPackageId);
       // Proof: skipping local endpoint evidence made `refuses missing local endpoint facts` accept the absent work item (2026-10-22).
       resolveAuthoredEdges(dependency, context, context);
       register(dependency);
@@ -115,18 +117,18 @@ export function resolveConnectedGraph(input: ConnectedGraphInput): ConnectedGrap
   }
   for (const dependency of input.external) {
     // Proof: skipping external classification made `refuses local/external misclassification` accept a local relationship in the external set (2026-10-22).
-    if (dependency.predecessor.projectId === dependency.successor.projectId)
+    if (dependency.predecessor.workPackageId === dependency.successor.workPackageId)
       throw new Error(`external relationship ${dependency.id} is local`);
     if (!register(dependency)) continue;
     // Proof: using the predecessor context for both sides failed `expands every remote parent pair` on the missing remote parent (2026-10-22).
     graph.edges.push(
       ...resolveAuthoredEdges(
         dependency,
-        contextOf(dependency.predecessor.projectId),
-        contextOf(dependency.successor.projectId),
+        contextOf(dependency.predecessor.workPackageId),
+        contextOf(dependency.successor.workPackageId),
       ),
     );
   }
-  // Proof: project-level reverse-edge refusal rejected the valid A.design B.build A.test case; node-cycle evaluation accepts it (2026-10-22).
-  return { graph, projectIdByWorkItem, relationships };
+  // Proof: work-package-level reverse-edge refusal rejected the valid A.design B.build A.test case; node-cycle evaluation accepts it (2026-10-22).
+  return { graph, workPackageIdByWorkItem, relationships };
 }

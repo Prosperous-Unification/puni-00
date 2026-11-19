@@ -5,11 +5,11 @@ import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
-const projectParams = requestSchema(type({ id: 'string' }));
+const workPackageParams = requestSchema(type({ id: 'string' }));
 const markerParams = requestSchema(type({ id: 'string', markerId: 'string' }));
 const marker = type({
   id: 'string',
-  projectId: 'string',
+  workPackageId: 'string',
   date: 'string',
   name: 'string',
   color: 'string',
@@ -75,32 +75,32 @@ const bodyMedia = [
   'multipart/form-data',
 ] as const;
 
-/** Reads axis annotations separately from the scheduled project projection. */
+/** Reads axis annotations separately from the scheduled work package projection. */
 export const listCalendarMarkers = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/calendar-markers',
-  operationId: 'getApiProjectsByIdCalendar-markers',
+  path: '/api/work-packages/:id/calendar-markers',
+  operationId: 'getApiWorkPackagesByIdCalendar-markers',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
-  params: projectParams,
+  params: workPackageParams,
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ markers: marker.array() })) },
   ],
   refusals: collection,
-  document: { summary: 'List project calendar markers.' },
+  document: { summary: 'List work package calendar markers.' },
 });
 
 /**
- * Creates an annotation. markerId avoids colliding with the project path's id
+ * Creates an annotation. markerId avoids colliding with the work package path's id
  * when MCP flattens the operation arguments; the domain row still calls it id.
  * Proof: renaming this body property to id made calendar-marker-shapes.test.ts
  * in mcp-01 throw that id was declared as both a path and body input.
  */
 export const createCalendarMarker = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/calendar-markers',
-  operationId: 'postApiProjectsByIdCalendar-markers',
+  path: '/api/work-packages/:id/calendar-markers',
+  operationId: 'postApiWorkPackagesByIdCalendar-markers',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
-  params: projectParams,
+  params: workPackageParams,
   body: requestSchema(
     type({ 'markerId?': 'string', date: 'string', name: 'string', 'color?': 'string | null' }),
   ),
@@ -116,8 +116,8 @@ export const createCalendarMarker = defineEndpointShape({
  */
 export const updateCalendarMarker = defineEndpointShape({
   method: 'PATCH',
-  path: '/api/projects/:id/calendar-markers/:markerId',
-  operationId: 'patchApiProjectsByIdCalendar-markersByMarkerId',
+  path: '/api/work-packages/:id/calendar-markers/:markerId',
+  operationId: 'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: markerParams,
   // Proof: responseSchema here admitted an immutable date and returned 200, expected 422,
@@ -132,8 +132,8 @@ export const updateCalendarMarker = defineEndpointShape({
 /** Removes one annotation without adding a command journal entry. */
 export const removeCalendarMarker = defineEndpointShape({
   method: 'DELETE',
-  path: '/api/projects/:id/calendar-markers/:markerId',
-  operationId: 'deleteApiProjectsByIdCalendar-markersByMarkerId',
+  path: '/api/work-packages/:id/calendar-markers/:markerId',
+  operationId: 'deleteApiWorkPackagesByIdCalendar-markersByMarkerId',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: markerParams,
   responses: [{ kind: 'empty', status: 204 }],

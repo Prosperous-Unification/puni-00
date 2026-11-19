@@ -6,7 +6,7 @@ export interface TreePlacement {
 }
 
 /**
- * One project's work items grouped under their parents, each group in sibling
+ * One work package's work items grouped under their parents, each group in sibling
  * order — {@link TreePlacement.position} ascending, a tie falling to `id`.
  *
  * **One grouping, shared**, for the reason `slice-groups` gives about slices: a
@@ -18,10 +18,10 @@ export interface TreePlacement {
  * **The `id` tie-break is ADR 0016's, made explicit.** Two siblings may share a
  * position — `placeAfter` reads its group outside any lock, so two appends race
  * to the same number — and the resolution is `work_item.id` ascending. That
- * used to be imposed by `listByProject`'s `ORDER BY` and inherited here through
+ * used to be imposed by `listByWorkPackage`'s `ORDER BY` and inherited here through
  * `Array#sort` being stable, which is a promise about the *caller's* argument
  * order. Sorting on it here is the same answer from a rule instead of from a
- * convention, so a caller holding rows in any other order gets the project the
+ * convention, so a caller holding rows in any other order gets the work package the
  * repository would have handed it.
  */
 export function siblingGroupsOf<T extends TreePlacement>(
@@ -48,7 +48,7 @@ export function siblingGroupsOf<T extends TreePlacement>(
 }
 
 /**
- * Each work item's place in **tree order** — the order a project is drawn in:
+ * Each work item's place in **tree order** — the order a work package is drawn in:
  * depth-first from the roots, siblings by {@link siblingGroupsOf}'s rule.
  *
  * This is the order every reader sorts by since ADR 0023. Until then the
@@ -61,7 +61,7 @@ export function siblingGroupsOf<T extends TreePlacement>(
  * @throws if a work item is not reachable from any root — its `parentId` names
  * something outside these placements, or it sits in a parent cycle. Both mean
  * the caller is holding something that is not a tree, and answering for the
- * reachable ones would hand back a project silently missing rows.
+ * reachable ones would hand back a work package silently missing rows.
  * {@link deriveNumbers} refuses the same shape for the same reason.
  */
 export function treeOrder(placements: readonly TreePlacement[]): ReadonlyMap<string, number> {
@@ -83,7 +83,7 @@ export function treeOrder(placements: readonly TreePlacement[]): ReadonlyMap<str
 }
 
 /**
- * The comparator every reader sorts a project's rows with, over a
+ * The comparator every reader sorts a work package's rows with, over a
  * {@link treeOrder} taken from the same rows.
  *
  * A factory rather than four copies of two `Map` lookups and a subtraction:
@@ -94,7 +94,7 @@ export function treeOrder(placements: readonly TreePlacement[]): ReadonlyMap<str
  *
  * @throws for a work item the order does not hold. Never a default: a row that
  * was not among the placements the order was taken from is a caller fault, and
- * sorting it to the top or the bottom would put it somewhere the project does
+ * sorting it to the top or the bottom would put it somewhere the work package does
  * not say it goes.
  */
 export function byTreeOrder<T extends { id: string }>(

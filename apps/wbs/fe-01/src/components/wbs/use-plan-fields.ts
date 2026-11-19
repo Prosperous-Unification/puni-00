@@ -177,9 +177,9 @@ export function usePlanFields({
    * about a different constraint. Copying the pair across is the mistake this
    * comment exists to stop.
    *
-   * Nothing is guarded here. A day before the project's first working day is
-   * refused by be-01 with `deadline_before_project_start`, and it is left
-   * refused there: this client holds no project start to compare against on
+   * Nothing is guarded here. A day before the work package's first working day is
+   * refused by be-01 with `deadline_before_work_package_start`, and it is left
+   * refused there: this client holds no work package start to compare against on
    * this path, and a client-side rule the server also keeps is how the two come
    * to disagree — the doctrine {@link setPriority} writes down.
    *

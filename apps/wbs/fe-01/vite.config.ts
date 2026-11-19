@@ -97,9 +97,9 @@ export default defineConfig(({ command, mode }) => ({
         __dirname,
         '../../../libs/wbs/domain/domain/src/typed-dependency.ts',
       ),
-      '@wbs/domain/project-address': resolve(
+      '@wbs/domain/work-package-address': resolve(
         __dirname,
-        '../../../libs/wbs/domain/domain/src/project-address.ts',
+        '../../../libs/wbs/domain/domain/src/work-package-address.ts',
       ),
       '@wbs/domain/step-node': resolve(
         __dirname,
@@ -108,6 +108,10 @@ export default defineConfig(({ command, mode }) => ({
       '@wbs/domain/step-reference': resolve(
         __dirname,
         '../../../libs/wbs/domain/domain/src/step-reference.ts',
+      ),
+      '@wbs/domain/step-fact': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/step-fact.ts',
       ),
       // **The module, not the barrel.** `libs/wbs/domain/domain`'s index re-exports
       // `estimate.ts` as well, and the validators around it pull arktype into
@@ -182,7 +186,7 @@ export default defineConfig(({ command, mode }) => ({
         __dirname,
         '../../../libs/wbs/domain/domain/src/derive-numbers.ts',
       ),
-      // The order every reader draws a project in (ADR 0023), and the sibling
+      // The order every reader draws a work package in (ADR 0023), and the sibling
       // grouping it shares with the numbering. The fake answers the server's
       // own numbers and row order through these rather than a second copy.
       '@wbs/domain/tree-order': resolve(

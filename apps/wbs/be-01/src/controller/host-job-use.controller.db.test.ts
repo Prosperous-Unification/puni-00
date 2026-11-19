@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 
-import { readProjectResources, resourceRuntimeEvent, validateSchema } from '@wbs/contracts';
+import { readWorkPackageResources, resourceRuntimeEvent, validateSchema } from '@wbs/contracts';
+import { computeProvidersOver } from '@wbs/store-sqlite';
+import { openConnection } from '@wbs/store-sqlite/db';
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { afterEach, beforeAll, beforeEach, expect, it } from 'bun:test';
 
 import {
@@ -13,7 +16,7 @@ import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organ
 
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let leaf: string;
 let ram: string;
 let providerId: string;
@@ -40,9 +43,9 @@ beforeEach(async () => {
   h.bind('owner', 'org-a');
   h.bind('viewer', 'org-a');
   h.activate();
-  const project = await h.call('owner', 'POST', '/api/projects', { name: 'Gates' });
-  projectId = (project.body as { project: { id: string } }).project.id;
-  const created = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+  const workPackage = await h.call('owner', 'POST', '/api/work-packages', { name: 'Gates' });
+  workPackageId = (workPackage.body as { workPackage: { id: string } }).workPackage.id;
+  const created = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   leaf = (created.body as { results: { id: string }[] }).results[0].id;
@@ -141,9 +144,9 @@ function publish(body: unknown) {
 }
 
 async function hostJobsOnRam(): Promise<unknown> {
-  const answer = await h.call('viewer', 'GET', `/api/projects/${projectId}/resources`);
+  const answer = await h.call('viewer', 'GET', `/api/work-packages/${workPackageId}/resources`);
   expect(answer.status).toBe(200);
-  const [success] = readProjectResources.responses;
+  const [success] = readWorkPackageResources.responses;
   const parsed = await validateSchema(success.schema, answer.body);
   if (parsed.issues !== undefined)
     throw new Error(`the resources read failed its contract: ${JSON.stringify(parsed.issues)}`);
@@ -151,7 +154,7 @@ async function hostJobsOnRam(): Promise<unknown> {
   return resources.find((each) => each.id === ram)?.hostJobs;
 }
 
-it('projects two gates with no planning link beside the resource, until each is returned', async () => {
+it('work packages two gates with no planning link beside the resource, until each is returned', async () => {
   const first = crypto.randomUUID();
   const second = crypto.randomUUID();
   expect(await publish(hostJobEvent(1, first, 'registered', gateUse('gate 1a2b3c4')))).toEqual({
@@ -203,25 +206,25 @@ it('projects two gates with no planning link beside the resource, until each is 
   expect(await hostJobsOnRam()).toBeUndefined();
 });
 
-it('keeps a deleted project from stranding a linked host job', async () => {
+it('keeps a deleted work package from stranding a linked host job', async () => {
   const useId = crypto.randomUUID();
   const linked = gateUse('gate linked', {
-    projectId,
+    workPackageId,
     workItemId: leaf,
     responsiblePersonId: 'runtime-controller',
   });
   expect((await publish(hostJobEvent(1, useId, 'registered', linked))).status).toBe(200);
   expect(
     (
-      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [{ kind: 'deleteWorkItem', workItemId: leaf }],
       })
     ).status,
   ).toBe(200);
-  // Project deletion has no public route in this increment; mirror the orphan-history fixture.
-  h.sqlite.run('DELETE FROM project_access WHERE project_id=?', [projectId]);
-  h.sqlite.run('DELETE FROM step WHERE project_id=?', [projectId]);
-  h.sqlite.run('DELETE FROM project WHERE id=?', [projectId]);
+  // Work package deletion has no public route in this increment; mirror the orphan-history fixture.
+  h.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
+  h.sqlite.run('DELETE FROM step WHERE work_package_id=?', [workPackageId]);
+  h.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
   expect(await publish(hostJobEvent(2, useId, 'release_verified', linked))).toEqual({
     status: 200,
     body: { acceptedSequence: 2, useId, revision: 2 },
@@ -235,7 +238,7 @@ it('accepts a v1 use byte for byte beside the variant', async () => {
     runtimeCredentialId,
     'package-contributor',
     'work_package',
-    projectId,
+    workPackageId,
   );
   const v1 = {
     eventId: crypto.randomUUID(),
@@ -248,7 +251,7 @@ it('accepts a v1 use byte for byte beside the variant', async () => {
     observedAt: Date.now() - 1000,
     reason: 'Created managed checkout',
     use: {
-      projectId,
+      workPackageId,
       resourceId: ram,
       workItemId: leaf,
       agentRun: 'run-a',
@@ -268,7 +271,7 @@ it('accepts a v1 use byte for byte beside the variant', async () => {
         'SELECT declaration FROM resource_runtime_use WHERE use_id=?',
       )
       .get(v1.useId)?.declaration,
-  ).toBe(JSON.stringify(v1.use));
+  ).toBe(JSON.stringify({ schemaVersion: 2, use: v1.use }));
   expect(await hostJobsOnRam()).toBeUndefined();
 });
 
@@ -322,7 +325,7 @@ it('refuses what a host job cannot be, accepting nothing and advancing no sequen
       await publish({
         ...v1Release,
         use: {
-          projectId,
+          workPackageId,
           resourceId: ram,
           workItemId: leaf,
           agentRun: 'run-a',
@@ -412,7 +415,7 @@ it('refuses what a host job cannot be, accepting nothing and advancing no sequen
     runtimeCredentialId,
     'package-contributor',
     'work_package',
-    projectId,
+    workPackageId,
   );
   const worktree = crypto.randomUUID();
   expect(
@@ -420,7 +423,7 @@ it('refuses what a host job cannot be, accepting nothing and advancing no sequen
       await publish({
         ...hostJobEvent(3, worktree, 'registered', use),
         use: {
-          projectId,
+          workPackageId,
           resourceId: ram,
           workItemId: leaf,
           agentRun: 'run-a',
@@ -493,3 +496,87 @@ it("keeps the run record as a returned job's evidence and refuses the ledger-row
     }),
   });
 });
+
+for (const format of ['legacy', 'tagged'] as const) {
+  it('reads ' + format + ' host-job identity as recorded provider observations', async () => {
+    const useId = crypto.randomUUID();
+    const use = gateUse('recorded host job');
+    expect((await publish(hostJobEvent(1, useId, 'registered', use))).status).toBe(200);
+    const retained = JSON.stringify(format === 'legacy' ? use : { schemaVersion: 2, use });
+    h.sqlite
+      .query('UPDATE resource_host_job SET declaration=? WHERE use_id=?')
+      .run(retained, useId);
+    expect(await hostJobsOnRam()).toEqual([
+      { useId, label: use.label, type: use.type, host: use.host, reservations: use.reservations },
+    ]);
+    expect(
+      h.sqlite
+        .query<{ declaration: string }, [string]>(
+          'SELECT declaration FROM resource_host_job WHERE use_id=?',
+        )
+        .get(useId)?.declaration,
+    ).toBe(retained);
+  });
+  for (const corruption of ['encoding', 'shape', 'kind'] as const) {
+    it(
+      'refuses corrupt ' +
+        format +
+        ' host-job ' +
+        corruption +
+        ' before returning provider observations',
+      async () => {
+        const useId = crypto.randomUUID();
+        const use = gateUse('recorded host job');
+        expect((await publish(hostJobEvent(1, useId, 'registered', use))).status).toBe(200);
+        const candidate =
+          corruption === 'kind'
+            ? {
+                ...(format === 'legacy' ? { projectId: workPackageId } : { workPackageId }),
+                resourceId: ram,
+                workItemId: leaf,
+                agentRun: 'run',
+                responsiblePersonId: 'runtime-controller',
+                locator: '/managed',
+                units: 1,
+                kind: 'temporary_directory',
+                reservedDiskUnits: 1,
+                reservedWorkspaceUnits: 1,
+              }
+            : corruption === 'shape'
+              ? { ...use, unexpectedMetadata: true }
+              : use;
+        const encoded = JSON.stringify(
+          format === 'legacy' ? candidate : { schemaVersion: 2, use: candidate },
+        );
+        const retained = corruption === 'encoding' ? ' ' + encoded : encoded;
+        h.sqlite
+          .query('UPDATE resource_host_job SET declaration=? WHERE use_id=?')
+          .run(retained, useId);
+        const before = h.sqlite.query('SELECT * FROM resource_host_job ORDER BY rowid').all();
+        expect(
+          (await h.call('viewer', 'GET', '/api/work-packages/' + workPackageId + '/resources'))
+            .status,
+        ).toBe(500);
+        expect(h.sqlite.query('SELECT * FROM resource_host_job ORDER BY rowid').all()).toEqual(
+          before,
+        );
+        const connection = openConnection(h.databasePath());
+        let failure: unknown;
+        try {
+          await computeProvidersOver(connection.db, new WriteCoordinator()).reports.readingsOf([
+            ram,
+          ]);
+        } catch (cause) {
+          failure = cause;
+        } finally {
+          connection.close();
+        }
+        expect(failure).toBeInstanceOf(Error);
+        if (corruption === 'kind')
+          expect(failure).toMatchObject({
+            message: 'stored host-job declaration is not a host job',
+          });
+      },
+    );
+  }
+}

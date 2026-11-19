@@ -13,15 +13,16 @@ import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
 import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
-import { projectRow } from '../testing/project-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -48,7 +49,7 @@ describe('a saved plan does not move when the live plan does', () => {
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -72,24 +73,25 @@ describe('a saved plan does not move when the live plan does', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-immutable-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
-        ownerId: 'owner',
+        projectId: 'saved-plan-parent',
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -98,7 +100,7 @@ describe('a saved plan does not move when the live plan does', () => {
         },
         {
           id: 'st-2',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Review',
           position: 20,
           code: 'review',
@@ -133,7 +135,7 @@ describe('a saved plan does not move when the live plan does', () => {
       newId: () => id,
       now: () => OPENED_AT,
     }).save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'before the rewire',
       createdBy: 'Ada Lovelace',
       createdById: null,
@@ -146,7 +148,7 @@ describe('a saved plan does not move when the live plan does', () => {
     await items.patch('wi-1', { name: 'renamed after the save' }, wrote);
     await items.remove(['wi-2'], [], wrote);
     await new StepRepository(live.db, OPEN).remove('p1', 'st-2', true, wrote);
-    await new ProjectRepository(live.db, OPEN).update(
+    await new WorkPackageRepository(live.db, OPEN).update(
       'p1',
       { estimateMethod: 'optimistic', startDate: '2027-01-04' },
       wrote,
@@ -179,14 +181,14 @@ describe('a saved plan does not move when the live plan does', () => {
     // The live plan really did move — otherwise the assertions below are a
     // comparison of a record against itself and would pass on any writer.
     const moved = openConnection(path);
-    const nowItems = await new WorkItemRepository(moved.db, OPEN).listByProject('p1');
-    const nowProject = await new ProjectRepository(moved.db, OPEN).findById('p1');
-    const nowSteps = await new ProjectRepository(moved.db, OPEN).stepsOf('p1');
+    const nowItems = await new WorkItemRepository(moved.db, OPEN).listByWorkPackage('p1');
+    const nowWorkPackage = await new WorkPackageRepository(moved.db, OPEN).findById('p1');
+    const nowSteps = await new WorkPackageRepository(moved.db, OPEN).stepsOf('p1');
     moved.close();
     expect(nowItems.map((row) => row.name)).toEqual(['renamed after the save']);
     expect(nowSteps.map((row) => row.id)).toEqual(['st-1']);
-    expect(nowProject?.estimateMethod).toBe('optimistic');
-    expect(nowProject?.startDate).toBe('2027-01-04');
+    expect(nowWorkPackage?.estimateMethod).toBe('optimistic');
+    expect(nowWorkPackage?.startDate).toBe('2027-01-04');
 
     const after = await stored();
     // Bytes first: this is the property, and the hashes below are the check a

@@ -13,6 +13,10 @@ import { contractVersionOf, SCHEDULER_CONTRACT_VERSION } from './contract-versio
  * plan simply never gets a cached answer and looks slow rather than broken.
  */
 describe('the composite the wire carries and the cache key stores', () => {
+  it('names the renamed current host contract19 with unchanged solver suffix', () => {
+    expect(contractVersionOf('0.4.0')).toBe('19+0.4.0');
+  });
+
   it('joins both halves with the single plus the wire schema allows', () => {
     expect(contractVersionOf('0.1.1')).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.1.1`);
     // Both golden requests are checked in carrying this prefix, and
@@ -20,13 +24,13 @@ describe('the composite the wire carries and the cache key stores', () => {
     // side — so the literal here is a second net rather than a duplicate.
     // Proof: restoring `SCHEDULER_CONTRACT_VERSION = 7` failed here with
     // `Expected: true / Received: false`; watched 2026-09-07.
-    expect(contractVersionOf('0.1.1').startsWith('18+')).toBe(true);
+    expect(contractVersionOf('0.1.1').startsWith('19+')).toBe(true);
   });
 
   it('never invents a solver version, however empty the one it is handed', () => {
     // Watched red: default `solverVersion` to a placeholder and this comes back
     // `'18+0.0.0'` — a cache key naming a solver that did not run, which is
     // exactly the row a release must not read.
-    expect(contractVersionOf('')).toBe('18+');
+    expect(contractVersionOf('')).toBe('19+');
   });
 });

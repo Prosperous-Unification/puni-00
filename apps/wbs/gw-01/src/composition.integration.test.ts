@@ -50,13 +50,13 @@ function startProduction(token: string) {
     const headers = new Headers(init?.headers);
     calls.push({ url, cookie: headers.get('cookie'), secret: headers.get('x-internal-auth') });
     const proves = headers.get('cookie') === `__Host-wbs_access=${token}`;
-    if (url.endsWith(`/projects/${OWN}/browser-access`) && proves)
+    if (url.endsWith(`/work-packages/${OWN}/browser-access`) && proves)
       return Promise.resolve(new Response(null, { status: 204 }));
     if (url.includes('/browser-access'))
       return Promise.resolve(Response.json({ error: 'not_found' }, { status: 404 }));
     if (url.endsWith('/internal/resume'))
       return Promise.resolve(
-        Response.json({ [`project:${OWN}`]: { status: 'denied', reason: 'out_of_range' } }),
+        Response.json({ [`work-package:${OWN}`]: { status: 'denied', reason: 'out_of_range' } }),
       );
     return Promise.reject(new Error(`unexpected backend request ${url}`));
   });
@@ -110,7 +110,7 @@ async function push(port: number, subscription: string): Promise<number> {
 }
 
 describe('the production gateway composition', () => {
-  it('asks be-01 and refuses a foreign project', async () => {
+  it('asks be-01 and refuses a foreign work package', async () => {
     const now = Math.floor(Date.now() / 1000);
     const token = await new SignJWT({ username: 'ada' })
       .setProtectedHeader({ alg: 'HS256' })
@@ -120,24 +120,26 @@ describe('the production gateway composition', () => {
       .sign(new TextEncoder().encode(JWT_KEY));
     const { port, calls } = startProduction(token);
     const client = await connect(port, token);
-    client.socket.send(JSON.stringify({ type: 'subscribe', subscription: `project:${FOREIGN}` }));
-    client.socket.send(JSON.stringify({ type: 'subscribe', subscription: `project:${OWN}` }));
+    client.socket.send(
+      JSON.stringify({ type: 'subscribe', subscription: `work-package:${FOREIGN}` }),
+    );
+    client.socket.send(JSON.stringify({ type: 'subscribe', subscription: `work-package:${OWN}` }));
     await until(
       () => client.received.some((frame) => frame.code === 'unknown_subscription'),
       'the refusal',
     );
     await until(() => calls.length >= 2, 'both checks');
 
-    expect(await push(port, `project:${FOREIGN}`)).toBe(0);
-    expect(await push(port, `project:${OWN}`)).toBe(1);
+    expect(await push(port, `work-package:${FOREIGN}`)).toBe(0);
+    expect(await push(port, `work-package:${OWN}`)).toBe(1);
     expect(calls.slice(0, 2)).toEqual([
       {
-        url: `http://be.invalid/internal/gateway/projects/${FOREIGN}/browser-access`,
+        url: `http://be.invalid/internal/gateway/work-packages/${FOREIGN}/browser-access`,
         cookie: `__Host-wbs_access=${token}`,
         secret: INTERNAL_SECRET,
       },
       {
-        url: `http://be.invalid/internal/gateway/projects/${OWN}/browser-access`,
+        url: `http://be.invalid/internal/gateway/work-packages/${OWN}/browser-access`,
         cookie: `__Host-wbs_access=${token}`,
         secret: INTERNAL_SECRET,
       },
@@ -155,7 +157,7 @@ describe('the production gateway composition', () => {
     const { port, calls } = startProduction(token);
     const client = await connect(port, token);
     client.socket.send(
-      JSON.stringify({ type: 'resume', resume_points: { [`project:${OWN}`]: 3 } }),
+      JSON.stringify({ type: 'resume', resume_points: { [`work-package:${OWN}`]: 3 } }),
     );
     await until(() => client.received.some((frame) => frame.type === 'resume_ack'), 'resume_ack');
 

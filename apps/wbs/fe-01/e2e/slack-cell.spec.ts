@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 import { measureInk, NAMELESS_CHROMA_FOR_GREY_INK } from './measure-ink';
 
 /**
@@ -178,9 +178,9 @@ async function seedPlan(page: Page): Promise<void> {
 
   // Through the shared fixture: a create arms a rename on the bar one round trip
   // after the table appears, so a fixture that types on into the plan can have
-  // the keyboard pulled back to the header mid-flight. `create-project.ts` says
+  // the keyboard pulled back to the header mid-flight. `create-work-package.ts` says
   // the whole of it.
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of [CRITICAL_ROW, SLACK_ROW]) {
     await addRow.click();

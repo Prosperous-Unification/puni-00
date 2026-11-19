@@ -5,7 +5,11 @@ import type { WriteStamp } from './write-stamp';
  * CHECK holds the same list; an act outside it is refused by the store.
  */
 export const ORGANIZATION_AUDIT_ACTIONS = [
-  'restricted_project_recovery',
+  'restricted_work_package_recovery',
+  'project_created',
+  'project_renamed',
+  'project_deleted',
+  'work_package_moved',
   'sso_connection_created',
   'sso_connection_updated',
   'sso_connection_deleted',
@@ -48,6 +52,7 @@ export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number
 
 /** What an audit row is about; the table's CHECK holds the same list. */
 export const ORGANIZATION_AUDIT_SUBJECT_KINDS = [
+  'work_package',
   'project',
   'sso_connection',
   'provisioning_token',

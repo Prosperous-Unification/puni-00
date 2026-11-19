@@ -23,7 +23,7 @@
  * **Two values, because the third is the absence of a row.** "Unknown" is
  * never stored: it is what a work item with no `step_progress` row for that step
  * reads as, exactly as an unstated capacity and an unrecorded actual are
- * absences rather than zeroes (`project_team_capacity` and `actual` in be-01's
+ * absences rather than zeroes (`work_package_team_capacity` and `actual` in be-01's
  * `schema.ts`). Storing it would give two spellings of "nobody has said" — no
  * row, and a row saying nothing — and every reader would have to handle both.
  *

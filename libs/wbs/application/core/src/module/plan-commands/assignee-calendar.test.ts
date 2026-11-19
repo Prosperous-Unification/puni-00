@@ -1,8 +1,9 @@
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { Scope } from '../../ports/unit-of-work';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
@@ -23,9 +24,10 @@ const HUGE = { optimistic: 30_000_000, realistic: 30_000_000, pessimistic: 30_00
  * reaches by chaining three such leaves).
  */
 async function seeded() {
-  const { source } = openMemorySourceFixture();
+  const fixture = openMemorySourceFixture();
+  const { source } = fixture;
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -38,15 +40,26 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Calendar', F));
-  const projectId = created.project.id;
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  const created = expectCreated(await graph.workPackages.create('Calendar', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
   for (const step of created.steps) {
     await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+      {
+        id: step.id,
+        workPackageId,
+        name: step.name,
+        allowancePercent: 0,
+        estimateUnit: 'workdays',
+      },
       { at: 1, by: F },
     );
   }
-  const dated = await graph.projects.update(projectId, F, { startDate: '2026-01-05' });
+  const dated = await graph.workPackages.update(workPackageId, F, { startDate: '2026-01-05' });
   if (!dated.ok) throw new Error('the start date was refused');
   const [dev] = created.steps.map(({ id }) => id);
   await source.stores.directory.addPerson({ id: 'kat', name: 'kat', kind: 'agent' }, [], {
@@ -71,7 +84,7 @@ async function seeded() {
         broadcast: announcements,
       }),
   });
-  const tree = await runner.run(projectId, F, [
+  const tree = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: null, parentRef: 'P', afterId: null },
     {
@@ -106,15 +119,15 @@ async function seeded() {
       throw new Error(`no work item ${ref}`);
     return found.id;
   };
-  return { source, runner, projectId, dev, idOf };
+  return { source, runner, workPackageId, dev, idOf };
 }
 
 describe('assignments that run the plan past the calendar', () => {
   it('refuses assignSubtree with calendar_range and writes nothing', async () => {
-    const { source, runner, projectId, dev, idOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf } = await seeded();
     try {
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'assignSubtree', workItemId: idOf('P'), stepId: dev, personId: 'kat' },
         ]),
       ).toMatchObject({ ok: false, at: 0, kind: 'assignSubtree', reason: 'calendar_range' });
@@ -125,10 +138,10 @@ describe('assignments that run the plan past the calendar', () => {
   });
 
   it('refuses a claim that assigns past the calendar, and admits the same claim without assign', async () => {
-    const { source, runner, projectId, dev, idOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf } = await seeded();
     try {
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'setAssignee', workItemId: idOf('A'), stepId: dev, personId: 'kat' },
           { kind: 'setAssignee', workItemId: idOf('B'), stepId: dev, personId: 'kat' },
         ]),
@@ -139,14 +152,14 @@ describe('assignments that run the plan past the calendar', () => {
         personId: 'kat',
         steps: [dev],
       };
-      expect(await runner.run(projectId, F, [{ ...claim, assign: true }])).toMatchObject({
+      expect(await runner.run(workPackageId, F, [{ ...claim, assign: true }])).toMatchObject({
         ok: false,
         at: 0,
         kind: 'claimWorkItem',
         reason: 'calendar_range',
       });
-      expect(await source.stores.claims.listByProject(projectId)).toEqual([]);
-      expect(await runner.run(projectId, F, [claim])).toMatchObject({ ok: true });
+      expect(await source.stores.claims.listByWorkPackage(workPackageId)).toEqual([]);
+      expect(await runner.run(workPackageId, F, [claim])).toMatchObject({ ok: true });
     } finally {
       await source.close();
     }

@@ -98,24 +98,29 @@ for (const operation of ['list', 'create', 'rekey', 'revoke'] as const) {
 }
 
 async function seedPoolClaim(): Promise<void> {
-  const created = await harness.call('keeper', 'POST', '/api/projects', {
+  const created = await harness.call('keeper', 'POST', '/api/work-packages', {
     name: 'Pool claim plan',
   });
-  if (created.status !== 200) throw new Error('pool claim project creation refused');
-  const project = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
+  if (created.status !== 200) throw new Error('pool claim work package creation refused');
+  const workPackage = harness.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
     .get('Pool claim plan');
-  if (project === null) throw new Error('pool claim project missing');
-  const added = await harness.call('keeper', 'POST', '/api/projects/' + project.id + '/commands', {
-    commands: [{ kind: 'createWorkItem', name: 'Claimed pool work' }],
-  });
+  if (workPackage === null) throw new Error('pool claim work package missing');
+  const added = await harness.call(
+    'keeper',
+    'POST',
+    '/api/work-packages/' + workPackage.id + '/commands',
+    {
+      commands: [{ kind: 'createWorkItem', name: 'Claimed pool work' }],
+    },
+  );
   if (added.status !== 200) throw new Error('pool claim work creation refused');
   const leaf = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
-    .get(project.id);
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
+    .get(workPackage.id);
   const step = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY rowid')
-    .get(project.id);
+    .query<{ id: string }, [string]>('SELECT id FROM step WHERE work_package_id=? ORDER BY rowid')
+    .get(workPackage.id);
   const person = harness.sqlite
     .query<{ person_id: string }, [string]>(
       'SELECT person_id FROM machine_credential WHERE agent_pool_id=?',
@@ -126,7 +131,7 @@ async function seedPoolClaim(): Promise<void> {
   const claimed = await harness.call(
     'keeper',
     'POST',
-    '/api/projects/' + project.id + '/commands',
+    '/api/work-packages/' + workPackage.id + '/commands',
     {
       commands: [
         {

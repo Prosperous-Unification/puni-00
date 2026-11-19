@@ -72,7 +72,7 @@ describe('surfaces of a feature the session read reported off', () => {
     const sent = stubServer({});
     routed(OFF, <SpacesPage nav={null} account={null} />);
     expect((await screen.findByRole('alert')).textContent).toContain('Spaces need an organization');
-    expect(screen.getByRole('link', { name: 'Open All projects' })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Open All work packages' })).toBeDefined();
     window.dispatchEvent(new Event('focus'));
     await settle();
     expect(sent).toEqual([]);

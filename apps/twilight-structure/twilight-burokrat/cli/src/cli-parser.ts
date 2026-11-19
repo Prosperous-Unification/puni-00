@@ -1,3 +1,4 @@
+import { workflowBindingParser, workflowBindingUsage } from './workflow-binding-parser';
 import {
   argument,
   choice,
@@ -103,7 +104,6 @@ export const delegatedGrammars = {
   scenario: '<import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]',
   template:
     '<list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>',
-  'validate workflow-binding': '<file> --steps <comma-list>',
   'prepare-activation':
     '--candidate-repository <value> --candidate-sha <value> --toolkit <value> --candidate-policy <value> --candidate-mapping <value> --review-record <value> --audit-strata <value> --destination <value> --work <value> --resource-lane <value> --cwd-identity <value> --check-runs <value>',
   'prepare-relocation-activation':
@@ -195,14 +195,7 @@ const recordCommands = [
   command(
     'validate',
     or(
-      command(
-        'workflow-binding',
-        object({
-          command: constant('validate workflow-binding'),
-          argv: passThrough({ format: 'greedy' }),
-        }),
-        described('validate workflow-binding', 'Validate a workflow binding and print its digest.'),
-      ),
+      workflowBindingParser,
       object({ command: constant('validate'), kind: operand('KIND'), record: operand('JSON') }),
     ),
     {
@@ -760,7 +753,11 @@ export function readInvocation<T extends Parser>(
       onExit: (code) => {
         throw code === 0
           ? new Printed()
-          : new UsageRefusal(refusalOf(grammar.commands, args, errorText));
+          : new UsageRefusal(
+              args[0] === 'validate' && args[1] === 'workflow-binding'
+                ? 'invalid_arguments: arguments: ' + workflowBindingUsage
+                : refusalOf(grammar.commands, args, errorText),
+            );
       },
       // Without these two `run` reads the terminal's colour support and width, so help and
       // refusals would vary per terminal.

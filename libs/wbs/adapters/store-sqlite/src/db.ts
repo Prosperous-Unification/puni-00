@@ -168,8 +168,8 @@ export function switchToWal(
  * went through the pragma assertions above.
  *
  * `logger` is drizzle's own hook and is how a caller can count the statements a
- * repository method issues — `costs one statement however many projects there
- * are` in `project.test.ts` is the reason it is here, because "the owner's name
+ * repository method issues — `costs one statement however many workPackages there
+ * are` in `work-package.test.ts` is the reason it is here, because "the owner's name
  * costs no extra query" is a claim about the number of round trips and nothing
  * about the returned rows can observe it. The process itself passes none, so
  * every production connection is silent as before.
@@ -374,7 +374,7 @@ export function drizzleOuterTransaction(db: Drizzle): {
  * function. `IMMEDIATE` takes the write lock at `BEGIN`, which is right for a
  * command batch that is *going* to write and wrong for a capture that never
  * does: it would make every save block concurrent editing for the length of a
- * whole-project read. `DEFERRED` takes a read lock at the first statement, and
+ * whole-work-package read. `DEFERRED` takes a read lock at the first statement, and
  * under WAL that pins the snapshot every later read in the block sees.
  *
  * **It must be held on a connection nothing else is using.** SQLite's
@@ -571,4 +571,18 @@ function isInTransaction(connection: Connection): boolean {
   // place allowed to read it, and an absent client answers true above.
   const client = (connection.db as Drizzle & { readonly $client?: Database }).$client;
   return client?.inTransaction !== false;
+}
+
+/**
+ * Actual supplied connection state, read only after the caller owns its write turn.
+ * This chooses transaction nesting; it supplies no admission, scope or lifetime
+ * authority. The native client is confined to this database boundary.
+ * @throws if the configured Bun connection cannot be inspected.
+ */
+export function hasSqliteTransaction(db:Drizzle):boolean{
+  const client:unknown=Reflect.get(db,'$client');
+  if(!(client instanceof Database))throw new Error('SQLite transaction client is unavailable');
+  const active:unknown=client.inTransaction;
+  if(typeof active!=='boolean')throw new Error('SQLite transaction state is unreadable');
+  return active;
 }

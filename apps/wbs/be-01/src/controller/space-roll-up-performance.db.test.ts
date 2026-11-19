@@ -7,23 +7,23 @@ import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
  * The space read budget (`add-spaces`, spec `space-read`, design memo §8), over
- * real SQLite through the production routes: 30 projects of 300 rows each.
+ * real SQLite through the production routes: 30 work packages of 300 rows each.
  *
  * The cold chunk's cost is asserted by what it does, not how long it took: one
- * tree read per project and an access gate that scans no table (#235). Its
+ * tree read per work package and an access gate that scans no table (#235). Its
  * wall-clock figure is printed only, because on CI be-01 runs under coverage
  * beside another Nx task on four vCPUs and no calibrated factor exists. The
  * warm chunk and the space read keep wall-clock bounds four times their
  * targets: about 15 ms and 8 ms measured, against 400 ms and 120 ms.
  */
-const PROJECTS = 30;
+const WORK_PACKAGES = 30;
 const ROWS = 300;
 const CHUNK = 20;
 const BOUND_MS = { warmChunk: 400, spaceRead: 120 };
 
 let h: OrganizationHarness;
 let space: string;
-const projectIds: string[] = [];
+const workPackageIds: string[] = [];
 
 function plan(at: number) {
   const document = planDocumentFixture();
@@ -58,14 +58,14 @@ beforeAll(async () => {
   h.activate();
   const created = await h.call('ada', 'POST', '/api/spaces', { name: 'Measured' });
   space = (created.body as { space: { id: string } }).space.id;
-  for (let at = 0; at < PROJECTS; at += 1) {
-    const imported = await h.call('ada', 'POST', '/api/projects/import', plan(at));
+  for (let at = 0; at < WORK_PACKAGES; at += 1) {
+    const imported = await h.call('ada', 'POST', '/api/work-packages/import', plan(at));
     if (imported.status !== 201) throw new Error(`import refused: ${JSON.stringify(imported)}`);
-    const { projectId } = imported.body as { projectId: string };
-    projectIds.push(projectId);
-    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, {
-      projectId,
-      afterProjectId: projectIds.at(-2) ?? null,
+    const { workPackageId } = imported.body as { workPackageId: string };
+    workPackageIds.push(workPackageId);
+    await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, {
+      workPackageId,
+      afterWorkPackageId: workPackageIds.at(-2) ?? null,
     });
   }
 }, 600_000);
@@ -74,25 +74,25 @@ afterAll(() => {
   h.close();
 });
 
-test('reads a space of 30 projects and their roll-ups within the budget', async () => {
+test('reads a space of 30 work packages and their roll-ups within the budget', async () => {
   const read = await timed(() => h.call('ada', 'GET', `/api/spaces/${space}`));
   expect(read.value.status).toBe(200);
-  expect((read.value.body as { rows: unknown[] }).rows).toHaveLength(PROJECTS);
+  expect((read.value.body as { rows: unknown[] }).rows).toHaveLength(WORK_PACKAGES);
 
-  const chunk = projectIds.slice(0, CHUNK).join(',');
+  const chunk = workPackageIds.slice(0, CHUNK).join(',');
   const treeReads = spyOn(WorkItemService.prototype, 'treeWithin');
   const cold = await timed(() =>
-    h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${chunk}`),
+    h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?workPackageIds=${chunk}`),
   );
   expect(cold.value.status).toBe(200);
-  // One tree per project cold, none warm: the cache is what the warm bound
-  // relies on, and a second read per project would double the cold cost.
+  // One tree per work package cold, none warm: the cache is what the warm bound
+  // relies on, and a second read per work package would double the cold cost.
   // Proof, observed 2026-09-29: with cache hits ignored in `rolledOf`, the warm
   // read received 20 calls instead of 0.
   expect(treeReads).toHaveBeenCalledTimes(CHUNK);
   treeReads.mockClear();
   const warm = await timed(() =>
-    h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${chunk}`),
+    h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?workPackageIds=${chunk}`),
   );
   expect(treeReads).toHaveBeenCalledTimes(0);
   treeReads.mockRestore();

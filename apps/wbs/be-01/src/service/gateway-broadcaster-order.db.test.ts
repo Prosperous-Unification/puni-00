@@ -56,10 +56,12 @@ it('allows C to overtake recorded B while its push is held', async () => {
   const publishedB = broadcaster.publish('p1', { type: 'calendar_markers_changed' });
   try {
     await pushingB;
-    expect(await eventLog.latestSeq('project:p1')).toBe(0);
+    expect(await eventLog.latestSeq('work-package:p1')).toBe(0);
     await broadcaster.publish('p1', { type: 'tree_replaced', workItems: [] });
     expect(delivered.map((frame) => frame.seq)).toEqual([1]);
-    expect((await eventLog.rangeSince('project:p1', -1)).map((event) => event.seq)).toEqual([0, 1]);
+    expect((await eventLog.rangeSince('work-package:p1', -1)).map((event) => event.seq)).toEqual([
+      0, 1,
+    ]);
     expect(delivered[0]?.message.type).toBe('tree_replaced');
   } finally {
     releaseB();

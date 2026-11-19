@@ -31,7 +31,7 @@ export { decodeConnectedStage, encodeConnectedStage } from './stored-connected-s
 export type ConnectedDigest = (bytes: string) => string;
 const identityShape = type({
   '+': 'reject',
-  projectId: 'string',
+  workPackageId: 'string',
   inputHash: 'string',
   questionHash: 'string',
   objective: "'pri' | 'time'",
@@ -53,7 +53,7 @@ export function createConnectedQuestionIdentity(
   const inputHash = hash(canonicalConnectedStageInput(stage));
   const contractVersion = contractVersionOf(installed.solverVersion);
   return {
-    projectId: stage.projectId,
+    workPackageId: stage.workPackageId,
     inputHash,
     objective,
     contractVersion,
@@ -63,7 +63,7 @@ export function createConnectedQuestionIdentity(
     // Proof: omitting each of the seven array members independently broke `identity separates every runtime tuple dimension and shares stage input across objectives`.
     questionHash: hash(
       JSON.stringify([
-        stage.projectId,
+        stage.workPackageId,
         inputHash,
         objective,
         contractVersion,
@@ -96,8 +96,9 @@ function requireEqual(actual: unknown, expected: unknown, field: string): void {
 }
 const envelopeShape = type({
   '+': 'reject',
-  dtoVersion: '2',
-  scope: { '+': 'reject', kind: "'connected-stage'", projectId: 'string' },
+  // Proof: outgoing2 failed 'refuses outgoing connected success DTO2'.
+  dtoVersion: '3',
+  scope: { '+': 'reject', kind: "'connected-stage'", workPackageId: 'string' },
   identity: identityShape,
   stage: 'unknown',
   request: 'unknown',
@@ -107,9 +108,10 @@ const envelopeShape = type({
 });
 const certificateShape = type({
   '+': 'reject',
-  dtoVersion: '1',
+  // Proof: outgoing1 failed 'refuses outgoing boundary certificate DTO1'.
+  dtoVersion: '2',
   kind: "'boundary-infeasible'",
-  scope: { '+': 'reject', kind: "'connected-stage'", projectId: 'string' },
+  scope: { '+': 'reject', kind: "'connected-stage'", workPackageId: 'string' },
   identity: identityShape,
   stage: 'unknown',
   request: 'unknown',
@@ -120,7 +122,7 @@ function validateQuestion(
   rawStage: unknown,
   identity: ConnectedQuestionIdentity,
   rawRequest: unknown,
-  scopeProject: string,
+  scopeWorkPackage: string,
   hash: ConnectedDigest,
 ) {
   const stage = decodeConnectedStage(rawStage);
@@ -135,8 +137,8 @@ function validateQuestion(
   );
   // Proof: removing equality admitted coherent forged scope echoes in `coherent forged hash echoes cannot substitute for recomputed full identity`.
   requireEqual(identity, expected, 'identity');
-  // Proof: removing equality admitted project A on stage B in `scope project and stored comparison cannot be forged independently`.
-  requireEqual(scopeProject, stage.projectId, 'scope');
+  // Proof: removing equality admitted work package A on stage B in `scope workPackage and stored comparison cannot be forged independently`.
+  requireEqual(scopeWorkPackage, stage.workPackageId, 'scope');
   const prepared = buildConnectedSolverRequest(
     stage,
     identity,
@@ -152,8 +154,8 @@ function validateQuestion(
 
 /** Candidate response and scoped comparison survive baseline publication; no cached foreign schedule is authoritative. */
 export interface StoredConnectedSuccess {
-  readonly dtoVersion: 2;
-  readonly scope: { readonly kind: 'connected-stage'; readonly projectId: string };
+  readonly dtoVersion: 3;
+  readonly scope: { readonly kind: 'connected-stage'; readonly workPackageId: string };
   readonly identity: ConnectedQuestionIdentity;
   readonly stage: StoredConnectedStage;
   readonly request: ConnectedSolverRequest;
@@ -175,7 +177,7 @@ export function decodeConnectedSuccess(raw: unknown, hash: ConnectedDigest) {
     stored.stage,
     stored.identity,
     stored.request,
-    stored.scope.projectId,
+    stored.scope.workPackageId,
     hash,
   );
   if (prepared.kind !== 'request')
@@ -187,7 +189,7 @@ export function decodeConnectedSuccess(raw: unknown, hash: ConnectedDigest) {
   if (outcome.kind !== 'ok') throw new Error('stored connected success candidate is not feasible');
   // Proof: removing equality admitted the forged baseline choice in `forged request candidate publication contributors and truncated bytes refuse`.
   requireEqual(stored.publication, outcome.decision.chosen, 'publication');
-  // Proof: removing equality admitted movement=999 in `scope project and stored comparison cannot be forged independently`.
+  // Proof: removing equality admitted movement=999 in `scope workPackage and stored comparison cannot be forged independently`.
   requireEqual(
     stored.comparison,
     {
@@ -213,8 +215,9 @@ export function encodeConnectedSuccess(
   const outcome = evaluateConnectedSolverOutcome(stage, request, { kind: 'response', stdout });
   if (outcome.kind !== 'ok') throw new Error('stored connected success requires feasible response');
   const stored: StoredConnectedSuccess = structuredClone({
-    dtoVersion: 2,
-    scope: { kind: 'connected-stage', projectId: stage.projectId },
+    // Proof: outgoing2 failed 'writes renamed connected success DTO3'.
+    dtoVersion: 3,
+    scope: { kind: 'connected-stage', workPackageId: stage.workPackageId },
     identity,
     stage: encodeConnectedStage(stage),
     request,
@@ -232,9 +235,9 @@ export function encodeConnectedSuccess(
 
 /** Durable scoped terminal; generation and attempt attribution belong to its repository row, never its mathematical identity. */
 export interface StoredBoundaryCertificate {
-  readonly dtoVersion: 1;
+  readonly dtoVersion: 2;
   readonly kind: 'boundary-infeasible';
-  readonly scope: { readonly kind: 'connected-stage'; readonly projectId: string };
+  readonly scope: { readonly kind: 'connected-stage'; readonly workPackageId: string };
   readonly identity: ConnectedQuestionIdentity;
   readonly stage: StoredConnectedStage;
   readonly request: ConnectedSolverRequest;
@@ -250,7 +253,7 @@ export function decodeBoundaryCertificate(raw: unknown, hash: ConnectedDigest) {
     stored.stage,
     stored.identity,
     stored.request,
-    stored.scope.projectId,
+    stored.scope.workPackageId,
     hash,
   );
   let certificate: ConnectedBoundaryEvidence;
@@ -291,9 +294,10 @@ export function encodeBoundaryCertificate(
   hash: ConnectedDigest,
 ): StoredBoundaryCertificate {
   const stored: StoredBoundaryCertificate = structuredClone({
-    dtoVersion: 1,
+    // Proof: outgoing1 failed 'writes renamed boundary certificate DTO2'.
+    dtoVersion: 2,
     kind: 'boundary-infeasible',
-    scope: { kind: 'connected-stage', projectId: stage.projectId },
+    scope: { kind: 'connected-stage', workPackageId: stage.workPackageId },
     identity,
     stage: encodeConnectedStage(stage),
     request,

@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
 /**
  * The Directory, Organization and Spaces pages as a local-mode reader meets
@@ -78,16 +78,16 @@ test('Organization says what local mode means and offers somewhere to go', async
   await expect(page).toHaveURL(/\/$/);
 });
 
-test('Spaces says what local mode means and offers All projects', async ({ page }) => {
+test('Spaces says what local mode means and offers All work packages', async ({ page }) => {
   await signIn(page);
   await page.goto('/spaces');
   const state = page.getByRole('main');
   await expect(state.getByRole('alert')).toBeVisible();
   // Proof: on main at 16eaa121f this failed on `not.toContainText('deployment')`:
-  // the page read `Until this deployment has one, only All projects is
+  // the page read `Until this deployment has one, only All workPackages is
   // available.` Watched 2026-10-13.
   await expect(state).not.toContainText('deployment');
-  const action = state.getByRole('link', { name: 'Open All projects' });
+  const action = state.getByRole('link', { name: 'Open All work packages' });
   await expect(action).toBeVisible();
   await action.click();
   await expect(page).toHaveURL(/\/spaces\/all$/);

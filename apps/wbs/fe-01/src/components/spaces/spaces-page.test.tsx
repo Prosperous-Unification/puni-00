@@ -26,18 +26,18 @@ function routed(ui: ReactNode) {
   render(<RouterProvider router={router} />);
 }
 
-const space = (id: string, name: string, projectCount = 0) => ({
+const space = (id: string, name: string, workPackageCount = 0) => ({
   id,
   name,
   virtual: false,
-  projectCount,
+  workPackageCount,
   revision: 0,
   createdById: 'u',
   createdAt: 1,
 });
 
 describe('the spaces page', () => {
-  it('lists All projects first, then the spaces, and creates one', async () => {
+  it('lists All work packages first, then the spaces, and creates one', async () => {
     const sent = stubServer({
       'GET /api/spaces': [
         () => answer(200, { spaces: [space('s1', 'Launch', 2)], writable: true }),
@@ -53,8 +53,8 @@ describe('the spaces page', () => {
       within(list)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['All projects', 'Launch']);
-    expect(list.textContent).toContain('2 projects');
+    ).toEqual(['All work packages', 'Launch']);
+    expect(list.textContent).toContain('2 work packages');
     fireEvent.change(screen.getByLabelText('New space'), { target: { value: ' Q3 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByText('Created Q3.')).toBeDefined();
@@ -89,7 +89,7 @@ describe('the spaces page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Another space already has that name.')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Delete Q3' }));
-    expect(await screen.findByText('Deleted Q3. Its projects are unchanged.')).toBeDefined();
+    expect(await screen.findByText('Deleted Q3. Its work packages are unchanged.')).toBeDefined();
   });
 
   it('renders the loading, empty and organization_required states', async () => {
@@ -101,8 +101,8 @@ describe('the spaces page', () => {
     stubServer({ 'GET /api/spaces': [() => answer(409, { error: 'organization_required' })] });
     routed(<SpacesPage nav={null} account={null} />);
     expect((await screen.findByRole('alert')).textContent).toBe('Spaces need an organization.');
-    expect(screen.getByText(/every project is in All projects/)).toBeDefined();
-    expect(screen.getByRole('link', { name: 'Open All projects' })).toBeDefined();
+    expect(screen.getByText(/every workPackage is in All work-packages/)).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Open All work packages' })).toBeDefined();
   });
 
   it('gives the page up to the company sign-in when enforced SSO refuses it', async () => {
@@ -120,7 +120,7 @@ describe('the spaces page', () => {
     routed(<SpacesPage nav={null} account={null} />);
     const action = await screen.findByRole('link', { name: 'Sign in with your company' });
     expect(action.getAttribute('href')).toBe('/api/auth/login?organization=acme-eu-2');
-    expect(screen.queryByRole('link', { name: 'All projects' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'All work packages' })).toBeNull();
   });
 });
 

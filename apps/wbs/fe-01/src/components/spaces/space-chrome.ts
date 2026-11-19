@@ -1,5 +1,5 @@
 /**
- * A link to a space or a project, in the palette's ink rather than the user
+ * A link to a space or a work package, in the palette's ink rather than the user
  * agent's link blue (`page-nav.tsx` measured that blue against the dark
  * `--background`), underlined in a quiet tone that darkens on hover, and ringed on focus as the chrome's
  * buttons are. `[overflow-wrap:anywhere]` breaks a long unbroken name instead

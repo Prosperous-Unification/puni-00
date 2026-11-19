@@ -50,17 +50,17 @@ export interface SubtreePublicState {
 
 export async function readSubtreePublicState(
   readers: SourceReaders,
-  projectId: string,
+  workPackageId: string,
 ): Promise<SubtreePublicState> {
   const [workItems, estimates, actuals, progress, measures, dependencies, assigned] =
     await Promise.all([
-      readers.workItems.listByProject(projectId),
-      readers.estimates.listByProject(projectId),
-      readers.actuals.listByProject(projectId),
-      readers.progress.listByProject(projectId),
-      readers.measures.listByProject(projectId),
-      readers.dependencies.listByProject(projectId),
-      readers.directory.assignmentsInProject(projectId),
+      readers.workItems.listByWorkPackage(workPackageId),
+      readers.estimates.listByWorkPackage(workPackageId),
+      readers.actuals.listByWorkPackage(workPackageId),
+      readers.progress.listByWorkPackage(workPackageId),
+      readers.measures.listByWorkPackage(workPackageId),
+      readers.dependencies.listByWorkPackage(workPackageId),
+      readers.directory.assignmentsInWorkPackage(workPackageId),
     ]);
   return {
     workItems: sorted(workItems, ({ id }) => id),
@@ -153,19 +153,19 @@ export function subtreeSeedRecords(seed: SeededPlan) {
     dependencies: [
       {
         id: 'subtree-seed-touching',
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         predecessorId: firstItemId,
         successorId: removalItemId,
       },
       {
         id: 'subtree-seed-surviving',
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         predecessorId: removalItemId,
         successorId: firstItemId,
       },
       {
-        id: 'subtree-seed-other-project',
-        projectId: seed.projectIds[1],
+        id: 'subtree-seed-other-work-package',
+        workPackageId: seed.workPackageIds[1],
         predecessorId: otherItemId,
         successorId: otherSuccessorId,
       },
@@ -180,7 +180,7 @@ export function completeSubtreeCopy(seed: SeededPlan): SubtreeCopy {
     rows: [
       workItemRow({
         id: SUBTREE_COPY_IDS.root,
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         parentId: null,
         position: 20,
         name: 'Copied root',
@@ -196,7 +196,7 @@ export function completeSubtreeCopy(seed: SeededPlan): SubtreeCopy {
       }),
       workItemRow({
         id: SUBTREE_COPY_IDS.child,
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         parentId: SUBTREE_COPY_IDS.root,
         position: 10,
         name: 'Copied child',
@@ -220,7 +220,7 @@ export function completeSubtreeCopy(seed: SeededPlan): SubtreeCopy {
     ],
     actuals: [{ workItemId: SUBTREE_COPY_IDS.child, stepId: qaStepId, days: 5, recordedAt: 211 }],
     progress: [
-      { workItemId: SUBTREE_COPY_IDS.root, stepId: devStepId, state: 'in_progress', statedAt: 212 },
+      { workItemId: SUBTREE_COPY_IDS.child, stepId: devStepId, state: 'in_progress', statedAt: 212 },
     ],
     measures: [
       {
@@ -252,7 +252,7 @@ export function completeSubtreeCopy(seed: SeededPlan): SubtreeCopy {
     dependencies: [
       {
         id: SUBTREE_COPY_IDS.dependency,
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         predecessorId: SUBTREE_COPY_IDS.root,
         successorId: SUBTREE_COPY_IDS.child,
       },
@@ -292,12 +292,12 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
   const copy = completeSubtreeCopy(seed);
   const [firstItemId, removalItemId] = seed.workItemIds[0];
   const devStepId = seed.stepIds[0][0];
-  const firstProjectIds = new Set<string>(seed.workItemIds[0]);
+  const firstWorkPackageIds = new Set<string>(seed.workItemIds[0]);
   const baseRows = seed.workItemIds[0].map((id, index) =>
     labelledRow({
       ...workItemRow({
         id,
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         name: `Work ${String(index + 1)}`,
         parentId: id === firstItemId ? SUBTREE_COPY_IDS.root : null,
         position: id === firstItemId ? 30 : 40,
@@ -318,7 +318,7 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
       [
         ...seeded.estimates.filter(
           (row) =>
-            firstProjectIds.has(row.workItemId) &&
+            firstWorkPackageIds.has(row.workItemId) &&
             pairKey(row) !== `${removalItemId}\u0000${devStepId}`,
         ),
         ...copy.estimates,
@@ -329,7 +329,7 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
       [
         ...seeded.actuals.filter(
           (row) =>
-            firstProjectIds.has(row.workItemId) &&
+            firstWorkPackageIds.has(row.workItemId) &&
             pairKey(row) !== `${removalItemId}\u0000${devStepId}`,
         ),
         ...copy.actuals,
@@ -340,7 +340,7 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
       [
         ...seeded.progress.filter(
           (row) =>
-            firstProjectIds.has(row.workItemId) &&
+            firstWorkPackageIds.has(row.workItemId) &&
             pairKey(row) !== `${removalItemId}\u0000${devStepId}`,
         ),
         ...copy.progress,
@@ -351,7 +351,7 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
       [
         ...seeded.measures.filter(
           (row) =>
-            firstProjectIds.has(row.workItemId) &&
+            firstWorkPackageIds.has(row.workItemId) &&
             !copy.removedMeasures.some(
               (removed) =>
                 removed.workItemId === row.workItemId &&
@@ -365,7 +365,9 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
     ),
     dependencies: sorted(
       [
-        ...seeded.dependencies.filter(({ projectId }) => projectId === seed.projectIds[0]),
+        ...seeded.dependencies.filter(
+          ({ workPackageId }) => workPackageId === seed.workPackageIds[0],
+        ),
         ...copy.dependencies,
       ],
       ({ id }) => id,
@@ -456,15 +458,15 @@ export function assertCompleteStateAlternative(
   assertCompleteRevisions(actual, seed);
 }
 
-function expectedSeedProject(seed: SeededPlan, projectIndex: 0 | 1) {
-  const projectId = seed.projectIds[projectIndex];
-  const ids = new Set<string>(seed.workItemIds[projectIndex]);
+function expectedSeedWorkPackage(seed: SeededPlan, workPackageIndex: 0 | 1) {
+  const workPackageId = seed.workPackageIds[workPackageIndex];
+  const ids = new Set<string>(seed.workItemIds[workPackageIndex]);
   const seeded = subtreeSeedRecords(seed);
   return {
     workItems: sorted(
-      seed.workItemIds[projectIndex].map((id, index) =>
+      seed.workItemIds[workPackageIndex].map((id, index) =>
         labelledRow({
-          ...workItemRow({ id, projectId, name: `Work ${String(index + 1)}` }),
+          ...workItemRow({ id, workPackageId, name: `Work ${String(index + 1)}` }),
         }),
       ),
       ({ id }) => id,
@@ -486,7 +488,7 @@ function expectedSeedProject(seed: SeededPlan, projectIndex: 0 | 1) {
       measureKey,
     ),
     dependencies: sorted(
-      seeded.dependencies.filter((edge) => edge.projectId === projectId),
+      seeded.dependencies.filter((edge) => edge.workPackageId === workPackageId),
       ({ id }) => id,
     ),
     assignments: sorted(
@@ -495,8 +497,8 @@ function expectedSeedProject(seed: SeededPlan, projectIndex: 0 | 1) {
     ),
     assignmentPeople: [
       {
-        id: seed.personIds[projectIndex],
-        name: `Person ${String(projectIndex + 1)}`,
+        id: seed.personIds[workPackageIndex],
+        name: `Person ${String(workPackageIndex + 1)}`,
       },
     ],
   };
@@ -505,12 +507,12 @@ function expectedSeedProject(seed: SeededPlan, projectIndex: 0 | 1) {
 export function assertSeedState(
   actual: SubtreePublicState,
   seed: SeededPlan,
-  projectIndex: 0 | 1,
+  workPackageIndex: 0 | 1,
 ): void {
-  expect(withoutRevisions(actual)).toEqual(expectedSeedProject(seed, projectIndex));
-  const memory = seed.workItemIds[projectIndex].map((id) => ({ id, revision: 0 }));
+  expect(withoutRevisions(actual)).toEqual(expectedSeedWorkPackage(seed, workPackageIndex));
+  const memory = seed.workItemIds[workPackageIndex].map((id) => ({ id, revision: 0 }));
   const sqlite =
-    projectIndex === 0
+    workPackageIndex === 0
       ? [
           { id: seed.workItemIds[0][0], revision: 7 },
           { id: seed.workItemIds[0][1], revision: 10 },
@@ -531,13 +533,15 @@ export function subtreeRegistrations(open: OpenCase<'subtrees'>): readonly CaseR
       open,
       async ({ port, readers, seed }) => {
         const before = await Promise.all(
-          seed.projectIds.map((projectId) => readSubtreePublicState(readers, projectId)),
+          seed.workPackageIds.map((workPackageId) =>
+            readSubtreePublicState(readers, workPackageId),
+          ),
         );
         assertSeedState(before[0], seed, 0);
         assertSeedState(before[1], seed, 1);
         await port.insertSubtree(structuredClone(completeSubtreeCopy(seed)), seed.stamps[1]);
-        assertCompleteState(await readSubtreePublicState(readers, seed.projectIds[0]), seed);
-        expect(await readSubtreePublicState(readers, seed.projectIds[1])).toEqual(before[1]);
+        assertCompleteState(await readSubtreePublicState(readers, seed.workPackageIds[0]), seed);
+        expect(await readSubtreePublicState(readers, seed.workPackageIds[1])).toEqual(before[1]);
       },
     ),
     storeCase(
@@ -549,7 +553,9 @@ export function subtreeRegistrations(open: OpenCase<'subtrees'>): readonly CaseR
           throw new Error('subtree late-failure case requires the final-satellite scenario');
         }
         const before = await Promise.all(
-          seed.projectIds.map((projectId) => readSubtreePublicState(readers, projectId)),
+          seed.workPackageIds.map((workPackageId) =>
+            readSubtreePublicState(readers, workPackageId),
+          ),
         );
         assertSeedState(before[0], seed, 0);
         assertSeedState(before[1], seed, 1);
@@ -565,7 +571,9 @@ export function subtreeRegistrations(open: OpenCase<'subtrees'>): readonly CaseR
         // exact copied rows and satellites in this complete public-state diff.
         expect(
           await Promise.all(
-            seed.projectIds.map((projectId) => readSubtreePublicState(readers, projectId)),
+            seed.workPackageIds.map((workPackageId) =>
+              readSubtreePublicState(readers, workPackageId),
+            ),
           ),
         ).toEqual(before);
       },

@@ -102,7 +102,7 @@ function lettersOf(word: string, count: number): string {
  *
  * **Marks are per plan**: the caller passes the people one plan prints
  * (`planInitialsOf`), never the organization's directory, so a collision is
- * local and on screen, and a namesake added to another project does not
+ * local and on screen, and a namesake added to another work package does not
  * change a mark here (review of PR #763, B1).
  *
  * Proof: answering {@link initialsOf} for every name made `gives distinct

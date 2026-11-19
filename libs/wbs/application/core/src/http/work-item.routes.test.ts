@@ -1,15 +1,28 @@
-import { expect, spyOn, test } from 'bun:test';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { afterEach, expect, spyOn, test  } from 'bun:test';
 
 import { createPlanCommandRunner } from '../module/plan-commands/composition';
 import { NO_COMPUTE_PROVIDERS } from '../ports/compute-providers';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
 import { localCommandAccess } from '../testing/organization-access-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 import { workItemRoutes } from './work-item.routes';
 
+/** Only this module's new logical Sources; a failed close remains retained and is reported after all cleanup attempts. */
+const ownedSources=new Set<ReturnType<typeof openMemorySourceFixture>['source']>();
+function openOwnedSource(){const source=openMemorySourceFixture().source;ownedSources.add(source);return source;}
+afterEach(async()=>{
+  const cleanupCauses:unknown[]=[];
+  for(const source of ownedSources){
+    try{await source.close();ownedSources.delete(source);}
+    catch(cause:unknown){cleanupCauses.push(cause);}
+  }
+  if(cleanupCauses.length>0)throw new AggregateError(cleanupCauses,'test-owned MemorySource cleanup failed',{cause:cleanupCauses.at(-1)});
+});
+
 function fixture() {
-  const plan = inMemoryServices();
+  const plan = createTestServices(openOwnedSource());
   const writes = testWrites(undefined, batchServices(plan));
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,

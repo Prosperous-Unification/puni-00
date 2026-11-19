@@ -342,7 +342,7 @@ export default [
         '@wbs/store-sqlite/db',
         '@wbs/store-sqlite/backup',
         '@wbs/store-sqlite/migration-set',
-        '@wbs/store-sqlite/cross-project-dependency-activation',
+        '@wbs/store-sqlite/cross-work-package-dependency-activation',
       ],
     ],
     ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
@@ -351,13 +351,13 @@ export default [
     ['lib/initial-handoff-graph.ts', ['@wbs/contracts/dependency-runtime']],
     [
       'lib/complete-dependency-exclusion.test.ts',
-      ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+      ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-work-package-dependency-activation'],
     ],
     [
       'lib/dependency-activation-storage.test.ts',
       [
         '@wbs/store-sqlite/db',
-        '@wbs/store-sqlite/cross-project-dependency-activation',
+        '@wbs/store-sqlite/cross-work-package-dependency-activation',
         '@wbs/store-sqlite/migration-set',
       ],
     ],

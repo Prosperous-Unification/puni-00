@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 
-import { expect, type Locator, type Page, test } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
+import { openOrdinaryContext } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 import { seedRenderingPlan } from './rendering-fixture';
 
@@ -43,9 +44,9 @@ async function seedMixedBoard(page: Page, worker: number) {
     },
   ];
   fixtureSuccess(
-    'postApiProjectsByIdCommands',
-    await fixtureClient(page).postApiProjectsByIdCommands({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdCommands',
+    await fixtureClient(page).postApiWorkPackagesByIdCommands({
+      params: { id: seeded.workPackageId },
       body: { commands },
     }),
   );
@@ -170,7 +171,7 @@ test('keeps view controls in the phone toolbar and keyboard focus on the selecte
     identity('phone-room', testInfo.workerIndex),
   );
   await openSeededPlan(page, seeded);
-  const selector = page.getByRole('group', { name: 'Project view' });
+  const selector = page.getByRole('group', { name: 'Work package view' });
   const actions = page.getByRole('button', { name: 'Plan actions', exact: true });
   const selectorBox = await selector.boundingBox();
   const actionsBox = await actions.boundingBox();
@@ -189,7 +190,7 @@ test('keeps view controls in the phone toolbar and keyboard focus on the selecte
   for (const width of [768, 900, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     const header = page.getByRole('banner');
-    await expect(header.getByRole('group', { name: 'Project view' })).toBeVisible();
+    await expect(header.getByRole('group', { name: 'Work package view' })).toBeVisible();
     expect(
       await header.evaluate((node) => node.scrollWidth - node.clientWidth),
     ).toBeLessThanOrEqual(0);
@@ -213,9 +214,9 @@ test('wraps unbroken card labels inside every column at desktop and 390px', asyn
     identity('wrapping', testInfo.workerIndex),
   );
   fixtureSuccess(
-    'postApiProjectsByIdSteps',
-    await fixtureClient(page).postApiProjectsByIdSteps({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdSteps',
+    await fixtureClient(page).postApiWorkPackagesByIdSteps({
+      params: { id: seeded.workPackageId },
       body: { name: stepName },
     }),
   );
@@ -277,12 +278,10 @@ test('preserves a cancelled-pointer draft through peer delivery and commits it o
   await expect(boardOf(page)).toBeVisible();
   expect(writes).toEqual([]);
 
-  const peerContext = await browser.newContext({
-    baseURL: new URL(page.url()).origin,
-    locale: 'en-US',
-    timezoneId: 'UTC',
+  const peerContext = await openOrdinaryContext(browser, {
     viewport: { width: 1400, height: 900 },
   });
+  let primary: { cause: unknown } | null = null;
   try {
     const peer = await peerContext.newPage();
     await peer.goto('/');
@@ -326,9 +325,23 @@ test('preserves a cancelled-pointer draft through peer delivery and commits it o
     await commit;
     expect(writes.filter((request) => request.includes('/commands'))).toHaveLength(1);
     await expect(field).toHaveValue('Draft two');
-  } finally {
-    await peerContext.close();
+  } catch (cause) {
+    primary = { cause };
   }
+  const cleanup: unknown[] = [];
+  try {
+    await peerContext.close();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError([primary.cause, ...cleanup], 'Peer interaction and cleanup failed', {
+        cause: primary.cause,
+      });
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0) throw new AggregateError(cleanup, 'Peer context cleanup failed');
 
   const planButton = page.getByRole('button', { name: 'Plan', exact: true });
   await planButton.focus();
@@ -379,7 +392,7 @@ test('shows a first read failure, retries, then retains cards after a later fail
   const firstReadRelease = new Promise<void>((resolve) => {
     releaseFirstRead = resolve;
   });
-  await page.route(`**/api/projects/${seeded.projectId}/work-items`, async (route) => {
+  await page.route(`**/api/work-packages/${seeded.workPackageId}/work-items`, async (route) => {
     if (route.request().method() !== 'GET' || !refuseReads) {
       await route.continue();
       return;
@@ -409,7 +422,8 @@ test('shows a first read failure, retries, then retains cards after a later fail
   await expect(boardOf(page)).toContainText('Before peer');
   await expect(boardOf(page).getByRole('alert')).toHaveCount(0);
 
-  const peerContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  const peerContext = await openOrdinaryContext(browser);
+  let primary: { cause: unknown } | null = null;
   try {
     const peer = await peerContext.newPage();
     await openSeededPlan(peer, seeded);
@@ -431,23 +445,37 @@ test('shows a first read failure, retries, then retains cards after a later fail
     await boardOf(page).getByRole('button', { name: 'Retry' }).click();
     await expect(boardOf(page)).toContainText('After peer');
     await expect(boardOf(page).getByRole('alert')).toHaveCount(0);
-  } finally {
-    await peerContext.close();
+  } catch (cause) {
+    primary = { cause };
   }
+  const cleanup: unknown[] = [];
+  try {
+    await peerContext.close();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError([primary.cause, ...cleanup], 'Peer interaction and cleanup failed', {
+        cause: primary.cause,
+      });
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0) throw new AggregateError(cleanup, 'Peer context cleanup failed');
 });
 
-test('does not carry late old cards or a suspended draft into another project', async ({
+test('does not carry late old cards or a suspended draft into another work package', async ({
   browser,
   page,
 }, testInfo) => {
   const first = await seedPlan(
     page,
-    { name: 'Board first project', rows: [{ ref: 'first', name: 'First card' }] },
+    { name: 'Board first work package', rows: [{ ref: 'first', name: 'First card' }] },
     identity('switch-first', testInfo.workerIndex),
   );
   const second = await seedPlan(
     page,
-    { name: 'Board second project', rows: [{ ref: 'second', name: 'Second card' }] },
+    { name: 'Board second work package', rows: [{ ref: 'second', name: 'Second card' }] },
     identity('switch-second', testInfo.workerIndex),
   );
   await openSeededPlan(page, first);
@@ -473,7 +501,7 @@ test('does not carry late old cards or a suspended draft into another project', 
   const oldReadFinished = new Promise<void>((resolve) => {
     markOldReadFinished = resolve;
   });
-  await page.route(`**/api/projects/${first.projectId}/work-items`, async (route) => {
+  await page.route(`**/api/work-packages/${first.workPackageId}/work-items`, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.continue();
       return;
@@ -484,7 +512,8 @@ test('does not carry late old cards or a suspended draft into another project', 
     await route.fulfill({ response });
     markOldReadFinished();
   });
-  const peerContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  const peerContext = await openOrdinaryContext(browser);
+  let primary: { cause: unknown } | null = null;
   try {
     const peer = await peerContext.newPage();
     await openSeededPlan(peer, first);
@@ -498,10 +527,10 @@ test('does not carry late old cards or a suspended draft into another project', 
     await peer.getByLabel('Name of 010').blur();
     await peerWrite;
     await oldReadHeld;
-    const picker = page.getByRole('combobox', { name: 'Project' });
+    const picker = page.getByRole('combobox', { name: 'Work package' });
     await picker.click();
-    await picker.fill(second.projectName);
-    await page.getByRole('option').filter({ hasText: second.projectName }).click();
+    await picker.fill(second.workPackageName);
+    await page.getByRole('option').filter({ hasText: second.workPackageName }).click();
     await expect(page.getByLabel('Name of 010')).toHaveValue('Second card');
     releaseOldRead();
     await oldReadFinished;
@@ -512,10 +541,28 @@ test('does not carry late old cards or a suspended draft into another project', 
     await expect(boardOf(page)).not.toContainText('First private draft');
     await page.getByRole('button', { name: 'Return to Plan' }).click();
     await expect(page.getByLabel('Name of 010')).toHaveValue('Second card');
-  } finally {
-    releaseOldRead();
-    await peerContext.close();
+  } catch (cause) {
+    primary = { cause };
   }
+  const cleanup: unknown[] = [];
+  try {
+    releaseOldRead();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  try {
+    await peerContext.close();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError([primary.cause, ...cleanup], 'Peer interaction and cleanup failed', {
+        cause: primary.cause,
+      });
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0) throw new AggregateError(cleanup, 'Peer context cleanup failed');
 });
 
 test('keeps the delivered board visible while its live connection is down', async ({
@@ -554,7 +601,7 @@ test('keeps the delivered board visible while its live connection is down', asyn
   await page.context().setOffline(true);
   const closedCount = await page.evaluate(() => {
     const sockets: unknown = Reflect.get(window, 'boardSockets');
-    if (!Array.isArray(sockets)) throw new Error('project sockets were not observed');
+    if (!Array.isArray(sockets)) throw new Error('work package sockets were not observed');
     let count = 0;
     for (const socket of sockets) {
       if (!(socket instanceof WebSocket) || socket.readyState !== 1) continue;
@@ -601,7 +648,7 @@ test('measures every rendered card for a 500-leaf, five-step fixture', async ({
     host: `${process.platform}/${process.arch}`,
     commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     dirty: execFileSync('git', ['status', '--porcelain=v1'], { encoding: 'utf8' }).trim(),
-    projectId: seeded.projectId,
+    workPackageId: seeded.workPackageId,
   };
   await writeFile(
     testInfo.outputPath('step-board-500x5.json'),

@@ -9,6 +9,13 @@ import {
   type SavedPlanStore,
   type ScopedSavedPlanWrite,
 } from '@wbs/core';
+import {
+  type LegacySavedPlanTouch,
+  retainSavedPlanTouch,
+  type SavedPlanTouchMutation,
+  type SavedPlanTouchWrite,
+} from '@wbs/core/ports/saved-plan-store';
+import type { StoredSavedPlan } from '@wbs/core/ports/saved-plan-values';
 import type { Permission } from '@wbs/domain';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
@@ -16,18 +23,18 @@ import { AccessDecisionRepository } from './access-decisions';
 import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
-import { OPEN } from './gate';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { readOrganizationActivation } from './organization-activation';
-import { ProjectRepository } from './project';
 import { savedPlanWriteFaultOf } from './saved-plan-write-fault';
 import {
-  project,
-  projectOrganization,
   savedPlan,
   savedPlanBody,
   savedPlanOrganization,
+  workPackage,
+  workPackageOrganization,
 } from './schema';
+import { readSettingTargetIn } from './settings';
+import { readStepIdentityIn } from './step-identity';
 
 export { bodyByteLength } from '@wbs/core';
 
@@ -89,7 +96,7 @@ export type SavedPlanScheduleWrite =
 /** One save, as the service hands it over: a header and one or two bodies. */
 export interface SavedPlanWrite {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly name: string;
   /** The display name at the instant of the save, by value — never a `users` reference. */
   readonly createdBy: string;
@@ -99,7 +106,7 @@ export interface SavedPlanWrite {
    *
    * Required and nullable rather than optional, deliberately. `null` is a real
    * answer — a save with no authenticated account behind it — and it is the same
-   * answer a deleted creator leaves: the rule falls back to the project owner.
+   * answer a deleted creator leaves: the rule falls back to the work package owner.
    * An optional field would let a caller omit it by accident and get that
    * fallback for every plan it writes, which is the whole permission rule
    * quietly switched off. Stating it is cheap; forgetting it must not compile.
@@ -146,15 +153,9 @@ export type SavedPlanWriteOutcome<Refusal> =
  * `input` row is a fault. Deciding which is which is the reader's business, not
  * this shape's, so it reports what it found rather than a verdict.
  */
-export interface StoredSavedPlan {
-  readonly header: SavedPlanRow;
-  readonly bodies: {
-    readonly input: string | null;
-    readonly schedule: string | null;
-  };
-}
+export type { StoredSavedPlan, StoredSavedPlanBytes } from '@wbs/core/ports/saved-plan-values';
 
-/** What a project already holds, for the in-transaction quota check. */
+/** What a work package already holds, for the in-transaction quota check. */
 export interface SavedPlanHoldingRow {
   readonly plans: number;
   readonly bytes: number;
@@ -167,7 +168,7 @@ function savedPlanHeader(
 ): SavedPlanRow {
   return {
     id: plan.id,
-    projectId: plan.projectId,
+    workPackageId: plan.workPackageId,
     name: plan.name,
     createdBy: plan.createdBy,
     createdById: plan.createdById,
@@ -200,18 +201,52 @@ export type SavedPlanTouchOutcome = PortSavedPlanTouchOutcome;
  * A **header-only** shape, and the reason it is not
  * {@link SavedPlanService.read}'s job: that path reads every stored byte and can
  * answer `corrupt`, and a corrupt plan must still be renameable and deletable or
- * it holds its project's quota forever with no way to reach it. Authorisation
+ * it holds its work package's quota forever with no way to reach it. Authorisation
  * must therefore be answerable about a plan nobody can open.
  *
- * `createdById` is nullable and `projectOwnerId` is not — the project's owner
- * exists whenever the project does, which is what makes it the fallback when no
- * live account claims the plan.
+ * `createdById` is the saved plan author, independent of package creation metadata.
+ * Null grants no legacy identity right; scoped maintenance uses current permissions.
  */
 export interface SavedPlanPrincipals {
   readonly savedPlanId: string;
-  readonly projectId: string;
-  readonly projectOwnerId: string;
+  readonly workPackageId: string;
   readonly createdById: string | null;
+}
+
+/** Headers only, newest first with the existing ID tie-break; borrows and never settles its caller's snapshot. */
+export async function listSavedPlansIn(
+  snapshot: Drizzle,
+  workPackageId: string,
+): Promise<SavedPlanRow[]> {
+  return await snapshot
+    .select()
+    .from(savedPlan)
+    // Proof: S7 Removing addressed header filtering added other and foreign package headers.
+    // SQL owner:1891; canonical/fault/restored exits 0/1/0.
+    .where(eq(savedPlan.workPackageId, workPackageId))
+    .orderBy(desc(savedPlan.createdAt), savedPlan.id);
+}
+
+/** Reads exact stored header/body bytes on a borrowed snapshot; body absence stays null. */
+export async function readSavedPlanIn(
+  snapshot: Drizzle,
+  savedPlanId: string,
+): Promise<StoredSavedPlan | null> {
+  const headers = await snapshot.select().from(savedPlan).where(eq(savedPlan.id, savedPlanId));
+  if (headers.length === 0) return null;
+  const rows = await snapshot
+    .select({ kind: savedPlanBody.kind, bytes: savedPlanBody.bytes })
+    .from(savedPlanBody)
+    .where(eq(savedPlanBody.savedPlanId, savedPlanId));
+  const bytesOf = (kind: 'input' | 'schedule'): string | null => {
+    const row = rows.find((candidate) => candidate.kind === kind);
+    return row === undefined ? null : row.bytes;
+  };
+  return {
+    header: headers[0],
+    bodies: { input: bytesOf('input'), schedule: bytesOf('schedule') },
+    stepIdentity: readStepIdentityIn(snapshot, headers[0].workPackageId),
+  };
 }
 
 /**
@@ -224,7 +259,7 @@ export interface SavedPlanPrincipals {
  * come through this function and neither counts for itself.
  */
 /**
- * Writes a saved plan's header and bodies, and reads what a project holds.
+ * Writes a saved plan's header and bodies, and reads what a work package holds.
  *
  * **No `UPDATE` is issued here, ever.** That is the whole immutability property
  * of `saved_plan_body` and it is stated as one sentence a reader can check
@@ -252,19 +287,19 @@ export class SavedPlanRepository implements SavedPlanStore {
    * measuring the body rows, so it costs one row of the header index and never
    * reads a megabyte to learn its size.
    */
-  async holdingOf(db: Drizzle, projectId: string): Promise<SavedPlanHoldingRow> {
+  async holdingOf(db: Drizzle, workPackageId: string): Promise<SavedPlanHoldingRow> {
     const rows = await db
       .select({
         plans: sql<number>`count(*)`,
-        // `coalesce` twice: the outer one for a project with no rows at all,
+        // `coalesce` twice: the outer one for a work package with no rows at all,
         // the inner for a row whose schedule side is absent and therefore null.
         // Without the inner one SQLite's `sum` over any null makes the whole
-        // total null, and a project holding one schedule-less plan would read
+        // total null, and a work package holding one schedule-less plan would read
         // as holding no bytes.
         bytes: sql<number>`coalesce(sum(${savedPlan.inputBytes} + coalesce(${savedPlan.scheduleBytes}, 0)), 0)`,
       })
       .from(savedPlan)
-      .where(eq(savedPlan.projectId, projectId));
+      .where(eq(savedPlan.workPackageId, workPackageId));
     // An aggregate over no rows is still one row, so the empty case is the
     // `coalesce` above and not this line. It is written as a length check
     // rather than as `rows[0]?.plans ?? 0` because drizzle types the element
@@ -293,9 +328,9 @@ export class SavedPlanRepository implements SavedPlanStore {
    * attempt in about a millisecond instead of blocking on it for five seconds.
    * The mechanism is SQLite's own lock and not a marker in this process:
    * blue and green are two processes on one file during a swap, and a set of
-   * in-flight project ids in either of them is invisible to the other. What the
+   * in-flight work package ids in either of them is invisible to the other. What the
    * refusal buys is that no save ever *holds* the lock while waiting, which is
-   * the behaviour that would queue every live edit in the project behind two
+   * the behaviour that would queue every live edit in the work package behind two
    * body writes (design.md, "Fail-fast, not queue").
    *
    * Only `BEGIN` is watched for it. A `SQLITE_BUSY` out of a later statement is
@@ -335,7 +370,7 @@ export class SavedPlanRepository implements SavedPlanStore {
           if (scoped !== undefined) {
             // Capture authority is rechecked on this independent writer; no
             // restricted-package recovery or creator bypass applies.
-            const admitted = await authorizeSavedPlanWrite(db, plan.projectId, scoped);
+            const admitted = await authorizeSavedPlanWrite(db, plan.workPackageId, scoped);
             // Proof: saved-capture-writer-grant fault failed 'independent saved-plan capture writer' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
             if (admitted !== null) {
               tx.rollback();
@@ -347,7 +382,7 @@ export class SavedPlanRepository implements SavedPlanStore {
             }
           }
           const refusal = await check(
-            await this.holdingOf(db, plan.projectId),
+            await this.holdingOf(db, plan.workPackageId),
             inputBytes + (scheduleBytes ?? 0),
           );
           if (refusal !== null) {
@@ -361,20 +396,20 @@ export class SavedPlanRepository implements SavedPlanStore {
           }
           const header = savedPlanHeader(plan, inputBytes, scheduleBytes);
           await db.insert(savedPlan).values(header);
-          // The plan belongs to its project's organization. Before activation
+          // The plan belongs to its work package's organization. Before activation
           // the bridge trigger has already mapped it; after it, nothing else
           // would, so the mapping is written here, in the save's own
           // transaction. Builder statements rather than a raw one, so the
           // transaction's only raw statements stay its BEGIN and its end.
           // Proof: skipping this insert made `maps a plan saved after
-          // activation to its project's organization` in
+          // activation to its work package's organization` in
           // `saved-plan-organization.controller.db.test.ts` (and the store suite `saved-plan-organization.db.test.ts`) find no mapping;
           // watched 2026-09-27.
           const owner = (
             await db
-              .select({ organizationId: projectOrganization.organizationId })
-              .from(projectOrganization)
-              .where(eq(projectOrganization.resourceId, plan.projectId))
+              .select({ organizationId: workPackageOrganization.organizationId })
+              .from(workPackageOrganization)
+              .where(eq(workPackageOrganization.resourceId, plan.workPackageId))
           ).at(0);
           const mapped = await db
             .select({
@@ -384,20 +419,22 @@ export class SavedPlanRepository implements SavedPlanStore {
             .from(savedPlanOrganization)
             .where(eq(savedPlanOrganization.resourceId, plan.id));
           if (readOrganizationActivation(db) === 'activated') {
-            // After activation the invariant is complete ownership: a project
+            // After activation the invariant is complete ownership: a work package
             // without an owner, or a plan already mapped elsewhere, is corrupt
             // trusted state, and the save rolls back rather than store it.
             // Proof: skipping this refusal made `refuses a save after
-            // activation for a project without an owner` in
+            // activation for a work package without an owner` in
             // `saved-plan-organization.db.test.ts` answer `written`; watched
             // 2026-09-27.
             if (owner === undefined) {
-              throw new Error(`project "${plan.projectId}" has no organization after activation`);
+              throw new Error(
+                `work package "${plan.workPackageId}" has no organization after activation`,
+              );
             }
             const held = mapped.at(0);
             if (held !== undefined && held.organizationId !== owner.organizationId) {
               throw new Error(
-                `saved plan "${plan.id}" is mapped outside its project's organization`,
+                `saved plan "${plan.id}" is mapped outside its work package's organization`,
               );
             }
           }
@@ -540,20 +577,7 @@ export class SavedPlanRepository implements SavedPlanStore {
       const tx = drizzleReadTransaction(db);
       tx.begin();
       try {
-        const headers = await db.select().from(savedPlan).where(eq(savedPlan.id, savedPlanId));
-        if (headers.length === 0) return null;
-        const rows = await db
-          .select({ kind: savedPlanBody.kind, bytes: savedPlanBody.bytes })
-          .from(savedPlanBody)
-          .where(eq(savedPlanBody.savedPlanId, savedPlanId));
-        const bytesOf = (kind: 'input' | 'schedule'): string | null => {
-          const row = rows.find((candidate) => candidate.kind === kind);
-          return row === undefined ? null : row.bytes;
-        };
-        return {
-          header: headers[0],
-          bodies: { input: bytesOf('input'), schedule: bytesOf('schedule') },
-        };
+        return await readSavedPlanIn(db, savedPlanId);
       } finally {
         // A read transaction has nothing to commit, and `COMMIT` on one that a
         // throw left open would be a second error on the way out. Rolling back
@@ -566,9 +590,9 @@ export class SavedPlanRepository implements SavedPlanStore {
   }
 
   /**
-   * Every saved plan a project holds, newest first — **headers only**.
+   * Every saved plan a work package holds, newest first — **headers only**.
    *
-   * No body is read here and none can be: a project at the quota holds a
+   * No body is read here and none can be: a work package at the quota holds a
    * hundred plans and tens of megabytes of bytes, and a list that joined the
    * body table would load all of it to render a column of names. The header
    * carries the lengths and the hashes, which is everything a list shows.
@@ -576,7 +600,7 @@ export class SavedPlanRepository implements SavedPlanStore {
    * Ordered by `created_at` descending with `id` as the tie-break, so two plans
    * captured inside the same second have **an** order rather than SQLite's.
    * The capture stamps the instant its read snapshot opened, and two saves of
-   * one project a moment apart is the ordinary case, not the exotic one.
+   * one work package a moment apart is the ordinary case, not the exotic one.
    *
    * On its own connection, like {@link readOf} and unlike {@link holdingOf}.
    * The division is what the read is *for*, not what it costs: `holdingOf` and
@@ -592,14 +616,10 @@ export class SavedPlanRepository implements SavedPlanStore {
    * and its bodies are three rows in two tables and a cascade can land between
    * two unsynchronised reads; there is no second read here to synchronise with.
    */
-  async listOf(projectId: string): Promise<SavedPlanRow[]> {
+  async listOf(workPackageId: string): Promise<SavedPlanRow[]> {
     const connection = this.opts.openConnection();
     try {
-      return await connection.db
-        .select()
-        .from(savedPlan)
-        .where(eq(savedPlan.projectId, projectId))
-        .orderBy(desc(savedPlan.createdAt), savedPlan.id);
+      return await listSavedPlansIn(connection.db, workPackageId);
     } finally {
       connection.close();
     }
@@ -608,11 +628,11 @@ export class SavedPlanRepository implements SavedPlanStore {
   /**
    * Who may rename or delete one plan, as one row and no bodies.
    *
-   * Joined to `project` rather than left to the caller, because the two ids are
+   * Joined to `workPackage` rather than left to the caller, because the two ids are
    * one question — "may this account touch this plan" — and two round trips
-   * across a `project` row that can be deleted between them would answer it
-   * about a project that no longer exists. `innerJoin`, so a header whose
-   * project is gone reads as no such plan, which is what a cascade leaves and
+   * across a `workPackage` row that can be deleted between them would answer it
+   * about a work package that no longer exists. `innerJoin`, so a header whose
+   * work package is gone reads as no such plan, which is what a cascade leaves and
    * what a route should say.
    *
    * Its own connection, like every other read here, and it takes no write lock:
@@ -624,12 +644,11 @@ export class SavedPlanRepository implements SavedPlanStore {
       const rows = await connection.db
         .select({
           savedPlanId: savedPlan.id,
-          projectId: savedPlan.projectId,
-          projectOwnerId: project.ownerId,
+          workPackageId: savedPlan.workPackageId,
           createdById: savedPlan.createdById,
         })
         .from(savedPlan)
-        .innerJoin(project, eq(project.id, savedPlan.projectId))
+        .innerJoin(workPackage, eq(workPackage.id, savedPlan.workPackageId))
         .where(eq(savedPlan.id, savedPlanId));
       return rows[0] ?? null;
     } finally {
@@ -649,34 +668,18 @@ export class SavedPlanRepository implements SavedPlanStore {
    * On its own connection with the write lock refused rather than waited on,
    * for {@link write}'s reason: a rename is a header row and must never hold a
    * lock a live edit is queued behind.
-   * Scoped touches take an immediate transaction so admission and audit share
-   * the header write; legacy touches keep this single-statement path.
+   * Both touch paths use an immediate owner for current admission and the header
+   * write; legacy checks the current marker and author without decoding bodies.
    */
   async renameTo(
     savedPlanId: string,
     name: string,
-    scoped?: ScopedSavedPlanWrite,
+    touch: SavedPlanTouchWrite,
   ): Promise<SavedPlanTouchOutcome> {
-    if (scoped !== undefined) return this.touchScoped(savedPlanId, scoped, name);
-    const connection = this.opts.openConnection();
-    try {
-      const db = connection.db;
-      refuseToWaitForWriteLock(db);
-      let touched: { id: string }[];
-      try {
-        touched = await db
-          .update(savedPlan)
-          .set({ name })
-          .where(eq(savedPlan.id, savedPlanId))
-          .returning({ id: savedPlan.id });
-      } catch (failure) {
-        if (!isWriteLockBusy(failure)) throw failure;
-        return 'snapshot_busy';
-      }
-      return touched.length === 0 ? 'no_such_plan' : 'touched';
-    } finally {
-      connection.close();
-    }
+    touch = retainSavedPlanTouch(touch, 'rename', name);
+    return 'kind' in touch
+      ? this.touchLegacy(savedPlanId, touch, { operation: 'rename', name })
+      : this.touchScoped(savedPlanId, touch, name);
   }
 
   /**
@@ -684,41 +687,77 @@ export class SavedPlanRepository implements SavedPlanStore {
    *
    * The cascade is `saved_plan_body`'s own foreign key (`schema.ts`) and not a
    * second statement here, so there is no ordering to get wrong and no window
-   * in which a header is gone and its bytes are not. That is also why this is
-   * one statement rather than a transaction: SQLite applies the cascade inside
-   * the implicit one.
+   * in which a header is gone and its bytes are not. SQLite applies that cascade
+   * inside the same immediate owner as the current admission check.
    *
    * Deleting is the only way a saved plan leaves, and it is permissioned like
-   * the rename — creator or project owner (6.1), decided above this line.
+   * the rename: actual legacy saved authorship or current scoped permission.
    * Scoped deletion uses {@link touchScoped}'s current membership, package.write
    * and author-or-effective-manager checks inside its immediate transaction.
    */
-  async deleteOf(
+  async deleteOf(savedPlanId: string, touch: SavedPlanTouchWrite): Promise<SavedPlanTouchOutcome> {
+    touch = retainSavedPlanTouch(touch, 'delete');
+    return 'kind' in touch
+      ? this.touchLegacy(savedPlanId, touch, { operation: 'delete' })
+      : this.touchScoped(savedPlanId, touch);
+  }
+
+  /** Rechecks current preactivation and header authorship under the same immediate owner as the touch. */
+  private async touchLegacy(
     savedPlanId: string,
-    scoped?: ScopedSavedPlanWrite,
+    touch: LegacySavedPlanTouch,
+    mutation: SavedPlanTouchMutation,
   ): Promise<SavedPlanTouchOutcome> {
-    if (scoped !== undefined) return this.touchScoped(savedPlanId, scoped);
     const connection = this.opts.openConnection();
     try {
       const db = connection.db;
       refuseToWaitForWriteLock(db);
-      let removed: { id: string }[];
+      const transaction = drizzleOuterTransaction(db);
       try {
-        removed = await db
-          .delete(savedPlan)
-          .where(eq(savedPlan.id, savedPlanId))
-          .returning({ id: savedPlan.id });
+        transaction.begin();
       } catch (failure) {
-        if (!isWriteLockBusy(failure)) throw failure;
-        return 'snapshot_busy';
+        if (isWriteLockBusy(failure)) return 'snapshot_busy';
+        throw failure;
       }
-      return removed.length === 0 ? 'no_such_plan' : 'touched';
+      try {
+        if (readOrganizationActivation(db) !== 'pre_activation') {
+          transaction.rollback();
+          return touch.source === 'human'
+            ? 'organization_context_changed'
+            : 'no_active_organization';
+        }
+        const header = db
+          .select({ createdById: savedPlan.createdById })
+          .from(savedPlan)
+          .where(eq(savedPlan.id, savedPlanId))
+          .get();
+        if (header === undefined) {
+          transaction.rollback();
+          return 'no_such_plan';
+        }
+        if (header.createdById !== touch.actorId) {
+          transaction.rollback();
+          return 'forbidden';
+        }
+        if (mutation.operation === 'delete')
+          await db.delete(savedPlan).where(eq(savedPlan.id, savedPlanId));
+        else
+          await db
+            .update(savedPlan)
+            .set({ name: mutation.name })
+            .where(eq(savedPlan.id, savedPlanId));
+        transaction.commit();
+        return 'touched';
+      } catch (failure) {
+        transaction.rollback();
+        throw failure;
+      }
     } finally {
       connection.close();
     }
   }
 
-  /** Rechecks the plan's author and project admission inside its own immediate write. */
+  /** Rechecks the plan's author and work package admission inside its own immediate write. */
   private async touchScoped(
     savedPlanId: string,
     scoped: ScopedSavedPlanWrite,
@@ -744,12 +783,11 @@ export class SavedPlanRepository implements SavedPlanStore {
         const principals = (
           await db
             .select({
-              projectId: savedPlan.projectId,
+              workPackageId: savedPlan.workPackageId,
               createdById: savedPlan.createdById,
-              projectOwnerId: project.ownerId,
             })
             .from(savedPlan)
-            .innerJoin(project, eq(project.id, savedPlan.projectId))
+            .innerJoin(workPackage, eq(workPackage.id, savedPlan.workPackageId))
             .where(eq(savedPlan.id, savedPlanId))
         ).at(0);
         if (principals === undefined) {
@@ -759,7 +797,7 @@ export class SavedPlanRepository implements SavedPlanStore {
         // Rename/delete requires current package.write and either authorship
         // or effective package.manage_settings; role names grant nothing.
         // Proof: saved-touch-writer-grant fault failed 'independent saved-plan (rename|delete) writer' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
-        const admitted = await authorizeSavedPlanWrite(db, principals.projectId, scoped);
+        const admitted = await authorizeSavedPlanWrite(db, principals.workPackageId, scoped);
         if (admitted !== null) {
           transaction.rollback();
           return admitted.reason === 'not_found'
@@ -770,7 +808,7 @@ export class SavedPlanRepository implements SavedPlanStore {
           // Proof: saved-manager-effective-grant fault failed 'manager permission when another author saved-plan' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
           const manager = await authorizeSavedPlanWrite(
             db,
-            principals.projectId,
+            principals.workPackageId,
             scoped,
             'package.manage_settings',
           );
@@ -798,29 +836,22 @@ export class SavedPlanRepository implements SavedPlanStore {
 /** The separate saved-plan writer uses the same connection for current grants and the ensuing history write. */
 async function authorizeSavedPlanWrite(
   db: Parameters<typeof drizzleOuterTransaction>[0],
-  projectId: string,
+  workPackageId: string,
   scoped: ScopedSavedPlanWrite,
   permission: 'package.write' | 'package.manage_settings' = 'package.write',
 ): Promise<Extract<Authorization, { ok: false }> | null> {
   if (scoped.principal.id !== scoped.actorId)
     throw new Error('saved-plan principal differs from its actor');
-  const project = await new ProjectRepository(db, OPEN).findInOrganization(
-    projectId,
+  const workPackage = readSettingTargetIn(
+    db,
+    { level: 'work_package', id: workPackageId },
     scoped.organizationId,
   );
-  if (project === null) return { ok: false, reason: 'not_found' };
+  if (workPackage === null) return { ok: false, reason: 'not_found' };
   const decision = await authorize(
     new AccessDecisionRepository(db),
     scoped.principal,
-    {
-      kind: 'work_package',
-      chain: {
-        level: 'work_package',
-        organizationId: scoped.organizationId,
-        workPackageId: projectId,
-      },
-      restricted: project.restricted,
-    },
+    workPackage,
     permission,
   );
   return decision.ok ? null : decision;

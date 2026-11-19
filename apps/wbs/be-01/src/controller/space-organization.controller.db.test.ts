@@ -5,7 +5,7 @@ import { OrganizationHarness } from '../testing/organization-harness';
 /**
  * The space routes (`add-spaces` slice 2) over real SQLite and the production
  * organization access: owner resolution, roles, `all`, and foreign spaces and
- * projects answered as absent.
+ * work packages answered as absent.
  */
 let h: OrganizationHarness;
 
@@ -13,10 +13,10 @@ afterEach(() => {
   h.close();
 });
 
-async function createProject(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+async function createWorkPackage(username: string, name: string): Promise<string> {
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const projectId = (answer.body as { project: { id: string } }).project.id;
+  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
   if (
     h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
       ?.state === 'activated'
@@ -26,9 +26,9 @@ async function createProject(username: string, name: string): Promise<string> {
       username,
       'package-manager',
       'work_package',
-      projectId,
+      workPackageId,
     );
-  return projectId;
+  return workPackageId;
 }
 
 async function createSpace(username: string, name: string): Promise<string> {
@@ -39,7 +39,7 @@ async function createSpace(username: string, name: string): Promise<string> {
 
 describe('after activation', () => {
   let own: string;
-  let foreignProject: string;
+  let foreignWorkPackage: string;
   let foreignSpace: string;
 
   beforeEach(async () => {
@@ -54,49 +54,50 @@ describe('after activation', () => {
     h.bind('vic', 'org-a');
     h.bind('grace', 'org-b');
     h.activate();
-    own = await createProject('ada', 'A plan');
-    foreignProject = await createProject('grace', 'B plan');
+    own = await createWorkPackage('ada', 'A plan');
+    foreignWorkPackage = await createWorkPackage('grace', 'B plan');
     foreignSpace = await createSpace('grace', 'Theirs');
   });
 
   it('creates, lists, adds, moves, reads and removes within the organization', async () => {
-    const second = await createProject('ada', 'A second');
+    const second = await createWorkPackage('ada', 'A second');
     const space = await createSpace('ada', 'Q3');
     expect(
-      (await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own })).body,
+      (await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, { workPackageId: own }))
+        .body,
     ).toEqual({ position: 10 });
-    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, {
-      projectId: second,
-      afterProjectId: own,
+    await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, {
+      workPackageId: second,
+      afterWorkPackageId: own,
     });
     expect(
-      await h.call('ada', 'POST', `/api/spaces/${space}/projects/${second}/move`, {
-        afterProjectId: null,
+      await h.call('ada', 'POST', `/api/spaces/${space}/work-packages/${second}/move`, {
+        afterWorkPackageId: null,
       }),
     ).toMatchObject({ status: 200, body: { position: 5 } });
     const read = await h.call('ada', 'GET', `/api/spaces/${space}`);
     expect(read).toMatchObject({
       status: 200,
       body: {
-        space: { id: space, name: 'Q3', virtual: false, projectCount: 2, revision: 3 },
+        space: { id: space, name: 'Q3', virtual: false, workPackageCount: 2, revision: 3 },
         rows: [
-          { project: { id: second, ownerName: 'ada' }, position: 5 },
-          { project: { id: own }, position: 10 },
+          { workPackage: { id: second, ownerName: 'ada' }, position: 5 },
+          { workPackage: { id: own }, position: 10 },
         ],
       },
     });
     expect(await h.call('ada', 'GET', '/api/spaces')).toMatchObject({
       status: 200,
-      body: { spaces: [{ id: space, projectCount: 2 }] },
+      body: { spaces: [{ id: space, workPackageCount: 2 }] },
     });
-    expect((await h.call('ada', 'DELETE', `/api/spaces/${space}/projects/${own}`)).status).toBe(
-      204,
-    );
+    expect(
+      (await h.call('ada', 'DELETE', `/api/spaces/${space}/work-packages/${own}`)).status,
+    ).toBe(204);
     expect((await h.call('ada', 'DELETE', `/api/spaces/${space}`)).status).toBe(204);
-    expect((await h.call('ada', 'GET', `/api/projects/${own}`)).status).toBe(200);
+    expect((await h.call('ada', 'GET', `/api/work-packages/${own}`)).status).toBe(200);
   });
 
-  it('removes only space membership, preserving the composed project graph and fan-out', async () => {
+  it('removes only space membership, preserving the composed work package graph and fan-out', async () => {
     let pushes = 0;
     await h.closeComposed();
     h = OrganizationHarness.openComposed(false, undefined, undefined, undefined, undefined, () => {
@@ -108,14 +109,15 @@ describe('after activation', () => {
     h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
-    const projectId = await createProject('ada', 'Retained plan');
+    const workPackageId = await createWorkPackage('ada', 'Retained plan');
     const spaceId = await createSpace('ada', 'Q3');
     expect(
-      (await h.call('ada', 'POST', `/api/spaces/${spaceId}/projects`, { projectId })).status,
+      (await h.call('ada', 'POST', `/api/spaces/${spaceId}/work-packages`, { workPackageId }))
+        .status,
     ).toBe(201);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
           commands: [
             { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' },
           ],
@@ -123,15 +125,16 @@ describe('after activation', () => {
       ).status,
     ).toBe(200);
     const workItem = h.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id = ?')
-      .get(projectId);
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id = ?')
+      .get(workPackageId);
     const step = h.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ?')
-      .get(projectId);
-    if (workItem === null || step === null) throw new Error('populated project fixture is missing');
+      .query<{ id: string }, [string]>('SELECT id FROM step WHERE work_package_id = ?')
+      .get(workPackageId);
+    if (workItem === null || step === null)
+      throw new Error('populated work package fixture is missing');
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
           commands: [
             {
               kind: 'setEstimate',
@@ -144,15 +147,17 @@ describe('after activation', () => {
       ).status,
     ).toBe(200);
     const owned = () => [
-      h.sqlite.query('SELECT * FROM project WHERE id = ?').all(projectId),
+      h.sqlite.query('SELECT * FROM work_package WHERE id = ?').all(workPackageId),
       ...['step', 'work_item'].map((table) =>
-        h.sqlite.query(`SELECT * FROM ${table} WHERE project_id = ? ORDER BY rowid`).all(projectId),
+        h.sqlite
+          .query(`SELECT * FROM ${table} WHERE work_package_id = ? ORDER BY rowid`)
+          .all(workPackageId),
       ),
       h.sqlite
         .query(
-          'SELECT * FROM estimate WHERE work_item_id IN (SELECT id FROM work_item WHERE project_id = ?) ORDER BY work_item_id, step_id',
+          'SELECT * FROM estimate WHERE work_item_id IN (SELECT id FROM work_item WHERE work_package_id = ?) ORDER BY work_item_id, step_id',
         )
-        .all(projectId),
+        .all(workPackageId),
     ];
     const beforeOwned = owned();
     expect(beforeOwned[3]).toHaveLength(1);
@@ -162,17 +167,18 @@ describe('after activation', () => {
       .all();
     const beforePushes = pushes;
 
-    // Proof: replacing the store membership DELETE with project DELETE made this mounted call
-    // return 500 at the populated project's FK boundary instead of the required 204.
+    // Proof: replacing the store membership DELETE with work package DELETE made this mounted call
+    // return 500 at the populated work package's FK boundary instead of the required 204.
     expect(
-      (await h.call('ada', 'DELETE', `/api/spaces/${spaceId}/projects/${projectId}`)).status,
+      (await h.call('ada', 'DELETE', `/api/spaces/${spaceId}/work-packages/${workPackageId}`))
+        .status,
     ).toBe(204);
     expect(owned()).toEqual(beforeOwned);
-    expect(h.sqlite.query('SELECT * FROM space_project WHERE space_id = ?').all(spaceId)).toEqual(
-      [],
-    );
+    expect(
+      h.sqlite.query('SELECT * FROM space_work_package WHERE space_id = ?').all(spaceId),
+    ).toEqual([]);
     expect((await h.call('ada', 'GET', `/api/spaces/${spaceId}`)).body).toMatchObject({
-      space: { revision: 2, projectCount: 0 },
+      space: { revision: 2, workPackageCount: 0 },
     });
     expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
       beforeEvents,
@@ -185,13 +191,13 @@ describe('after activation', () => {
 
   it('refuses a viewer every space write and lets the viewer read', async () => {
     const space = await createSpace('ada', 'Q3');
-    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
+    await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, { workPackageId: own });
     for (const [method, path, body] of [
       ['POST', '/api/spaces', { name: 'Mine' }],
       ['PATCH', `/api/spaces/${space}`, { name: 'Mine' }],
-      ['POST', `/api/spaces/${space}/projects`, { projectId: own }],
-      ['POST', `/api/spaces/${space}/projects/${own}/move`, {}],
-      ['DELETE', `/api/spaces/${space}/projects/${own}`],
+      ['POST', `/api/spaces/${space}/work-packages`, { workPackageId: own }],
+      ['POST', `/api/spaces/${space}/work-packages/${own}/move`, {}],
+      ['DELETE', `/api/spaces/${space}/work-packages/${own}`],
       ['DELETE', `/api/spaces/${space}`],
     ] as const) {
       expect({ method, path, answer: await h.call('vic', method, path, body) }).toMatchObject({
@@ -203,7 +209,7 @@ describe('after activation', () => {
     // Received + 31: `writable: true`).
     expect(await h.call('vic', 'GET', `/api/spaces/${space}`)).toMatchObject({
       status: 200,
-      body: { rows: [{ project: { id: own } }], writable: false },
+      body: { rows: [{ workPackage: { id: own } }], writable: false },
     });
     expect(await h.call('vic', 'GET', '/api/spaces')).toMatchObject({
       body: { writable: false },
@@ -217,9 +223,9 @@ describe('after activation', () => {
     for (const [method, path, body] of [
       ['GET', `/api/spaces/${foreignSpace}`],
       ['PATCH', `/api/spaces/${foreignSpace}`, { name: 'Mine' }],
-      ['POST', `/api/spaces/${foreignSpace}/projects`, { projectId: own }],
-      ['POST', `/api/spaces/${foreignSpace}/projects/${foreignProject}/move`, {}],
-      ['DELETE', `/api/spaces/${foreignSpace}/projects/${foreignProject}`],
+      ['POST', `/api/spaces/${foreignSpace}/work-packages`, { workPackageId: own }],
+      ['POST', `/api/spaces/${foreignSpace}/work-packages/${foreignWorkPackage}/move`, {}],
+      ['DELETE', `/api/spaces/${foreignSpace}/work-packages/${foreignWorkPackage}`],
       ['DELETE', `/api/spaces/${foreignSpace}`],
     ] as const) {
       expect({ method, path, answer: await h.call('ada', method, path, body) }).toMatchObject({
@@ -236,10 +242,12 @@ describe('after activation', () => {
     });
   });
 
-  it("answers another organization's project as the project route's 404, adding nothing", async () => {
+  it("answers another organization's work package as the work package route's 404, adding nothing", async () => {
     const space = await createSpace('ada', 'Q3');
     expect(
-      await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: foreignProject }),
+      await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, {
+        workPackageId: foreignWorkPackage,
+      }),
     ).toMatchObject({ status: 404, body: { error: 'not_found' } });
     expect((await h.call('ada', 'GET', `/api/spaces/${space}`)).body).toMatchObject({
       rows: [],
@@ -247,13 +255,13 @@ describe('after activation', () => {
     });
   });
 
-  it('answers every write to all as virtual_space and reads all as the project list', async () => {
+  it('answers every write to all as virtual_space and reads all as the work package list', async () => {
     for (const [method, path, body] of [
       ['PATCH', '/api/spaces/all', { name: 'Mine' }],
       ['DELETE', '/api/spaces/all'],
-      ['POST', '/api/spaces/all/projects', { projectId: own }],
-      ['POST', `/api/spaces/all/projects/${own}/move`, {}],
-      ['DELETE', `/api/spaces/all/projects/${own}`],
+      ['POST', '/api/spaces/all/work-packages', { workPackageId: own }],
+      ['POST', `/api/spaces/all/work-packages/${own}/move`, {}],
+      ['DELETE', `/api/spaces/all/work-packages/${own}`],
     ] as const) {
       expect({ method, path, answer: await h.call('ada', method, path, body) }).toMatchObject({
         answer: { status: 409, body: { error: 'virtual_space' } },
@@ -262,19 +270,20 @@ describe('after activation', () => {
     expect(await h.call('ada', 'GET', '/api/spaces/all')).toMatchObject({
       status: 200,
       body: {
-        space: { id: 'all', virtual: true, projectCount: 1 },
-        rows: [{ project: { id: own } }],
+        space: { id: 'all', virtual: true, workPackageCount: 1 },
+        rows: [{ workPackage: { id: own } }],
         writable: false,
       },
     });
   });
 
-  it('rolls members up from the project read, and a command moves the next read', async () => {
+  it('rolls members up from the work package read, and a command moves the next read', async () => {
     const space = await createSpace('ada', 'Q3');
-    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
+    await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, { workPackageId: own });
     const rollUp = async () =>
       (
-        (await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${own}`)).body as {
+        (await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?workPackageIds=${own}`))
+          .body as {
           rollUps: Record<string, { kind: string; finalTotal: number; counts: { leaves: number } }>;
         }
       ).rollUps[own];
@@ -283,23 +292,23 @@ describe('after activation', () => {
       finalTotal: 0,
       counts: { leaves: 0 },
     });
-    const created = await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    const created = await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
     });
     expect(created.status).toBe(200);
-    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+    const rows = (await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`)).body as {
       workItems: { id: string }[];
     };
-    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+    const workPackage = (await h.call('ada', 'GET', `/api/work-packages/${own}`)).body as {
       steps: { id: string }[];
     };
     const row = rows.workItems.at(0);
-    const step = project.steps.at(0);
+    const step = workPackage.steps.at(0);
     if (row === undefined || step === undefined) throw new Error('no row or step');
     const workItemId = row.id;
     const stepId = step.id;
     expect(await rollUp()).toMatchObject({ finalTotal: 0, counts: { leaves: 1 } });
-    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [
         {
           kind: 'setEstimate',
@@ -311,26 +320,26 @@ describe('after activation', () => {
     });
     expect((await rollUp()).finalTotal).toBeGreaterThan(0);
     expect(
-      (await h.call('vic', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${own}`)).status,
+      (await h.call('vic', 'GET', `/api/spaces/${space}/roll-ups?workPackageIds=${own}`)).status,
     ).toBe(200);
   });
 
   it('answers new dates after a start date change that publishes no event', async () => {
     const space = await createSpace('ada', 'Q3');
-    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
-    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, { workPackageId: own });
+    await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
     });
-    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+    const rows = (await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`)).body as {
       workItems: { id: string }[];
     };
-    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+    const workPackage = (await h.call('ada', 'GET', `/api/work-packages/${own}`)).body as {
       steps: { id: string }[];
     };
     const row = rows.workItems.at(0);
-    const step = project.steps.at(0);
+    const step = workPackage.steps.at(0);
     if (row === undefined || step === undefined) throw new Error('no row or step');
-    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [
         {
           kind: 'setEstimate',
@@ -342,48 +351,55 @@ describe('after activation', () => {
     });
     const datesOf = async () =>
       (
-        (await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${own}`)).body as {
+        (await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?workPackageIds=${own}`))
+          .body as {
           rollUps: Record<string, { dates: { startsOn: string } | null }>;
         }
       ).rollUps[own].dates?.startsOn;
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-05' })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { startDate: '2026-10-05' }))
+        .status,
     ).toBe(200);
     expect(await datesOf()).toBe('2026-10-05');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-11-02' })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { startDate: '2026-11-02' }))
+        .status,
     ).toBe(200);
-    // Proof, observed 2026-09-29: with the project revision left out of the
+    // Proof, observed 2026-09-29: with the work package revision left out of the
     // roll-up cache key, this read answered the cached `2026-10-05`: a start
     // date change advances the revision but publishes no event.
     expect(await datesOf()).toBe('2026-11-02');
   });
 
-  it('refuses 51 project ids with 400 and computes nothing', async () => {
+  it('refuses 51 work package ids with 400 and computes nothing', async () => {
     const space = await createSpace('ada', 'Q3');
     const ids = Array.from({ length: 51 }, (_, index) => `p${String(index)}`).join(',');
     expect(
-      await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${ids}`),
+      await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?workPackageIds=${ids}`),
     ).toMatchObject({ status: 400, body: { error: 'invalid_query' } });
     expect(
-      await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${foreignProject}`),
+      await h.call(
+        'ada',
+        'GET',
+        `/api/spaces/${space}/roll-ups?workPackageIds=${foreignWorkPackage}`,
+      ),
     ).toMatchObject({ status: 404, body: { error: 'not_found' } });
   });
 
   it('lists work in progress across the space and refuses a limit above 1000 with 400', async () => {
     const space = await createSpace('ada', 'Q3');
-    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
-    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, { workPackageId: own });
+    await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
     });
-    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+    const rows = (await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`)).body as {
       workItems: { id: string }[];
     };
-    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+    const workPackage = (await h.call('ada', 'GET', `/api/work-packages/${own}`)).body as {
       steps: { id: string; name: string }[];
     };
     const row = rows.workItems.at(0);
-    const step = project.steps.at(0);
+    const step = workPackage.steps.at(0);
     if (row === undefined || step === undefined) throw new Error('no row or step');
     expect(await h.call('ada', 'GET', `/api/spaces/${space}/in-progress`)).toMatchObject({
       status: 200,
@@ -391,7 +407,7 @@ describe('after activation', () => {
     });
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
           commands: [{ kind: 'setStatus', workItemId: row.id, status: 'in_progress' }],
         })
       ).status,
@@ -399,7 +415,7 @@ describe('after activation', () => {
     expect(await h.call('vic', 'GET', `/api/spaces/${space}/in-progress?limit=5`)).toMatchObject({
       status: 200,
       body: {
-        items: [{ projectId: own, workItemId: row.id, name: 'Root', step: { id: step.id } }],
+        items: [{ workPackageId: own, workItemId: row.id, name: 'Root', step: { id: step.id } }],
         truncated: false,
       },
     });
@@ -440,7 +456,7 @@ describe('before activation', () => {
   });
 
   it('answers organization_required without a legacy organization, and still reads all', async () => {
-    await createProject('ada', 'Legacy plan');
+    await createWorkPackage('ada', 'Legacy plan');
     for (const [method, path, body] of [
       ['GET', '/api/spaces'],
       ['POST', '/api/spaces', { name: 'Q3' }],
@@ -452,21 +468,23 @@ describe('before activation', () => {
     }
     expect(await h.call('ada', 'GET', '/api/spaces/all')).toMatchObject({
       status: 200,
-      body: { rows: [{ project: { name: 'Legacy plan' } }] },
+      body: { rows: [{ workPackage: { name: 'Legacy plan' } }] },
     });
   });
 
-  it('owns a space by the legacy organization and admits its projects', async () => {
+  it('owns a space by the legacy organization and admits its work packages', async () => {
     h.organization('legacy');
     h.sqlite.run("UPDATE organization SET legacy = 1 WHERE id = 'legacy'");
-    const project = await createProject('ada', 'Legacy plan');
+    const workPackage = await createWorkPackage('ada', 'Legacy plan');
     const space = await createSpace('ada', 'Q3');
     expect(
-      await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: project }),
+      await h.call('ada', 'POST', `/api/spaces/${space}/work-packages`, {
+        workPackageId: workPackage,
+      }),
     ).toMatchObject({ status: 201 });
     expect(await h.call('ada', 'GET', '/api/spaces')).toMatchObject({
       status: 200,
-      body: { spaces: [{ id: space, projectCount: 1 }] },
+      body: { spaces: [{ id: space, workPackageCount: 1 }] },
     });
     expect(h.sqlite.query('SELECT organization_id FROM space WHERE id = ?').get(space)).toEqual({
       organization_id: 'legacy',

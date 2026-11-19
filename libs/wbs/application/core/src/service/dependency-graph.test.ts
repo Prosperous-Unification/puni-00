@@ -12,11 +12,11 @@ import {
 } from './dependency-graph';
 
 const item = (id: string, parentId: string | null = null): WorkItem =>
-  workItemRow({ id, projectId: 'p1', parentId, name: id });
+  workItemRow({ id, workPackageId: 'p1', parentId, name: id });
 
 const legacy = (predecessorId: string, successorId: string): StoredDependency => ({
   id: `${predecessorId}->${successorId}`,
-  projectId: 'p1',
+  workPackageId: 'p1',
   predecessorId,
   successorId,
 });
@@ -105,7 +105,7 @@ describe('findDependencyGraphCycle', () => {
     expect(findDependencyGraphCycle(state)).toBeNull();
   });
 
-  it('resolves a stepless project to work-item boundaries', () => {
+  it('resolves a stepless work package to work-item boundaries', () => {
     expect(
       findDependencyGraphCycle({
         ...base,
@@ -137,7 +137,7 @@ it('refuses a typed node endpoint absent from the full tree', () => {
       ...base,
       typed: [nodeFs('missing-node', ['gone', 'dev'], ['B', 'dev'])],
     }),
-  ).toThrow(/no work item gone in this project/);
+  ).toThrow(/no work item gone in this work-package/);
 });
 
 it('exposes the same local graph with its own slices and scoped provenance', () => {
@@ -151,7 +151,7 @@ it('exposes the same local graph with its own slices and scoped provenance', () 
   expect(context.tree.leafIds).toEqual(['A', 'B']);
   expect(context.slicesByLeaf.get('A')?.map((slice) => slice.stepId)).toEqual(['dev', 'qa']);
   expect(context.relationships[0]?.predecessor).toEqual({
-    projectId: 'p1',
+    workPackageId: 'p1',
     scope: 'node',
     workItemId: 'A',
     stepId: 'qa',

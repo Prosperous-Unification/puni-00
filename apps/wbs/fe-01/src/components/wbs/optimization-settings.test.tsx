@@ -32,7 +32,7 @@ async function settle(): Promise<void> {
   });
 }
 
-describe('project optimization settings', () => {
+describe('work package optimization settings', () => {
   itDom('keeps Fast active while optimization is off without erasing the stored choice', () => {
     mounted();
 
@@ -56,7 +56,7 @@ describe('project optimization settings', () => {
     ).toEqual(['Fast', 'Priority-first', 'Finish-first']);
   });
 
-  itDom('writes the shared project flag, then rereads the plan', async () => {
+  itDom('writes the shared work package flag, then rereads the plan', async () => {
     const { setSettings, onChanged, onDirtyChange } = mounted();
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Optimize schedules' }));
@@ -68,7 +68,7 @@ describe('project optimization settings', () => {
     expect(onDirtyChange.mock.calls.at(-1)).toEqual([false]);
   });
 
-  itDom('keeps a refused project change on this surface', async () => {
+  itDom('keeps a refused work package change on this surface', async () => {
     const setSettings = vi.fn(() => Promise.reject(new Error('forbidden')));
     render(
       <OptimizationSettingsPanel
@@ -105,7 +105,7 @@ describe('project optimization settings', () => {
     expect(onChanged).toHaveBeenCalledOnce();
   });
 
-  itDom('follows an incoming project read instead of keeping a local selector', () => {
+  itDom('follows an incoming work package read instead of keeping a local selector', () => {
     const { view } = mounted({ enabled: true, engine: 'fast', objective: 'pri' });
     expect(screen.getByRole('radio', { name: 'Fast' })).toBeChecked();
 

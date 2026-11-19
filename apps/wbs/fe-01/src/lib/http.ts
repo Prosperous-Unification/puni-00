@@ -98,7 +98,7 @@ export function unreachable(value: never): never {
 export function failureMessage(failure: ClientFailure): string {
   switch (failure.code) {
     case 'dependency_incompatible':
-      return 'This client cannot open plans with dependencies between projects. Reload with a compatible client.';
+      return 'This client cannot open plans with dependencies between work packages. Reload with a compatible client.';
     case 'cancelled':
       return '';
     case 'transport':

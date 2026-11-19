@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { arch, cpus, platform, release } from 'node:os';
 
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 import { caretToLineEnd } from './caret';
 import { createRenderingEvidence, renderingProvenance } from './rendering-evidence';
@@ -222,8 +222,8 @@ test('an editor that left the row window can commit, escape, and hold a refusal'
   await page.reload();
   await expect(firstName).toHaveValue('Committed after leaving the row window');
 
-  await page.getByLabel('Project start date').fill('2026-06-01');
-  await page.getByLabel('Project start date').blur();
+  await page.getByLabel('Work package start date').fill('2026-06-01');
+  await page.getByLabel('Work package start date').blur();
   await page.locator('thead th[data-column="not-before"]').evaluate((heading) => {
     heading.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   });
@@ -554,7 +554,7 @@ test.describe('Chromium rendering baseline', () => {
                   rows,
                   steps,
                   density,
-                  projectId: seeded.projectId,
+                  workPackageId: seeded.workPackageId,
                   edges: seeded.edges,
                   setupMs: seeded.setupMs,
                 },

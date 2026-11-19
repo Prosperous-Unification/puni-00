@@ -11,8 +11,9 @@ import { decodeAttemptGuard, decodeRun, equalRecords } from './record-codecs';
 import type { ArtifactRef, Attempt, ExecutionCommandId, WorkItemId } from './records';
 import type { AttemptGuard, RunStore, StoreReply } from './run-store';
 import { equalRuntimeScopes, scopeCodec } from './runtime-codecs';
+import { mapLocalScope } from './runtime-codecs';
 import type { RuntimeScope } from './runtime-records';
-import { readRuntimeStateArtifact } from './runtime-state';
+import { readRuntimeStateObservation } from './runtime-state';
 import { ArtifactRefCodec, ExecutionCommandIdCodec } from './value-codecs';
 
 export interface PreparationInput {
@@ -51,9 +52,11 @@ export async function readTargetObservation(
 ): Promise<TargetObservation> {
   const reference = structuredClone(parseOrThrow(ArtifactRefCodec, evidence));
   const expected = structuredClone(target);
-  const state = await readRuntimeStateArtifact(artifacts, reference);
+  const state = await readRuntimeStateObservation(artifacts, reference);
   // Proof: Task2 F30 removed/broke this dependency; 'preparation refuses actual state scope' failed with Missing expected rejection. Restored subset passed; helper rejection only, no provider-publication inference.
-  if (!equalRuntimeScopes(state.scope, expected.scope))
+  // Proof: dash-preparation-state-local-map: bypassing preparation current-state/local-owner correspondence.
+  // 'preparation refuses actual state scope without retaining intent' failed; exact restoration passed.
+  if (!equalRuntimeScopes(mapLocalScope(state.scope), expected.scope))
     throw new Error('runtime state scope differs');
   const work = state.facts.workItems.filter((candidate) => candidate.id === expected.workItemId);
   const steps = state.facts.steps.filter((candidate) => candidate.id === expected.stepId);
@@ -65,7 +68,7 @@ export async function readTargetObservation(
   return parseOrThrow(TargetObservationCodec, {
     version: 1,
     evidence: reference,
-    scope: state.scope,
+    scope: mapLocalScope(state.scope),
     ledgerId: state.ledgerId,
     basis: state.basis,
     workItemId: expected.workItemId,

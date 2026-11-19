@@ -101,7 +101,7 @@ export function materialiseOptimized(
   offsets: SolverOffsetMap,
   elsewhere: Elsewhere = new Map(),
   /**
-   * The project's stated resource capacities (`wbs-resources` R5): the replay
+   * The work package's stated resource capacities (`wbs-resources` R5): the replay
    * reserves every slice's demand beside its team slots, as Fast does.
    */
   resourceCapacities: PoolSizes = new Map(),

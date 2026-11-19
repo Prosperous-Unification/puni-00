@@ -87,11 +87,11 @@ export interface Preferences {
   /**
    * The store for one bare-text key that **refuses nothing**.
    *
-   * For the keys whose validity is not a shape: the remembered project id is
-   * judged against the project list this load just fetched, and that rule is
+   * For the keys whose validity is not a shape: the remembered work package id is
+   * judged against the work package list this load just fetched, and that rule is
    * different on every load, so there is nothing to hand a guard built once. The
    * retired chart key is the other, and it is only ever dropped. Every stored
-   * string is held, the empty one included — which is what keeps the project
+   * string is held, the empty one included — which is what keeps the work package
    * page's own cleanup reachable.
    */
   readonly unchecked: (key: string) => Remembered<string>;
@@ -118,9 +118,9 @@ export interface RememberedPreferences {
   /** Reached only to be dropped: its value is never looked at. */
   readonly retiredGanttArrows: Remembered<string>;
   /** Holds every string, including the empty one. Judged against the fetched list. */
-  readonly lastOpenedProject: Remembered<string>;
-  readonly projectSettingsSection: <T extends string>(
-    projectId: string,
+  readonly lastOpenedWorkPackage: Remembered<string>;
+  readonly workPackageSettingsSection: <T extends string>(
+    workPackageId: string,
     isValid: (stored: string) => stored is T,
   ) => Remembered<T>;
 }
@@ -195,7 +195,7 @@ export interface PreferencesRequirements {
  * `preferences`, the resource, is public and that is **recorded K2 debt, not
  * compliance**: delivery must take {@link RememberedPreferences}, and the only
  * reason the resource is exported is `apps/wbs/fe-01/src/lib/remembered.ts`,
- * which builds a store per project id for the layout module and so cannot be a
+ * which builds a store per work package id for the layout module and so cannot be a
  * fixed named answer. The map's claim that the generic factory is "not a reason
  * to expose the resource" is half right: it is not a reason to put it in a React
  * context, and it is still the reason the module exports it.

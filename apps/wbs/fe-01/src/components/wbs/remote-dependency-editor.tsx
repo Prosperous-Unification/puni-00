@@ -12,7 +12,7 @@ import { useDependencySearch } from './use-dependency-search';
 interface RemoteDependencyEditorProps {
   selection: Extract<DependencySelection, { kind: 'remote' }>;
   lookup: DependencyLookup;
-  ownerProjectId: string;
+  ownerWorkPackageId: string;
   ownerId: string;
   successor: DependencyEndpointEditor;
   preferredCode?: string | null;
@@ -31,7 +31,7 @@ export function RemoteDependencyEditor(props: RemoteDependencyEditorProps) {
     lifetime.current = { lookup: props.lookup, generation: lifetime.current.generation + 1 };
   // Proof: removing this session key left Add enabled with old evidence on a revision change (remote editor round1 test).
   const identity = JSON.stringify([
-    props.ownerProjectId,
+    props.ownerWorkPackageId,
     props.ownerId,
     encodeDependencyEndpoint(props.selection.endpoint),
     props.selection.addressRevision,
@@ -40,11 +40,11 @@ export function RemoteDependencyEditor(props: RemoteDependencyEditorProps) {
   return <RemoteDependencySession key={identity} {...props} />;
 }
 
-/** Remote choices use only the selected stable project's candidate evidence; pages never invent a local row. */
+/** Remote choices use only the selected stable work package's candidate evidence; pages never invent a local row. */
 function RemoteDependencySession({
   selection,
   lookup,
-  ownerProjectId,
+  ownerWorkPackageId,
   ownerId,
   successor,
   preferredCode,
@@ -56,25 +56,25 @@ function RemoteDependencySession({
   );
   const search = useDependencySearch({
     lookup,
-    projectId: ownerProjectId,
+    workPackageId: ownerWorkPackageId,
     ownerId: `customize:${ownerId}`,
     active: true,
-    typed: `${selection.project.abbreviation}.${selection.candidate.number}`,
+    typed: `${selection.workPackage.abbreviation}.${selection.candidate.number}`,
     setTyped: () => {
-      throw new Error('Customize does not choose a different project');
+      throw new Error('Customize does not choose a different work package');
     },
     localEntries: [],
-    boundProject: selection.project,
+    boundWorkPackage: selection.workPackage,
     expectedRevision,
   });
   const choices = useMemo(
     () =>
       search.options.flatMap((option) => {
-        // Proof: bypassing either project or work-item filter offered mismatched observed scope in the respective remote editor round1 negative.
+        // Proof: bypassing either work package or work-item filter offered mismatched observed scope in the respective remote editor round1 negative.
         if (
           option.kind !== 'endpoint' ||
           option.selection.kind !== 'remote' ||
-          option.selection.endpoint.projectId !== selection.endpoint.projectId ||
+          option.selection.endpoint.workPackageId !== selection.endpoint.workPackageId ||
           option.selection.endpoint.workItemId !== selection.endpoint.workItemId
         )
           return [];
@@ -89,7 +89,7 @@ function RemoteDependencySession({
                 : `${candidate.step?.name ?? 'Unknown step'}${endpoint.scope === 'descendant-step' ? ' across all descendants' : ' step'}`,
             description:
               candidate.reference ??
-              `${selection.project.abbreviation}.${candidate.number} · ${candidate.step?.name ?? candidate.name}`,
+              `${selection.workPackage.abbreviation}.${candidate.number} · ${candidate.step?.name ?? candidate.name}`,
             step: candidate.step ?? null,
           },
         ];
@@ -109,7 +109,7 @@ function RemoteDependencySession({
         ? (matches[0]?.key ?? null)
         : null;
   const predecessor: DependencyEndpointEditor = {
-    heading: `${selection.project.abbreviation}.${selection.candidate.number} · ${selection.candidate.name}`,
+    heading: `${selection.workPackage.abbreviation}.${selection.candidate.number} · ${selection.candidate.name}`,
     preferredKey,
     choices,
     unavailable: 'Choose predecessor scope; matching step is unavailable or ambiguous.',

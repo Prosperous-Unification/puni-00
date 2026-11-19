@@ -6,15 +6,15 @@ import { humanOnlyOperationsOf, readDocument, toolsFromDocument } from './openap
 test('prepared default MCP document equals the current shared declarations', () => {
   expect(readDocument()).toEqual(documentFromShapes(httpShapes));
   const tools = toolsFromDocument(readDocument());
-  expect(tools.map((tool) => tool.name)).toContain('postApiProjectsByIdCommands');
-  expect(tools.map((tool) => tool.name)).toContain('getApiProjectsByIdSaved-plansCompare');
+  expect(tools.map((tool) => tool.name)).toContain('postApiWorkPackagesByIdCommands');
+  expect(tools.map((tool) => tool.name)).toContain('getApiWorkPackagesByIdSaved-plansCompare');
 });
 
-test('generated project command tool exposes addTypedDependency with endpoints', () => {
+test('generated work package command tool exposes addTypedDependency with endpoints', () => {
   const tool = toolsFromDocument(readDocument()).find(
-    (candidate) => candidate.name === 'postApiProjectsByIdCommands',
+    (candidate) => candidate.name === 'postApiWorkPackagesByIdCommands',
   );
-  if (tool === undefined) throw new Error('Project command tool missing');
+  if (tool === undefined) throw new Error('Work package command tool missing');
   const commands = tool.inputSchema.properties['commands'] as {
     items: {
       anyOf: {
@@ -39,19 +39,19 @@ test('generated project command tool exposes addTypedDependency with endpoints',
     ]);
     for (const field of ['predecessor', 'successor']) {
       const endpoint = (typed?.properties as Record<string, unknown> | undefined)?.[field] as
-        { properties?: { projectId?: unknown } } | undefined;
-      // Proof: removing projectId from the shared endpoint declaration made
+        { properties?: { workPackageId?: unknown } } | undefined;
+      // Proof: removing workPackageId from the shared endpoint declaration made
       // this generated MCP contract assertion receive undefined for both scopes.
-      expect(endpoint?.properties?.projectId).toEqual({ type: 'string' });
+      expect(endpoint?.properties?.workPackageId).toEqual({ type: 'string' });
     }
   }
 });
 
 test('generated dependency tools publish local aliases, scoped identity rules and stable removal', () => {
   const tool = toolsFromDocument(readDocument()).find(
-    (candidate) => candidate.name === 'postApiProjectsByIdCommands',
+    (candidate) => candidate.name === 'postApiWorkPackagesByIdCommands',
   );
-  if (tool === undefined) throw new Error('Project command tool missing');
+  if (tool === undefined) throw new Error('Work package command tool missing');
   const commands = tool.inputSchema.properties['commands'] as {
     items: {
       anyOf: {
@@ -76,7 +76,7 @@ test('generated dependency tools publish local aliases, scoped identity rules an
       (candidate) => candidate.properties['kind']?.const === kind,
     );
     if (arm === undefined) throw new Error(`Missing ${kind}`);
-    expect(arm.description).toContain('projectId');
+    expect(arm.description).toContain('workPackageId');
     expect(arm.description).toContain('workItemRef');
     for (const side of ['predecessor', 'successor']) {
       const endpoint = arm.properties[side];
@@ -258,8 +258,8 @@ test('refuses to start when a humanOnly shape matches no operation of the genera
 });
 
 test('pins every generated MCP operation name independently of the registry', () => {
-  // Proof: removing importProject from httpShapes failed with
-  // `postApiProjectsImport` as the one expected-only operation.
+  // Proof: removing importWorkPackage from httpShapes failed with
+  // `postApiWorkPackagesImport` as the one expected-only operation.
   expect(
     toolsFromDocument(readDocument())
       .map((tool) => tool.name)
@@ -267,42 +267,23 @@ test('pins every generated MCP operation name independently of the registry', ()
   ).toEqual([
     'acquireRuntimeAuthority',
     'applyRuntimeCommands',
-    'deleteApiProjectsByIdCalendar-markersByMarkerId',
-    'deleteApiProjectsByIdStepsByStepId',
+    'bindCatalogueStep',
+    'deleteApiProjectsById',
     'deleteApiSaved-plansById',
     'deleteApiSpacesById',
     'deleteApiSpacesByIdProjectsByProjectId',
+    'deleteApiWorkPackagesByIdCalendar-markersByMarkerId',
     'getApiExternal-systems',
     'getApiMeasures',
     'getApiOrganization',
-    'getApiOrganizationProject-rank',
     'getApiOrganizationResourceAuthoritiesByAuthorityId',
+    'getApiOrganizationWorkPackage-rank',
     'getApiPeople',
     'getApiPeopleByPersonIdLoad',
     'getApiPeopleLoad',
-    'getApiProjectAddressesProjects',
     'getApiProjects',
     'getApiProjectsById',
-    'getApiProjectsByIdAddressCandidates',
-    'getApiProjectsByIdAddressReferences',
-    'getApiProjectsByIdBudget-headroom',
-    'getApiProjectsByIdCalendar-markers',
-    'getApiProjectsByIdClaim-history',
-    'getApiProjectsByIdClaims',
-    'getApiProjectsByIdExport',
-    'getApiProjectsByIdHistory',
-    'getApiProjectsByIdPeopleByPersonIdWork',
-    'getApiProjectsByIdResourceUses',
-    'getApiProjectsByIdResourceUsesByUseIdHistory',
-    'getApiProjectsByIdResources',
-    'getApiProjectsByIdSaved-plans',
-    'getApiProjectsByIdSaved-plansCompare',
-    'getApiProjectsByIdStartable',
-    'getApiProjectsByIdStep-references',
-    'getApiProjectsByIdWork-item-rows',
-    'getApiProjectsByIdWork-items',
-    'getApiProjectsByIdWork-itemsByWorkItemId',
-    'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+    'getApiProjectsByIdSettings',
     'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
     'getApiSaved-plansById',
     'getApiServices',
@@ -314,44 +295,78 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiTeams',
     'getApiTimezones',
     'getApiWork-item-types',
+    'getApiWorkPackageAddressesWorkPackages',
+    'getApiWorkPackages',
+    'getApiWorkPackagesById',
+    'getApiWorkPackagesByIdAddressCandidates',
+    'getApiWorkPackagesByIdAddressReferences',
+    'getApiWorkPackagesByIdBudget-headroom',
+    'getApiWorkPackagesByIdCalendar-markers',
+    'getApiWorkPackagesByIdClaim-history',
+    'getApiWorkPackagesByIdClaims',
+    'getApiWorkPackagesByIdExport',
+    'getApiWorkPackagesByIdHistory',
+    'getApiWorkPackagesByIdPeopleByPersonIdWork',
+    'getApiWorkPackagesByIdResourceUses',
+    'getApiWorkPackagesByIdResourceUsesByUseIdHistory',
+    'getApiWorkPackagesByIdResources',
+    'getApiWorkPackagesByIdSaved-plans',
+    'getApiWorkPackagesByIdSaved-plansCompare',
+    'getApiWorkPackagesByIdStartable',
+    'getApiWorkPackagesByIdStep-references',
+    'getApiWorkPackagesByIdWork-item-rows',
+    'getApiWorkPackagesByIdWork-items',
+    'getApiWorkPackagesByIdWork-itemsByWorkItemId',
+    'getApiWorkPackagesByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
     'getPlansBy-solutionBySlug',
+    'listStepCatalogue',
     'lookupRuntimeReceipt',
     'patchApiProjectsById',
-    'patchApiProjectsByIdCalendar-markersByMarkerId',
-    'patchApiProjectsByIdStepsByStepId',
+    'patchApiProjectsByIdSettings',
     'patchApiSaved-plansById',
     'patchApiSpacesById',
+    'patchApiWorkPackagesById',
+    'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
+    'patchStepDefinition',
+    'patchWorkPackageStepValues',
     'postApiClaimsRenew',
     'postApiDirectoryCommands',
-    'postApiOrganizationProjectsByIdRank',
     'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
+    'postApiOrganizationWorkPackagesByIdRank',
     'postApiProjects',
-    'postApiProjectsByIdCalendar-markers',
-    'postApiProjectsByIdCommands',
-    'postApiProjectsByIdOpened',
-    'postApiProjectsByIdOptimizationRetry',
-    'postApiProjectsByIdRedo',
-    'postApiProjectsByIdResourceUses',
-    'postApiProjectsByIdResourceUsesByUseIdEvents',
-    'postApiProjectsByIdSaved-plans',
-    'postApiProjectsByIdSteps',
-    'postApiProjectsByIdUndo',
-    'postApiProjectsImport',
     'postApiSpaces',
     'postApiSpacesByIdProjects',
     'postApiSpacesByIdProjectsByProjectIdMove',
+    'postApiWorkPackages',
+    'postApiWorkPackagesByIdCalendar-markers',
+    'postApiWorkPackagesByIdCommands',
+    'postApiWorkPackagesByIdMove',
+    'postApiWorkPackagesByIdOpened',
+    'postApiWorkPackagesByIdOptimizationRetry',
+    'postApiWorkPackagesByIdRedo',
+    'postApiWorkPackagesByIdResourceUses',
+    'postApiWorkPackagesByIdResourceUsesByUseIdEvents',
+    'postApiWorkPackagesByIdSaved-plans',
+    'postApiWorkPackagesByIdUndo',
+    'postApiWorkPackagesImport',
     'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
     'putApiOrganizationResourceAuthoritiesByAuthorityId',
     'putApiResourceAuthoritiesByAuthorityIdAdmissions',
     'putApiResourceAuthoritiesByAuthorityIdEvents',
+    'readProjectStepManifest',
+    'readProjectStepUsage',
+    'readProjectSteps',
     'readRuntimeState',
+    'reorderCatalogueBindings',
+    'retireStepDefinition',
+    'unbindCatalogueStep',
   ]);
 });
 
 test('refuses a generated operation whose name was lost before MCP derivation', () => {
   const document = documentFromShapes(httpShapes);
-  const operation = document.paths['/api/projects']?.['post'];
-  if (operation === undefined) throw new Error('project creation fixture missing');
+  const operation = document.paths['/api/work-packages']?.['post'];
+  if (operation === undefined) throw new Error('work package creation fixture missing');
   Reflect.deleteProperty(operation, 'operationId');
   expect(() => toolsFromDocument(document)).toThrow('no operationId');
 });
@@ -387,10 +402,12 @@ test('generated command and startable documents expose execution prerequisites',
   const document = readDocument();
   const paths = document.paths;
   if (paths === undefined) throw new Error('Generated document paths are missing');
-  const serialized = JSON.stringify(paths['/api/projects/{id}/commands']);
+  const serialized = JSON.stringify(paths['/api/work-packages/{id}/commands']);
   expect(serialized).toContain('prerequisites_unmet');
   expect(serialized).toContain('relationshipId');
-  expect(JSON.stringify(paths['/api/projects/{id}/startable'])).toContain('finishBlockers');
+  expect(JSON.stringify(paths['/api/work-packages/{id}/startable'])).toContain(
+    'finishBlockers',
+  );
 });
 
 test('exposes runtime admission without requiring an ordered sequence before authorization', () => {

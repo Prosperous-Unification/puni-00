@@ -47,6 +47,30 @@ function certificate() {
   if (prepared.kind !== 'boundary-infeasible') throw new Error('fixture needs contradiction');
   return encodeBoundaryCertificate(captured, identity, prepared.request, prepared.evidence, hash);
 }
+test('writes renamed stored stage DTO2', () => {
+  expect(encodeConnectedStage(stage()).dtoVersion).toBe(2);
+});
+test('refuses outgoing stored stage DTO1', () => {
+  expect(() => decodeConnectedStage({ ...encodeConnectedStage(stage()), dtoVersion: 1 })).toThrow(
+    /dtoVersion.*2/,
+  );
+});
+test('writes renamed connected success DTO3', () => {
+  expect(success().dtoVersion).toBe(3);
+});
+test('refuses outgoing connected success DTO2', () => {
+  expect(() => decodeConnectedSuccess({ ...success(), dtoVersion: 2 }, hash)).toThrow(
+    /dtoVersion.*3/,
+  );
+});
+test('writes renamed boundary certificate DTO2', () => {
+  expect(certificate().dtoVersion).toBe(2);
+});
+test('refuses outgoing boundary certificate DTO1', () => {
+  expect(() => decodeBoundaryCertificate({ ...certificate(), dtoVersion: 1 }, hash)).toThrow(
+    /dtoVersion.*2/,
+  );
+});
 test('stored stage roundtrips explicit maps and complete resolved/authored/placement evidence', () => {
   const captured = stage();
   expect(decodeConnectedStage(JSON.parse(JSON.stringify(encodeConnectedStage(captured))))).toEqual(
@@ -58,7 +82,7 @@ test('connected success retains candidate and canonical movement comparison inde
   const decoded = decodeConnectedSuccess(JSON.parse(JSON.stringify(stored)), hash);
   expect(decoded.outcome.kind).toBe('ok');
   expect(decoded.identity).toEqual(packet().identity);
-  expect(stored.dtoVersion).toBe(2);
+  expect(stored.dtoVersion).toBe(3);
   expect(stored.scope.kind).toBe('connected-stage');
 });
 test('boundary certificate preserves real feasible stage with exact 10/9 contradiction', () => {
@@ -85,7 +109,7 @@ test('every required envelope field refuses omission and unknown additions', () 
 });
 test('each question tuple member refuses forgery independently', () => {
   for (const [field, value] of Object.entries({
-    projectId: 'A',
+    workPackageId: 'A',
     inputHash: 'forged',
     questionHash: 'forged',
     objective: 'pri',
@@ -213,7 +237,7 @@ test('identity separates every runtime tuple dimension and shares stage input ac
   expect(time.inputHash).toBe(pri.inputHash);
   expect(time.questionHash).not.toBe(pri.questionHash);
   expect(time.questionHash).toBe(
-    hash(JSON.stringify(['B', time.inputHash, 'time', '18+0.4.0', 100, 48, 5])),
+    hash(JSON.stringify(['B', time.inputHash, 'time', '19+0.4.0', 100, 48, 5])),
   );
   for (const changed of [
     { ...installed, budgetMs: 101 },
@@ -303,10 +327,13 @@ test('stored stage replay independently refuses a forged finish before an envelo
     }),
   ).toThrow('baseline replay failed');
 });
-test('scope project and stored comparison cannot be forged independently', () => {
+test('scope work package and stored comparison cannot be forged independently', () => {
   const stored = success();
   expect(() =>
-    decodeConnectedSuccess({ ...stored, scope: { kind: 'connected-stage', projectId: 'A' } }, hash),
+    decodeConnectedSuccess(
+      { ...stored, scope: { kind: 'connected-stage', workPackageId: 'A' } },
+      hash,
+    ),
   ).toThrow('scope');
   expect(() =>
     decodeConnectedSuccess(

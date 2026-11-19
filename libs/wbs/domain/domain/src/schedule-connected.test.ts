@@ -36,12 +36,12 @@ const connected = (input: ScheduleInput) => ({
   ...resolveScheduleInput(input),
   order: {
     kind: 'connected' as const,
-    projectIdByWorkItem: new Map([
+    workPackageIdByWorkItem: new Map([
       ['a', 'A'],
       ['b', 'B'],
       ['c', 'C'],
     ]),
-    rankByProject: new Map([
+    rankByWorkPackage: new Map([
       ['A', 0],
       ['B', 1],
       ['C', 1],
@@ -83,15 +83,15 @@ describe('resolved connected placement', () => {
   });
   it('rank precedes local priority only among eligible nodes', () => {
     const input = connected(inputOf([row('b', 0, 1), row('a', 1, 99)], [slice('b'), slice('a')]));
-    input.order.projectIdByWorkItem.set('a', 'Z');
-    input.order.projectIdByWorkItem.set('b', 'A');
-    input.order.rankByProject.set('Z', 0);
-    input.order.rankByProject.set('A', 1);
+    input.order.workPackageIdByWorkItem.set('a', 'Z');
+    input.order.workPackageIdByWorkItem.set('b', 'A');
+    input.order.rankByWorkPackage.set('Z', 0);
+    input.order.rankByWorkPackage.set('A', 1);
     expect(start(scheduleResolved(input), 'a')).toBe(0);
     const graph = { ...input.graph, edges: [edge('b', 0, 'a', 0)] };
     expect(start(scheduleResolved({ ...input, graph }), 'a')).toBe(1);
   });
-  it('bytewise project identity breaks equal ranks', () => {
+  it('bytewise work package identity breaks equal ranks', () => {
     const input = connected(inputOf([row('c', 0), row('b', 1)], [slice('c'), slice('b')]));
     expect(start(scheduleResolved(input), 'b')).toBe(0);
   });
@@ -133,8 +133,8 @@ describe('resolved connected placement', () => {
           ],
         ),
       );
-      input.order.projectIdByWorkItem.set('a', 'B');
-      input.order.projectIdByWorkItem.set('b', 'A');
+      input.order.workPackageIdByWorkItem.set('a', 'B');
+      input.order.workPackageIdByWorkItem.set('b', 'A');
       const graph = { ...input.graph, edges: [edge('a', 0, 'b', 0, type)] };
       const resolved = { ...input, graph, notBefore: new Map([['a', floor]]) };
       const plan = scheduleResolved(resolved);
@@ -184,9 +184,9 @@ it.each(['ownership', 'rank', 'nonfinite'] as const)(
   'refuses missing or invalid connected %s even for one node',
   (fault) => {
     const input = connected(inputOf([row('a', 0)], [slice('a')]));
-    if (fault === 'ownership') input.order.projectIdByWorkItem.delete('a');
-    if (fault === 'rank') input.order.rankByProject.delete('A');
-    if (fault === 'nonfinite') input.order.rankByProject.set('A', NaN);
+    if (fault === 'ownership') input.order.workPackageIdByWorkItem.delete('a');
+    if (fault === 'rank') input.order.rankByWorkPackage.delete('A');
+    if (fault === 'nonfinite') input.order.rankByWorkPackage.set('A', NaN);
     expect(() => scheduleResolved(input)).toThrow('resolved order');
   },
 );
@@ -224,7 +224,7 @@ it('preserves connected pinned chronology when rank prefers the later booking', 
 
 it('local priority cannot admit a successor before its lower priority prerequisite', () => {
   const input = connected(inputOf([row('a', 0, 1), row('b', 1, 99)], [slice('a'), slice('b')]));
-  input.order.projectIdByWorkItem.set('b', 'A');
+  input.order.workPackageIdByWorkItem.set('b', 'A');
   const graph = { ...input.graph, edges: [edge('b', 0, 'a', 0)] };
   expect(start(scheduleResolved({ ...input, graph }), 'a')).toBe(1);
 });
@@ -244,8 +244,8 @@ it('empty connected component accepts required empty maps', () => {
     ...resolveScheduleInput(inputOf([], [])),
     order: {
       kind: 'connected' as const,
-      projectIdByWorkItem: new Map<string, string>(),
-      rankByProject: new Map<string, number>(),
+      workPackageIdByWorkItem: new Map<string, string>(),
+      rankByWorkPackage: new Map<string, number>(),
     },
   };
   const plan = scheduleResolved(input);

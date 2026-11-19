@@ -3,8 +3,7 @@ import { DiBag } from 'di-bag';
 import type { Clock } from '../../ports/clock';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { PRIORITY_BAND_LABEL } from './contract';
 import { PriorityBandService, type PriorityBandServiceOptions } from './priority-band.resource';
 
@@ -15,7 +14,7 @@ import { PriorityBandService, type PriorityBandServiceOptions } from './priority
  * installation, so a host cannot name it — resolving it answers
  * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.priority-band/priorityBandOptions` rather than
- * against an anonymous binding. The two stores are required as `projectStore`
+ * against an anonymous binding. The two stores are required as `workPackageStore`
  * and `priorityBandStore`, the naming every resource module here shares so
  * that no host key can collide with a module's export.
  *
@@ -26,19 +25,19 @@ export const priorityBandModule = DiBag.createBuilder()
   .withServices({
     priorityBandOptions: DiBag.createProvider(
       ({
-        projectStore,
+        workPackageStore,
         priorityBandStore,
         broadcast,
         editAdmission,
         clock,
       }: {
-        projectStore: ProjectStore;
+        workPackageStore: PriorityBandServiceOptions['workPackages'];
         priorityBandStore: PriorityBandStore;
         broadcast: Broadcaster;
         editAdmission: EditAdmission;
         clock: Clock;
       }): PriorityBandServiceOptions => ({
-        projects: projectStore,
+        workPackages: workPackageStore,
         bands: priorityBandStore,
         // Proof (2026-09-24): handing the resource
         // `{ ...broadcast, publish: () => Promise.resolve() }` instead of the supplied

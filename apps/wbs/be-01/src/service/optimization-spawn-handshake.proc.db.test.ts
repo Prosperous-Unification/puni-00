@@ -61,7 +61,7 @@ function database() {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
@@ -172,7 +172,7 @@ describe('the two-coordinator spawn handshake', () => {
     const greenCoordinator = coordinator(green, 'green');
 
     expect(
-      await blueCoordinator.read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+      await blueCoordinator.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
     ).toBeNull();
     await until(() => blueAttempts.length === 2);
     const firstRows = blue.select().from(solverSlot).all();
@@ -181,7 +181,7 @@ describe('the two-coordinator spawn handshake', () => {
     now = Math.max(...firstRows.map(({ admittedDeadlineAt }) => admittedDeadlineAt)) + 1;
 
     expect(
-      await greenCoordinator.read({ projectId: 'p-1', objective: 'time', input: INPUT }),
+      await greenCoordinator.read({ workPackageId: 'p-1', objective: 'time', input: INPUT }),
     ).toBeNull();
     await until(
       () => greenAttempts.length === 2 && greenAttempts.every(({ marker }) => existsSync(marker)),

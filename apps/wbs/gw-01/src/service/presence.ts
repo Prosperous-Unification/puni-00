@@ -4,31 +4,31 @@ import type { DeliveryOutcome, DeliverySocket } from './delivery';
 
 export type PresenceSocket = DeliverySocket;
 
-/** What a connection that has named no project is shown, and put in. */
+/** What a connection that has named no work package is shown, and put in. */
 const NOBODY: string[] = [];
 
 interface Connected {
   username: string;
   socket: PresenceSocket;
   /**
-   * The project this connection subscribed to, or null while it has named
-   * none. See {@link Presence.enterProject} for why it is one and not a set.
+   * The work package this connection subscribed to, or null while it has named
+   * none. See {@link Presence.enterWorkPackage} for why it is one and not a set.
    */
-  projectId: string | null;
+  workPackageId: string | null;
 }
 
 /**
- * Who is in a project right now, keyed by connection rather than by user: one
+ * Who is in a work package right now, keyed by connection rather than by user: one
  * person with two tabs is two connections and must survive closing one of
  * them. `list()` therefore deduplicates, while `leave()` does not.
  *
- * **A roster is a project's, never the gateway's.** It used to be the gateway's:
- * `list()` returned every connected username with no filter at all, so a project
+ * **A roster is a work package's, never the gateway's.** It used to be the gateway's:
+ * `list()` returned every connected username with no filter at all, so a work package
  * created a second ago showed every account that happened to have a socket open
  * — observed live, 2026-08-09, and the reason this class now knows what a
- * project is. A connection joins a roster by subscribing to `project:<id>`
- * ({@link enterProject}); until it does it belongs to **nothing** — it is in no
- * project's roster and is shown an empty one. That is the honest answer for a
+ * work package is. A connection joins a roster by subscribing to `workPackage:<id>`
+ * ({@link enterWorkPackage}); until it does it belongs to **nothing** — it is in no
+ * work package's roster and is shown an empty one. That is the honest answer for a
  * socket that has connected and not yet said what it is looking at, and it is
  * the same answer for one whose token would not verify at `open`: no username
  * was recorded for it, so there is nothing to put anywhere.
@@ -41,12 +41,12 @@ interface Connected {
 export class Presence {
   private readonly byConnection = new Map<string, Connected>();
   /**
-   * The connections in each project, so a roster is a lookup rather than a scan.
+   * The connections in each work package, so a roster is a lookup rather than a scan.
    *
    * `list()` filtered every connection the gateway holds, and `broadcast()`
-   * calls it once per distinct project — O(connections × projects) per join,
+   * calls it once per distinct work package — O(connections × work packages) per join,
    * per subscribe and per leave, on the one class that runs on every socket
-   * event. Reads and delivery now visit only the affected projects’ members.
+   * event. Reads and delivery now visit only the affected work packages’ members.
    *
    * Two indexes over one fact, which is a thing to keep honest rather than a
    * thing to be pleased about: every write below moves both, and
@@ -54,50 +54,50 @@ export class Presence {
    * random join/subscribe/move/leave sequences comparing `list()` against a
    * full scan.
    */
-  private readonly byProject = new Map<string, Set<string>>();
+  private readonly byWorkPackage = new Map<string, Set<string>>();
 
-  /** Replaces a connection id and returns the project its old connection left. */
+  /** Replaces a connection id and returns the work package its old connection left. */
   join(connectionId: string, username: string, socket: PresenceSocket): readonly string[] {
     const affected = this.leave(connectionId);
-    this.byConnection.set(connectionId, { username, socket, projectId: null });
+    this.byConnection.set(connectionId, { username, socket, workPackageId: null });
     // Proof: returning [] leaves linus without the updated roster in the renamed-id delivery case.
     return affected;
   }
 
-  /** Removes one tab, identifying its previous project before deleting its lookup. */
+  /** Removes one tab, identifying its previous work package before deleting its lookup. */
   leave(connectionId: string): readonly string[] {
     const connected = this.byConnection.get(connectionId);
-    const projectId = connected?.projectId;
-    if (projectId != null) this.removeMember(projectId, connectionId);
+    const workPackageId = connected?.workPackageId;
+    if (workPackageId != null) this.removeMember(workPackageId, connectionId);
     this.byConnection.delete(connectionId);
     // Proof: returning [] makes the two-tab disconnect case receive no roster.
-    return projectId == null ? [] : [projectId];
+    return workPackageId == null ? [] : [workPackageId];
   }
 
-  /** Removes the member and retires an empty project's index entry. */
-  private removeMember(projectId: string, connectionId: string): void {
-    const members = this.membersOf(projectId);
+  /** Removes the member and retires an empty work package's index entry. */
+  private removeMember(workPackageId: string, connectionId: string): void {
+    const members = this.membersOf(workPackageId);
     members.delete(connectionId);
     // Proof: retaining empty sets leaves size 2 instead of 0 after the mutation sequence.
-    if (members.size === 0) this.byProject.delete(projectId);
+    if (members.size === 0) this.byWorkPackage.delete(workPackageId);
   }
 
-  /** The set for `projectId`, made on first use and never left empty behind. */
-  private membersOf(projectId: string): Set<string> {
-    const held = this.byProject.get(projectId);
+  /** The set for `workPackageId`, made on first use and never left empty behind. */
+  private membersOf(workPackageId: string): Set<string> {
+    const held = this.byWorkPackage.get(workPackageId);
     if (held !== undefined) return held;
     const made = new Set<string>();
-    this.byProject.set(projectId, made);
+    this.byWorkPackage.set(workPackageId, made);
     return made;
   }
 
   /**
-   * Puts a connection in a project's roster, returning its changed old/new project ids.
+   * Puts a connection in a work package's roster, returning its changed old/new work package ids.
    *
-   * One project per connection, not a set: the roster answers "who else is
-   * looking at this with me", and a socket showing one project at a time can
-   * only be looking at one. A second `project:` subscribe on the same socket is
-   * therefore a move — the browser switched project — rather than a second
+   * One work package per connection, not a set: the roster answers "who else is
+   * looking at this with me", and a socket showing one work package at a time can
+   * only be looking at one. A second `workPackage:` subscribe on the same socket is
+   * therefore a move — the browser switched work package — rather than a second
    * membership, and a socket in two rosters would have no single roster to be
    * broadcast.
    *
@@ -106,53 +106,53 @@ export class Presence {
    * roster can hold it. Not an invariant failure — a modelled state of the
    * socket, and the only thing to do with it is nothing.
    */
-  enterProject(connectionId: string, projectId: string): readonly string[] {
+  enterWorkPackage(connectionId: string, workPackageId: string): readonly string[] {
     const connected = this.byConnection.get(connectionId);
     // Proof: removing the equality guard sends frames during the real-socket no-op count check.
-    if (connected === undefined || connected.projectId === projectId) return [];
-    const previous = connected.projectId;
+    if (connected === undefined || connected.workPackageId === workPackageId) return [];
+    const previous = connected.workPackageId;
     if (previous !== null) this.removeMember(previous, connectionId);
-    connected.projectId = projectId;
-    this.membersOf(projectId).add(connectionId);
+    connected.workPackageId = workPackageId;
+    this.membersOf(workPackageId).add(connectionId);
     // Proof: returning only the destination omits grace's roster in the real-socket move case.
-    return previous === null ? [projectId] : [previous, projectId];
+    return previous === null ? [workPackageId] : [previous, workPackageId];
   }
 
   /**
-   * Takes a connection out of its current project and returns that changed id.
+   * Takes a connection out of its current work package and returns that changed id.
    *
    * Guarded on the id rather than clearing outright: an `unsubscribe` naming a
-   * project this connection has already moved off must not empty the roster of
-   * the one it moved **to**. A browser that switches projects sends both frames
+   * work package this connection has already moved off must not empty the roster of
+   * the one it moved **to**. A browser that switches work packages sends both frames
    * and their order is the network's, not ours.
    */
-  leaveProject(connectionId: string, projectId: string): readonly string[] {
+  leaveWorkPackage(connectionId: string, workPackageId: string): readonly string[] {
     const connected = this.byConnection.get(connectionId);
-    if (connected?.projectId !== projectId) return [];
-    connected.projectId = null;
-    this.removeMember(projectId, connectionId);
-    return [projectId];
+    if (connected?.workPackageId !== workPackageId) return [];
+    connected.workPackageId = null;
+    this.removeMember(workPackageId, connectionId);
+    return [workPackageId];
   }
 
-  /** Distinct usernames in `projectId`, sorted so the front end renders a stable order. */
-  list(projectId: string): string[] {
+  /** Distinct usernames in `workPackageId`, sorted so the front end renders a stable order. */
+  list(workPackageId: string): string[] {
     const names = new Set<string>();
-    for (const connectionId of this.byProject.get(projectId) ?? []) {
-      const held = this.connectionIn(projectId, connectionId);
+    for (const connectionId of this.byWorkPackage.get(workPackageId) ?? []) {
+      const held = this.connectionIn(workPackageId, connectionId);
       names.add(held.username);
     }
     return [...names].sort();
   }
 
   /**
-   * The roster this connection is entitled to see: its own project's.
+   * The roster this connection is entitled to see: its own work package's.
    *
-   * Empty for a connection in no project, which is what a socket that has
+   * Empty for a connection in no work package, which is what a socket that has
    * connected and not yet subscribed gets when it asks `who`.
    */
   rosterFor(connectionId: string): string[] {
-    const projectId = this.byConnection.get(connectionId)?.projectId;
-    return projectId == null ? [...NOBODY] : this.list(projectId);
+    const workPackageId = this.byConnection.get(connectionId)?.workPackageId;
+    return workPackageId == null ? [...NOBODY] : this.list(workPackageId);
   }
 
   usernameOf(connectionId: string): string | null {
@@ -172,20 +172,20 @@ export class Presence {
   }
 
   /**
-   * Sends each affected project's roster only to its current members. Empty
-   * projects have no recipients; unprojected sockets receive explicit initial
-   * or reset state through {@link sendRoster}. Each project is serialized once.
+   * Sends each affected work package's roster only to its current members. Empty
+   * work packages have no recipients; unprojected sockets receive explicit initial
+   * or reset state through {@link sendRoster}. Each work package is serialized once.
    * Returns retirement outcomes; unexpected recipient rejections propagate after
    * all recipients have been dispatched.
    */
-  broadcast(projectIds: readonly string[]): Promise<DeliveryOutcome[]> {
+  broadcast(workPackageIds: readonly string[]): Promise<DeliveryOutcome[]> {
     const deliveries: Promise<DeliveryOutcome>[] = [];
     // Proof: restoring the global loop sends 1000 unrelated frames in the large
     // newcomer case; real-socket unrelated counts become [1,1,1,1] instead of zeros.
-    for (const projectId of new Set(projectIds)) {
-      const payload = wsPresence(this.list(projectId));
-      for (const connectionId of this.byProject.get(projectId) ?? []) {
-        deliveries.push(this.connectionIn(projectId, connectionId).socket.send(payload));
+    for (const workPackageId of new Set(workPackageIds)) {
+      const payload = wsPresence(this.list(workPackageId));
+      for (const connectionId of this.byWorkPackage.get(workPackageId) ?? []) {
+        deliveries.push(this.connectionIn(workPackageId, connectionId).socket.send(payload));
       }
     }
     // Proof: removing this return detaches the rejected recipient in delivery.integration.test.ts.
@@ -193,12 +193,12 @@ export class Presence {
   }
 
   /** A missing member is index drift, never an absent optional connection. */
-  private connectionIn(projectId: string, connectionId: string): Connected {
+  private connectionIn(workPackageId: string, connectionId: string): Connected {
     const connected = this.byConnection.get(connectionId);
     // Proof: omitting removeMember's deletion makes the two-tab disconnect case
-    // throw "presence: tab1 is in project-hull but is not connected" here.
+    // throw "presence: tab1 is in work-package-hull but is not connected" here.
     if (connected === undefined) {
-      throw new Error(`presence: ${connectionId} is in ${projectId} but is not connected`);
+      throw new Error(`presence: ${connectionId} is in ${workPackageId} but is not connected`);
     }
     return connected;
   }

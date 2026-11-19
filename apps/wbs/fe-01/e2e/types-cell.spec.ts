@@ -1,6 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 /**
  * The Types cell, in a browser.
@@ -31,7 +31,7 @@ const ROW_HEIGHT_BUDGET = 28;
  *
  * `page.goto('/')` and then the account button, which is what every other spec
  * in this directory does — and leaving it out is why the first run of this file
- * spent five minutes timing out on `New project`, a button that only exists
+ * spent five minutes timing out on `New workPackage`, a button that only exists
  * once a session has loaded.
  */
 async function openSignedIn(page: Page): Promise<void> {
@@ -85,7 +85,7 @@ test.describe('the Types cell at a laptop width', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await openSignedIn(page);
-    await createProject(page, 'Types');
+    await createWorkPackage(page, 'Types');
     await page.getByRole('button', { name: 'Add work item' }).click();
     await expect(page.getByLabel('Name of 010')).toBeVisible();
     await page.getByRole('button', { name: 'Add work item' }).click();
@@ -274,7 +274,7 @@ test.describe('the Types dimension on a phone', () => {
     // does not list them — so there is nothing here for this one to draw.
     await page.setViewportSize({ width: 390, height: 844 });
     await openSignedIn(page);
-    await createProject(page, 'Types phone');
+    await createWorkPackage(page, 'Types phone');
 
     // The phone's own face, and the control the table's `Add work item` becomes.
     await expect(page.getByRole('button', { name: 'Plan actions' })).toBeVisible();

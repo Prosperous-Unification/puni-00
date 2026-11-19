@@ -301,7 +301,7 @@ describe('the page’s runtime, installed transactionally', () => {
       installApplicationRuntime({ openStore: fakeBrowserStorage }),
     );
     expect(slot.snapshot().status).toBe('live');
-    expect(typeof services.remembered.lastOpenedProject.read).toBe('function');
+    expect(typeof services.remembered.lastOpenedWorkPackage.read).toBe('function');
   });
 
   /**

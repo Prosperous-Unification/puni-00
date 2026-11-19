@@ -1,4 +1,4 @@
-import type { StoredSavedPlan } from '@wbs/core';
+import type { StoredSavedPlanBytes } from '@wbs/core';
 
 export type MemoryLateWritePoint =
   'subtree-final-satellite' | 'journal-history-insert' | 'saved-plan-schedule-body';
@@ -6,7 +6,7 @@ export type MemoryLateWritePoint =
 export interface MemoryLateWriteEvidence {
   readonly journalEventIds?: readonly string[];
   readonly satelliteKeys?: readonly string[];
-  readonly savedPlan?: StoredSavedPlan;
+  readonly savedPlan?: StoredSavedPlanBytes;
 }
 
 export interface MemoryLateWriteSeam {

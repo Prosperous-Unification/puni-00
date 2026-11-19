@@ -3,10 +3,10 @@ import { systemTimers } from '@wbs/runtime-portable';
 import { expect, test } from 'bun:test';
 
 import { buildApp } from './app';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
 const SECRET = 's'.repeat(32);
-const PROJECT = 'project:11111111-1111-4111-8111-111111111111';
+const WORK_PACKAGE = 'work-package:11111111-1111-4111-8111-111111111111';
 
 async function until(predicate: () => boolean) {
   const expires = Date.now() + 1_000;
@@ -53,7 +53,7 @@ async function push(port: number) {
   const response = await fetch(`http://localhost:${String(port)}/internal/push`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-internal-auth': SECRET },
-    body: JSON.stringify({ subscription: PROJECT, seq: 1, message: 'sentinel' }),
+    body: JSON.stringify({ subscription: WORK_PACKAGE, seq: 1, message: 'sentinel' }),
   });
   expect(response.status).toBe(202);
   return response.json();
@@ -70,7 +70,7 @@ test('incompatible retained push accepts zero and retires held subscribe without
     internalAuthSecret: SECRET,
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ada',
-    projectAccess: () => () => {
+    workPackageAccess: () => () => {
       held = true;
       return new Promise((resolve) => {
         release = resolve;
@@ -82,7 +82,7 @@ test('incompatible retained push accepts zero and retires held subscribe without
   if (port === undefined) throw new Error('gateway did not listen');
   try {
     const client = await connect(port);
-    client.socket.send(JSON.stringify({ type: 'subscribe', subscription: PROJECT }));
+    client.socket.send(JSON.stringify({ type: 'subscribe', subscription: WORK_PACKAGE }));
     await until(() => held);
     enabled = true;
     client.socket.send(JSON.stringify({ type: 'ping' }));
@@ -104,7 +104,7 @@ test('retained authority unavailable retires without sending application frames'
       internalAuthSecret: SECRET,
       jwtKey: 'k'.repeat(32),
       localIdentity: 'ada',
-      projectAccess: GRANT_EVERY_PROJECT,
+      workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
       requests: { timers: systemTimers, attemptMs: 20, overallMs: 30 },
       fetchImpl: () => {
         if (!broken) return Promise.resolve(new Response(null, { status: 204 }));
@@ -139,7 +139,7 @@ test('retirement aborts pending backend work and removes subscriptions before ph
     internalAuthSecret: SECRET,
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ada',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     fetchImpl: (url, init) => {
       if (url.endsWith('/internal/forward')) {
         pendingSignal = init?.signal ?? undefined;
@@ -152,9 +152,9 @@ test('retirement aborts pending backend work and removes subscriptions before ph
   if (port === undefined) throw new Error('gateway did not listen');
   try {
     const client = await connect(port);
-    client.socket.send(JSON.stringify({ type: 'subscribe', subscription: PROJECT }));
+    client.socket.send(JSON.stringify({ type: 'subscribe', subscription: WORK_PACKAGE }));
     await until(() => client.frames.length === 2);
-    client.socket.send(JSON.stringify({ subscription: PROJECT, message: { write: true } }));
+    client.socket.send(JSON.stringify({ subscription: WORK_PACKAGE, message: { write: true } }));
     await until(() => pendingSignal !== undefined);
     client.socket.addEventListener('close', () => {
       closed = true;
@@ -178,7 +178,7 @@ test('physical close cancels a held retained authority request', async () => {
     internalAuthSecret: SECRET,
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ada',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     fetchImpl: (_url, init) => {
       if (!hold) return Promise.resolve(new Response(null, { status: 204 }));
       authoritySignal = init?.signal ?? undefined;

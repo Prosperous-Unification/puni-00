@@ -252,7 +252,7 @@ export function isFiltering(criteria: FilterCriteria): boolean {
  * Handed in rather than looked up here for {@link RowFacets}' reason: this
  * module knows about trees and predicates, and a walker that also knew what a
  * team was called would be two things. The lists it would have to hold are the
- * directory's, the chart read's and the project's ladder — three separate
+ * directory's, the chart read's and the work package's ladder — three separate
  * moments, none of them a fact about a tree.
  */
 export interface FilterLabels {
@@ -332,7 +332,7 @@ function carriesAnyChosen(chosen: readonly string[], carried: readonly string[])
  *
  * 1. A row **matches** when it answers **every** active criterion: its name
  *    contains the query, case-insensitively — the same `trim().toLowerCase()`
- *    substring every other filter in this repo uses ({@link matchingProjects},
+ *    substring every other filter in this repo uses ({@link matchingWorkPackages},
  *    {@link pickerEntries}) — *and* it carries one of each chosen facet's
  *    values. See {@link FilterCriteria} for why within-facet is OR and
  *    across-facet is AND.

@@ -4,7 +4,7 @@
  */
 export const WORK_ITEM_OUTLINE = [
   'id',
-  'projectId',
+  'workPackageId',
   'parentId',
   'number',
   'name',

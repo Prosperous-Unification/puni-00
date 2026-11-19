@@ -1,5 +1,5 @@
 /**
- * A step node: one leaf work item's occurrence of one project step (ADR 0031).
+ * A step node: one leaf work item's occurrence of one work package step (ADR 0031).
  *
  * The domain value is the pair, and nothing else. A step node has no row of its
  * own — it exists for every leaf and step whether or not any fact is stored for
@@ -25,7 +25,7 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
  * Unchanged by renumbering, reparenting while the work item stays a leaf, step
  * rename or step reorder, because it holds neither a number nor a code nor a
  * position. Both parts are UUIDs, whose spelling has no dot, so the separator is
- * unambiguous. Not an access path: whoever resolves it checks the project.
+ * unambiguous. Not an access path: whoever resolves it checks the work package.
  */
 export function formatStepNodeId(ref: StepNodeRef): string {
   return `${STEP_NODE_ID_PREFIX}.${ref.workItemId}.${ref.stepId}`;
@@ -37,7 +37,7 @@ export type StepNodeIdDefect = 'unknown_encoding' | 'malformed';
 /**
  * Reads a step node ID back into its pair, or says why it is not one.
  *
- * Structure only: whether the work item and step exist, share a project and
+ * Structure only: whether the work item and step exist, share a work package and
  * make a leaf's node is the caller's question, answered against the store.
  */
 export function parseStepNodeId(
@@ -73,10 +73,10 @@ export function orderSteps<Step extends { id: string; position: number }>(
 }
 
 /**
- * A leaf's step nodes: one per project step, in step order.
+ * A leaf's step nodes: one per work package step, in step order.
  *
  * Called for leaves only — a work item with children has no step nodes. A
- * project with no steps answers none; its leaves schedule through a work-item
+ * work package with no steps answers none; its leaves schedule through a work-item
  * boundary, which is never a step node.
  */
 export function listStepNodes(

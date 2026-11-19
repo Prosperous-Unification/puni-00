@@ -3,15 +3,15 @@ import { deadlineOffsetOf, type IsoDate } from './workday';
 /**
  * The offset a deadline that resolves **before day zero** is read as.
  *
- * `-1` and not `0`, and not a dropped entry. Design §2.3: a project start moved
+ * `-1` and not `0`, and not a dropped entry. Design §2.3: a work package start moved
  * past a stored deadline is **legal** — the stored date is what the user typed
- * and the project moving under it does not make their input malformed — so the
+ * and the work package moving under it does not make their input malformed — so the
  * date is read as *unmeetable*, never as *invalid* and never as *absent*.
  *
  * **Why a number at all.** `schedule()` takes offsets, so the alternatives are
  * to drop the entry or to clamp it. Dropping it reports the row **on time**,
  * which is the one answer that is certainly wrong: the deadline is not merely
- * missed, it was already impossible when the project moved. Clamping to `0`
+ * missed, it was already impossible when the work package moved. Clamping to `0`
  * says "due on day zero", and a slice that finishes on day zero then reads on
  * time — the same fault `deadlineOffsetOf` refuses at its own boundary and that
  * W3 watches, arriving one layer later.
@@ -36,7 +36,7 @@ export const UNMEETABLE_DEADLINE_OFFSET = -1;
  * reads — the **read-time** resolution of tasks.md 5.4.
  *
  * Keys are carried through untouched, including the ones that resolve
- * `before-project-start`: this function never drops a work item, because a work
+ * `before-work-package-start`: this function never drops a work item, because a work
  * item missing from the map is a work item with no deadline, and the two must
  * not be confused. `deadlineOffsetOf` decides every entry, so a weekend
  * deadline rolls **backward** here for the same reason it does there and there
@@ -48,12 +48,12 @@ export const UNMEETABLE_DEADLINE_OFFSET = -1;
  * and the fold come to disagree about which day a leaf owes.
  */
 export function deadlineOffsetsOf(
-  projectStart: IsoDate,
+  workPackageStart: IsoDate,
   deadlines: ReadonlyMap<string, IsoDate>,
 ): Map<string, number> {
   const resolved = new Map<string, number>();
   for (const [workItemId, deadline] of deadlines) {
-    const found = deadlineOffsetOf(projectStart, deadline);
+    const found = deadlineOffsetOf(workPackageStart, deadline);
     resolved.set(workItemId, found.kind === 'offset' ? found.offset : UNMEETABLE_DEADLINE_OFFSET);
   }
   return resolved;

@@ -1,8 +1,10 @@
+import type { FirstChildWrite, FirstChildWriteOutcome } from '../module/step-catalogue/first-child';
 import type { ActualKey, StoredActual } from './actual-store';
 import type { Demand } from './demand-store';
 import type { StoredDependency } from './dependency-store';
 import type { Assignment } from './directory-store';
-import type { StoredEstimate } from './estimate-store';
+import type { StoredEstimate,StepWriteOutcome } from './estimate-store';
+import type {StepFactKind} from './step-catalogue';
 import type { MeasureKey, StoredMeasure } from './measure-store';
 import type { ProgressKey, StoredProgress } from './progress-store';
 import type { Reparented, Repositioned, WorkItem } from './work-item-store';
@@ -142,7 +144,22 @@ export interface EstimateKey {
   stepId: string;
 }
 
+/** A candidate step value no longer applies; return only after every method-local change is rolled back. */
+export type SubtreeWriteOutcome=
+  |'written'
+  |{readonly kind:'estimate_refused';readonly workItemId:string;readonly stepId:string;readonly reason:Exclude<StepWriteOutcome,'written'>}
+  |{readonly kind:'point_refused';readonly fact:Extract<StepFactKind,'actual'|'progress'|'measure'>;readonly workItemId:string;readonly stepId:string;readonly reason:Exclude<StepWriteOutcome,'written'>};
+
 export interface SubtreeStore {
+  /**
+   * Moves current protected work and allocator reservations in one method-local
+   * atomic first-child transition. Both directions validate the candidate's own
+   * direct type and full relationship evidence before publishing. A modeled
+   * refusal rolls back locally even when its caller later commits unrelated work.
+   * Claims retain their identities, current leases, revocation and occupancy.
+   * Unknown cleanup rejects with retained causes through the existing writer owner.
+   */
+  writeFirstChild(write: FirstChildWrite, stamp: WriteStamp): Promise<FirstChildWriteOutcome>;
   /**
    * Writes a whole {@link SubtreeCopy} in one transaction, across all four
    * tables it touches.
@@ -152,9 +169,12 @@ export interface SubtreeStore {
    * estimates and nobody assigned — a plan that is quietly wrong rather than
    * visibly incomplete, and nothing in the tree says which rows they are.
    *
-   * Throws whatever the database throws. A rejected write means **nothing**
-   * was written, which `work-item.test.ts` asserts against a deliberately
-   * broken foreign key rather than claiming it here.
+   * Expected estimate or point applicability refusals return their payload kind/pair/reason
+   * after the entire candidate is rolled back, including inside a borrowed loan.
+   * Unexpected failures throw. A confirmed rollback leaves no method-local
+   * writes, as the deliberately broken foreign-key owner in `work-item.test.ts`
+   * requires. Unknown rollback/release failure instead retains its causes and
+   * fences the writer; rejection alone does not certify restored persistence.
    */
-  insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
+  insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<SubtreeWriteOutcome>;
 }

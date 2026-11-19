@@ -8,7 +8,7 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
  * source's unit of work, which the controller fixtures only count.
  */
 let h: OrganizationHarness;
-let project: string;
+let workPackage: string;
 let qa: string;
 
 beforeEach(async () => {
@@ -19,10 +19,13 @@ beforeEach(async () => {
   h.grantPermissions('org-a', 'ada', ['organization.create_project', 'package.manage_settings']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Rewire the shed' });
+  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Rewire the shed' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const body = created.body as { project: { id: string }; steps: { id: string; name: string }[] };
-  project = body.project.id;
+  const body = created.body as {
+    workPackage: { id: string };
+    steps: { id: string; name: string }[];
+  };
+  workPackage = body.workPackage.id;
   qa = stepNamed(body.steps, 'QA');
 });
 
@@ -32,19 +35,19 @@ afterEach(() => {
 
 function stepNamed(steps: readonly { id: string; name: string }[], name: string): string {
   const step = steps.find((each) => each.name === name);
-  if (step === undefined) throw new Error(`a project without its seed step ${name}`);
+  if (step === undefined) throw new Error(`a work package without its seed step ${name}`);
   return step.id;
 }
 
 const patchQa = (body: unknown): Promise<Answer> =>
-  h.call('ada', 'PATCH', `/api/projects/${project}/steps/${qa}`, body);
+  h.call('ada', 'PATCH', `/api/work-packages/${workPackage}/steps/${qa}`, body);
 
 const batch = (commands: unknown[]): Promise<Answer> =>
-  h.call('ada', 'POST', `/api/projects/${project}/commands`, { commands });
+  h.call('ada', 'POST', `/api/work-packages/${workPackage}/commands`, { commands });
 
 /** QA's name and allowance as a plan read shows them. */
 async function qaNow(): Promise<{ name: string; allowancePercent: number }> {
-  const read = await h.call('ada', 'GET', `/api/projects/${project}`);
+  const read = await h.call('ada', 'GET', `/api/work-packages/${workPackage}`);
   const steps = (read.body as { steps: { id: string; name: string; allowancePercent: number }[] })
     .steps;
   const held = steps.find((step) => step.id === qa);
@@ -57,7 +60,7 @@ async function qaNow(): Promise<{ name: string; allowancePercent: number }> {
  * 30M working days fit, 330M do not.
  */
 async function nearTheCalendarEdge(): Promise<void> {
-  const started = await h.call('ada', 'PATCH', `/api/projects/${project}`, {
+  const started = await h.call('ada', 'PATCH', `/api/work-packages/${workPackage}`, {
     startDate: '2026-01-05',
   });
   expect(started.status).toBe(200);
@@ -118,10 +121,12 @@ describe('a rename and an allowance in one edit', () => {
       },
     });
 
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     // Step renames are not journalled, so the undo takes back only the allowance.
     expect(await qaNow()).toEqual({ name: 'Review', allowancePercent: 0 });
-    expect(await h.call('ada', 'POST', `/api/projects/${project}/undo`)).toMatchObject({
+    expect(await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).toMatchObject({
       status: 409,
       body: { error: 'nothing_to_undo' },
     });

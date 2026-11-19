@@ -1,13 +1,21 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -31,13 +39,13 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { buildStores } from '../services';
@@ -65,12 +73,13 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -93,7 +102,7 @@ let measures: StepMeasureRepository;
 let progressStore: StepProgressRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
-let projects: ProjectRepository;
+let workPackages: WorkPackageRepository;
 let seededBy: string;
 /**
  * The one broadcaster in the process, held so a test can read what actually
@@ -123,9 +132,10 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-http-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
   const db = openDrizzle(path);
 
-  projects = new ProjectRepository(db, OPEN);
+  workPackages = new WorkPackageRepository(db, OPEN);
   stepStore = new StepRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
   actuals = new ActualRepository(db, OPEN);
@@ -163,39 +173,39 @@ beforeEach(async () => {
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     // The shared wrapper here too, from Gemini's Minor on PR 203: this line
-    // handed `ProjectService` a PRIVATE recorder, so anything it announced
+    // handed `WorkPackageService` a PRIVATE recorder, so anything it announced
     // landed in a log nothing reads. Harmless while no step route mutates
-    // project settings — and exactly the shape in which a future assertion
+    // work package settings — and exactly the shape in which a future assertion
     // reads an empty log and passes. See {@link writes}.
-    projects: new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projects),
+    workPackages: new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       broadcast: announcements,
     }),
     // The shared wrapper, as `services.ts` wires `StepService` — not a private
     // recorder. See {@link writes}.
     steps: new StepService({
-      dependencyContext: sqliteDependencyContext(db, projects),
+      dependencyContext: sqliteDependencyContext(db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       steps: stepStore,
       broadcast: announcements,
     }),
     workItems: new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projects,
+        workPackages: workPackages,
         workItems: workItems,
         estimates: estimates,
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
-      projects,
+      workPackages,
       estimates,
       actuals,
       measures,
@@ -219,7 +229,15 @@ beforeEach(async () => {
   };
   writes = testWrites(broadcast, writing);
   app = buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: new SqliteWorkPackageObservation({
+      currentCapture: refusingSavedCurrentCapture,
+      openConnection: () => openPackageObservationConnection(path),
+      activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      now: () => testClock.now(),
+    }),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -229,7 +247,7 @@ beforeEach(async () => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -283,41 +301,42 @@ function send(
   );
 }
 
-async function newProject(token: string): Promise<{ id: string; devId: string; qaId: string }> {
-  const res = await send('/api/projects', token, {
+async function newWorkPackage(token: string): Promise<{ id: string; devId: string; qaId: string }> {
+  const res = await send('/api/work-packages', token, {
     method: 'POST',
-    body: JSON.stringify({ name: 'Rewire the shed' }),
+    body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the shed' }),
   });
   const body = (await res.json()) as {
-    project: { id: string };
+    workPackage: { id: string };
     steps: { id: string; name: string }[];
   };
   const dev = body.steps.find((each) => each.name === 'Dev');
   const qa = body.steps.find((each) => each.name === 'QA');
-  if (dev === undefined || qa === undefined) throw new Error('a project without its seed steps');
-  return { id: body.project.id, devId: dev.id, qaId: qa.id };
+  if (dev === undefined || qa === undefined)
+    throw new Error('a work package without its seed steps');
+  return { id: body.workPackage.id, devId: dev.id, qaId: qa.id };
 }
 
-const addStep = (projectId: string, token: string, name: string): Promise<Response> =>
-  send(`/api/projects/${projectId}/steps`, token, {
+const addStep = (workPackageId: string, token: string, name: string): Promise<Response> =>
+  send(`/api/work-packages/${workPackageId}/steps`, token, {
     method: 'POST',
     body: JSON.stringify({ name }),
   });
 
 /** One plan batch of a single command — the one way a plan is written to. */
 const planCommand = (
-  projectId: string,
+  workPackageId: string,
   token: string,
   step: Record<string, unknown>,
 ): Promise<Response> =>
-  send(`/api/projects/${projectId}/commands`, token, {
+  send(`/api/work-packages/${workPackageId}/commands`, token, {
     method: 'POST',
     body: JSON.stringify({ commands: [step] }),
   });
 
 /** A top-level work item by name, through the command that creates them; throws on a refusal. */
-async function newWorkItem(projectId: string, token: string, name: string): Promise<string> {
-  const res = await planCommand(projectId, token, {
+async function newWorkItem(workPackageId: string, token: string, name: string): Promise<string> {
+  const res = await planCommand(workPackageId, token, {
     kind: 'createWorkItem',
     parentId: null,
     afterId: null,
@@ -332,24 +351,24 @@ async function newWorkItem(projectId: string, token: string, name: string): Prom
 }
 
 describe('the steps routes are the only spelling', () => {
-  it("serves a project's steps", async () => {
+  it("serves a work package's steps", async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    expect((await addStep(project.id, token, 'Design')).status).toBe(200);
+    expect((await addStep(workPackage.id, token, 'Design')).status).toBe(200);
 
-    // The list is the project read's — a second GET would be a second read of
+    // The list is the work package read's — a second GET would be a second read of
     // one fact, which is why `stepController` mounts none (see its JSDoc). What
     // this asserts is that the list comes back under `steps` and names what the
     // steps route just wrote.
-    const read = await send(`/api/projects/${project.id}`, token);
+    const read = await send(`/api/work-packages/${workPackage.id}`, token);
     const body = (await read.json()) as { steps: { name: string }[] };
     expect(body.steps.map((step) => step.name)).toEqual(['Dev', 'QA', 'Design']);
   });
 
   it('refuses the old roles route as unknown', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
     /*
       Every verb, because a shim that kept one of them would be the compatibility
@@ -363,25 +382,33 @@ describe('the steps routes are the only spelling', () => {
       other two verbs stayed green — which is the point of asserting all three.
       Watched 2026-08-29.
     */
-    const post = await send(`/api/projects/${project.id}/roles`, token, {
+    const post = await send(`/api/work-packages/${workPackage.id}/roles`, token, {
       method: 'POST',
       body: JSON.stringify({ name: 'Design' }),
     });
     expect(post.status).toBe(404);
 
-    const patch = await send(`/api/projects/${project.id}/roles/${project.qaId}`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({ name: 'Review' }),
-    });
+    const patch = await send(
+      `/api/work-packages/${workPackage.id}/roles/${workPackage.qaId}`,
+      token,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Review' }),
+      },
+    );
     expect(patch.status).toBe(404);
 
-    const remove = await send(`/api/projects/${project.id}/roles/${project.qaId}`, token, {
-      method: 'DELETE',
-    });
+    const remove = await send(
+      `/api/work-packages/${workPackage.id}/roles/${workPackage.qaId}`,
+      token,
+      {
+        method: 'DELETE',
+      },
+    );
     expect(remove.status).toBe(404);
 
     // And nothing was written by any of them.
-    expect(await stepStore.listByProject(project.id)).toHaveLength(2);
+    expect(await stepStore.listByWorkPackage(workPackage.id)).toHaveLength(2);
   });
 });
 
@@ -420,7 +447,7 @@ describe('the steps routes are the only spelling', () => {
 describe('a step mutation is not captured by an unrelated batch', () => {
   it('delivers an add made while an unrelated batch is collecting', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     broadcast.published.length = 0;
 
     // A batch's collector, open beside the route. What used to be an ambient
@@ -428,41 +455,41 @@ describe('a step mutation is not captured by an unrelated batch', () => {
     // unrelated route cannot publish into it however its call stack is rooted.
     const batchCollector = new AnnouncementCollector(broadcast);
 
-    const res = await addStep(project.id, token, 'Design');
+    const res = await addStep(workPackage.id, token, 'Design');
     expect(res.status).toBe(200);
     const step = ((await res.json()) as { step: Step }).step;
 
     // The refusal: the batch's own announcements would be dropped, never sent.
     expect(batchCollector.pending).toEqual([]);
     // `toEqual` on the whole array, not a `.some(...)` search: the step the
-    // event carries and the project it was announced on are both part of the
-    // claim, and an event announced on the wrong project would pass a count.
+    // event carries and the work package it was announced on are both part of the
+    // claim, and an event announced on the wrong work package would pass a count.
     expect(broadcast.published).toEqual([
-      { projectId: project.id, event: { type: 'step_added', step } },
+      { workPackageId: workPackage.id, event: { type: 'step_added', step } },
     ]);
   });
 });
 
-describe('POST /api/projects/:id/steps', () => {
+describe('POST /api/work-packages/:id/steps', () => {
   it('adds a step and answers with it', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await addStep(project.id, token, 'Design');
+    const res = await addStep(workPackage.id, token, 'Design');
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { step: Step };
     expect(body.step.name).toBe('Design');
-    expect(body.step.projectId).toBe(project.id);
+    expect(body.step.workPackageId).toBe(workPackage.id);
     expect(await stepStore.findById(body.step.id)).toEqual(body.step);
-    expect(await stepStore.listByProject(project.id)).toHaveLength(3);
+    expect(await stepStore.listByWorkPackage(workPackage.id)).toHaveLength(3);
   });
 
-  it('codes a new step from its name, against the codes the project holds', async () => {
+  it('codes a new step from its name, against the codes the work package holds', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await addStep(project.id, token, 'Code Review!');
+    const res = await addStep(workPackage.id, token, 'Code Review!');
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { step: Step }).step.code).toBe('code-review');
@@ -470,9 +497,9 @@ describe('POST /api/projects/:id/steps', () => {
 
   it('writes the code its creator chose', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await send(`/api/projects/${project.id}/steps`, token, {
+    const res = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
       method: 'POST',
       body: JSON.stringify({ name: 'Implementation', code: 'impl' }),
     });
@@ -483,23 +510,23 @@ describe('POST /api/projects/:id/steps', () => {
 
   it('refuses a reserved code and writes no step', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await send(`/api/projects/${project.id}/steps`, token, {
+    const res = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
       method: 'POST',
       body: JSON.stringify({ name: 'Review', code: 's2-review' }),
     });
 
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({ error: 'reserved_code' });
-    expect(await stepStore.listByProject(project.id)).toHaveLength(2);
+    expect(await stepStore.listByWorkPackage(workPackage.id)).toHaveLength(2);
   });
 
-  it('refuses a code outside the grammar, and one the project already holds', async () => {
+  it('refuses a code outside the grammar, and one the work package already holds', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     const post = (code: string) =>
-      send(`/api/projects/${project.id}/steps`, token, {
+      send(`/api/work-packages/${workPackage.id}/steps`, token, {
         method: 'POST',
         body: JSON.stringify({ name: 'Design', code }),
       });
@@ -510,26 +537,26 @@ describe('POST /api/projects/:id/steps', () => {
     const taken = await post('dev');
     expect(taken.status).toBe(409);
     expect(await taken.json()).toEqual({ error: 'code_taken' });
-    expect(await stepStore.listByProject(project.id)).toHaveLength(2);
+    expect(await stepStore.listByWorkPackage(workPackage.id)).toHaveLength(2);
   });
 
-  it('answers 409 taken for a name the project already holds', async () => {
+  it('answers 409 taken for a name the work package already holds', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await addStep(project.id, token, 'QA');
+    const res = await addStep(workPackage.id, token, 'QA');
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'taken' });
   });
 
-  it('answers 422 for a name of spaces, 404 for a project that is not there, 401 unauthenticated', async () => {
+  it('answers 422 for a name of spaces, 404 for a work package that is not there, 401 unauthenticated', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    expect((await addStep(project.id, token, '   ')).status).toBe(422);
+    expect((await addStep(workPackage.id, token, '   ')).status).toBe(422);
     expect((await addStep(crypto.randomUUID(), token, 'Design')).status).toBe(404);
-    expect((await addStep(project.id, 'not-a-token', 'Design')).status).toBe(401);
+    expect((await addStep(workPackage.id, 'not-a-token', 'Design')).status).toBe(401);
   });
 
   /**
@@ -543,46 +570,50 @@ describe('POST /api/projects/:id/steps', () => {
    */
   it('answers 422 for a body whose name is not a string, and for no body at all', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     const post = (body: string) =>
-      send(`/api/projects/${project.id}/steps`, token, { method: 'POST', body });
+      send(`/api/work-packages/${workPackage.id}/steps`, token, { method: 'POST', body });
 
     expect((await post(JSON.stringify({ name: 42 }))).status).toBe(422);
     expect((await post(JSON.stringify({}))).status).toBe(422);
     expect((await post(JSON.stringify([]))).status).toBe(422);
   });
 
-  it('answers 403 on a restricted project the caller does not own', async () => {
+  it('answers 403 on a restricted work package the caller does not own', async () => {
     const owner = await register('owner');
     const stranger = await register('stranger');
-    const project = await newProject(owner);
-    await send(`/api/projects/${project.id}`, owner, {
+    const workPackage = await newWorkPackage(owner);
+    await send(`/api/work-packages/${workPackage.id}`, owner, {
       method: 'PATCH',
       body: JSON.stringify({ restricted: true }),
     });
 
-    const res = await addStep(project.id, stranger, 'Design');
+    const res = await addStep(workPackage.id, stranger, 'Design');
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: 'forbidden' });
   });
 });
 
-describe('PATCH /api/projects/:id/steps/:stepId', () => {
+describe('PATCH /api/work-packages/:id/steps/:stepId', () => {
   it('renames a step', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({ name: 'Review' }),
-    });
+    const res = await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
+      token,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Review' }),
+      },
+    );
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       step: {
-        id: project.qaId,
-        projectId: project.id,
+        id: workPackage.qaId,
+        workPackageId: workPackage.id,
         name: 'Review',
         position: 20,
         code: 'qa',
@@ -592,54 +623,70 @@ describe('PATCH /api/projects/:id/steps/:stepId', () => {
     });
   });
 
-  it('answers 409 taken, and 404 for a step of another project', async () => {
+  it('answers 409 taken, and 404 for a step of another work package', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const other = await newProject(token);
+    const workPackage = await newWorkPackage(token);
+    const other = await newWorkPackage(token);
 
-    const taken = await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({ name: 'Dev' }),
-    });
+    const taken = await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
+      token,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Dev' }),
+      },
+    );
     expect(taken.status).toBe(409);
 
-    const elsewhere = await send(`/api/projects/${project.id}/steps/${other.qaId}`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({ name: 'Review' }),
-    });
+    const elsewhere = await send(
+      `/api/work-packages/${workPackage.id}/steps/${other.qaId}`,
+      token,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Review' }),
+      },
+    );
     expect(elsewhere.status).toBe(404);
   });
 });
 
-describe('DELETE /api/projects/:id/steps/:stepId', () => {
-  const item = (projectId: string, id: string, position: number): WorkItem =>
-    workItemRow({ id, projectId, position, name: 'Strip' });
+describe('DELETE /api/work-packages/:id/steps/:stepId', () => {
+  const item = (workPackageId: string, id: string, position: number): WorkItem =>
+    workItemRow({ id, workPackageId, position, name: 'Strip' });
 
   it('removes a step nothing points at, answering 204', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
-      method: 'DELETE',
-    });
+    const res = await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
+      token,
+      {
+        method: 'DELETE',
+      },
+    );
 
     expect(res.status).toBe(204);
-    expect(await stepStore.findById(project.qaId)).toBeNull();
+    expect(await stepStore.findById(workPackage.qaId)).toBeNull();
   });
 
   it('refuses with 409 and the counts, then removes on the cascade', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    await workItems.insert(item(project.id, 'strip', 10), [], wrote());
-    await estimates.set({ workItemId: 'strip', stepId: project.qaId, ...DAYS }, wrote());
+    const workPackage = await newWorkPackage(token);
+    await workItems.insert(item(workPackage.id, 'strip', 10), [], wrote());
+    await estimates.set({ workItemId: 'strip', stepId: workPackage.qaId, ...DAYS }, wrote());
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', project.qaId, ada.id, wrote());
+    await directory.assign('strip', workPackage.qaId, ada.id, wrote());
 
-    const refused = await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
-      method: 'DELETE',
-    });
+    const refused = await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
+      token,
+      {
+        method: 'DELETE',
+      },
+    );
 
     expect(refused.status).toBe(409);
     expect(await refused.json()).toEqual({
@@ -656,141 +703,153 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
         assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
       },
     });
-    expect(await stepStore.findById(project.qaId)).not.toBeNull();
+    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
 
     const confirmed = await send(
-      `/api/projects/${project.id}/steps/${project.qaId}?cascade=true`,
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
       token,
       { method: 'DELETE' },
     );
 
     expect(confirmed.status).toBe(204);
-    expect(await stepStore.findById(project.qaId)).toBeNull();
-    expect(await estimates.listByProject(project.id)).toEqual([]);
-    // The project moved once for the removal, on top of the seed's zero.
-    const after = await projects.findById(project.id);
+    expect(await stepStore.findById(workPackage.qaId)).toBeNull();
+    expect(await estimates.listByWorkPackage(workPackage.id)).toEqual([]);
+    // The work package moved once for the removal, on top of the seed's zero.
+    const after = await workPackages.findById(workPackage.id);
     expect(after?.revision).toBe(1);
   });
 
-  it('answers 404 for a step that is not there and 403 on a project the caller may not write to', async () => {
+  it('answers 404 for a step that is not there and 403 on a work package the caller may not write to', async () => {
     const owner = await register('owner');
     const stranger = await register('stranger');
-    const project = await newProject(owner);
-    await send(`/api/projects/${project.id}`, owner, {
+    const workPackage = await newWorkPackage(owner);
+    await send(`/api/work-packages/${workPackage.id}`, owner, {
       method: 'PATCH',
       body: JSON.stringify({ restricted: true }),
     });
 
     const missing = await send(
-      `/api/projects/${project.id}/steps/${crypto.randomUUID()}?cascade=true`,
+      `/api/work-packages/${workPackage.id}/steps/${crypto.randomUUID()}?cascade=true`,
       owner,
       { method: 'DELETE' },
     );
     expect(missing.status).toBe(404);
 
     const theirs = await send(
-      `/api/projects/${project.id}/steps/${project.qaId}?cascade=true`,
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
       stranger,
       { method: 'DELETE' },
     );
     expect(theirs.status).toBe(403);
-    expect(await stepStore.findById(project.qaId)).not.toBeNull();
+    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
   });
 
   it('appends nothing to the account’s undo stack', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const strip = await newWorkItem(project.id, token, 'Strip');
-    await planCommand(project.id, token, {
+    const workPackage = await newWorkPackage(token);
+    const strip = await newWorkItem(workPackage.id, token, 'Strip');
+    await planCommand(workPackage.id, token, {
       kind: 'patchWorkItem',
       workItemId: strip,
       patch: { name: 'Strip the paint' },
     });
 
-    await addStep(project.id, token, 'Design');
-    await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, { method: 'DELETE' });
+    await addStep(workPackage.id, token, 'Design');
+    await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`, token, {
+      method: 'DELETE',
+    });
 
     // The step changes are not on the stack, so the key still reaches the
-    // rename — as the project's start date behaves, and for the same reason:
+    // rename — as the work package's start date behaves, and for the same reason:
     // there is no compensating command for a step that took estimates with it.
-    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
+      method: 'POST',
+    });
     expect(undone.status).toBe(200);
     expect(((await undone.json()) as { done: string }).done).toContain('rename');
   });
 
   it('leaves an undo whose step has gone refusing as stale, not writing', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const strip = await newWorkItem(project.id, token, 'Strip');
-    await planCommand(project.id, token, {
+    const workPackage = await newWorkPackage(token);
+    const strip = await newWorkItem(workPackage.id, token, 'Strip');
+    await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: strip,
-      stepId: project.qaId,
+      stepId: workPackage.qaId,
       days: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
     // Cleared, so the entry on top of the stack is one whose *inverse writes*:
     // undoing it puts the trio back. That is the entry that would reach for a
     // step that is not there.
-    await planCommand(project.id, token, {
+    await planCommand(workPackage.id, token, {
       kind: 'clearEstimate',
       workItemId: strip,
-      stepId: project.qaId,
+      stepId: workPackage.qaId,
     });
 
-    await send(`/api/projects/${project.id}/steps/${project.qaId}?cascade=true`, token, {
-      method: 'DELETE',
-    });
+    await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
+      token,
+      {
+        method: 'DELETE',
+      },
+    );
 
     // The removal moved the work item's revision, so the entry's precondition
     // no longer holds. Without that bump this undo would try to write a trio
     // for a step that is not there — a foreign key error, a 500, on a key
     // somebody pressed to be safe.
-    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
+      method: 'POST',
+    });
     expect(undone.status).toBe(409);
     expect(await undone.json()).toMatchObject({ error: 'stale_undo' });
-    expect(await estimates.listByProject(project.id)).toEqual([]);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toEqual([]);
   });
 
   it('refuses an estimate and an assignee for a step that has gone, rather than 500ing', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const strip = await newWorkItem(project.id, token, 'Strip');
+    const workPackage = await newWorkPackage(token);
+    const strip = await newWorkItem(workPackage.id, token, 'Strip');
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, { method: 'DELETE' });
+    await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`, token, {
+      method: 'DELETE',
+    });
 
     // A tab that was open when somebody else removed the step. Both of these
     // used to reach the foreign key and answer 500 — the request is about a
-    // step that is not in the project, which is the caller's world being out
+    // step that is not in the work package, which is the caller's world being out
     // of date rather than this process being broken.
-    const estimated = await planCommand(project.id, token, {
+    const estimated = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: strip,
-      stepId: project.qaId,
+      stepId: workPackage.qaId,
       days: DAYS,
     });
     expect(estimated.status).toBe(404);
     expect(await estimated.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setEstimate' });
 
-    const assigned = await planCommand(project.id, token, {
+    const assigned = await planCommand(workPackage.id, token, {
       kind: 'setAssignee',
       workItemId: strip,
-      stepId: project.qaId,
+      stepId: workPackage.qaId,
       personId: ada.id,
     });
     expect(assigned.status).toBe(404);
     expect(await assigned.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setAssignee' });
   });
 
-  it('takes estimates for a step added after the project was made', async () => {
+  it('takes estimates for a step added after the work package was made', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const added = await addStep(project.id, token, 'Design');
+    const workPackage = await newWorkPackage(token);
+    const added = await addStep(workPackage.id, token, 'Design');
     const design = (await added.json()) as { step: { id: string } };
-    const strip = await newWorkItem(project.id, token, 'Strip');
+    const strip = await newWorkItem(workPackage.id, token, 'Strip');
 
-    const estimated = await planCommand(project.id, token, {
+    const estimated = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: strip,
       stepId: design.step.id,
@@ -798,40 +857,44 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
     });
 
     expect(estimated.status).toBe(200);
-    const tree = await send(`/api/projects/${project.id}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackage.id}/work-items`, token);
     const body = (await tree.json()) as {
       workItems: { estimates: Record<string, unknown> }[];
     };
     // `STARTING_STEPS` is the seed and not the set: the third step holds
-    // estimates the tree reports beside the two the project was made with.
+    // estimates the tree reports beside the two the work package was made with.
     expect(body.workItems[0]?.estimates).toHaveProperty(design.step.id);
   });
 
   it('takes the cascade only when it is asked for by name', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    await workItems.insert(item(project.id, 'strip', 10), [], wrote());
-    await estimates.set({ workItemId: 'strip', stepId: project.qaId, ...DAYS }, wrote());
+    const workPackage = await newWorkPackage(token);
+    await workItems.insert(item(workPackage.id, 'strip', 10), [], wrote());
+    await estimates.set({ workItemId: 'strip', stepId: workPackage.qaId, ...DAYS }, wrote());
 
     // Anything other than `true` is not a confirmation. A truthy-looking value
     // taken as consent is how a step goes with its estimates on a request
     // nobody meant as the second one.
-    const res = await send(`/api/projects/${project.id}/steps/${project.qaId}?cascade=1`, token, {
-      method: 'DELETE',
-    });
+    const res = await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=1`,
+      token,
+      {
+        method: 'DELETE',
+      },
+    );
 
     expect(res.status).toBe(409);
-    expect(await stepStore.findById(project.qaId)).not.toBeNull();
+    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
   });
 });
 
 it('refuses undeclared name-body fields and query keys before changing steps', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
-  const before = await stepStore.listByProject(project.id);
+  const workPackage = await newWorkPackage(token);
+  const before = await stepStore.listByWorkPackage(workPackage.id);
   for (const [method, path] of [
-    ['POST', `/api/projects/${project.id}/steps`],
-    ['PATCH', `/api/projects/${project.id}/steps/${project.qaId}`],
+    ['POST', `/api/work-packages/${workPackage.id}/steps`],
+    ['PATCH', `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`],
   ]) {
     const extraBody = await send(path, token, {
       method,
@@ -839,27 +902,27 @@ it('refuses undeclared name-body fields and query keys before changing steps', a
     });
     expect(extraBody.status).toBe(422);
     expect(await extraBody.json()).toEqual({ error: 'invalid_body' });
-    expect(await stepStore.listByProject(project.id)).toEqual(before);
+    expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
     const extraQuery = await send(`${path}?unexpected=true`, token, {
       method,
       body: JSON.stringify({ name: 'Changed' }),
     });
     expect(extraQuery.status).toBe(400);
     expect(await extraQuery.json()).toEqual({ error: 'invalid_query' });
-    expect(await stepStore.listByProject(project.id)).toEqual(before);
+    expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
   }
 });
 
 it('refuses unknown cascade query keys and undeclared DELETE bodies without deleting usage', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
+  const workPackage = await newWorkPackage(token);
   await workItems.insert(
-    workItemRow({ projectId: project.id, id: 'strict-delete', position: 10 }),
+    workItemRow({ workPackageId: workPackage.id, id: 'strict-delete', position: 10 }),
     [],
     wrote(),
   );
-  await estimates.set({ workItemId: 'strict-delete', stepId: project.qaId, ...DAYS }, wrote());
-  const path = `/api/projects/${project.id}/steps/${project.qaId}?cascade=true`;
+  await estimates.set({ workItemId: 'strict-delete', stepId: workPackage.qaId, ...DAYS }, wrote());
+  const path = `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`;
   for (const [url, body, error] of [
     [`${path}&unexpected=true`, undefined, 'invalid_query'],
     [path, '{}', 'invalid_body'],
@@ -868,39 +931,42 @@ it('refuses unknown cascade query keys and undeclared DELETE bodies without dele
     const refused = await send(url, token, { method: 'DELETE', body });
     expect(refused.status).toBe(400);
     expect(await refused.json()).toEqual({ error });
-    expect(await stepStore.findById(project.qaId)).not.toBeNull();
-    expect(await estimates.listByProject(project.id)).toHaveLength(1);
+    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(1);
   }
 });
 
 it('uses the last repeated cascade value so a final false never confirms deletion', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
+  const workPackage = await newWorkPackage(token);
   await workItems.insert(
-    workItemRow({ projectId: project.id, id: 'duplicate-cascade', position: 10 }),
+    workItemRow({ workPackageId: workPackage.id, id: 'duplicate-cascade', position: 10 }),
     [],
     wrote(),
   );
-  await estimates.set({ workItemId: 'duplicate-cascade', stepId: project.qaId, ...DAYS }, wrote());
-  const path = `/api/projects/${project.id}/steps/${project.qaId}`;
+  await estimates.set(
+    { workItemId: 'duplicate-cascade', stepId: workPackage.qaId, ...DAYS },
+    wrote(),
+  );
+  const path = `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`;
   const refused = await send(`${path}?cascade=true&cascade=false`, token, { method: 'DELETE' });
   expect(refused.status).toBe(409);
-  expect(await stepStore.findById(project.qaId)).not.toBeNull();
-  expect(await estimates.listByProject(project.id)).toHaveLength(1);
+  expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
+  expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(1);
   const confirmed = await send(`${path}?cascade=false&cascade=true`, token, { method: 'DELETE' });
   expect(confirmed.status).toBe(204);
   expect(await confirmed.text()).toBe('');
-  expect(await stepStore.findById(project.qaId)).toBeNull();
-  expect(await estimates.listByProject(project.id)).toEqual([]);
+  expect(await stepStore.findById(workPackage.qaId)).toBeNull();
+  expect(await estimates.listByWorkPackage(workPackage.id)).toEqual([]);
 });
 
 it('keeps name shape refusals distinct from blank names and malformed JSON on both writes', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
-  const before = await stepStore.listByProject(project.id);
+  const workPackage = await newWorkPackage(token);
+  const before = await stepStore.listByWorkPackage(workPackage.id);
   for (const [method, path] of [
-    ['POST', `/api/projects/${project.id}/steps`],
-    ['PATCH', `/api/projects/${project.id}/steps/${project.qaId}`],
+    ['POST', `/api/work-packages/${workPackage.id}/steps`],
+    ['PATCH', `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`],
   ]) {
     for (const [body, status, error] of [
       [undefined, 422, 'invalid_body'],
@@ -912,15 +978,15 @@ it('keeps name shape refusals distinct from blank names and malformed JSON on bo
       const refused = await send(path, token, { method, body });
       expect(refused.status).toBe(status);
       expect(await refused.json()).toEqual({ error });
-      expect(await stepStore.listByProject(project.id)).toEqual(before);
+      expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
     }
   }
 });
 
 it('runs step origin and write-scope policies before parsing, authenticating admitted writes once', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
-  const path = `http://localhost/api/projects/${project.id}/steps`;
+  const workPackage = await newWorkPackage(token);
+  const path = `http://localhost/api/work-packages/${workPackage.id}/steps`;
   const authenticate = spyOn(auth, 'authenticateOrRefuse');
   try {
     const wrongOrigin = await app.handle(
@@ -937,7 +1003,7 @@ it('runs step origin and write-scope policies before parsing, authenticating adm
     expect(wrongOrigin.status).toBe(403);
     expect(await wrongOrigin.json()).toEqual({ error: 'invalid_origin' });
     expect(authenticate).toHaveBeenCalledTimes(0);
-    const written = await send(`/api/projects/${project.id}/steps`, token, {
+    const written = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
       method: 'POST',
       body: '{"name":"Once"}',
     });
@@ -954,14 +1020,14 @@ it('runs step origin and write-scope policies before parsing, authenticating adm
       : { ...account, scopes: ['read'] };
   });
   try {
-    const refused = await send(`/api/projects/${project.id}/steps`, token, {
+    const refused = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
       method: 'POST',
       body: '{',
     });
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({ error: 'insufficient_scope' });
     expect(readScope).toHaveBeenCalledTimes(1);
-    expect((await stepStore.listByProject(project.id)).map((step) => step.name)).toEqual([
+    expect((await stepStore.listByWorkPackage(workPackage.id)).map((step) => step.name)).toEqual([
       'Dev',
       'QA',
       'Once',
@@ -973,10 +1039,10 @@ it('runs step origin and write-scope policies before parsing, authenticating adm
 
 it('preserves URL-encoded and multipart name writes on both step endpoints', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
+  const workPackage = await newWorkPackage(token);
   for (const method of ['POST', 'PATCH']) {
     for (const media of ['urlencoded', 'multipart']) {
-      const path = `/api/projects/${project.id}/steps${method === 'PATCH' ? `/${project.qaId}` : ''}`;
+      const path = `/api/work-packages/${workPackage.id}/steps${method === 'PATCH' ? `/${workPackage.qaId}` : ''}`;
       const name = `${method} ${media}`;
       const body = media === 'urlencoded' ? new URLSearchParams() : new FormData();
       body.append('name', `  ${name}  `);
@@ -997,12 +1063,12 @@ it('preserves URL-encoded and multipart name writes on both step endpoints', asy
 
 it('refuses repeated form names and strict extra form fields without changing steps', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
-  const before = await stepStore.listByProject(project.id);
+  const workPackage = await newWorkPackage(token);
+  const before = await stepStore.listByWorkPackage(workPackage.id);
   for (const method of ['POST', 'PATCH']) {
     for (const media of ['urlencoded', 'multipart']) {
       for (const extra of ['name', 'unexpected']) {
-        const path = `/api/projects/${project.id}/steps${method === 'PATCH' ? `/${project.qaId}` : ''}`;
+        const path = `/api/work-packages/${workPackage.id}/steps${method === 'PATCH' ? `/${workPackage.qaId}` : ''}`;
         const body = media === 'urlencoded' ? new URLSearchParams() : new FormData();
         body.append('name', 'First');
         body.append(extra, 'Second');
@@ -1015,7 +1081,7 @@ it('refuses repeated form names and strict extra form fields without changing st
         );
         expect(reply.status).toBe(422);
         expect(await reply.json()).toEqual({ error: 'invalid_body' });
-        expect(await stepStore.listByProject(project.id)).toEqual(before);
+        expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
       }
     }
   }
@@ -1023,10 +1089,10 @@ it('refuses repeated form names and strict extra form fields without changing st
 
 it('refuses a multipart file as a step name without changing steps', async () => {
   const token = await register('owner');
-  const project = await newProject(token);
-  const before = await stepStore.listByProject(project.id);
+  const workPackage = await newWorkPackage(token);
+  const before = await stepStore.listByWorkPackage(workPackage.id);
   for (const method of ['POST', 'PATCH']) {
-    const path = `/api/projects/${project.id}/steps${method === 'PATCH' ? `/${project.qaId}` : ''}`;
+    const path = `/api/work-packages/${workPackage.id}/steps${method === 'PATCH' ? `/${workPackage.qaId}` : ''}`;
     const body = new FormData();
     body.append('name', new File(['Not a name field'], 'name.txt'));
     const reply = await app.handle(
@@ -1038,19 +1104,19 @@ it('refuses a multipart file as a step name without changing steps', async () =>
     );
     expect(reply.status).toBe(422);
     expect(await reply.json()).toEqual({ error: 'invalid_body' });
-    expect(await stepStore.listByProject(project.id)).toEqual(before);
+    expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
   }
 });
 
-describe('a project step allowance over HTTP', () => {
+describe('a work package step allowance over HTTP', () => {
   async function tree(
-    projectId: string,
+    workPackageId: string,
     token: string,
   ): Promise<{
     steps: { id: string; allowancePercent: number }[];
     workItems: { id: string; finalDays: Record<string, number> }[];
   }> {
-    const res = await send(`/api/projects/${projectId}/work-items`, token);
+    const res = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(res.status).toBe(200);
     return (await res.json()) as {
       steps: { id: string; allowancePercent: number }[];
@@ -1058,64 +1124,66 @@ describe('a project step allowance over HTTP', () => {
     };
   }
 
-  async function qaAllowance(projectId: string, qaId: string, token: string): Promise<number> {
-    const held = (await tree(projectId, token)).steps.find((step) => step.id === qaId);
+  async function qaAllowance(workPackageId: string, qaId: string, token: string): Promise<number> {
+    const held = (await tree(workPackageId, token)).steps.find((step) => step.id === qaId);
     if (held === undefined) throw new Error('QA is gone');
     return held.allowancePercent;
   }
 
   const patchAllowance = (
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     token: string,
     allowancePercent: unknown,
   ): Promise<Response> =>
-    send(`/api/projects/${projectId}/steps/${stepId}`, token, {
+    send(`/api/work-packages/${workPackageId}/steps/${stepId}`, token, {
       method: 'PATCH',
       body: JSON.stringify({ allowancePercent }),
     });
 
   it('sets the allowance, charges the estimate and undoes in one step', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const leaf = await newWorkItem(project.id, token, 'Strip the roof');
-    await planCommand(project.id, token, {
+    const workPackage = await newWorkPackage(token);
+    const leaf = await newWorkItem(workPackage.id, token, 'Strip the roof');
+    await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: leaf,
-      stepId: project.qaId,
+      stepId: workPackage.qaId,
       days: { optimistic: 1.1, realistic: 1.1, pessimistic: 1.1 },
     });
 
-    const res = await patchAllowance(project.id, project.qaId, token, 30);
+    const res = await patchAllowance(workPackage.id, workPackage.qaId, token, 30);
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       step: {
         estimateUnit: 'workdays' as const,
-        id: project.qaId,
+        id: workPackage.qaId,
         name: 'QA',
         allowancePercent: 30,
       },
     });
-    const charged = (await tree(project.id, token)).workItems.find((row) => row.id === leaf);
-    expect(charged?.finalDays[project.qaId]).toBe(2);
+    const charged = (await tree(workPackage.id, token)).workItems.find((row) => row.id === leaf);
+    expect(charged?.finalDays[workPackage.qaId]).toBe(2);
 
-    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
+      method: 'POST',
+    });
     expect(undone.status).toBe(200);
-    expect(await qaAllowance(project.id, project.qaId, token)).toBe(0);
+    expect(await qaAllowance(workPackage.id, workPackage.qaId, token)).toBe(0);
   });
 
   it('adds a step with an allowance, and a plan read carries every step’s', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const res = await send(`/api/projects/${project.id}/steps`, token, {
+    const res = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
       method: 'POST',
       body: JSON.stringify({ name: 'Review', allowancePercent: 12.5 }),
     });
 
     expect(res.status).toBe(200);
-    const read = await send(`/api/projects/${project.id}`, token);
+    const read = await send(`/api/work-packages/${workPackage.id}`, token);
     const body = (await read.json()) as { steps: { name: string; allowancePercent: number }[] };
     expect(body.steps.map(({ name, allowancePercent }) => [name, allowancePercent])).toEqual([
       ['Dev', 0],
@@ -1126,15 +1194,15 @@ describe('a project step allowance over HTTP', () => {
 
   it('refuses an allowance over 1000% and leaves the step as it was', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
 
-    const patched = await patchAllowance(project.id, project.qaId, token, 1000.01);
+    const patched = await patchAllowance(workPackage.id, workPackage.qaId, token, 1000.01);
     expect(patched.status).toBe(422);
     expect(await patched.json()).toEqual({ error: 'invalid_allowance' });
 
-    const batched = await planCommand(project.id, token, {
+    const batched = await planCommand(workPackage.id, token, {
       kind: 'setStepAllowance',
-      stepId: project.qaId,
+      stepId: workPackage.qaId,
       allowancePercent: 1000.01,
     });
     expect(batched.status).toBe(400);
@@ -1143,43 +1211,49 @@ describe('a project step allowance over HTTP', () => {
       at: 0,
       kind: 'setStepAllowance',
     });
-    expect(await qaAllowance(project.id, project.qaId, token)).toBe(0);
+    expect(await qaAllowance(workPackage.id, workPackage.qaId, token)).toBe(0);
   });
 
   it('charges a later command in the same batch at the edited allowance', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const leaf = await newWorkItem(project.id, token, 'Sand the beams');
+    const workPackage = await newWorkPackage(token);
+    const leaf = await newWorkItem(workPackage.id, token, 'Sand the beams');
 
-    const committed = await send(`/api/projects/${project.id}/commands`, token, {
+    const committed = await send(`/api/work-packages/${workPackage.id}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [
-          { kind: 'setStepAllowance', stepId: project.qaId, allowancePercent: 30 },
+          { kind: 'setStepAllowance', stepId: workPackage.qaId, allowancePercent: 30 },
           {
             kind: 'setEstimate',
             workItemId: leaf,
-            stepId: project.qaId,
+            stepId: workPackage.qaId,
             days: { optimistic: 2, realistic: 2, pessimistic: 2 },
           },
         ],
       }),
     });
     expect(committed.status).toBe(200);
-    const charged = (await tree(project.id, token)).workItems.find((row) => row.id === leaf);
-    expect(charged?.finalDays[project.qaId]).toBe(3);
+    const charged = (await tree(workPackage.id, token)).workItems.find((row) => row.id === leaf);
+    expect(charged?.finalDays[workPackage.qaId]).toBe(3);
   });
 
   it('refuses an allowance undo after the step was removed', async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    expect((await patchAllowance(project.id, project.qaId, token, 30)).status).toBe(200);
-    const removed = await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
-      method: 'DELETE',
-    });
+    const workPackage = await newWorkPackage(token);
+    expect((await patchAllowance(workPackage.id, workPackage.qaId, token, 30)).status).toBe(200);
+    const removed = await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
+      token,
+      {
+        method: 'DELETE',
+      },
+    );
     expect(removed.status).toBe(204);
 
-    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
+      method: 'POST',
+    });
 
     expect(undone.status).toBe(409);
     expect(await undone.json()).toMatchObject({ error: 'stale_undo' });
@@ -1189,9 +1263,9 @@ describe('a project step allowance over HTTP', () => {
 describe('estimate unit boundary', () => {
   it('creates a minute step and absent unit reads workdays', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    expect(await stepStore.findById(project.devId)).toMatchObject({ estimateUnit: 'workdays' });
-    const response = await send(`/api/projects/${project.id}/steps`, token, {
+    const workPackage = await newWorkPackage(token);
+    expect(await stepStore.findById(workPackage.devId)).toMatchObject({ estimateUnit: 'workdays' });
+    const response = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
       method: 'POST',
       body: JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
     });
@@ -1200,9 +1274,9 @@ describe('estimate unit boundary', () => {
   });
   it('refuses an unknown unit and changing a unit over three estimates, then changes after clearing', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     const patch = (unit: string) =>
-      send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+      send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
         method: 'PATCH',
         body: JSON.stringify({ estimateUnit: unit }),
       });
@@ -1210,13 +1284,13 @@ describe('estimate unit boundary', () => {
     expect(unknown.status).toBe(422);
     expect(await unknown.json()).toEqual({ error: 'invalid_estimate_unit' });
     for (const name of ['A', 'B', 'C']) {
-      const id = await newWorkItem(project.id, token, name);
+      const id = await newWorkItem(workPackage.id, token, name);
       expect(
         (
-          await planCommand(project.id, token, {
+          await planCommand(workPackage.id, token, {
             kind: 'setEstimate',
             workItemId: id,
-            stepId: project.devId,
+            stepId: workPackage.devId,
             days: { optimistic: 1, realistic: 2, pessimistic: 3 },
           })
         ).status,
@@ -1225,13 +1299,13 @@ describe('estimate unit boundary', () => {
     const conflict = await patch('minutes');
     expect(conflict.status).toBe(409);
     expect(await conflict.json()).toEqual({ error: 'estimates_present', count: 3 });
-    for (const row of await workItems.listByProject(project.id))
+    for (const row of await workItems.listByWorkPackage(workPackage.id))
       expect(
         (
-          await planCommand(project.id, token, {
+          await planCommand(workPackage.id, token, {
             kind: 'clearEstimate',
             workItemId: row.id,
-            stepId: project.devId,
+            stepId: workPackage.devId,
           })
         ).status,
       ).toBe(200);
@@ -1241,15 +1315,15 @@ describe('estimate unit boundary', () => {
   });
   it('stores whole minutes and refuses fractional and above-max minute commands atomically', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const added = await send(`/api/projects/${project.id}/steps`, token, {
+    const workPackage = await newWorkPackage(token);
+    const added = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
       method: 'POST',
       body: JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
     });
     expect(added.status).toBe(200);
     const { step } = (await added.json()) as { step: Step };
-    const id = await newWorkItem(project.id, token, 'A');
-    const initial = await planCommand(project.id, token, {
+    const id = await newWorkItem(workPackage.id, token, 'A');
+    const initial = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: id,
       stepId: step.id,
@@ -1267,7 +1341,7 @@ describe('estimate unit boundary', () => {
       [1.5, 'minutes_not_integer'],
       [21_474_836_161, 'minutes_above_max'],
     ] as const) {
-      const response = await send(`/api/projects/${project.id}/commands`, token, {
+      const response = await send(`/api/work-packages/${workPackage.id}/commands`, token, {
         method: 'POST',
         body: JSON.stringify({
           commands: [
@@ -1291,12 +1365,12 @@ describe('estimate unit boundary', () => {
   });
   it('refuses workday overflow after structural parsing with the command index', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const id = await newWorkItem(project.id, token, 'A');
-    const response = await planCommand(project.id, token, {
+    const workPackage = await newWorkPackage(token);
+    const id = await newWorkItem(workPackage.id, token, 'A');
+    const response = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: id,
-      stepId: project.devId,
+      stepId: workPackage.devId,
       days: { optimistic: 44_739_243, realistic: 44_739_243, pessimistic: 44_739_243 },
     });
     expect(response.status).toBe(422);
@@ -1308,61 +1382,67 @@ describe('estimate unit boundary', () => {
   });
   it('refuses undo that would restore an estimate under a changed unit', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const id = await newWorkItem(project.id, token, 'A');
+    const workPackage = await newWorkPackage(token);
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: { optimistic: 2, realistic: 2, pessimistic: 2 },
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'clearEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
         })
       ).status,
     ).toBe(200);
-    const changed = await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({ estimateUnit: 'minutes' }),
-    });
+    const changed = await send(
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`,
+      token,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ estimateUnit: 'minutes' }),
+      },
+    );
     expect(changed.status).toBe(200);
-    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
+      method: 'POST',
+    });
     expect(undone.status).toBe(409);
     expect(await undone.json()).toMatchObject({ error: 'stale_undo' });
-    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
   });
 
   it('reads charged minutes beside the workday figure and places half a day', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
       ).status,
     ).toBe(200);
-    const id = await newWorkItem(project.id, token, 'A');
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: { optimistic: 240, realistic: 240, pessimistic: 240 },
         })
       ).status,
     ).toBe(200);
-    const response = await send(`/api/projects/${project.id}/work-items`, token);
+    const response = await send(`/api/work-packages/${workPackage.id}/work-items`, token);
     expect(response.status).toBe(200);
     const payload = (await response.json()) as {
       workItems: {
@@ -1373,128 +1453,128 @@ describe('estimate unit boundary', () => {
       }[];
     };
     const row = payload.workItems.find((each) => each.id === id);
-    expect(row?.charged[project.devId]).toEqual({ unit: 'minutes', minutes: 240 });
-    expect(row?.finalDays[project.devId]).toBe(0.5);
+    expect(row?.charged[workPackage.devId]).toEqual({ unit: 'minutes', minutes: 240 });
+    expect(row?.finalDays[workPackage.devId]).toBe(0.5);
     expect(row?.schedule.duration).toBe(0.5);
   });
 
   it('accepts a whole-minute estimate above the workday maximum', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
       ).status,
     ).toBe(200);
-    const id = await newWorkItem(project.id, token, 'A');
-    const response = await planCommand(project.id, token, {
+    const id = await newWorkItem(workPackage.id, token, 'A');
+    const response = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: id,
-      stepId: project.devId,
+      stepId: workPackage.devId,
       days: { optimistic: 44_739_243, realistic: 44_739_243, pessimistic: 44_739_243 },
     });
     expect(response.status).toBe(200);
-    expect(await estimates.listByProject(project.id)).toMatchObject([
+    expect(await estimates.listByWorkPackage(workPackage.id)).toMatchObject([
       { optimistic: 44_739_243, realistic: 44_739_243, pessimistic: 44_739_243 },
     ]);
   });
 
   it('refuses a minute inverse after changing back to workdays', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
       ).status,
     ).toBe(200);
-    const id = await newWorkItem(project.id, token, 'A');
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: DAYS,
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'clearEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'workdays' }),
         })
       ).status,
     ).toBe(200);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      409,
-    );
-    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(409);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
   });
 
   it('refuses redo after changing the unit of its cleared estimate', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const id = await newWorkItem(project.id, token, 'A');
+    const workPackage = await newWorkPackage(token);
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: DAYS,
         })
       ).status,
     ).toBe(200);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
       ).status,
     ).toBe(200);
-    expect((await send(`/api/projects/${project.id}/redo`, token, { method: 'POST' })).status).toBe(
-      409,
-    );
-    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/redo`, token, { method: 'POST' })).status,
+    ).toBe(409);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
   });
 
   it('refuses restoring a deleted estimated subtree after its empty step changes unit', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const id = await newWorkItem(project.id, token, 'A');
+    const workPackage = await newWorkPackage(token);
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: DAYS,
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'deleteWorkItem',
           workItemId: id,
           strategy: 'cascade',
@@ -1503,38 +1583,38 @@ describe('estimate unit boundary', () => {
     ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
       ).status,
     ).toBe(200);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      409,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(409);
     expect(await workItems.findById(id)).toBeNull();
-    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
   });
 
   it('refuses a mixed batch before its inverse rename and keeps an older independent entry reachable', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const estimated = await newWorkItem(project.id, token, 'Estimated');
+    const workPackage = await newWorkPackage(token);
+    const estimated = await newWorkItem(workPackage.id, token, 'Estimated');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: estimated,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: DAYS,
         })
       ).status,
     ).toBe(200);
-    const renamed = await newWorkItem(project.id, token, 'Original');
-    const older = await newWorkItem(project.id, token, 'Independent');
+    const renamed = await newWorkItem(workPackage.id, token, 'Original');
+    const older = await newWorkItem(workPackage.id, token, 'Independent');
     expect(
       (
-        await send(`/api/projects/${project.id}/commands`, token, {
+        await send(`/api/work-packages/${workPackage.id}/commands`, token, {
           method: 'POST',
           body: JSON.stringify({
             commands: [
@@ -1547,7 +1627,7 @@ describe('estimate unit boundary', () => {
     ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
@@ -1560,42 +1640,44 @@ describe('estimate unit boundary', () => {
       .query<{ id: string }, []>('SELECT id FROM command_journal ORDER BY seq')
       .all();
     const events = connection.query('SELECT * FROM plan_event').all();
-    const response = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    const response = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
+      method: 'POST',
+    });
     expect(response.status).toBe(409);
     expect(await workItems.findById(renamed)).toEqual(before);
     expect(await workItems.findById(estimated)).toBeNull();
-    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
     expect(broadcast.published.length).toBe(emitted);
     expect(connection.query('SELECT * FROM plan_event').all()).toEqual(events);
     expect(
       connection.query<{ id: string }, []>('SELECT id FROM command_journal ORDER BY seq').all(),
     ).toEqual(entries.slice(0, -1));
     connection.close();
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     expect(await workItems.findById(older)).toBeNull();
   });
 
   it('retains minute bindings through chained undo redo and rebase', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
+    const workPackage = await newWorkPackage(token);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
       ).status,
     ).toBe(200);
-    const id = await newWorkItem(project.id, token, 'A');
+    const id = await newWorkItem(workPackage.id, token, 'A');
     for (const point of [30, 60])
       expect(
         (
-          await planCommand(project.id, token, {
+          await planCommand(workPackage.id, token, {
             kind: 'setEstimate',
             workItemId: id,
-            stepId: project.devId,
+            stepId: workPackage.devId,
             days: { optimistic: point, realistic: point, pessimistic: point },
           })
         ).status,
@@ -1607,9 +1689,10 @@ describe('estimate unit boundary', () => {
       ['redo', 60],
     ] as const) {
       expect(
-        (await send(`/api/projects/${project.id}/${direction}`, token, { method: 'POST' })).status,
+        (await send(`/api/work-packages/${workPackage.id}/${direction}`, token, { method: 'POST' }))
+          .status,
       ).toBe(200);
-      const stored = await estimates.listByProject(project.id);
+      const stored = await estimates.listByWorkPackage(workPackage.id);
       if (point === null) expect(stored).toHaveLength(0);
       else
         expect(stored).toMatchObject([{ optimistic: point, realistic: point, pessimistic: point }]);
@@ -1618,24 +1701,24 @@ describe('estimate unit boundary', () => {
 
   it('treats legacy absent bindings as workdays and refuses malformed present bindings', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const id = await newWorkItem(project.id, token, 'A');
+    const workPackage = await newWorkPackage(token);
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: DAYS,
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'clearEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
         })
       ).status,
     ).toBe(200);
@@ -1653,57 +1736,57 @@ describe('estimate unit boundary', () => {
         latest.id,
       ]);
       expect(
-        (await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status,
+        (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
       ).toBe(500);
-      expect(await estimates.listByProject(project.id)).toHaveLength(0);
+      expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
     }
     delete preconditions['estimateUnits'];
     connection.run('UPDATE command_journal SET preconditions=? WHERE id=?', [
       JSON.stringify(preconditions),
       latest.id,
     ]);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
-    expect((await send(`/api/projects/${project.id}/redo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/redo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     connection.run('UPDATE command_journal SET preconditions=? WHERE id=?', [
       JSON.stringify(preconditions),
       latest.id,
     ]);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
       ).status,
     ).toBe(200);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      409,
-    );
-    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(409);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
     connection.close();
   });
 
   it('allows same-unit unrelated-step and away-and-back edits before replay', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const id = await newWorkItem(project.id, token, 'A');
+    const workPackage = await newWorkPackage(token);
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: DAYS,
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'workdays', name: 'Build' }),
         })
@@ -1711,7 +1794,7 @@ describe('estimate unit boundary', () => {
     ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ estimateUnit: 'minutes' }),
         })
@@ -1719,56 +1802,56 @@ describe('estimate unit boundary', () => {
     ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ allowancePercent: 30 }),
         })
       ).status,
     ).toBe(200);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'clearEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
         })
       ).status,
     ).toBe(200);
     for (const unit of ['minutes', 'workdays'])
       expect(
         (
-          await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
             method: 'PATCH',
             body: JSON.stringify({ estimateUnit: unit }),
           })
         ).status,
       ).toBe(200);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
-    expect(await estimates.listByProject(project.id)).toMatchObject([DAYS]);
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toMatchObject([DAYS]);
   });
 
   it('binds first-child hand-down and last-child hand-up estimate arrays', async () => {
     for (const transfer of ['down', 'up'] as const) {
       const token = await register(`unit-owner-${transfer}`);
-      const project = await newProject(token);
-      const parent = await newWorkItem(project.id, token, 'Parent');
+      const workPackage = await newWorkPackage(token);
+      const parent = await newWorkItem(workPackage.id, token, 'Parent');
       if (transfer === 'down')
         expect(
           (
-            await planCommand(project.id, token, {
+            await planCommand(workPackage.id, token, {
               kind: 'setEstimate',
               workItemId: parent,
-              stepId: project.devId,
+              stepId: workPackage.devId,
               days: DAYS,
             })
           ).status,
         ).toBe(200);
-      const created = await planCommand(project.id, token, {
+      const created = await planCommand(workPackage.id, token, {
         kind: 'createWorkItem',
         parentId: parent,
         name: 'Child',
@@ -1785,41 +1868,41 @@ describe('estimate unit boundary', () => {
       } else {
         expect(
           (
-            await planCommand(project.id, token, {
+            await planCommand(workPackage.id, token, {
               kind: 'setEstimate',
               workItemId: child,
-              stepId: project.devId,
+              stepId: workPackage.devId,
               days: DAYS,
             })
           ).status,
         ).toBe(200);
         expect(
           (
-            await send(`/api/projects/${project.id}/commands`, token, {
+            await send(`/api/work-packages/${workPackage.id}/commands`, token, {
               method: 'POST',
               body: JSON.stringify({
                 commands: [
                   { kind: 'deleteWorkItem', workItemId: child, strategy: 'cascade' },
-                  { kind: 'clearEstimate', workItemId: parent, stepId: project.devId },
+                  { kind: 'clearEstimate', workItemId: parent, stepId: workPackage.devId },
                 ],
               }),
             })
           ).status,
         ).toBe(200);
       }
-      expect(await estimates.listByProject(project.id)).toHaveLength(0);
+      expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
       expect(
         (
-          await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
             method: 'PATCH',
             body: JSON.stringify({ estimateUnit: 'minutes' }),
           })
         ).status,
       ).toBe(200);
       expect(
-        (await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status,
+        (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
       ).toBe(409);
-      expect(await estimates.listByProject(project.id)).toHaveLength(0);
+      expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
       expect(await workItems.findById(parent)).not.toBeNull();
       expect((await workItems.findById(child)) === null).toBe(transfer === 'up');
     }
@@ -1827,87 +1910,84 @@ describe('estimate unit boundary', () => {
 
   it('refuses restoring an estimate whose bound step was removed', async () => {
     const token = await register('unit-owner');
-    const project = await newProject(token);
-    const id = await newWorkItem(project.id, token, 'A');
+    const workPackage = await newWorkPackage(token);
+    const id = await newWorkItem(workPackage.id, token, 'A');
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'setEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
           days: DAYS,
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await planCommand(project.id, token, {
+        await planCommand(workPackage.id, token, {
           kind: 'clearEstimate',
           workItemId: id,
-          stepId: project.devId,
+          stepId: workPackage.devId,
         })
       ).status,
     ).toBe(200);
     expect(
       (
-        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'DELETE',
         })
       ).status,
     ).toBe(204);
-    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
-      409,
-    );
-    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(
+      (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
+    ).toBe(409);
+    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
   });
 });
 
 for (const cascade of [false, true])
   it(`returns 409 for retained sparse step parallelism (cascade=${String(cascade)})`, async () => {
     const token = await register('owner');
-    const project = await newProject(token);
-    const strip = await newWorkItem(project.id, token, 'Strip');
-    const owner = await projects.findById(project.id);
-    if (owner === null) throw new Error('missing fixture project');
+    const workPackage = await newWorkPackage(token);
+    const strip = await newWorkItem(workPackage.id, token, 'Strip');
+    const owner = await workPackages.findById(workPackage.id);
+    if (owner === null) throw new Error('missing fixture work package');
     const parallels = new StepParallelRepository(openDrizzle(join(dir, 'test.db')), OPEN);
-    await parallels.set(
-      { workItemId: strip, stepId: project.qaId, maxParallel: 1 },
-      { at: 1, by: owner.ownerId },
-    );
+    await parallels.set({ workItemId: strip, stepId: workPackage.qaId, maxParallel: 1 }, wrote());
     const refused = await send(
-      `/api/projects/${project.id}/steps/${project.qaId}?cascade=${String(cascade)}`,
+      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=${String(cascade)}`,
       token,
       { method: 'DELETE' },
     );
     expect(refused.status).toBe(409);
     expect(await refused.json()).toEqual({
       error: 'referenced_by_step_parallel',
-      nodes: [{ workItemId: strip, stepId: project.qaId }],
+      nodes: [{ workItemId: strip, stepId: workPackage.qaId }],
     });
-    expect(await stepStore.findById(project.qaId)).not.toBeNull();
+    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
   });
 
-it('does not disclose sparse references to outsiders or a foreign project', async () => {
+it('does not disclose sparse references to outsiders or a foreign work package', async () => {
   const token = await register('owner');
   const outsider = await register('outsider');
-  const project = await newProject(token);
-  const foreign = await newProject(token);
-  const strip = await newWorkItem(project.id, token, 'Strip');
-  await send(`/api/projects/${project.id}`, token, {
+  const workPackage = await newWorkPackage(token);
+  const foreign = await newWorkPackage(token);
+  const strip = await newWorkItem(workPackage.id, token, 'Strip');
+  await send(`/api/work-packages/${workPackage.id}`, token, {
     method: 'PATCH',
     body: JSON.stringify({ restricted: true }),
   });
   const parallels = new StepParallelRepository(openDrizzle(join(dir, 'test.db')), OPEN);
-  await parallels.set({ workItemId: strip, stepId: project.qaId, maxParallel: 1 }, wrote());
+  await parallels.set({ workItemId: strip, stepId: workPackage.qaId, maxParallel: 1 }, wrote());
   const denied = await send(
-    `/api/projects/${project.id}/steps/${project.qaId}?cascade=true`,
+    `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
     outsider,
     { method: 'DELETE' },
   );
   expect(denied.status).toBe(403);
   expect(await denied.json()).toEqual({ error: 'forbidden' });
   const missing = await send(
-    `/api/projects/${foreign.id}/steps/${project.qaId}?cascade=true`,
+    `/api/work-packages/${foreign.id}/steps/${workPackage.qaId}?cascade=true`,
     token,
     { method: 'DELETE' },
   );

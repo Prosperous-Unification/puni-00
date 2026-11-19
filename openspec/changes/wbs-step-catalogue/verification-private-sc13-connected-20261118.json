@@ -1,0 +1,816 @@
+{
+  "scope": "Private SC13 connected saved comparison; no canonical117 or full SC13 claim.",
+  "source": {
+    "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+    "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+    "bytes": 5158743,
+    "mode": 384
+  },
+  "canonical": {
+    "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+    "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+    "bytes": 145510,
+    "mode": 384
+  },
+  "plan": {
+    "path": "/tmp/puni-step-catalogue-sc13-connected-pair-effects-v1/plan-v2.json",
+    "sha256": "9246ea5acd3b144c43098770f8cb3d5b72b8c7ec4c17dd43c021e332c820b59a",
+    "bytes": 11707,
+    "mode": 384
+  },
+  "runs": [
+    {
+      "id": "first-connected-red",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^resolves merged step identities only in connected saved comparison meaning while retaining original ready-stage evidence$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-red-v1/source-pins.json",
+          "sha256": "0e027ce6dafb3729cfe7498603e5a3cc5ec97f8e813c2f0c8fa91c94c3cfda94",
+          "bytes": 5158491,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-budget-publication-v1/next-source-pins.json",
+          "sha256": "f91ecd5910349d88054c00cd8cea41503a3bbd5c1c88af515e305f9b4578071d",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-red-v1/red/native.log",
+        "sha256": "f3eb190d894863519f0e664c666c9cdc6f70deff60756751f093371df72dfdd3",
+        "bytes": 1043,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-red-v1/red/native.receipt.json",
+        "sha256": "73b82113e670de5e5b9fbfa3e25c3e0376a76391ab2b99e1b5a346c4ee1423d3",
+        "bytes": 1514,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-red-v1/red/native.validation.json",
+        "sha256": "7913437e28802b1bf7facf9b8729539cd44e9857acac1ff6cae8b02f81af67fc",
+        "bytes": 1334,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 0,
+        "failed": 1,
+        "filtered": 90,
+        "expects": 68
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 1,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    },
+    {
+      "id": "checkpoint-connected-green",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^resolves merged step identities only in connected saved comparison meaning while retaining original ready-stage evidence$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/source-pins.json",
+          "sha256": "fc061100b5ec2840a40433da16b7521d4dceaeb11f5d6beed96fd03e4a32dadf",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/connected/native.log",
+        "sha256": "fee881920df2e9906c13603084a529278f5bdf98488ffb10ffae3b970e0ad6e6",
+        "bytes": 325,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/connected/native.receipt.json",
+        "sha256": "d5634c43ea0205916e37629bc2efc497605e1cdfd10ef5650eb20c24f1451aa8",
+        "bytes": 1549,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/connected/native.validation.json",
+        "sha256": "1baec6a6ea1a55e99cce2d5140a92861ec1495a08a9db6778ff33d05dc43a047",
+        "bytes": 1391,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 1,
+        "failed": 0,
+        "filtered": 90,
+        "expects": 87
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 0,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    },
+    {
+      "id": "first-four-hazard-red",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "--test-name-pattern",
+          "^step-resolved connected (input canonicalizes identity-keyed sets while preserving workflow and stage order|schedule canonicalizes identity-keyed sets while preserving workflow and stage order|same-old-id packets retain inputHash-only differences under a relevant roster|same-old-id packets retain questionHash-only differences under a relevant roster)$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/source-pins.json",
+          "sha256": "fc061100b5ec2840a40433da16b7521d4dceaeb11f5d6beed96fd03e4a32dadf",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/hazards/native.log",
+        "sha256": "c118ebd8cce3ac5d0bf89324406eba03a56ee1bf072b284db3b612b2aa82d0fb",
+        "bytes": 23995,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/hazards/native.receipt.json",
+        "sha256": "eceefbb12ef7b1421c21bda17845815e23453f18d9c7f74205c42d771bcccc52",
+        "bytes": 1791,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-checkpoint-live-v1/hazards/native.validation.json",
+        "sha256": "12651aad0825d87575b8ba9efa6bd3564a770636e6196dfd4ed2fcaaf6df52e9",
+        "bytes": 1387,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 0,
+        "failed": 4,
+        "filtered": 20,
+        "expects": 24
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 1,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    },
+    {
+      "id": "first-whitespace-red",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "--test-name-pattern",
+          "^step-resolved connected same-old-id packets retain whitespace-only packet differences under a relevant roster$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-whitespace-live-v1/source-pins.json",
+          "sha256": "2bffee6707514b5342f93addc65b50ae89f1f5dcfd73034ef5ec26dcb24b3bb6",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-whitespace-live-v1/whitespace/native.log",
+        "sha256": "2c4963961f96dd0c22f25485bd8b4ea4840104317fa0e098f753340e3eca0a8d",
+        "bytes": 3966,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-whitespace-live-v1/whitespace/native.receipt.json",
+        "sha256": "4c8b76ba0014291a7116fc1df313cfaa7f6b16fccc800b9e721e7873b4696f22",
+        "bytes": 1554,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-whitespace-live-v1/whitespace/native.validation.json",
+        "sha256": "22f8b9dbbfbdcb1a76fe5c51479f21307d3e564156181cb0336642ec0419022d",
+        "bytes": 1395,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 0,
+        "failed": 1,
+        "filtered": 24,
+        "expects": 7
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 1,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    },
+    {
+      "id": "corrected-five-group-green",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "--test-name-pattern",
+          "^step-resolved connected ",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+          "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/hazardsAll/native.log",
+        "sha256": "03d8c5a6d3a2f996eefe1d72472540afef215e20672cfb735a1948c4108b3249",
+        "bytes": 816,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/hazardsAll/native.receipt.json",
+        "sha256": "5e8636ad3a8830668e3e3cab84340255149cefcc4a77a8f22a85986b37b929f4",
+        "bytes": 1457,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/hazardsAll/native.validation.json",
+        "sha256": "dd25df7458ef14c9c84872962f3089495884c03617edb5133b4047758bb7deb5",
+        "bytes": 1379,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 5,
+        "failed": 0,
+        "filtered": 20,
+        "expects": 36
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 0,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "One grouped before baseline, not per-case fresh triples."
+    },
+    {
+      "id": "corrected-connected-green",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^resolves merged step identities only in connected saved comparison meaning while retaining original ready-stage evidence$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+          "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/connected/native.log",
+        "sha256": "227ad2f00812b689ebf28cf972423dda90390fcf76a44f2925b52a23c3f15f92",
+        "bytes": 325,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/connected/native.receipt.json",
+        "sha256": "93b8abecb5220712a00f913f7dbdb19423cbb364b2d8cbd4eba82cb4306e0eaa",
+        "bytes": 1539,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/connected/native.validation.json",
+        "sha256": "a7d12f590a91efd563d73aed1936a64106388e25a24dbc83eb3d16069711d4f9",
+        "bytes": 1376,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 1,
+        "failed": 0,
+        "filtered": 90,
+        "expects": 87
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 0,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    },
+    {
+      "id": "corrected-full91-green",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+          "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/full/native.log",
+        "sha256": "61b0bc174b6b66199510b92024c61524eaeb702c3871dec8dc9ae1e24e80f86b",
+        "bytes": 10089,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/full/native.receipt.json",
+        "sha256": "7ed9e9fb43310c52ae85ce78946277b349bfb353b58281b06263edf156d93586",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/full/native.validation.json",
+        "sha256": "4e87f6b3ba894992c7a2ba9e0b9cf1a8f6820156f04d0408af51185cf8faa979",
+        "bytes": 1363,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 91,
+        "failed": 0,
+        "filtered": null,
+        "expects": 2805
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 0,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    },
+    {
+      "id": "S1-fault",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "--test-name-pattern",
+          "^step-resolved connected same-old-id packets retain whitespace-only packet differences under a relevant roster$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+          "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/S1-fault/native.log",
+        "sha256": "1c1cd63ed21e5a7e457460fa585c8c337534e7f13d97477b8f03049aa286c3b5",
+        "bytes": 3966,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/S1-fault/native.receipt.json",
+        "sha256": "82d372fc54076f5ae59ef6c42b4ff29f9b16fe7380024de53efec19a2a74d09e",
+        "bytes": 1542,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/S1-fault/native.validation.json",
+        "sha256": "6f20526c3b0e6a5cf7f623c277490996908f46c06140f256a1d6909730db4b4d",
+        "bytes": 1929,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 0,
+        "failed": 1,
+        "filtered": 24,
+        "expects": 7
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 1,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Only first oracle credited; later raw-preservation tail unreached."
+    },
+    {
+      "id": "S1-restored",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "--test-name-pattern",
+          "^step-resolved connected same-old-id packets retain whitespace-only packet differences under a relevant roster$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+          "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/S1-after/native.log",
+        "sha256": "ba8f53094e273f43ab84b65229c16c1aabbd9c46817159ada24c31765c69c96f",
+        "bytes": 324,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/S1-after/native.receipt.json",
+        "sha256": "1436d034b035d9963ef34fc6a7b5e62a0dca765761a717d053f5d0a5f93163d7",
+        "bytes": 1541,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/S1-after/native.validation.json",
+        "sha256": "091e34d5aa9320dd0b39e392f103e56a0b3158f1fa02d03cec4f785f97b8a0bd",
+        "bytes": 1670,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 1,
+        "failed": 0,
+        "filtered": 24,
+        "expects": 8
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 0,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    },
+    {
+      "id": "Q1-fault",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "--test-name-pattern",
+          "^step-resolved connected same-old-id packets retain questionHash-only differences under a relevant roster$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+          "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/Q1-fault/native.log",
+        "sha256": "c107f8dd3db47687c214a7e7e1475156bb3b5d09fd56e499be648431ddba49f0",
+        "bytes": 1282,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/Q1-fault/native.receipt.json",
+        "sha256": "9850f8025a6b6853da6689fd766b60ccbe86b135781a0e3e2531c15c2a57f41d",
+        "bytes": 1537,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/Q1-fault/native.validation.json",
+        "sha256": "9f30a4bf99f80ff453d16b7ffafe2fcc233951071d3793512a4ea372020b025b",
+        "bytes": 1929,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 0,
+        "failed": 1,
+        "filtered": 24,
+        "expects": 4
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 1,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Only first oracle credited; later raw-preservation tail unreached."
+    },
+    {
+      "id": "Q1-restored",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "--test-name-pattern",
+          "^step-resolved connected same-old-id packets retain questionHash-only differences under a relevant roster$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+        "deadlineMs": 180000
+      },
+      "sourceSnapshots": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-connected-fixed-live-v1/source-pins.json",
+          "sha256": "2f61d682c1d3816d9b402f681d5973ad920261dbf0567938c55a7ab77abde320",
+          "bytes": 5158743,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/Q1-after/native.log",
+        "sha256": "fdf5dde3576a9955cf00c9458c12ba9e1a0e717e88fad031f72f98798796f024",
+        "bytes": 319,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/Q1-after/native.receipt.json",
+        "sha256": "7c207325be317d0bcdfaf9610b1b42a1f04dbce6a353af5012dfeaf18751426c",
+        "bytes": 1536,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/Q1-after/native.validation.json",
+        "sha256": "007c66d623fda12a5103c18cf5767169fe8a50352b1142aee1ef6d41b417578c",
+        "bytes": 1670,
+        "mode": 384
+      },
+      "printed": {
+        "passed": 1,
+        "failed": 0,
+        "filtered": 24,
+        "expects": 5
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "exitCode": 0,
+        "signal": null,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": [],
+        "allInputsMatched": true
+      },
+      "qualification": "Ordinary result on its own source epoch; no whole cutover or gate claim."
+    }
+  ],
+  "restorations": [
+    {
+      "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/S1-restoration.json",
+      "sha256": "048cc15d6fe29830884768833399505349b53b68af9c68fe9cc56ce20ba446e2",
+      "bytes": 1041,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-step-catalogue-sc13-connected-pair-native-v1/Q1-restoration.json",
+      "sha256": "d83789b4da8e8927aab1e993291851e6c7ffa5ae80e21f9b7e60a016ed74db6a",
+      "bytes": 1041,
+      "mode": 384
+    }
+  ]
+}

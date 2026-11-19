@@ -1,13 +1,14 @@
 import type { StepProgressStore, StepWriteOutcome, StoredProgress, WriteStamp } from '@wbs/core';
-import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { step, stepProgress, workItem } from './schema';
-import { writingStep } from './step-reference';
+import { stepProgress, workItem } from './schema';
+import { readSqliteStepWriteIn } from './step-write';
+import { readSqliteProgressIn } from './point-reads';
 
 /**
  * A stated step is a **satellite** of the work item it is on, exactly as an
@@ -28,92 +29,19 @@ export class StepProgressRepository implements StepProgressStore {
     private readonly gate: Gate,
   ) {}
 
-  /**
-   * Every stated step in the project, **in step order** within each work item.
-   *
-   * Ordered for `ActualRepository.listByProject`'s weaker reason and not its
-   * stronger one: folding states is `agree`, which is commutative and
-   * idempotent, so unlike a sum of reals the order cannot change the answer.
-   * What it does change is the order the steps appear in on screen, and two
-   * reads of an unchanged plan must not disagree about that.
-   *
-   * Ordered by the step's **position**, so this hands back the order the work
-   * runs in — the same order the estimates and the actuals come back in, which
-   * is what lets a reader put the three lists side by side.
-   */
-  async listByProject(projectId: string): Promise<StoredProgress[]> {
-    await Promise.resolve();
-    return (
-      this.db
-        .select({
-          workItemId: stepProgress.workItemId,
-          stepId: stepProgress.stepId,
-          state: stepProgress.state,
-          statedAt: stepProgress.statedAt,
-        })
-        .from(stepProgress)
-        // Inner rather than left: `step_progress.step_id` is a foreign key, so a
-        // statement whose step is gone cannot exist — `StepRepository.remove`
-        // deletes them in the same transaction as the step.
-        .innerJoin(step, eq(stepProgress.stepId, step.id))
-        // And the work item, so the project is asked for in the statement that
-        // reads the rows. This was two queries until 2026-09-02 — every work item
-        // id, then `IN (…)` over the lot — which put one bound parameter per row
-        // into the read, four times over per plan read. Inner again, and for the
-        // same reason: `workItemId` is a foreign key.
-        .innerJoin(workItem, eq(stepProgress.workItemId, workItem.id))
-        .where(eq(workItem.projectId, projectId))
-        .orderBy(stepProgress.workItemId, step.position, stepProgress.stepId)
-    );
+  /** Current leaf-resolved SC18 order keeps rendering stable on one captured metadata snapshot. */
+  async listByWorkPackage(workPackageId:string):Promise<StoredProgress[]>{
+    return this.db.transaction(snapshot=>readSqliteProgressIn(snapshot,workPackageId,null));
   }
 
-  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredProgress[]> {
-    if (ids.length === 0) return [];
-    await Promise.resolve();
-    const rows = await this.db
-      .select({
-        workItemId: stepProgress.workItemId,
-        stepId: stepProgress.stepId,
-        state: stepProgress.state,
-        statedAt: stepProgress.statedAt,
-        workItemProjectId: workItem.projectId,
-        stepProjectId: step.projectId,
-        stepPosition: step.position,
-      })
-      .from(stepProgress)
-      .leftJoin(step, eq(stepProgress.stepId, step.id))
-      .leftJoin(workItem, eq(stepProgress.workItemId, workItem.id))
-      .where(
-        and(
-          inArray(stepProgress.workItemId, [...ids]),
-          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
-        ),
-      )
-      .orderBy(stepProgress.workItemId, step.position, stepProgress.stepId);
-    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
-      throw new Error('targeted progress has an invalid work-item reference');
-    }
-    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
-    for (const row of admitted) {
-      if (row.stepProjectId !== projectId || row.stepPosition === null) {
-        throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid step reference`);
-      }
-      if (!isProgressState(row.state)) {
-        throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid state`);
-      }
-      if (typeof row.statedAt !== 'number' || !Number.isFinite(row.statedAt)) {
-        throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid stated time`);
-      }
-    }
-    return admitted.map(({ workItemId, stepId, state, statedAt }) => ({
-      workItemId,
-      stepId,
-      state,
-      statedAt,
-    }));
+  /** Targeted selection excludes other packages, validates retained references, and preserves current leaf order. */
+  async listByWorkItems(workPackageId:string,ids:readonly string[]):Promise<StoredProgress[]>{
+    const retained=[...ids];
+    return this.db.transaction(snapshot=>readSqliteProgressIn(snapshot,workPackageId,retained));
   }
 
-  async listPlacements(projectId: string, ids: readonly string[]) {
+  /** Identity-only persisted group placement retains its existing indexed query and unrequested predecessor. */
+  async listPlacements(workPackageId: string, ids: readonly string[]) {
     if (ids.length === 0) return [];
     const afterId = sql<string | null>`(
       SELECT predecessor.work_item_id FROM step_progress AS predecessor
@@ -121,7 +49,7 @@ export class StepProgressRepository implements StepProgressStore {
         AND EXISTS (
           SELECT 1 FROM work_item AS predecessor_owner
           WHERE predecessor_owner.id = predecessor.work_item_id
-            AND predecessor_owner.project_id = ${projectId}
+            AND predecessor_owner.work_package_id = ${workPackageId}
         )
       ORDER BY predecessor.work_item_id DESC LIMIT 1
     )`;
@@ -129,7 +57,9 @@ export class StepProgressRepository implements StepProgressStore {
       .selectDistinct({ id: stepProgress.workItemId, afterId })
       .from(stepProgress)
       .innerJoin(workItem, eq(stepProgress.workItemId, workItem.id))
-      .where(and(eq(workItem.projectId, projectId), inArray(stepProgress.workItemId, [...ids])))
+      .where(
+        and(eq(workItem.workPackageId, workPackageId), inArray(stepProgress.workItemId, [...ids])),
+      )
       .orderBy(asc(stepProgress.workItemId));
   }
 
@@ -142,21 +72,25 @@ export class StepProgressRepository implements StepProgressStore {
    * today.
    */
   async set(toSet: StoredProgress, stamp: WriteStamp): Promise<StepWriteOutcome> {
-    return await writingStep(this.db, toSet.stepId, async () => {
-      await this.gate.enter(async () => {
-        await Promise.resolve();
-        this.db.transaction((tx) => {
+    const kept=structuredClone(toSet),act={...stamp};
+    return await this.gate.enter(()=>Promise.resolve(
+      this.db.transaction((tx):StepWriteOutcome=>{
+        const decision=readSqliteStepWriteIn(tx,kept.workItemId,kept.stepId);
+        // Proof: removing this refusal made sqlite stepCatalogue.pointWrite:progress-untyped
+        // return written for an unresolved step after its healthy typed write/read/remove.
+        // Restoring the guard returned the same isolated owner to passing.
+        if(decision.kind!=='resolved')return decision.kind;
           tx.insert(stepProgress)
-            .values({ ...toSet, ...auditOnCreate(stamp) })
+            .values({ ...kept, ...auditOnCreate(act) })
             .onConflictDoUpdate({
               target: [stepProgress.workItemId, stepProgress.stepId],
-              set: { state: toSet.state, statedAt: toSet.statedAt, ...auditOnUpdate(stamp) },
+              set: { state: kept.state, statedAt: kept.statedAt, ...auditOnUpdate(act) },
             })
             .run();
-          bumpWorkItems(tx, [toSet.workItemId], stamp);
-        });
-      });
-    });
+          bumpWorkItems(tx, [kept.workItemId], act);
+        return 'written';
+      }),
+    ));
   }
 
   async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {
@@ -211,6 +145,3 @@ export class StepProgressRepository implements StepProgressStore {
   }
 }
 
-function isProgressState(state: unknown): state is 'in_progress' | 'done' {
-  return state === 'in_progress' || state === 'done';
-}

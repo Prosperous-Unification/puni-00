@@ -34,7 +34,7 @@ import {
   type PickerOption,
   pickerOptionId,
 } from './creatable-picker';
-import { DEADLINE_BEFORE_START, deadlineBeforeProjectStart } from './deadline-impossible';
+import { DEADLINE_BEFORE_START, deadlineBeforeWorkPackageStart } from './deadline-impossible';
 import { type PickerEntry } from './dep-picker';
 import { CapturedDependencyDetails, DependencyNavigation } from './dependency-navigation';
 import { DependencyOptions } from './dependency-options';
@@ -135,7 +135,7 @@ export interface DependencyEntry {
 }
 
 export interface PlanCardsProps {
-  projectId: string;
+  workPackageId: string;
   dependencyLookup: DependencyLookup;
   /** The rows on screen, in the order and the expansion the table model gives them. */
   rows: readonly CardRow[];
@@ -286,10 +286,10 @@ export interface PlanCardsProps {
    * wait.
    *
    * **`null` means one thing only.** Not "this row waits for nothing" — that
-   * row says `Starts with the project`, in words, like every other floor. It
+   * row says `Starts with the workPackage`, in words, like every other floor. It
    * means the payload broke a promise this sentence is built from, the row
    * `startFloorByRow` skipped, and the card then says exactly what it said
-   * before this existed. A line suppressed for tidiness on the project-start
+   * before this existed. A line suppressed for tidiness on the work-package-start
    * floor would collapse those two absences into one, and a reader could no
    * longer tell "nothing holds this" from "we cannot say".
    */
@@ -308,7 +308,7 @@ export interface PlanCardsProps {
    * Every team on offer — the same directory the table's Service/team cell
    * draws, in the order the server sent it.
    *
-   * One shared list and not a per-project one: `service_team` has no owner
+   * One shared list and not a per-work-package one: `service_team` has no owner
    * column and that is deliberate (Dany, 2026-08-06), so a team another plan
    * made belongs on offer here too. `team-picker-substitutes` settled what
    * ranking does to it, and it settled it inside `CreatablePicker` — which is
@@ -339,14 +339,14 @@ export interface PlanCardsProps {
    * the fields open:** without a day zero be-01 ignores the floor entirely and
    * resolves no deadline, so both controls refuse rather than taking a date
    * that would do nothing, exactly as the table's two cells do. **And whether
-   * a stored deadline is still reachable:** `deadlineBeforeProjectStart` needs
+   * a stored deadline is still reachable:** `deadlineBeforeWorkPackageStart` needs
    * the date itself, not the boolean.
    *
    * The date and not the `hasCalendar` flag it replaced (TASK-291), because a
    * boolean beside the value it was derived from is two facts about one thing
-   * and the pair can disagree; `projectStart !== null` is derived here, once.
+   * and the pair can disagree; `workPackageStart !== null` is derived here, once.
    */
-  projectStart: string | null;
+  workPackageStart: string | null;
   /**
    * Sets, changes or clears the earliest day this work item may start, **and
    * the words about it, in one request**.
@@ -373,8 +373,8 @@ export interface PlanCardsProps {
    * about a different constraint — the mistake `setDeadline`'s own docstring
    * exists to stop.
    *
-   * Nothing is guarded on this side. A date before the project's first working
-   * day is refused by be-01 with `deadline_before_project_start`, and it is left
+   * Nothing is guarded on this side. A date before the work package's first working
+   * day is refused by be-01 with `deadline_before_work_package_start`, and it is left
    * refused there for the reason `setPriority` writes down: a client-side rule
    * the server also keeps is how the two come to disagree.
    */
@@ -1252,7 +1252,7 @@ function CardTagsField({
  * set the first one. `data-card-not-before` is still the *claim* and is absent
  * where the row makes none, so a card that constrains nothing says nothing.
  *
- * **Disabled without a project start date**, which is the table cell's own
+ * **Disabled without a work package start date**, which is the table cell's own
  * refusal word for word: be-01 ignores the constraint when there is no day zero
  * to count from, and a field that took a date and did nothing with it is worse
  * than one that will not open.
@@ -1292,7 +1292,7 @@ function CardNotBeforeField({
       ]
         .filter((part) => part !== null)
         .join(' ')
-    : 'Set the project start date first — without one there are no dates to constrain.';
+    : 'Set the work package start date first — without one there are no dates to constrain.';
   const save = (): void => {
     // An emptied box is the reader saying "no constraint", the table's date
     // cell's own reading of `''`, and it takes the words with it because be-01
@@ -1455,38 +1455,38 @@ function CardNotBeforeField({
  * `setDeadline` names `deadline` alone and a card that copied the floor's pair
  * across would be sending a key about a different constraint.
  *
- * **Disabled without a project start date**, the floor's refusal word for word
+ * **Disabled without a work package start date**, the floor's refusal word for word
  * and the table cell's `noCalendar`: with no day zero be-01 resolves no
  * deadline at all, and a field that took a date and did nothing with it is
  * worse than one that will not open.
  *
- * **The §2.3 mark travels with the date.** A stored deadline the project has
- * since moved past is *legal* — it is what somebody typed, and the project
+ * **The §2.3 mark travels with the date.** A stored deadline the work package has
+ * since moved past is *legal* — it is what somebody typed, and the work package
  * moving under it does not make their input malformed — so the date is printed
  * unchanged and the mark says why it cannot be met. Without it a phone shows an
  * impossible date with no sign that it is one, which is the half of TASK-291
  * that is not simply a missing field. The predicate is
- * {@link deadlineBeforeProjectStart}, shared with the table cell and be-01's
+ * {@link deadlineBeforeWorkPackageStart}, shared with the table cell and be-01's
  * write boundary; **no lateness is computed here**, which is 9.2's standing
  * rule.
  */
 function CardDeadlineField({
   row,
-  projectStart,
+  workPackageStart,
   setDeadline,
   foldsWhenEmpty,
 }: {
   row: TreeRow;
   /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
   foldsWhenEmpty: boolean;
-  projectStart: string | null;
+  workPackageStart: string | null;
   setDeadline: (row: TreeRow, day: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useTriggerAboveSheet(open);
   const day = row.deadline;
-  const hasCalendar = projectStart !== null;
-  const impossible = deadlineBeforeProjectStart(projectStart, day);
+  const hasCalendar = workPackageStart !== null;
+  const impossible = deadlineBeforeWorkPackageStart(workPackageStart, day);
   const [draftDay, setDraftDay] = useState(day ?? '');
   const deadlineName = `Work item deadline for ${row.number}`;
   const shortDay = day === null ? null : shortIsoDate(day, new Date());
@@ -1499,7 +1499,7 @@ function CardDeadlineField({
       ]
         .filter((part) => part !== null)
         .join(' ')
-    : 'Set the project start date first — without one there are no dates to judge against.';
+    : 'Set the work package start date first — without one there are no dates to judge against.';
   const save = (): void => {
     // An emptied box is the reader saying "no deadline", the table's date cell's
     // own reading of `''`.
@@ -1534,7 +1534,7 @@ function CardDeadlineField({
           // role does not support it, and `jsx-a11y/role-supports-aria-props`
           // fails the gate over exactly that. It would also be the wrong claim:
           // a button is not a field holding a value a reader got wrong — the
-          // date is legal and the project moved under it — so the description
+          // date is legal and the work package moved under it — so the description
           // is the whole of what this control has to say.
           aria-describedby={impossible ? `card-deadline-impossible-${row.id}` : undefined}
           data-fact={title}
@@ -1556,7 +1556,7 @@ function CardDeadlineField({
                   // punctuation or as nothing at all, and the whole point of the
                   // mark is that it can be read. It names the row, so a reader
                   // hearing it out of context knows which date is meant.
-                  aria-label={`Work item deadline for ${row.number} falls before the project's first working day`}
+                  aria-label={`Work item deadline for ${row.number} falls before the work package's first working day`}
                   role="img"
                   id={`card-deadline-impossible-${row.id}`}
                   data-card-deadline-impossible={row.id}
@@ -2107,7 +2107,7 @@ function CardPriorityField({
  * once a value exists cannot set the first one.
  */
 function CardDependsField({
-  projectId,
+  workPackageId,
   dependencyLookup,
   row,
   waits,
@@ -2123,7 +2123,7 @@ function CardDependsField({
   dropDependency,
   foldsWhenEmpty,
 }: {
-  projectId: string;
+  workPackageId: string;
   dependencyLookup: DependencyLookup;
   row: TreeRow;
   /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
@@ -2189,7 +2189,7 @@ function CardDependsField({
   const [removing, setRemoving] = useState<ReadonlySet<string>>(() => new Set());
   const search = useDependencySearch({
     lookup: dependencyLookup,
-    projectId,
+    workPackageId,
     ownerId: row.id,
     active: open,
     typed,
@@ -2447,16 +2447,21 @@ function CardDependsField({
                     key={editorSession.current.generation}
                     selection={editing.selection}
                     lookup={dependencyLookup}
-                    ownerProjectId={projectId}
+                    ownerWorkPackageId={workPackageId}
                     ownerId={row.id}
-                    successor={buildLocalDependencyEditor(projectId, row, dependencyRows, steps)}
+                    successor={buildLocalDependencyEditor(
+                      workPackageId,
+                      row,
+                      dependencyRows,
+                      steps,
+                    )}
                     onCancel={closeEditor}
                     onSave={(source, target, type) => {
                       if (addTypedDependency === undefined)
                         throw new Error('Missing typed dependency writer');
                       return addTypedDependency(
-                        serializeDependencyEndpoint(source, projectId),
-                        serializeDependencyEndpoint(target, projectId),
+                        serializeDependencyEndpoint(source, workPackageId),
+                        serializeDependencyEndpoint(target, workPackageId),
                         type,
                       ).then((outcome) => {
                         if (didLand(outcome))
@@ -2504,11 +2509,11 @@ function CardDependsField({
                     key={`${dependency.id}:${String(editorSession.current.generation)}`}
                     dependency={dependency}
                     lookup={dependencyLookup}
-                    ownerProjectId={projectId}
+                    ownerWorkPackageId={workPackageId}
                     successor={
-                      dependency.successor.projectId === projectId
+                      dependency.successor.workPackageId === workPackageId
                         ? buildPersistedSuccessorEditor(
-                            projectId,
+                            workPackageId,
                             dependency.successor,
                             dependencyRows,
                             steps,
@@ -2518,7 +2523,7 @@ function CardDependsField({
                     onClose={closeEditor}
                     onSave={
                       // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted phone, 2026-10-23).
-                      dependency.successor.projectId === projectId &&
+                      dependency.successor.workPackageId === workPackageId &&
                       saveTypedDependency !== undefined
                         ? (type, target, source) =>
                             saveTypedDependency(
@@ -2527,10 +2532,10 @@ function CardDependsField({
                               source === undefined
                                 ? serializePersistedDependencyEndpoint(
                                     dependency.predecessor,
-                                    projectId,
+                                    workPackageId,
                                   )
-                                : serializeDependencyEndpoint(source, projectId),
-                              serializeDependencyEndpoint(target, projectId),
+                                : serializeDependencyEndpoint(source, workPackageId),
+                              serializeDependencyEndpoint(target, workPackageId),
                               type,
                             )
                         : undefined
@@ -2566,7 +2571,7 @@ function CardDependsField({
                 throw new Error('Missing typed dependency card commands');
               return (
                 <TypedDependencyEditor
-                  projectId={projectId}
+                  workPackageId={workPackageId}
                   // Proof: removing this key made `switches phone edit scope state when a second relationship is selected` keep Whole instead of Dev; watched 2026-09-28.
                   key={`${editing.dependencyId ?? `add:${editing.predecessorId}`}:${String(editorSession.current.generation)}`}
                   predecessor={predecessor}
@@ -2858,7 +2863,7 @@ function CardTrioField({
  * had, not a fourth.
  */
 export function PlanCards({
-  projectId,
+  workPackageId,
   dependencyLookup,
   rows,
   steps,
@@ -2895,7 +2900,7 @@ export function PlanCards({
   teams,
   setTeams,
   createTeam,
-  projectStart,
+  workPackageStart,
   setNotBefore,
   setDeadline,
   setPriority,
@@ -3295,7 +3300,7 @@ export function PlanCards({
                     {/*
                     The node's attempts, the step card's own list and actions
                     behind a tap, since a phone has no hover to open that card.
-                    The count remains visible without the project's zone;
+                    The count remains visible without the work package's zone;
                     {@link AttemptsSection} leaves the timed lines and actions out.
                   */}
                     {!row.rolledUp && attemptsOn !== undefined && (
@@ -3378,7 +3383,7 @@ export function PlanCards({
               */}
               <CardNotBeforeField
                 row={row}
-                hasCalendar={projectStart !== null}
+                hasCalendar={workPackageStart !== null}
                 setNotBefore={setNotBefore}
                 foldsWhenEmpty={folds}
               />
@@ -3392,7 +3397,7 @@ export function PlanCards({
               */}
               <CardDeadlineField
                 row={row}
-                projectStart={projectStart}
+                workPackageStart={workPackageStart}
                 setDeadline={setDeadline}
                 foldsWhenEmpty={folds}
               />
@@ -3420,7 +3425,7 @@ export function PlanCards({
                 other three do not.
               */}
               <CardDependsField
-                projectId={projectId}
+                workPackageId={workPackageId}
                 dependencyLookup={dependencyLookup}
                 row={row}
                 waits={waits}

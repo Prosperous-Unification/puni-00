@@ -1,65 +1,97 @@
-import { expect, type Page, test } from '@playwright/test';
+import {
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  getWorkItems as getWorkItemsShape,
+  patchWorkPackage as patchWorkPackageShape,
+  renameStep as renameStepShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /** Persists native minutes through the same HTTP commands and read model the plan uses. */
 async function seedMinuteChart(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Two native minutes');
-  const stored = await page.evaluate(async () => {
-    const projectId = localStorage.getItem('wbs.project');
-    if (projectId === null) throw new Error('Missing project to seed');
-    const send = async (path: string, method = 'GET', body?: unknown) => {
-      const reply = await fetch(`/api/projects/${projectId}${path}`, {
-        method,
-        headers: { 'content-type': 'application/json' },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  await createWorkPackage(page, 'Two native minutes');
+  const stored = await page.evaluate(
+    async ({ requestHeaders }) => {
+      const workPackageId = localStorage.getItem('wbs.workPackage');
+      if (workPackageId === null) throw new Error('Missing work package to seed');
+      const send = async (
+        operationHeaders: [string, string][],
+        path: string,
+        method = 'GET',
+        body?: unknown,
+      ) => {
+        const reply = await fetch(`/api/work-packages/${workPackageId}${path}`, {
+          method,
+          headers: {
+            ...Object.fromEntries(operationHeaders),
+            ...{ 'content-type': 'application/json' },
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        if (!reply.ok)
+          throw new Error(`${method} ${path}: ${String(reply.status)} ${await reply.text()}`);
+        return reply.json() as Promise<unknown>;
+      };
+      await send(requestHeaders.patchWorkPackage, '', 'PATCH', {
+        startDate: '2026-08-10',
+        timezone: 'Europe/Kyiv',
       });
-      if (!reply.ok)
-        throw new Error(`${method} ${path}: ${String(reply.status)} ${await reply.text()}`);
-      return reply.json() as Promise<unknown>;
-    };
-    await send('', 'PATCH', { startDate: '2026-08-10', timezone: 'Europe/Kyiv' });
-    const initial = (await send('/work-items')) as { steps: { id: string; name: string }[] };
-    const stepId = initial.steps.find((step) => step.name === 'Dev')?.id;
-    if (stepId === undefined) throw new Error('Missing Dev step');
-    const qaId = initial.steps.find((step) => step.name === 'QA')?.id;
-    if (qaId === undefined) throw new Error('Missing QA step');
-    await send(`/steps/${stepId}`, 'PATCH', { estimateUnit: 'minutes' });
-    await send('/commands', 'POST', {
-      commands: [
-        {
-          kind: 'createWorkItem',
-          ref: 'minute',
-          parentId: null,
-          afterId: null,
-          name: 'Two minutes',
-        },
-        {
-          kind: 'setEstimate',
-          workItemRef: 'minute',
-          stepId,
-          days: { optimistic: 2, realistic: 2, pessimistic: 2 },
-        },
-        {
-          kind: 'setEstimate',
-          workItemRef: 'minute',
-          stepId: qaId,
-          days: { optimistic: 0, realistic: 0, pessimistic: 0 },
-        },
-      ],
-    });
-    const persisted = (await send('/work-items')) as {
-      steps: { id: string; estimateUnit: string }[];
-      workItems: {
-        id: string;
-        charged: Record<string, unknown>;
-        schedule: { duration: number } | null;
-      }[];
-    };
-    return { stepId, persisted };
-  });
+      const initial = (await send(requestHeaders.getWorkItems, '/work-items')) as {
+        steps: { id: string; name: string }[];
+      };
+      const stepId = initial.steps.find((step) => step.name === 'Dev')?.id;
+      if (stepId === undefined) throw new Error('Missing Dev step');
+      const qaId = initial.steps.find((step) => step.name === 'QA')?.id;
+      if (qaId === undefined) throw new Error('Missing QA step');
+      await send(requestHeaders.renameStep, `/steps/${stepId}`, 'PATCH', {
+        estimateUnit: 'minutes',
+      });
+      await send(requestHeaders.applyWorkPackageCommands, '/commands', 'POST', {
+        commands: [
+          {
+            kind: 'createWorkItem',
+            ref: 'minute',
+            parentId: null,
+            afterId: null,
+            name: 'Two minutes',
+          },
+          {
+            kind: 'setEstimate',
+            workItemRef: 'minute',
+            stepId,
+            days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+          },
+          {
+            kind: 'setEstimate',
+            workItemRef: 'minute',
+            stepId: qaId,
+            days: { optimistic: 0, realistic: 0, pessimistic: 0 },
+          },
+        ],
+      });
+      const persisted = (await send(requestHeaders.getWorkItems, '/work-items')) as {
+        steps: { id: string; estimateUnit: string }[];
+        workItems: {
+          id: string;
+          charged: Record<string, unknown>;
+          schedule: { duration: number } | null;
+        }[];
+      };
+      return { stepId, persisted };
+    },
+    {
+      requestHeaders: {
+        patchWorkPackage: createOrdinaryHeaders(patchWorkPackageShape),
+        getWorkItems: createOrdinaryHeaders(getWorkItemsShape),
+        renameStep: createOrdinaryHeaders(renameStepShape),
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+    },
+  );
   expect(stored.persisted.steps.find((step) => step.id === stored.stepId)?.estimateUnit).toBe(
     'minutes',
   );
@@ -121,7 +153,7 @@ test('missing trusted native minutes on an API read reaches the visible Error Bo
   page,
 }) => {
   await seedMinuteChart(page);
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     const reply = await route.fetch();
     const tree = (await reply.json()) as { workItems: { charged?: unknown }[] };
     for (const row of tree.workItems) delete row.charged;
@@ -137,50 +169,67 @@ test('fractional native minutes are refused by the real API without changing the
   page,
 }) => {
   await seedMinuteChart(page);
-  const refusal = await page.evaluate(async () => {
-    const projectId = localStorage.getItem('wbs.project');
-    if (projectId === null) throw new Error('Missing project');
-    const read = await fetch(`/api/projects/${projectId}/work-items`);
-    if (!read.ok) throw new Error('Cannot read persisted plan');
-    const tree = (await read.json()) as {
-      steps: { id: string; name: string }[];
-      workItems: { id: string }[];
-    };
-    const stepId = tree.steps.find((step) => step.name === 'Dev')?.id;
-    if (stepId === undefined) throw new Error('Missing minute step');
-    const write = await fetch(`/api/projects/${projectId}/commands`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        commands: [
-          {
-            kind: 'setEstimate',
-            workItemId: tree.workItems[0].id,
-            stepId,
-            days: { optimistic: 1.5, realistic: 1.5, pessimistic: 1.5 },
-          },
-        ],
-      }),
-    });
-    const after = await fetch(`/api/projects/${projectId}/work-items`);
-    if (!after.ok) throw new Error('Cannot verify unchanged charge');
-    const persisted = (await after.json()) as { workItems: { charged: Record<string, unknown> }[] };
-    return {
-      status: write.status,
-      body: (await write.json()) as unknown,
-      charge: persisted.workItems[0].charged[stepId],
-    };
-  });
+  const refusal = await page.evaluate(
+    async ({ requestHeaders }) => {
+      const workPackageId = localStorage.getItem('wbs.workPackage');
+      if (workPackageId === null) throw new Error('Missing work package');
+      const read = await fetch(`/api/work-packages/${workPackageId}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      if (!read.ok) throw new Error('Cannot read persisted plan');
+      const tree = (await read.json()) as {
+        steps: { id: string; name: string }[];
+        workItems: { id: string }[];
+      };
+      const stepId = tree.steps.find((step) => step.name === 'Dev')?.id;
+      if (stepId === undefined) throw new Error('Missing minute step');
+      const write = await fetch(`/api/work-packages/${workPackageId}/commands`, {
+        method: 'POST',
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+          ...{ 'content-type': 'application/json' },
+        },
+        body: JSON.stringify({
+          commands: [
+            {
+              kind: 'setEstimate',
+              workItemId: tree.workItems[0].id,
+              stepId,
+              days: { optimistic: 1.5, realistic: 1.5, pessimistic: 1.5 },
+            },
+          ],
+        }),
+      });
+      const after = await fetch(`/api/work-packages/${workPackageId}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      if (!after.ok) throw new Error('Cannot verify unchanged charge');
+      const persisted = (await after.json()) as {
+        workItems: { charged: Record<string, unknown> }[];
+      };
+      return {
+        status: write.status,
+        body: (await write.json()) as unknown,
+        charge: persisted.workItems[0].charged[stepId],
+      };
+    },
+    {
+      requestHeaders: {
+        getWorkItems: createOrdinaryHeaders(getWorkItemsShape),
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+    },
+  );
   expect(refusal.status).toBe(422);
   expect(refusal.body).toMatchObject({ error: 'minutes_not_integer' });
   expect(refusal.charge).toEqual({ unit: 'minutes', minutes: 2 });
 });
 
-test('a missing project zone visibly disables attempts while retaining the forecast', async ({
+test('a missing work package zone visibly disables attempts while retaining the forecast', async ({
   page,
 }) => {
   await seedMinuteChart(page);
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     const reply = await route.fetch();
     const tree = (await reply.json()) as { timezone?: string };
     delete tree.timezone;
@@ -190,7 +239,9 @@ test('a missing project zone visibly disables attempts while retaining the forec
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
   await page.locator('[data-gantt-day-scale]').selectOption('896');
   await expect(
-    page.getByText('Attempt marks unavailable: project timezone is unavailable', { exact: true }),
+    page.getByText('Attempt marks unavailable: work package timezone is unavailable', {
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.locator('[data-gantt-bar][data-tick="true"]').first()).toBeVisible();
 });

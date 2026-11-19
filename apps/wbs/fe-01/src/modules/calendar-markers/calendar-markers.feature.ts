@@ -2,7 +2,7 @@ import { createCalendarMarkerWrites } from './calendar-markers.resource';
 import type { CalendarMarkerEdit, CalendarMarkers, CalendarMarkersHost } from './contract';
 
 /**
- * Builds the calendar-marker gestures for one reader: one project, one API, one
+ * Builds the calendar-marker gestures for one reader: one work package, one API, one
  * refresh owner.
  *
  * The **feature**-service delivery sees (rule K2), and the only place that
@@ -13,12 +13,12 @@ import type { CalendarMarkerEdit, CalendarMarkers, CalendarMarkersHost } from '.
  */
 // @capability plan-refresh
 export function createCalendarMarkers({
-  projectId,
+  workPackageId,
   api,
   readRefreshOwner,
   announceRefusal,
 }: CalendarMarkersHost): CalendarMarkers {
-  const writes = createCalendarMarkerWrites({ projectId, api });
+  const writes = createCalendarMarkerWrites({ workPackageId, api });
   const run = async (edit: CalendarMarkerEdit): Promise<void> => {
     const owner = readRefreshOwner();
     // Proof: on 2026-09-21, removing this guard made the no-owner test record delete:launch.

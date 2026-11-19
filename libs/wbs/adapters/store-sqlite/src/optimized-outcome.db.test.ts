@@ -65,7 +65,7 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
@@ -78,7 +78,7 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
 function admittedWrite(db: ReturnType<typeof openDrizzle>): OutcomeWrite {
   const generation = allocateGeneration(db, 'p-1', CONTRACT, HASH, 2);
   const admission = reserveSolverSlot(db, {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation,
     objective: 'pri',
@@ -90,7 +90,7 @@ function admittedWrite(db: ReturnType<typeof openDrizzle>): OutcomeWrite {
   if (admission.kind !== 'reserved') throw new Error(`unexpected admission ${admission.kind}`);
   return {
     claim: {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri',
@@ -132,7 +132,7 @@ describe('optimized outcome events', () => {
       expect(committed.result).toBe('stored');
       expect(committed.event).toEqual({
         type: 'schedule_optimization_failed',
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         generation: 1,
         inputHash: HASH,
         objective: 'pri',
@@ -140,7 +140,7 @@ describe('optimized outcome events', () => {
         budgetMs: BUDGET,
         failureReason: reason,
       });
-      expect(await eventLog.rangeSince('project:p-1', -1)).toHaveLength(1);
+      expect(await eventLog.rangeSince('work-package:p-1', -1)).toHaveLength(1);
       const raw = openDatabase(path);
       try {
         expect(
@@ -201,9 +201,9 @@ describe('optimized outcome events', () => {
 
     expect(committed.result).toBe('stored');
     expect(committed.recorded?.seq).toBe(0);
-    expect(await eventLog.rangeSince('project:p-1', -1)).toEqual([
+    expect(await eventLog.rangeSince('work-package:p-1', -1)).toEqual([
       {
-        subscription: 'project:p-1',
+        subscription: 'work-package:p-1',
         seq: 0,
         message: committed.event,
         createdAt: 10,

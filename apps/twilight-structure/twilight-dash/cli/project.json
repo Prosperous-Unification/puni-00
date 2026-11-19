@@ -7,7 +7,12 @@
   "targets": {
     "test": {
       "cache": false,
-      "dependsOn": [{ "projects": ["wbs-mcp-01"], "target": "prepare" }],
+      "dependsOn": [
+        {
+          "projects": ["wbs-mcp-01"],
+          "target": "prepare"
+        }
+      ],
       "executor": "nx:run-commands",
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ./src/runs/testing/format4-lifetime-preload.ts --preload ./src/runs/testing/format5-lifetime-preload.ts src --timeout=60000",
@@ -23,7 +28,13 @@
         "{workspaceRoot}/apps/wbs/be-01/src/**/*",
         "{workspaceRoot}/apps/wbs/mcp-01/src/**/*",
         "{workspaceRoot}/libs/wbs/domain/contracts/src/**/*",
-        "{workspaceRoot}/libs/wbs/domain/validation/src/**/*"
+        "{workspaceRoot}/libs/wbs/domain/validation/src/**/*",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database1.txt",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database1.sqlite.gz",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.sqlite.gz",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database-capture.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-runtime-acceptance1.txt"
       ]
     },
     "lint": {

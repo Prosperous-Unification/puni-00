@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
-import { browserProjectAccess } from './browser-access-client';
+import { browserWorkPackageAccess } from './browser-access-client';
 
 function clientAnswering(status: number, body: unknown) {
   const sent: { url: string; init: RequestInit | undefined }[] = [];
-  const check = browserProjectAccess({
+  const check = browserWorkPackageAccess({
     beUrl: 'http://be.test',
     secret: 'service-secret',
     fetchImpl: (url, init) => {
@@ -14,17 +14,17 @@ function clientAnswering(status: number, body: unknown) {
       );
     },
   })({ accessCookie: 'tok%2Ben', organizationCookie: 'org%3Dbinding' });
-  return { sent, check: () => check('project-1', new AbortController().signal) };
+  return { sent, check: () => check('work-package-1', new AbortController().signal) };
 }
 
-describe('browserProjectAccess', () => {
+describe('browserWorkPackageAccess', () => {
   it('forwards the gateway secret and the browser cookies as sent, and nothing else', async () => {
     const { sent, check } = clientAnswering(204, null);
 
     expect(await check()).toBe('granted');
     expect(sent.map(({ url, init }) => ({ url, headers: init?.headers }))).toEqual([
       {
-        url: 'http://be.test/internal/gateway/projects/project-1/browser-access',
+        url: 'http://be.test/internal/gateway/work-packages/work-package-1/browser-access',
         headers: {
           'x-internal-auth': 'service-secret',
           cookie: '__Host-wbs_access=tok%2Ben; __Host-wbs_organization=org%3Dbinding',
@@ -54,7 +54,7 @@ describe('browserProjectAccess', () => {
     const failure = await clientAnswering(401, { error: 'unauthorized' })
       .check()
       .catch((caught: unknown) => caught);
-    expect(failure).toEqual(new Error('project browser access failed 401'));
+    expect(failure).toEqual(new Error('work package browser access failed 401'));
   });
 
   it('throws on a success-shaped body under any other status', async () => {
@@ -66,13 +66,13 @@ describe('browserProjectAccess', () => {
       const failure = await clientAnswering(status, body)
         .check()
         .catch((caught: unknown) => caught);
-      expect(failure).toEqual(new Error(`project browser access failed ${String(status)}`));
+      expect(failure).toEqual(new Error(`work package browser access failed ${String(status)}`));
     }
   });
 
   it('retries one transport failure inside the same budget', async () => {
     let attempts = 0;
-    const check = browserProjectAccess({
+    const check = browserWorkPackageAccess({
       beUrl: 'http://be.test',
       secret: 'service-secret',
       fetchImpl: () => {
@@ -83,13 +83,13 @@ describe('browserProjectAccess', () => {
       },
     })({ accessCookie: 'tok', organizationCookie: null });
 
-    expect(await check('project-1', new AbortController().signal)).toBe('granted');
+    expect(await check('work-package-1', new AbortController().signal)).toBe('granted');
     expect(attempts).toBe(2);
   });
 
   it('fails closed after a second transport failure, and never retries an aborted check', async () => {
     let attempts = 0;
-    const failing = browserProjectAccess({
+    const failing = browserWorkPackageAccess({
       beUrl: 'http://be.test',
       secret: 'service-secret',
       fetchImpl: () => {
@@ -99,7 +99,9 @@ describe('browserProjectAccess', () => {
     })({ accessCookie: 'tok', organizationCookie: null });
 
     expect(
-      await failing('project-1', new AbortController().signal).catch((caught: unknown) => caught),
+      await failing('work-package-1', new AbortController().signal).catch(
+        (caught: unknown) => caught,
+      ),
     ).toBeInstanceOf(TypeError);
     expect(attempts).toBe(2);
 
@@ -107,7 +109,7 @@ describe('browserProjectAccess', () => {
     const deadline = new AbortController();
     deadline.abort(new Error('request deadline exceeded'));
     expect(
-      await failing('project-1', deadline.signal).catch((caught: unknown) => caught),
+      await failing('work-package-1', deadline.signal).catch((caught: unknown) => caught),
     ).toBeInstanceOf(TypeError);
     expect(attempts).toBe(1);
   });

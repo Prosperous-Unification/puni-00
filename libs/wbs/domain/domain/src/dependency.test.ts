@@ -99,7 +99,7 @@ describe('canDepend', () => {
     expect(check('late', 'loose', existing)).toBeNull();
   });
 
-  it('refuses a work item that is not in the project', () => {
+  it('refuses a work item that is not in the work package', () => {
     expect(check('ghost', 'after')).toBe('not_found');
     expect(check('after', 'ghost')).toBe('not_found');
   });

@@ -65,13 +65,13 @@ async function bootstrap(options: { maxEvents?: number; bufferSize?: number } = 
 describe('ReplayOrchestrator', () => {
   it('replays the events after the requested sequence, in order', async () => {
     const { orchestrator, record } = await bootstrap();
-    await record('project:a', { n: 0 });
-    await record('project:a', { n: 1 });
-    await record('project:a', { n: 2 });
+    await record('work-package:a', { n: 0 });
+    await record('work-package:a', { n: 1 });
+    await record('work-package:a', { n: 2 });
 
-    const outcome = await orchestrator.replay({ 'project:a': 0 });
+    const outcome = await orchestrator.replay({ 'work-package:a': 0 });
 
-    expect(outcome['project:a']).toEqual({
+    expect(outcome['work-package:a']).toEqual({
       status: 'replaying',
       events: [
         { seq: 1, message: { n: 1 } },
@@ -82,32 +82,32 @@ describe('ReplayOrchestrator', () => {
 
   it('replays nothing for a client that is already current', async () => {
     const { orchestrator, record } = await bootstrap();
-    await record('project:a', { n: 0 });
+    await record('work-package:a', { n: 0 });
 
-    expect(await orchestrator.replay({ 'project:a': 0 })).toEqual({
-      'project:a': { status: 'replaying', events: [] },
+    expect(await orchestrator.replay({ 'work-package:a': 0 })).toEqual({
+      'work-package:a': { status: 'replaying', events: [] },
     });
   });
 
   it('replays nothing for a subscription that has never recorded an event', async () => {
     const { orchestrator } = await bootstrap();
 
-    expect(await orchestrator.replay({ 'project:untouched': -1 })).toEqual({
-      'project:untouched': { status: 'replaying', events: [] },
+    expect(await orchestrator.replay({ 'work-package:untouched': -1 })).toEqual({
+      'work-package:untouched': { status: 'replaying', events: [] },
     });
   });
 
   it('falls back to the log when the buffer starts after the requested point', async () => {
     const { orchestrator, recordUnbuffered, record, buffer } = await bootstrap();
-    await recordUnbuffered('project:a', { n: 0 });
-    await recordUnbuffered('project:a', { n: 1 });
-    await record('project:a', { n: 2 });
+    await recordUnbuffered('work-package:a', { n: 0 });
+    await recordUnbuffered('work-package:a', { n: 1 });
+    await record('work-package:a', { n: 2 });
 
     // The buffer holds only the last event, so it cannot start at seq 1.
-    expect(buffer.oldestSeq('project:a')).toBe(2);
+    expect(buffer.oldestSeq('work-package:a')).toBe(2);
 
-    expect(await orchestrator.replay({ 'project:a': 0 })).toEqual({
-      'project:a': {
+    expect(await orchestrator.replay({ 'work-package:a': 0 })).toEqual({
+      'work-package:a': {
         status: 'replaying',
         events: [
           { seq: 1, message: { n: 1 } },
@@ -119,66 +119,68 @@ describe('ReplayOrchestrator', () => {
 
   it('denies a range retention has already removed', async () => {
     const { orchestrator, log, recordUnbuffered } = await bootstrap();
-    await recordUnbuffered('project:a', { n: 0 });
-    await recordUnbuffered('project:a', { n: 1 });
-    await recordUnbuffered('project:a', { n: 2 });
+    await recordUnbuffered('work-package:a', { n: 0 });
+    await recordUnbuffered('work-package:a', { n: 1 });
+    await recordUnbuffered('work-package:a', { n: 2 });
     await log.pruneBeyond(1);
 
-    expect(await orchestrator.replay({ 'project:a': 0 })).toEqual({
-      'project:a': { status: 'denied', reason: 'out_of_range' },
+    expect(await orchestrator.replay({ 'work-package:a': 0 })).toEqual({
+      'work-package:a': { status: 'denied', reason: 'out_of_range' },
     });
   });
 
   it('denies a range larger than the cap rather than truncating it', async () => {
     const { orchestrator, record } = await bootstrap({ maxEvents: 3 });
-    for (let n = 0; n < 5; n++) await record('project:a', { n });
+    for (let n = 0; n < 5; n++) await record('work-package:a', { n });
 
-    expect(await orchestrator.replay({ 'project:a': 0 })).toEqual({
-      'project:a': { status: 'denied', reason: 'out_of_range' },
+    expect(await orchestrator.replay({ 'work-package:a': 0 })).toEqual({
+      'work-package:a': { status: 'denied', reason: 'out_of_range' },
     });
   });
 
   it('replays a range exactly at the cap', async () => {
     const { orchestrator, record } = await bootstrap({ maxEvents: 3 });
-    for (let n = 0; n < 4; n++) await record('project:a', { n });
+    for (let n = 0; n < 4; n++) await record('work-package:a', { n });
 
-    const outcome = await orchestrator.replay({ 'project:a': 0 });
-    expect(outcome['project:a']).toMatchObject({ status: 'replaying' });
-    expect((outcome['project:a'] as { events: unknown[] }).events).toHaveLength(3);
+    const outcome = await orchestrator.replay({ 'work-package:a': 0 });
+    expect(outcome['work-package:a']).toMatchObject({ status: 'replaying' });
+    expect((outcome['work-package:a'] as { events: unknown[] }).events).toHaveLength(3);
   });
 
   it('denies a client claiming a sequence the stream has never reached', async () => {
     const { orchestrator, record } = await bootstrap();
-    await record('project:a', { n: 0 });
+    await record('work-package:a', { n: 0 });
 
     // A restored database, or a client talking to the wrong deployment. Either
     // way it is behind something this server cannot produce, so it must refetch.
-    expect(await orchestrator.replay({ 'project:a': 7 })).toEqual({
-      'project:a': { status: 'denied', reason: 'out_of_range' },
+    expect(await orchestrator.replay({ 'work-package:a': 7 })).toEqual({
+      'work-package:a': { status: 'denied', reason: 'out_of_range' },
     });
   });
 
   it('answers each subscription independently', async () => {
     const { orchestrator, record, recordUnbuffered, log } = await bootstrap();
-    await record('project:fresh', { n: 0 });
-    await recordUnbuffered('project:pruned', { n: 0 });
-    await recordUnbuffered('project:pruned', { n: 1 });
+    await record('work-package:fresh', { n: 0 });
+    await recordUnbuffered('work-package:pruned', { n: 0 });
+    await recordUnbuffered('work-package:pruned', { n: 1 });
     await log.pruneBeyond(1);
 
-    expect(await orchestrator.replay({ 'project:fresh': -1, 'project:pruned': -1 })).toEqual({
-      'project:fresh': { status: 'replaying', events: [{ seq: 0, message: { n: 0 } }] },
-      'project:pruned': { status: 'denied', reason: 'out_of_range' },
+    expect(
+      await orchestrator.replay({ 'work-package:fresh': -1, 'work-package:pruned': -1 }),
+    ).toEqual({
+      'work-package:fresh': { status: 'replaying', events: [{ seq: 0, message: { n: 0 } }] },
+      'work-package:pruned': { status: 'denied', reason: 'out_of_range' },
     });
   });
 
   it('replays from the start when the client has seen nothing', async () => {
     const { orchestrator, record } = await bootstrap();
-    await record('project:a', { n: 0 });
-    await record('project:a', { n: 1 });
+    await record('work-package:a', { n: 0 });
+    await record('work-package:a', { n: 1 });
 
-    const outcome = await orchestrator.replay({ 'project:a': -1 });
+    const outcome = await orchestrator.replay({ 'work-package:a': -1 });
     expect(
-      (outcome['project:a'] as { events: { seq: number }[] }).events.map((e) => e.seq),
+      (outcome['work-package:a'] as { events: { seq: number }[] }).events.map((e) => e.seq),
     ).toEqual([0, 1]);
   });
 });
@@ -204,15 +206,15 @@ describe('ReplayOrchestrator — cross-review findings', () => {
     const orchestrator = new ReplayOrchestrator({ log: new EventLogService(log), buffer });
 
     for (const n of [0, 1]) {
-      const recorded = await log.recordEvent('project:a', { n }, now);
-      buffer.record('project:a', recorded.seq, { n });
+      const recorded = await log.recordEvent('work-package:a', { n }, now);
+      buffer.record('work-package:a', recorded.seq, { n });
     }
 
-    // Six minutes of nobody editing this project.
+    // Six minutes of nobody editing this work package.
     now += 6 * 60_000;
 
-    expect(await orchestrator.replay({ 'project:a': 0 })).toEqual({
-      'project:a': { status: 'replaying', events: [{ seq: 1, message: { n: 1 } }] },
+    expect(await orchestrator.replay({ 'work-package:a': 0 })).toEqual({
+      'work-package:a': { status: 'replaying', events: [{ seq: 1, message: { n: 1 } }] },
     });
   });
 });

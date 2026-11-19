@@ -21,7 +21,7 @@ export interface AxisRung {
   readonly label: string;
 }
 
-/** The provisional working-day anchor, in project-zone clock minutes; retired by `agent-calendar-instant-axis`. */
+/** The provisional working-day anchor, in work-package-zone clock minutes; retired by `agent-calendar-instant-axis`. */
 export const STAGE_ONE_DAY_START_MINUTE = 540;
 
 /** Resolves a supported width without inventing a rung between the discrete choices. */

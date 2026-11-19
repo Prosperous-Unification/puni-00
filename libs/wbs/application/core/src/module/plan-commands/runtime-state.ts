@@ -13,7 +13,7 @@ export type { RuntimeObservation, RuntimeReadRefusal } from '@wbs/contracts';
 
 /** Authenticated request context; scope comes from existing server-resolved access. */
 export interface RuntimeContext {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly personId: string;
   readonly actor: AuthenticatedUser;
   readonly access: ResourceAccess;
@@ -38,7 +38,7 @@ export class RuntimeState {
     ) => Promise<RuntimeObservation | RuntimeReadRefusal>,
   ) {}
 
-  /** Captures current authorization, project revision, complete local rows and steps in one turn. */
+  /** Captures current authorization, work package revision, complete local rows and steps in one turn. */
   captureRuntimeObservation(
     context: RuntimeContext,
   ): Promise<RuntimeObservation | RuntimeReadRefusal> {

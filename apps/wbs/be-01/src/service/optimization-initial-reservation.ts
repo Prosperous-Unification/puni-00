@@ -1,6 +1,6 @@
 import type {
   CommittedFanoutDelivery,
-  CommittedProjectEvent,
+  CommittedWorkPackageEvent,
 } from '@wbs/core/ports/committed-fanout';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
@@ -30,13 +30,13 @@ export function createInitialReservationOwner(
         return { commit: true, value: { decision: { kind: 'closed' as const }, envelopes: [] } };
 
       const ownership = new Map<string, string>();
-      for (const { projectId } of db
-        .select({ projectId: solverSlot.projectId })
+      for (const { workPackageId } of db
+        .select({ workPackageId: solverSlot.workPackageId })
         .from(solverSlot)
         .all()) {
-        if (ownership.has(projectId)) continue;
-        const owner = await capture.resolveLifecycleOwner(projectId);
-        if (owner.kind === 'scoped') ownership.set(projectId, owner.organizationId);
+        if (ownership.has(workPackageId)) continue;
+        const owner = await capture.resolveLifecycleOwner(workPackageId);
+        if (owner.kind === 'scoped') ownership.set(workPackageId, owner.organizationId);
       }
 
       const before = new Map<string, CapturedFanout>();
@@ -46,15 +46,17 @@ export function createInitialReservationOwner(
         before.set(organizationId, await capture.capture(organizationId));
 
       const finished = new Set<string>();
-      const admission = reserveSolverSlot(db, request, ({ projectId }) => finished.add(projectId));
+      const admission = reserveSolverSlot(db, request, ({ workPackageId }) =>
+        finished.add(workPackageId),
+      );
       // Proof: splitting COMMIT/BEGIN here before recording let the second
       // event-insert fault leave A/C deleted and their slots reclaimed.
-      const envelopes: CommittedProjectEvent[] = [];
+      const envelopes: CommittedWorkPackageEvent[] = [];
       for (const [organizationId, oldObservation] of before) {
         // Proof: dropping finished causes lost B's selected-contract event
         // while A remained present; this only addresses actual finishes.
         const causes = [...finished].filter(
-          (projectId) => ownership.get(projectId) === organizationId,
+          (workPackageId) => ownership.get(workPackageId) === organizationId,
         );
         const after = await capture.capture(organizationId);
         // Proof: omitting recording deleted A but left B's durable range empty.

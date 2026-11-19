@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
 let h: OrganizationHarness;
-let project: string;
+let workPackage: string;
 let dev: string;
 let qa: string;
 let strip: string;
@@ -30,10 +30,13 @@ async function populate(): Promise<void> {
   h.grantPermissions('org-a', 'ada', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Rewire the shed' });
+  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Rewire the shed' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const body = created.body as { project: { id: string }; steps: { id: string; name: string }[] };
-  project = body.project.id;
+  const body = created.body as {
+    workPackage: { id: string };
+    steps: { id: string; name: string }[];
+  };
+  workPackage = body.workPackage.id;
   dev = stepNamed(body.steps, 'Dev');
   qa = stepNamed(body.steps, 'QA');
   const leaf = await batch([
@@ -50,12 +53,12 @@ afterEach(() => {
 
 function stepNamed(steps: readonly { id: string; name: string }[], name: string): string {
   const step = steps.find((each) => each.name === name);
-  if (step === undefined) throw new Error(`a project without its seed step ${name}`);
+  if (step === undefined) throw new Error(`a work package without its seed step ${name}`);
   return step.id;
 }
 
 const batch = (commands: unknown[]): Promise<Answer> =>
-  h.call('ada', 'POST', `/api/projects/${project}/commands`, { commands });
+  h.call('ada', 'POST', `/api/work-packages/${workPackage}/commands`, { commands });
 
 const facts = () =>
   h.sqlite
@@ -66,7 +69,7 @@ const facts = () =>
 const snapshot = () =>
   [
     'work_item',
-    'project',
+    'work_package',
     'step_progress',
     'step_blockage',
     'command_journal',
@@ -75,7 +78,7 @@ const snapshot = () =>
     'plan_event',
   ].map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
 const flip = (direction: 'undo' | 'redo') =>
-  h.call('ada', 'POST', `/api/projects/${project}/${direction}`);
+  h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`);
 
 describe('public step blockage commands over mounted SQLite', () => {
   beforeEach(() => {
@@ -193,7 +196,7 @@ describe('public step blockage commands over mounted SQLite', () => {
     const before = snapshot();
     expect(
       (
-        await h.call('bea', 'POST', `/api/projects/${project}/commands`, {
+        await h.call('bea', 'POST', `/api/work-packages/${workPackage}/commands`, {
           commands: [{ kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: false }],
         })
       ).status,
@@ -205,7 +208,7 @@ describe('public step blockage commands over mounted SQLite', () => {
     h.bind('bea', 'org-b');
     expect(
       (
-        await h.call('bea', 'POST', `/api/projects/${project}/commands`, {
+        await h.call('bea', 'POST', `/api/work-packages/${workPackage}/commands`, {
           commands: [{ kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: false }],
         })
       ).status,
@@ -302,8 +305,8 @@ describe('public step blockage commands over mounted SQLite', () => {
       if (direction === 'redo') await flip('undo');
       h.sqlite.run('DELETE FROM step_blockage');
       h.sqlite.run(
-        'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, ?, 0, ?)',
-        [crypto.randomUUID(), project, strip, 'External child'],
+        'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, ?, 0, ?)',
+        [crypto.randomUUID(), workPackage, strip, 'External child'],
       );
       h.sqlite.run(
         "UPDATE command_journal SET preconditions = json_set(preconditions, '$.expected', json('{}'))",
@@ -365,14 +368,20 @@ describe('public step blockage commands with disabled writer admission', () => {
     expect(snapshot()).toEqual(before);
     expect(facts()).toEqual(blocked);
     expect(pushes).toBe(pushedBefore);
-    expect((await h.call('ada', 'GET', `/api/projects/${project}/work-items`)).status).toBe(200);
-    const exported = await h.call('ada', 'GET', `/api/projects/${project}/export?format=json`);
+    expect(
+      (await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`)).status,
+    ).toBe(200);
+    const exported = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackage}/export?format=json`,
+    );
     expect(exported.status).toBe(200);
     expect(exported.body).toMatchObject({
       document: { version: 11 },
       stepBlockages: [{ workItemId: strip, stepId: dev, blockedAt: blocked[0]?.blocked_at }],
     });
-    expect(await h.call('ada', 'POST', '/api/projects/import', exported.body)).toEqual({
+    expect(await h.call('ada', 'POST', '/api/work-packages/import', exported.body)).toEqual({
       status: 409,
       body: { error: 'step_blockage_inactive' },
     });

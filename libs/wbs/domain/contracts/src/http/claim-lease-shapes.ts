@@ -11,7 +11,7 @@ const writePolicies = [
 
 /**
  * An agent's heartbeat (`wbs-claim-leases` L4, L12, L13): renews every lease
- * of the caller's pinned person that is due, in every project, and answers the
+ * of the caller's pinned person that is due, in every work package, and answers the
  * leases in force and the earliest expiry. Writes at most once a minute; an
  * unpinned caller (a session, an upstream pair) is refused `not_pinned`.
  */

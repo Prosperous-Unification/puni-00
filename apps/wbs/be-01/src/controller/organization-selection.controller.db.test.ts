@@ -117,14 +117,14 @@ test('throws on a malformed current membership role rather than advertising auth
   expect(response.headers.get('vary')).toBe('Cookie, Authorization');
 });
 
-test('selects only a current membership and scopes the mounted project route by the exact pair', async () => {
+test('selects only a current membership and scopes the mounted work package route by the exact pair', async () => {
   harness = OrganizationHarness.open({ sessionBinding: true });
   await harness.register('ada');
   harness.organization('org-a');
   harness.member('org-a', 'ada', 'member');
   harness.activate();
   const token = harness.token('ada');
-  const unbound = await harness.app.handle(request(token, 'GET', '/api/projects'));
+  const unbound = await harness.app.handle(request(token, 'GET', '/api/work-packages'));
   expect(unbound.status).toBe(403);
   expect(await unbound.json()).toEqual({ error: 'no_active_organization' });
   const foreign = await harness.app.handle(
@@ -140,12 +140,12 @@ test('selects only a current membership and scopes the mounted project route by 
   const pair = cookie?.split(';')[0];
   if (pair === undefined) throw new Error('selection did not set its cookie');
   expect(
-    (await harness.app.handle(request(token, 'GET', '/api/projects', undefined, pair))).status,
+    (await harness.app.handle(request(token, 'GET', '/api/work-packages', undefined, pair))).status,
   ).toBe(200);
   expect(
     (
       await harness.app.handle(
-        request(token, 'GET', '/api/projects', undefined, pair, {
+        request(token, 'GET', '/api/work-packages', undefined, pair, {
           'x-wbs-organization': 'org-b',
         }),
       )
@@ -155,7 +155,9 @@ test('selects only a current membership and scopes the mounted project route by 
     'DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?',
     ['org-a', harness.userId('ada')],
   );
-  const removed = await harness.app.handle(request(token, 'GET', '/api/projects', undefined, pair));
+  const removed = await harness.app.handle(
+    request(token, 'GET', '/api/work-packages', undefined, pair),
+  );
   expect(removed.status).toBe(403);
   expect(await removed.json()).toEqual({ error: 'not_a_member' });
 });
@@ -176,7 +178,7 @@ test('a committed revocation refuses the old browser pair and reselection across
   const pair = selected.headers.get('set-cookie')?.split(';')[0];
   if (pair === undefined) throw new Error('selection did not set its cookie');
   expect(
-    (await harness.app.handle(request(token, 'GET', '/api/projects', undefined, pair))).status,
+    (await harness.app.handle(request(token, 'GET', '/api/work-packages', undefined, pair))).status,
   ).toBe(200);
 
   const claims = decodeJwt(token);
@@ -218,7 +220,7 @@ test('a committed revocation refuses the old browser pair and reselection across
   // old-pair request answer 200; bypassing the selection lookup makes the
   // revoked credential receive another selection cookie (both watched).
   const protectedResponse = await harness.app.handle(
-    request(token, 'GET', '/api/projects', undefined, pair),
+    request(token, 'GET', '/api/work-packages', undefined, pair),
   );
   expect(protectedResponse.status).toBe(403);
   expect(await protectedResponse.json()).toEqual({ error: 'no_active_organization' });
@@ -279,7 +281,7 @@ test('a missing shared revocation table makes enabled browser selection and acce
   // Proof: treating a missing table as an empty revocation set returned 200
   // for all three mounted paths instead of a server failure.
   for (const requestOf of [
-    request(token, 'GET', '/api/projects', undefined, pair),
+    request(token, 'GET', '/api/work-packages', undefined, pair),
     request(token, 'GET', '/api/organization/memberships'),
     request(token, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
   ]) {
@@ -324,7 +326,7 @@ test('refuses substituted and ambiguous browser carriers on the mounted access r
     [ada, `__Host-wbs_access=bad; ${pair}`, 401, 'unauthenticated'],
   ] as const) {
     const response = await harness.app.handle(
-      request(token, 'GET', '/api/projects', undefined, carrier),
+      request(token, 'GET', '/api/work-packages', undefined, carrier),
     );
     expect({ carrier, status: response.status }).toEqual({ carrier, status });
     expect(await response.json()).toEqual({ error });
@@ -458,7 +460,7 @@ test('binds a real verified OIDC access cookie to its mapped local member and re
     const pair = selected.headers.get('set-cookie')?.split(';')[0];
     if (pair === undefined) throw new Error('OIDC selection did not set a cookie');
     expect(
-      (await harness.app.handle(cookieRequest(ada, 'GET', '/api/projects', undefined, pair)))
+      (await harness.app.handle(cookieRequest(ada, 'GET', '/api/work-packages', undefined, pair)))
         .status,
     ).toBe(200);
     const writer = openConnection(harness.databasePath());
@@ -478,7 +480,7 @@ test('binds a real verified OIDC access cookie to its mapped local member and re
     // Proof: treating OIDC evidence as an unrevoked native credential made
     // this mounted real-verifier old-pair request answer 200 after revocation.
     expect(
-      (await harness.app.handle(cookieRequest(ada, 'GET', '/api/projects', undefined, pair)))
+      (await harness.app.handle(cookieRequest(ada, 'GET', '/api/work-packages', undefined, pair)))
         .status,
     ).toBe(403);
     expect(
@@ -495,7 +497,7 @@ test('binds a real verified OIDC access cookie to its mapped local member and re
       expect(
         (
           await harness.app.handle(
-            cookieRequest(replacement, 'GET', '/api/projects', undefined, pair),
+            cookieRequest(replacement, 'GET', '/api/work-packages', undefined, pair),
           )
         ).status,
       ).toBe(403);

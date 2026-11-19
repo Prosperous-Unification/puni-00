@@ -105,8 +105,8 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   starts with `Dev` and `QA`, so ruling them would fill the dev rules file with no decision.
   Rows sharing a code with any differing field are one `shared_code` row listing the fields
   and refuse until the rules file (SC23) names the surviving step id. Merging, inside the
-  migration, re-points the thirteen foreign-key columns of the
-  twelve tables (inventory below) from each losing id to the survivor, re-keys the loser's
+  migration, re-points the fifteen current foreign-key columns of the
+  thirteen tables (inventory below) from each losing id to the survivor, re-keys the loser's
   `work_package_step` row to the survivor keeping that package's unit, allowance and
   `allowance_revision`, drops the loser's binding and definition, and records
   `step_identity_history(old_step_id PRIMARY KEY, step_id → step_definition, merged_at)`.
@@ -124,11 +124,24 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   **historical identity map** read by history readers only and never consulted by a live
   write (a live write naming a merged id is `404 not_found`). Rejected: E33's `json_set`
   rewrite (breaks saved-plan integrity, F1).
+  Saved comparison keeps captured evidence separate from resolved meaning. Every side has an
+  explicit comparison state: captured, or step-resolved with detached input, dependency and
+  schedule meanings. The shared verified-plan path serves observed reads and legacy comparison;
+  original bytes, hashes and header links are checked before identity translation. Current
+  captures explicitly use captured meaning; there is no optional translator fallback.
+  Connected `inputEvidence`, schedule bodies, stage bytes, question hashes and signatures remain
+  captured evidence, including in detail responses and provenance summaries. Comparison meanings
+  decode supported stage packets and translate only typed identity sites and their derived keys;
+  they are not serialized back or presented as newly captured packets. Historical labels and
+  opaque fields are preserved. Derived digest spelling may be normalized only when its packet
+  change is explained by the supported format/identity projection; solver configuration, timing,
+  membership and variant differences still compare. This path neither schedules nor rehashes
+  translated packets. Missing trusted history and projected identity collisions refuse.
 - **SC14. Storage transition** (F2; confirmed 2026-10-25). Not additive: it runs in the E14
   stop-the-world window with the backup as rollback, with a migration-lint waiver shaped
   like `20260831120000_rename_role_to_step`; the proposal's former "additive" constraint is
   withdrawn. The folder carries the foreign-keys-off marker; renaming `step` to
-  `step_definition` (`ALTER TABLE … RENAME`) makes SQLite rewrite the twelve children's foreign-key clauses, the parent
+  `step_definition` (`ALTER TABLE … RENAME`) makes SQLite rewrite the thirteen current children's foreign-key clauses, the parent
   is then rebuilt to the SC1 shape, and an orphan count per column feeds the
   `CHECK (violations = 0)` guard before commit. The six triggers that join `step`
   (`claim_step_project_insert`/`_update`, `step_blockage_owner_insert`/`_update`,
@@ -138,7 +151,15 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   `legacy_work_package_id` only while every definition is migration-origin and bound once,
   `step_identity_history` is empty and no fact lies outside its
   definition's legacy package; otherwise it refuses naming the first row, and the rollback
-  is the backup. Tests: `bin/assert-rename-window.sh` refuses with a live colour; restore
+  is the backup. For task 1.2, reversing an unmerged database means restoring the original
+  predecessor representation of each step, including its raw nullable code. An SC23 confirmation
+  may promote a NULL code during apply; down must restore that original NULL, not carry the
+  promoted code back or derive another value from the name. Preserve explicit lossless legacy-code
+  provenance before promotion. A missing or incoherent provenance row is a refusal naming the step
+  before destructive down statements, not permission to infer a value. Facts, historical JSON/hash
+  bytes, IDs and the complete predecessor name/hash ledger retain their existing guarantees.
+  This clarifies lossless unmerged rollback, not a claim that current private down already does it.
+  Tests: `bin/assert-rename-window.sh` refuses with a live colour; restore
   from the backup is drilled in `verify.md`.
 - **SC15. One project, different old sets: refuse, and no package gains a step** (F3; settled by Dany 2026-10-25, Q1a: "make sure no new steps for now"). Packages of one project whose old step sets differ cannot keep them under project bindings. The migration refuses with one `divergent_project_set` report row per project naming each package's codes, and there is no `expand` rule: the operator regroups the packages into projects whose packages share one set (or aligns the sets by hand) before `apply`, so after the migration every package resolves exactly the codes it had, no more and no fewer. Because `wbs-work-packages` slice 2 puts every existing package of an organization into one migration project, this migration cannot run for an organization until its packages are regrouped or their sets agree; the report says which. Automatic union is deferred until Dany asks for it.
 - **SC16. The scheduler slices per leaf** (F4; assumed, overrulable; Q2a). `slicesOf` builds
@@ -153,12 +174,16 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
 - **SC17. One applicability invariant guards every protected fact, and lists what it protects before and when it refuses** (F5; settled by Dany 2026-10-25 with his rule "if changing configs breaks smth - must list what will be broken before change can happen"). Protected facts per (leaf, step): `estimate`, `actual`, `step_progress`,
   `step_measure`, `measure_estimate`, `step_node_attempt`, `step_node_attempt_issued`,
   `assignment`, `claim` (lease, revocation and delegation fields included),
-  `typed_dependency` at either endpoint (parent-scoped references included), `step_blockage`
+  `typed_dependency` and `external_dependency` at either endpoint (parent-scoped references included), `step_blockage`
   and `step_parallel`. Applicability-changing paths: unbind, retype, type deletion (today it
   cascades its labels), moving a leaf or a package across projects, changing a project's
   space, deleting a space, undo/redo/restore and copy, and a leaf becoming a parent. One
   store-level check, evaluated in the writer's transaction by every such path and by every
   fact writer (`setEstimate`, `setActual`, … refuse `422 step_not_resolved`), refuses `409 step_nodes_in_use { count, pairs }`: `pairs` lists each vanishing (work item `id`, `name`, `stepId`, `workPackageId`) with the kinds of protected facts on it, the first 200 by package and rank, `count` the total. Every applicability-changing write (unbind, retype, type deletion, leaf and package move, space change, space deletion) accepts `dryRun: true` and answers `200 { wouldRefuse: 'step_nodes_in_use', count, pairs }` or `200 { wouldRefuse: null }` from a rolled-back transaction under the write's own permission, writing and announcing nothing; `GET …/step-nodes-in-use` stays for browsing a binding's usage. Issued-attempt counters are retained facts: they block removal, so attempt numbers are never reused. Rejected: dropping the facts (the schedule changes and nobody can tell why) and hiding the node with its facts (the data leaves every read).
+  Clarification accepted 2026-11-18: A42 already retains a parent’s issued-attempt counter when copying it to its first child. Treat that retained address as an **allocator reservation**, separately from a visible leaf step node. Configuration admission checks the reservation against the parent’s own direct type/current chain and exact definition/WPS identity and values; it reports the parent’s actual tree rank with `attempt_issued`. It does not substitute a descendant type, filter away the parent, reset its counter, or defer invalidity until a later last-child deletion. Current leaf counter-only protection remains unchanged. An unrelated sibling/foreign reservation is not a global veto. This is a clarification of existing retained numbering history, not authorization for parent estimates, progress, measures or attempts. The alternative of allowing unbind and refusing only later revival was rejected because it admits invalid retained history and loses the original binding order needed for a precise configuration preview.
+
+  First-child conversion must deepen the existing store-owned structural operation: capture all 13 protected families/current direct types and already-admitted incident receipts, construct the actual untyped child, validate every transferred address, then mutate in one same-writer savepoint or memory staged publication. A refusal leaves unrelated outer work committable and exposes no partial tree/fact state. Budgets stay on their existing parent owner; assignments, demands, claim satellites, endpoint identity and counters retain their established transfer semantics. Parallel facts without a lawful transfer refuse. Current undo/redo must use the same atomic transition, rather than replaying transient parent point rows through repeated working-plan refreshes. Existing remote incident admission/restoration remains the authority; captured receipts cannot manufacture permission. The first combined point-fact tests do not complete all-family, SQL, failure-recovery or history coverage.
+
 - **SC18. Binding identity and a total order** (F6; assumed, overrulable). `type_key` is a
   virtual generated column `COALESCE(work_item_type_id, '*')` and
   `UNIQUE (scope_kind, scope_id, step_id, type_key)`; on bun's SQLite 3.53.4 this refused
@@ -232,11 +257,42 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   at the target project are bound there for every type (`project.manage_settings`); unknown
   codes are refused `422 unknown_step_codes` unless `defineMissing: true` (SC20).
 
-Step-key inventory (schema.ts at `0bc934e4a`, matching E21): `estimate`, `actual`,
-`step_progress`, `step_measure`, `measure_estimate`, `step_node_attempt`,
-`step_node_attempt_issued`, `assignment`, `claim` (nullable), `typed_dependency`
-(predecessor and successor), `step_blockage`, `step_parallel`; `plan_event.step_id` has no
-foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, untouched.
+Current step-key inventory: `estimate.step_id`, `actual.step_id`, `step_progress.step_id`,
+`step_measure.step_id`, `measure_estimate.step_id`, `step_node_attempt.step_id`,
+`step_node_attempt_issued.step_id`, `assignment.step_id`, `claim.step_id`,
+`step_blockage.step_id`, `step_parallel.step_id`, both `typed_dependency` step endpoints,
+and both `external_dependency` step endpoints: fifteen columns in thirteen tables. The
+external endpoints extend the original thirteen-column inventory and retain their paired
+work-package/item/step composite ownership. Nullable whole endpoints name no step and are
+not foreign-step facts. `plan_event.step_id` has no foreign key and remains SC13 historical
+read translation only. Lease/revocation/delegation state lives on `claim`;
+`claim_occupancy` keys on claim ids, untouched.
+
+## Retained identity retirement (SC25)
+
+Accepted implementation assumption under the standing authorization to resolve this change's remaining details; it closes the conflict between SC5's definition deletion and SC11/SC13/SC21's retained identity and package values. See [Step retirement preserves identity](../../../docs/adr/0085-step-retirement-preserves-identity.md).
+
+`DELETE /api/organization/steps/:id` retires an active definition. It requires `organization.manage_settings`, conceals foreign/absent/already-retired definitions as `404 not_found`, and refuses `409 step_bound` while any binding names the definition. An unbound definition retires successfully whether it has no references, unused package values, a legacy merge alias, or immutable history. It never deletes the definition or those references. The HTTP result is 204; `GET /api/organization/steps` lists active definitions and active bindings only. Retirement is not unbinding, clearing facts, renaming, or permission to rewrite a stored plan.
+
+The definition's id, code, organization, name, defaults, origin, legacy metadata and historical alias records are retained. Its code and name remain reserved in that organization, including after every package is removed; defining either again returns the existing precise `code_taken` or `name_taken` outcome. Retirement cannot be reversed through bind, defineMissing, rename, replay or an implicit fallback. A future explicit reactivation purpose, if wanted, requires its own contract and tests. This is deliberate namespace retention, not a hidden physical-deletion restriction.
+
+Storage uses a required additive retirement relation keyed by definition id, with actual organization ownership and retirement audit. A missing retirement record is the modeled active state; a missing relation, malformed record, orphan definition or inconsistent ownership is a trusted-state failure. A paired down migration must refuse while retirement records exist rather than silently reactivate identities. Empty-state forward/down ownership and actual complete name/hash ledger restoration remain required. Do not edit migration117 or previously applied bodies.
+
+The current catalogue read decodes selected identities and retirement metadata before projecting active entries. A binding that names a retired definition is corrupt trusted state, not an edge to filter away: public/current reads and admission must throw rather than silently omit it. Both insert and update of bindings must refuse retired identities on the actual same writer. Definition retirement and its final zero-binding check share the owned method-local transaction/savepoint, including when a borrowed caller catches a modeled refusal and commits unrelated work. Memory stages the same definition/retirement/binding graph before publication. All current Source/lifetime/queue guarantees remain required.
+
+Historical readers deliberately retain physical identity access. SC13's saved-plan read translation still sees the retained survivor and old-id aliases; stored input/schedule hashes, raw JSON, command/event history, signatures, resource-use snapshots and runtime bindings remain unchanged. Current package projection still comes from live bindings and each package's explicit values; unused `work_package_step` rows are neither deleted nor replaced from definition defaults. Current point writes/restores against a retired step cannot resolve, and command replay refuses through its existing modeled stale/current-applicability boundary without reactivation. Frozen historical reads do not apply current active-catalogue filtering.
+
+Import distinguishes an unknown code from a retired reserved code. A retired code is refused as a named `retired_step_codes` 422 with the affected codes, including with `defineMissing: true`; it is not silently recreated or bound. This response is a planned explicit contract requiring its own first owner before implementation. Definition PATCH and binding by retired id answer `not_found`, without revealing a foreign retirement record.
+
+Required first owners beyond the initial mounted catalogue slice:
+
+1. Actual current Source creates and binds a definition, materializes two packages, authors distinct package values/revisions, safely unbinds, retires via mounted HTTP, and observes active catalogue absence while the complete original definition and package rows remain exact. Repeated/foreign operations and code/name reuse are explicit outcomes.
+2. A genuinely migrated merged-survivor fixture safely loses its final binding, then retires through current admitted authority. Actual saved-read alias translation and frozen body/hash verification remain unchanged; no fabricated survivor/history rows substitute for the existing genuine fixture.
+3. Same-writer binding-versus-retirement serialization, a late native fault with full rollback, and a caught borrowed refusal followed by independent outer COMMIT. Memory publication and SQL savepoint omissions need their own observed state failures.
+4. Corrupt selected retirement ownership/orphan/scalar metadata and a retained binding to a retired definition must reach production-path trusted-state negatives; removing each new/changed dependency must produce the intended failure before an adjacent Proof is added.
+5. Actual import/replay behavior for retired codes/ids, plus active catalogue omission versus historical retention, before API/MCP/UI retirement is certified.
+
+The additive SQL shape does not itself prove mixed-version runtime compatibility. Old binary bind/read behavior, migration window capabilities, deployment ordering, down refusal and disposal must be observed under their actual owners. No such gate, migration, runtime or R5 result is claimed by this design candidate.
 
 ## Routes
 
@@ -252,7 +308,11 @@ foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, 
 | `GET /api/projects/:id/step-manifest`                                         | `project.read`; SC22                         |
 | `PATCH /api/work-packages/:id/steps/:stepId { estimateUnit?, allowanceBps? }` | `package.manage_settings`; unit change rule  |
 
-`reorder` names exactly the scope's bindings or is refused `409 stale_order`.
+`reorder` names exactly the scope's complete bindings across every type or is refused `409 stale_order` atomically. Missing, duplicate, extra and inherited/foreign-scope ids all refuse. The actual same-organization scope is resolved under the write loan before census; a foreign/absent scope is404. Keeping the existing total order (position, then binary binding id), including an empty scope, is a no-op and retains its ranks/revisions. A changed order writes positions10,20,… and advances every actually reached package/project once, including empty projects; definitions, explicit values and facts stay exact. It never reorders inherited bindings on behalf of a child scope.
+
+The project step read uses the existing actual `ProjectChain`, never a made-up work-package identity or current package defaults. Under the standing authorization to settle remaining details, an absent `type` query selects the untyped mapping (SC3); a supplied nonempty value is an organization-owned work-item type id. Unknown or foreign type ids are404 after actual project admission. Empty, repeated or unknown query fields are400. The response is `{ steps: [{ stepId, code, name, via }] }`, listing every matching binding in SC18 order, with no package unit/allowance projection. The actual project’s `project.read` permission is sufficient even when the caller cannot read the organization-wide catalogue. Empty projects resolve without creating package rows or advancing revisions. Project read refusal matches the existing dedicated reader: a currently readable actual child makes a project shell visible and yields403 project.read; otherwise missing project.read conceals the project as404. Readable IDs and actual children are observed inside the same admitted owner before type lookup. Unrelated readable packages never establish shell visibility. SC22’s manifest separately enumerates the untyped default and every type mapping.
+
+The binding DELETE body requires an explicit `{ dryRun: boolean }`. `true` answers200 with `wouldRefuse: null` or the bounded `step_nodes_in_use` count/pairs and rolls back; `false` applies204 or refuses409 with the same protected pairs. Both modes use the binding's stored scope under the write's permission, not a body-provided scope; malformed or omitted mode is422. Successful removal preserves explicit package values and publishes only after commit; preview/refusal publishes nothing.
 
 ## Open questions for Dany
 
@@ -276,3 +336,38 @@ foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, 
   and the automatic identical merges, before anything is written.
 - History readers depend on `step_identity_history` for merged ids for as long as old
   journals and saved plans are read (SC13, Q5).
+
+
+### Current119 retirement and catalogue cache ownership
+
+The current runtime requires the additive 119 `step_retirement` relation and an applied-ledger header with the required exact name/timestamp and a lowercase64hex hash. This is required header presence/shape, not content agreement with a universal expected migration hash; actual folder/name/hash acquisition and rollback checks retain their existing independent owners. Its marker retains the physical117 definition, code/name reservation, WPS values and historical aliases. Present markers are decoded against the actual same-organization definition, organization and audit actor. Current binding projections reject a marker/binding combination as trusted corruption; they never silently filter the bad binding. The single-statement package projection carries the required profile columns in its own snapshot; other multi-statement captures borrow the actual existing transaction. Historical saved identity readers remain on their precise117 path and do not reinterpret saved bytes through active catalogue visibility.
+
+Definition name/default edits, first definition/binding creation, new binding provenance and successful unbind advance each actually reached package and project revision once. Empty projects participate independently of package existence. Overlapping bindings deduplicate affected IDs. Results return sorted actual `workPackageIds` and `projectIds`; an exact metadata no-op returns two empty lists and writes nothing. Preview/refusal performs no touch. Existing WPS unit, allowance and allowanceRevision remain untouched. Retirement writes only its immutable marker after a strict unbound check; it performs no definition/cache/value touch.
+
+The memory Source clones its entire graph once, preserving shared table aliases. The retirement map belongs to that same staged graph and complete commit publication. Neither per-field clone reconstruction nor an old Step DTO shadow supplies current retirement or package values. SQL fixture acquisition uses the authentic private117 transition followed by ordinary118/119 folders and their full applied name/hash ledger. Genuine merged-history tests keep the original117 artifact and apply later additive folders normally.
+
+Native119 guards require same-organization physical identity, an existing audit user, no active binding, immutable markers and no implicit binding reactivation. Its paired down refuses any recorded retirement before schema or ledger change; an empty marker relation can be reversed without deleting definitions/WPS. No117/applied SQL is edited.
+
+This private source cohort does not certify mixed-version deployment. Additive staging alone cannot teach already-running older readers to hide retirement markers. Retirement activation requires the explicit rollout/drain/current-profile boundary from SC25; no host/session authority is invented by a lower store or fixture. Exact retired-code import/replay refusal, migration-guard omission proofs, active-corruption variants and current-profile rollout owners remain separate verification obligations. Physical namespace uniqueness already keeps retired names/codes reserved; active catalogue DTOs do not expose a retired record as an unknown-code substitute.
+
+Project usage browsing is distinct from a single-binding unbind preview: redundant inherited bindings do not hide existing usage. A required internal catalogue read captures all actual organization package/type/definition/fact evidence on its current owner, including both external endpoints. The existing pure protected-pair projector validates that complete evidence and compares against removal of all bindings naming the requested step. A final explicit selection retains only the actual addressed project's currently readable packages and the selected step before computing count/order/the200pair cap. Private child names and counts follow the existing project reader's visibility policy. Mutating unbind safety retains its complete protected census. Missing/foreign/unreachable step ids answer404 after same-owner project admission; project-shell403, hidden404 and query400 match project steps. No writes, revisions or notifications follow a usage read.
+
+
+SC22 wire details, settled under standing authorization: the project step manifest is `{version:1,project:{id,revision},default:[code,...],types:[{workItemTypeId,codes:[code,...]},...]}`. Type entries enumerate every actual organization-owned type, in binary ID order, even without a type-specific binding. Work-item types have stable IDs and display names, not a separate code; type mapping addresses therefore use IDs. The array keeps a legitimate type ID `default` distinct from the untyped default mapping. Codes retain SC18 resolution order and may be empty. Foreign types and sibling-only bindings never appear. Project.read alone permits this applicability metadata; package private fields, units, allowances and names are absent. Revision, actual project chain, current type ownership and bindings must come from the same admitted owner, including empty projects. No package or values are invented, and the read advances no revision or announcements. Burokrat's offline consumer and revision-naming binding format remain required by task2.3; this API wire refinement does not complete that task.
+
+
+SC22 revision completeness also includes organization work-item type membership. A successful scoped creation/removal that changes the actual owned type set advances every actual project in that organization once, including empty projects, inside the same writer. Idempotent creation, refusals and rollbacks do not advance revisions; foreign projects and explicit package values remain unchanged. This is required because the manifest enumerates every owned type, even without typed bindings. The existing directory write path currently lacks this invalidation; a mounted directory-command regression must fail before the implementation is changed. The offline Burokrat consumer remains required after this producer invariant is established.
+
+
+The type-set invalidation joins the directory writer at its actual ownership transition: `mapInOrganization` now requires the original write stamp and atomically writes a type mapping plus each actual organization's project revision. Non-type mappings preserve revisions. Type deletion captures its actual mapping before removal and advances those projects inside its existing transaction only after successful removal; explicitly unowned legacy roots retain legacy behavior. The shared target capture includes empty projects and excludes foreign organizations; no global catalogue activation or package mutation is needed merely to advance these project tokens. Standalone forwarding retains the stamp before any queued owner.
+
+
+### SC22 offline consumer format and compatibility
+
+Under standing authorization, extend the existing offline validation flow with `validate workflow-binding <file> --manifest <file>`. Preserve the strict version1 binding, `--steps` grammar, acceptance schema1 reader and existing digest bytes. The manifest consumer uses a distinct version2 binding: `{version:2,project:{id,revision},default:[{code,class}],types:[{workItemTypeId,steps:[{code,class}]}],classes:{...}}`. Stable IDs and codes are nonempty strings; arrays allow valid IDs such as default, constructor and whitespace without treating them as object properties. Duplicate type IDs or codes refuse before lookup. Classes retain existing strict executor/model/path validation; an empty class dictionary is valid only when no mapped class is needed.
+
+The manifest is strict JSON matching the producer version1 wire. Default mapping must cover exactly its untyped codes. Every actual owned type uses its entire explicit mapping or the entire default mapping, checked against that type alone; never fill an incomplete explicit mapping from default. Unknown binding types and dangling classes refuse. Compare both exact project ID and safe nonnegative revision before coverage. Empty manifests/mappings are valid. Missing and unreadable manifest files remain distinct, nonregular files refuse before opening, malformed UTF-8/JSON/schema refuse, and no network is used. Binding YAML/prompt containment/UTF-8/original-byte rules remain unchanged.
+
+Type entry order and binding mapping presentation order are nonsemantic and canonicalize in binary UTF-8 order. Manifest code order is SC18 behavior and remains ordered. A separate schema2 acceptance snapshots the canonical binding, canonical manifest, manifest digest and original prompt byte descriptors; its digest includes all of them. The old schema1 acceptance reader and RunStore behavior remain strict and unchanged. A distinct schema2 reader validates descriptor coverage and recomputes the manifest digest before reconstructing acceptance. This introduces no runtime execution authority. Shared class/prompt decoding is reused with unchanged version1 behavior; no synthetic type/code mapping is introduced to bypass the legacy checker.
+
+Tests first exercise the actual exported command helper, typed/default/literal-default coverage, project/revision mismatch, empty mappings, real file permission failures, prompt-byte and manifest-content digest changes, and presentation invariance. Then add strict decoder/acceptance cases and actual Burokrat/PUNI grammar integration. Required negatives independently omit type checking, project/revision equality, exact coverage, uniqueness, descriptor and digest checks, plus changed shared boundaries. Astra follow-up remains required and currently unavailable; no parent task is closed by this design refinement.

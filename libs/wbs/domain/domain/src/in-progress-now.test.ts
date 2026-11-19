@@ -91,15 +91,15 @@ describe('inProgressLeavesOf', () => {
 
 describe('sortInProgress', () => {
   it('orders by end date with undated last, then space position, then number', () => {
-    // Proof, observed 2026-09-29: with the project id tie-break removed, the
+    // Proof, observed 2026-09-29: with the work package id tie-break removed, the
     // two tied items kept their input order (`tie-q` before `tie-a`).
     const item = (
       id: string,
       endsOn: string | null,
       position: number,
       number: string,
-      projectId = 'p',
-    ) => ({ id, endsOn, position, number, projectId });
+      workPackageId = 'p',
+    ) => ({ id, endsOn, position, number, workPackageId });
     const ordered = sortInProgress(
       [
         item('undated', null, 1, '1'),

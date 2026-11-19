@@ -2,9 +2,9 @@ import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { type ConnectedPlanOptimizationView, WbsRequestError } from '@/lib/wbs-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type { SubscriptionHandlers } from './wbs-table';
@@ -27,7 +27,7 @@ const FAILED: ConnectedPlanOptimizationView = {
   sameOrderAsFast: {},
   scope: {
     kind: 'connected-stage',
-    projectId: 'p1',
+    workPackageId: 'p1',
     originOrdinal: 0,
     mode: 'isolated',
     quantum: 48,
@@ -35,9 +35,9 @@ const FAILED: ConnectedPlanOptimizationView = {
     boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'q1-stage' },
     fixed: [
       {
-        projectId: 'foreign',
-        projectName: 'Old boundary',
-        projectAbbreviation: 'OLD',
+        workPackageId: 'foreign',
+        workPackageName: 'Old boundary',
+        workPackageAbbreviation: 'OLD',
         workItemId: 'fixed',
         workItemName: 'Captured work',
         stepId: null,
@@ -60,7 +60,7 @@ function nextQuestion(
     scope: {
       ...FAILED.scope,
       boundary: { ...FAILED.scope.boundary, canonical: 'q2-stage' },
-      fixed: [{ ...FAILED.scope.fixed[0], projectName: 'New boundary', start: 4, finish: 12 }],
+      fixed: [{ ...FAILED.scope.fixed[0], workPackageName: 'New boundary', start: 4, finish: 12 }],
     },
     variants: {
       pri:
@@ -76,7 +76,7 @@ function nextQuestion(
                     kind: 'boundary-infeasible',
                     evidence: 'contradictory-bounds',
                     question: {
-                      projectId: 'p1',
+                      workPackageId: 'p1',
                       inputHash: 'q2',
                       questionHash: 'q2-question',
                       objective: 'pri',
@@ -106,7 +106,7 @@ function openCue(): void {
 function terminalRefusal(): WbsRequestError {
   return new WbsRequestError({
     kind: 'refusal',
-    operation: 'postApiProjectsByIdOptimizationRetry',
+    operation: 'postApiWorkPackagesByIdOptimizationRetry',
     refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
   });
 }
@@ -123,7 +123,7 @@ it.each([
 ] as const)(
   'a connected Q1 %s terminal Retry refusal reconciles Q2 %s only through its tree',
   async (initialState, state) => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Launch' });
     const readTree = api.tree.bind(api);
     let current: ConnectedPlanOptimizationView = {
@@ -141,13 +141,13 @@ it.each([
       throw new Error('no held read');
     };
     let holdRead = false;
-    api.tree = async (projectId) => {
+    api.tree = async (workPackageId) => {
       readCount += 1;
       if (holdRead)
         await new Promise<void>((resolve) => {
           releaseRead = resolve;
         });
-      return { ...(await readTree(projectId)), optimization: current };
+      return { ...(await readTree(workPackageId)), optimization: current };
     };
     let rejectRetry: () => void = () => {
       throw new Error('no pending Retry');
@@ -164,14 +164,14 @@ it.each([
     let notify: () => void = () => {
       throw new Error('No stream subscriber');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -246,10 +246,13 @@ it.each([
 );
 
 it('a delayed terminal Retry refusal cannot toast or refresh a replacement runtime', async () => {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old owner' });
   const readTree = api.tree.bind(api);
-  api.tree = async (projectId) => ({ ...(await readTree(projectId)), optimization: FAILED });
+  api.tree = async (workPackageId) => ({
+    ...(await readTree(workPackageId)),
+    optimization: FAILED,
+  });
   let rejectRetry: () => void = () => {
     throw new Error('no pending Retry');
   };
@@ -264,23 +267,26 @@ it('a delayed terminal Retry refusal cannot toast or refresh a replacement runti
   api.retryOptimization = retry;
   const oldRead = vi.spyOn(api, 'tree');
   const mounted = render(
-    <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
   );
   fireEvent.click(await screen.findByRole('button', { name: /is the active schedule/ }));
   fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Pri' }));
   await waitFor(() => {
     expect(retry).toHaveBeenCalledTimes(1);
   });
-  const replacement = fakeProjectApi();
+  const replacement = fakeWorkPackageApi();
   await replacement.createWorkItem('p1', { parentId: null, afterId: null, name: 'New owner' });
   const readReplacement = replacement.tree.bind(replacement);
-  replacement.tree = async (projectId) => ({
-    ...(await readReplacement(projectId)),
+  replacement.tree = async (workPackageId) => ({
+    ...(await readReplacement(workPackageId)),
     optimization: nextQuestion('ready'),
   });
   const replacementRead = vi.spyOn(replacement, 'tree');
   mounted.rerender(
-    <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(replacement)} />,
+    <WbsTableOverClient
+      workPackageId="p1"
+      workPackageServices={workPackageServicesOf(replacement)}
+    />,
   );
   await screen.findByDisplayValue('New owner');
   const oldCount = oldRead.mock.calls.length;
@@ -302,7 +308,7 @@ it('a delayed terminal Retry refusal cannot toast or refresh a replacement runti
 it.each(['ready', 'boundary-infeasible'] as const)(
   'a connected %s read retains captured facts but suppresses comparisons after stream refresh failure',
   async (state) => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Launch' });
     const readTree = api.tree.bind(api);
     const captured: ConnectedPlanOptimizationView =
@@ -317,19 +323,22 @@ it.each(['ready', 'boundary-infeasible'] as const)(
             sameOrderAsFast: { pri: false, time: true },
           }
         : nextQuestion(state);
-    api.tree = async (projectId) => ({ ...(await readTree(projectId)), optimization: captured });
+    api.tree = async (workPackageId) => ({
+      ...(await readTree(workPackageId)),
+      optimization: captured,
+    });
     let notify: () => void = () => {
       throw new Error('No stream subscriber');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     const retry = vi.spyOn(api, 'retryOptimization');
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -366,15 +375,17 @@ it.each(['ready', 'boundary-infeasible'] as const)(
     if (state === 'boundary-infeasible') expect(cueFact()).toContain('Question hash q2-question');
     openCue();
     const fresh = nextQuestion('failed');
-    api.tree = async (projectId) => ({
-      ...(await readTree(projectId)),
+    api.tree = async (workPackageId) => ({
+      ...(await readTree(workPackageId)),
       optimization: {
         ...fresh,
         inputHash: 'q3',
         scope: {
           ...fresh.scope,
           boundary: { ...fresh.scope.boundary, canonical: 'q3-stage' },
-          fixed: [{ ...fresh.scope.fixed[0], projectName: 'Fresh boundary', start: 5, finish: 13 }],
+          fixed: [
+            { ...fresh.scope.fixed[0], workPackageName: 'Fresh boundary', start: 5, finish: 13 },
+          ],
         },
       },
     });
@@ -399,17 +410,17 @@ it.each(['ready', 'boundary-infeasible'] as const)(
   },
 );
 
-it('a delayed connected Retry refusal cannot refresh or overwrite another project on the same API', async () => {
-  const api = fakeProjectApi();
+it('a delayed connected Retry refusal cannot refresh or overwrite another work package on the same API', async () => {
+  const api = fakeWorkPackageApi();
   const readTree = api.tree.bind(api);
-  api.tree = async (projectId) => ({
-    ...(await readTree(projectId)),
+  api.tree = async (workPackageId) => ({
+    ...(await readTree(workPackageId)),
     optimization:
-      projectId === 'p1'
+      workPackageId === 'p1'
         ? FAILED
         : {
             ...nextQuestion('ready'),
-            scope: { ...nextQuestion('ready').scope, projectId: 'p2' },
+            scope: { ...nextQuestion('ready').scope, workPackageId: 'p2' },
           },
   });
   let rejectRetry: () => void = () => {
@@ -426,22 +437,24 @@ it('a delayed connected Retry refusal cannot refresh or overwrite another projec
   api.retryOptimization = retry;
   const reads = vi.spyOn(api, 'tree');
   const mounted = render(
-    <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
   );
   fireEvent.click(await screen.findByRole('button', { name: /is the active schedule/ }));
   fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Pri' }));
   await waitFor(() => {
     expect(retry).toHaveBeenCalledWith('p1', 'pri', 'q1');
   });
-  mounted.rerender(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
-  await screen.findByRole('button', { name: /Project p2/ });
+  mounted.rerender(
+    <WbsTableOverClient workPackageId="p2" workPackageServices={workPackageServicesOf(api)} />,
+  );
+  await screen.findByRole('button', { name: /WorkPackage p2/ });
   const readCount = reads.mock.calls.length;
   await act(async () => {
     rejectRetry();
     await Promise.resolve();
   });
   expect(reads).toHaveBeenCalledTimes(readCount);
-  expect(screen.getByRole('status')).toHaveTextContent('Project p2');
+  expect(screen.getByRole('status')).toHaveTextContent('Work package p2');
   expect(screen.getByRole('status')).toHaveTextContent('finishes 3 days earlier');
   expect(cueFact()).toContain('New boundary');
   expect(cueFact()).not.toContain('Old boundary');

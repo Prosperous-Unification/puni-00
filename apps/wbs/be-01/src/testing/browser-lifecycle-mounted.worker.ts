@@ -1,3 +1,4 @@
+import {openMemorySource} from '@wbs/store-memory/source';
 import {
   buildOidcVerifier,
   InMemoryOidcTransactionStore,
@@ -45,15 +46,18 @@ import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { refusingOnboarding } from './onboarding-fixture';
 import { refusingDomains, refusingEnterpriseConnections } from './organization-access-fixture';
+import { refusingPlanExports } from './plan-export-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
-import { refusingProjectAddressSearch } from './project-address-search-fixture';
-import { testProjectService } from './project-fixture';
-import { refusingProjectRanks } from './project-rank-fixture';
+import { refusingProjects } from './project-fixture';
 import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
 import { refusingSpaces } from './space-fixture';
 import { testStepService } from './step-fixture';
 import { testWorkItemService } from './work-item-fixture';
+import { refusingWorkPackageAddressSearch } from './work-package-address-search-fixture';
+import { refusingWorkPackageObservation } from './work-package-fixture';
+import { testWorkPackageService } from './work-package-fixture';
+import { refusingWorkPackageRanks } from './work-package-rank-fixture';
 import { testWrites } from './writes-fixture';
 
 interface Incoming {
@@ -197,9 +201,14 @@ const organizations: SqliteOrganizationAccess = new SqliteOrganizationAccess(
   Date.now,
 );
 const logLines: string[] = [];
+const workItemSource=openMemorySource();
+const workItems=testWorkItemService(workItemSource);
 const app = buildApp(
   {
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: refusingWorkPackageObservation,
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations,
     organizationSelection: selection.endpoints,
     credentialEvidence: organizationCredentialEvidence(
@@ -215,7 +224,7 @@ const app = buildApp(
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(5),
@@ -228,7 +237,7 @@ const app = buildApp(
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
+    writes: testWrites(undefined,{workItems}),
     migrationsApplied: true,
     oidc,
     browserSession: {
@@ -241,10 +250,10 @@ const app = buildApp(
     priorityBands: testPriorityBandService(),
     admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
-    projects: testProjectService(),
+    workPackages: testWorkPackageService(),
     replay: testReplay().replay,
     steps: testStepService(),
-    workItems: testWorkItemService(),
+    workItems,
     savedPlans: testSavedPlanService(),
   },
   (options) =>
@@ -326,6 +335,9 @@ async function receive(frame: Incoming): Promise<void> {
 }
 
 let buffered = '';
+type RequestSettlement={readonly ok:true}|{readonly ok:false;readonly cause:unknown};
+const requests:Promise<RequestSettlement>[]=[];
+const requestFailures:unknown[]=[];
 if (process.argv[3] === 'early-exit') {
   process.stderr.write('injected worker startup exit\n');
   process.exit(27);
@@ -340,7 +352,26 @@ process.stdin.on('data', (chunk: string) => {
     if (separator < 0) break;
     const line = buffered.slice(0, separator);
     buffered = buffered.slice(separator + 1);
-    if (line.length > 0) void receive(JSON.parse(line) as Incoming);
+    if (line.length > 0){
+      const request=receive(JSON.parse(line) as Incoming).then<RequestSettlement,RequestSettlement>(
+        ()=>({ok:true}),
+        (cause:unknown)=>{requestFailures.push(cause);return{ok:false,cause};},
+      );
+      requests.push(request);
+    }
   }
 });
+async function finishWorker():Promise<undefined>{
+  try{await Promise.all(requests);}
+  catch(cause:unknown){requestFailures.push(cause);}
+  try{await workItemSource.close();}
+  catch(cleanup:unknown){requestFailures.push(cleanup);}
+  if(requestFailures.length>0)throw new AggregateError(requestFailures,'mounted worker request/source cleanup failed',{cause:requestFailures.at(-1)});
+  return undefined;
+}
+const finished=Promise.withResolvers<undefined>();
+process.stdin.once('end',()=>{
+  void finishWorker().then(finished.resolve,finished.reject);
+});
 process.stdin.resume();
+await finished.promise;

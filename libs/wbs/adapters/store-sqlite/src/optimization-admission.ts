@@ -4,9 +4,9 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import type { Drizzle } from './db';
 import { reclaimExpiredSolverSlotsIn } from './optimization-drain';
 import { readGeneration } from './optimization-generation';
-import { project, type SolverObjectiveName, solverSlot } from './schema';
+import { workPackage, type SolverObjectiveName, solverSlot } from './schema';
 
-const MAX_PROJECT_SLOTS = 4;
+const MAX_WORK_PACKAGE_SLOTS = 4;
 const MAX_GLOBAL_SLOTS = 16;
 const CHILD_EXIT_GRACE_MS = 5_000;
 const SLOT_RECLAIM_MARGIN_MS = 15_000;
@@ -15,7 +15,7 @@ const SLOT_RECLAIM_MARGIN_MS = 15_000;
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
 export interface SolverSlotRequest {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly objective: SolverObjectiveName;
@@ -35,7 +35,7 @@ export type SolverSlotAdmission =
       readonly admittedDeadlineAt: number;
     }
   | {
-      readonly kind: 'already-present' | 'closed' | 'project-full' | 'global-full';
+      readonly kind: 'already-present' | 'closed' | 'work-package-full' | 'global-full';
     };
 
 /** Recover the one start instant encoded into both admission deadlines. */
@@ -47,7 +47,7 @@ export function solverAdmissionStartedAt(
 }
 
 export interface SolverSlotBind {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly objective: SolverObjectiveName;
@@ -57,7 +57,7 @@ export interface SolverSlotBind {
 }
 
 export interface SolverSlotHeartbeat {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly objective: SolverObjectiveName;
@@ -86,7 +86,7 @@ export function bindSolverSlot(db: Drizzle, slot: SolverSlotBind): boolean {
       .set({ lifecycle: 'running', pid: slot.pid })
       .where(
         and(
-          eq(solverSlot.projectId, slot.projectId),
+          eq(solverSlot.workPackageId, slot.workPackageId),
           eq(solverSlot.contractVersion, slot.contractVersion),
           eq(solverSlot.generation, slot.generation),
           eq(solverSlot.objective, slot.objective),
@@ -121,7 +121,7 @@ export function heartbeatSolverSlot(
       .set({ heartbeatAt: slot.now })
       .where(
         and(
-          eq(solverSlot.projectId, slot.projectId),
+          eq(solverSlot.workPackageId, slot.workPackageId),
           eq(solverSlot.contractVersion, slot.contractVersion),
           eq(solverSlot.generation, slot.generation),
           eq(solverSlot.objective, slot.objective),
@@ -137,7 +137,7 @@ export function heartbeatSolverSlot(
       return { kind: 'cancelled', reason: 'requested' };
     }
 
-    const current = readGeneration(tx, slot.projectId, slot.contractVersion);
+    const current = readGeneration(tx, slot.workPackageId, slot.contractVersion);
     if (
       current?.generation !== slot.generation ||
       current.cancelEpoch !== slot.admittedCancelEpoch
@@ -158,26 +158,29 @@ export function heartbeatSolverSlot(
  * `starting` rows, cancellation requests and a different budget.
  *
  * Expired seats are reclaimed before either ceiling is counted. The shared
- * transaction helper also attempts every affected contract/project finish, so
+ * transaction helper also attempts every affected contract/work-package finish, so
  * freeing capacity cannot strand the last row of a durable drain.
  */
 export function reserveSolverSlotIn(
   tx: Transaction,
   request: SolverSlotRequest,
-  onFinished?: (target: { readonly projectId: string; readonly contractVersion?: string }) => void,
+  onFinished?: (target: {
+    readonly workPackageId: string;
+    readonly contractVersion?: string;
+  }) => void,
 ): SolverSlotAdmission {
   // Proof: dropping the finished-target forwarding lost B's event for a
   // selected contract retired by initial admission while A stayed present.
   reclaimExpiredSolverSlotsIn(tx, request.now, undefined, onFinished);
 
-  const generation = readGeneration(tx, request.projectId, request.contractVersion);
-  const projectState = tx
+  const generation = readGeneration(tx, request.workPackageId, request.contractVersion);
+  const workPackageState = tx
     .select({
-      enabled: project.optimizationEnabled,
-      deletePendingAt: project.optimizationDeletePendingAt,
+      enabled: workPackage.optimizationEnabled,
+      deletePendingAt: workPackage.optimizationDeletePendingAt,
     })
-    .from(project)
-    .where(eq(project.id, request.projectId))
+    .from(workPackage)
+    .where(eq(workPackage.id, request.workPackageId))
     .get();
   // Proof: independently omitting generation, enabled or open-admission
   // rechecks launched a stale request after the initial observation; the
@@ -185,14 +188,14 @@ export function reserveSolverSlotIn(
   if (
     generation?.generation !== request.generation ||
     generation.admissionState !== 'open' ||
-    projectState?.enabled !== true ||
-    projectState.deletePendingAt !== null
+    workPackageState?.enabled !== true ||
+    workPackageState.deletePendingAt !== null
   ) {
     return { kind: 'closed' };
   }
 
   const identity = and(
-    eq(solverSlot.projectId, request.projectId),
+    eq(solverSlot.workPackageId, request.workPackageId),
     eq(solverSlot.contractVersion, request.contractVersion),
     eq(solverSlot.generation, request.generation),
     eq(solverSlot.objective, request.objective),
@@ -202,12 +205,12 @@ export function reserveSolverSlotIn(
     return { kind: 'already-present' };
   }
 
-  const projectCount = tx
+  const workPackageCount = tx
     .select({ ownerId: solverSlot.ownerId })
     .from(solverSlot)
-    .where(eq(solverSlot.projectId, request.projectId))
+    .where(eq(solverSlot.workPackageId, request.workPackageId))
     .all().length;
-  if (projectCount >= MAX_PROJECT_SLOTS) return { kind: 'project-full' };
+  if (workPackageCount >= MAX_WORK_PACKAGE_SLOTS) return { kind: 'work-package-full' };
 
   const globalCount = tx.select({ ownerId: solverSlot.ownerId }).from(solverSlot).all().length;
   if (globalCount >= MAX_GLOBAL_SLOTS) return { kind: 'global-full' };
@@ -217,7 +220,7 @@ export function reserveSolverSlotIn(
   const inserted = tx
     .insert(solverSlot)
     .values({
-      projectId: request.projectId,
+      workPackageId: request.workPackageId,
       contractVersion: request.contractVersion,
       generation: request.generation,
       objective: request.objective,
@@ -248,7 +251,10 @@ export function reserveSolverSlotIn(
 export function reserveSolverSlot(
   db: Drizzle,
   request: SolverSlotRequest,
-  onFinished?: (target: { readonly projectId: string; readonly contractVersion?: string }) => void,
+  onFinished?: (target: {
+    readonly workPackageId: string;
+    readonly contractVersion?: string;
+  }) => void,
 ): SolverSlotAdmission {
   // Proof: omitting this wrapper forwarding produced the same mounted loss.
   return db.transaction((tx) => reserveSolverSlotIn(tx, request, onFinished));

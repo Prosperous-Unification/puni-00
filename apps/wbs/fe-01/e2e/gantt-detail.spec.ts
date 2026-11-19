@@ -1,6 +1,11 @@
-import { expect, type Page, test } from '@playwright/test';
+import {
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  getWorkItems as getWorkItemsShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /**
  * What the chart's `Detail` switch hides, measured by the engine that paints it.
@@ -23,7 +28,7 @@ import { createProject } from './create-project';
 async function oneCostedAndOneNot(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020']) {
@@ -125,19 +130,29 @@ test.describe('what the chart’s detail switch hides, in a browser', () => {
 });
 
 /**
- * Two estimated rows named after `label` in the open project, the second
+ * Two estimated rows named after `label` in the open work package, the second
  * waiting on the first when `linked`.
  */
 async function seedTwoRows(page: Page, label: string, linked: boolean): Promise<void> {
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project open to seed');
-  const plan = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/projects/${id}/work-items`);
-    if (!response.ok) throw new Error(`plan read failed: ${String(response.status)}`);
-    return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
-  }, projectId);
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package open to seed');
+  const plan = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const id = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      if (!response.ok) throw new Error(`plan read failed: ${String(response.status)}`);
+      return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
+    },
+    {
+      requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+      fixtureInput: workPackageId,
+    },
+  );
   const dev = plan.steps.find((step) => step.name === 'Dev');
-  if (dev === undefined) throw new Error('a new project has no Dev step');
+  if (dev === undefined) throw new Error('a new work package has no Dev step');
   const days = { optimistic: 2, realistic: 3, pessimistic: 4 };
   const commands = [
     { kind: 'createWorkItem', ref: 'first', parentId: null, afterId: null, name: `${label} first` },
@@ -153,37 +168,47 @@ async function seedTwoRows(page: Page, label: string, linked: boolean): Promise<
     ...(linked ? [{ kind: 'addDependency', workItemRef: 'second', predecessorRef: 'first' }] : []),
   ];
   await page.evaluate(
-    async ({ id, body }) => {
-      const response = await fetch(`/api/projects/${id}/commands`, {
+    async ({ requestHeaders, fixtureInput }) => {
+      const { id, body } = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/commands`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify({ commands: body }),
       });
       if (!response.ok) throw new Error(`seed failed: ${String(response.status)}`);
     },
-    { id: projectId, body: commands },
+    {
+      requestHeaders: {
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+      fixtureInput: { id: workPackageId, body: commands },
+    },
   );
 }
 
-/** Opens the header's project picker and chooses `name`. */
-async function switchProject(page: Page, name: string): Promise<void> {
-  const picker = page.getByRole('combobox', { name: 'Project' });
+/** Opens the header's work package picker and chooses `name`. */
+async function switchWorkPackage(page: Page, name: string): Promise<void> {
+  const picker = page.getByRole('combobox', { name: 'Work package' });
   await picker.evaluate((node) => {
     if (node instanceof HTMLElement) node.blur();
   });
   await picker.click();
-  await page.getByRole('listbox', { name: 'Projects' }).getByRole('option', { name }).click();
+  await page.getByRole('listbox', { name: 'Work packages' }).getByRole('option', { name }).click();
   await expect(picker).toHaveValue(name);
 }
 
-test.describe('the detail switch across a project switch, in a browser', () => {
+test.describe('the detail switch across a work package switch, in a browser', () => {
   /**
    * With nothing remembered, the never-said default belongs to the plan on
-   * screen: choosing another project in the header decides it again from that
+   * screen: choosing another work package in the header decides it again from that
    * plan's first read, both ways (ui-review F-088).
    *
    * A **guard, not a proof of the hook's reset**: the page withdraws one
-   * project's runtime before the next is live, so the table and its chart are
+   * work package's runtime before the next is live, so the table and its chart are
    * mounted afresh on every switch and the chart opens closed. This case
    * passed on the code before F-088 (main 3e06eb5a4, 2026-10-16); what it
    * pins is that the product path keeps deciding per plan. The reset itself,
@@ -196,7 +221,7 @@ test.describe('the detail switch across a project switch, in a browser', () => {
    * linked plan chosen next` (`Expected: "true", Received: "false"`). Watched
    * 2026-10-16.
    */
-  test('decides the never-said default again for the project chosen next (F-088)', async ({
+  test('decides the never-said default again for the work package chosen next (F-088)', async ({
     page,
   }) => {
     await page.goto('/');
@@ -206,9 +231,9 @@ test.describe('the detail switch across a project switch, in a browser', () => {
     const plain = `Plain ${tag}`;
     const barsOf = (label: string) =>
       page.locator(`[data-gantt-bar][aria-label*="${label} first"]`);
-    await createProject(page, linked);
+    await createWorkPackage(page, linked);
     await seedTwoRows(page, linked, true);
-    await createProject(page, plain);
+    await createWorkPackage(page, plain);
     await seedTwoRows(page, plain, false);
     await page.reload();
     await page.getByRole('button', { name: 'Gantt', exact: true }).click();
@@ -223,7 +248,7 @@ test.describe('the detail switch across a project switch, in a browser', () => {
       'setup: nothing remembered',
     ).toBeNull();
 
-    await switchProject(page, linked);
+    await switchWorkPackage(page, linked);
     await expect(page.locator('[data-gantt-panel]'), 'a switch closes the chart').toHaveCount(0);
     await page.getByRole('button', { name: 'Gantt', exact: true }).click();
     await expect(barsOf(linked).first(), 'setup: the linked plan is drawn').toBeVisible();
@@ -234,7 +259,7 @@ test.describe('the detail switch across a project switch, in a browser', () => {
 
     await expect(page.locator('[data-gantt-arrow]').first()).toBeVisible();
 
-    await switchProject(page, plain);
+    await switchWorkPackage(page, plain);
     await expect(page.locator('[data-gantt-panel]'), 'a switch closes the chart').toHaveCount(0);
     await page.getByRole('button', { name: 'Gantt', exact: true }).click();
     await expect(barsOf(plain).first(), 'setup: the plain plan is drawn').toBeVisible();
@@ -244,7 +269,7 @@ test.describe('the detail switch across a project switch, in a browser', () => {
     );
     expect(
       await page.evaluate(() => localStorage.getItem('wbs.ganttDetail')),
-      'switching projects remembers nothing',
+      'switching work packages remembers nothing',
     ).toBeNull();
   });
 });

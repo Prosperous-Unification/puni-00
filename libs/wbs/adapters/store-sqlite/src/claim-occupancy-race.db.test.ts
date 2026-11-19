@@ -1,9 +1,10 @@
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ClaimStore, PlanCommand, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -35,6 +36,7 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-occupancy-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
+  seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -54,13 +56,13 @@ interface Hold {
 }
 
 /**
- * Two leaves each demanding 4 GB of a project that states 6 GB, so either
+ * Two leaves each demanding 4 GB of a work package that states 6 GB, so either
  * claim fits alone and both together do not (`wbs-resources` R3).
  */
 async function seeded(hold: Hold) {
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -73,8 +75,8 @@ async function seeded(hold: Hold) {
       { at: 1, by: id },
     );
   }
-  const created = expectCreated(await graph.projects.create('Race', F));
-  const projectId = created.project.id;
+  const created = expectCreated(await graph.workPackages.create('Race', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
   for (const id of ['claire', 'codex']) {
     await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], { at: 1, by: F });
   }
@@ -84,17 +86,17 @@ async function seeded(hold: Hold) {
   );
   if (!added.ok) throw new Error('the resource was refused');
   const withIdentity = (claims: ClaimStore, actor: () => string): ClaimStore => ({
-    listByProject: async (id) => {
+    listByWorkPackage: async (id) => {
       if (hold.actor === actor()) {
         hold.actor = null;
         hold.reached();
         await hold.release;
       }
-      return claims.listByProject(id);
+      return claims.listByWorkPackage(id);
     },
-    listStampedByProject: (id) => claims.listStampedByProject(id),
+    listStampedByWorkPackage: (id) => claims.listStampedByWorkPackage(id),
     findById: (id, claimId) => claims.findById(id, claimId),
-    observeProject: (id, access) => claims.observeProject(id, access),
+    observeWorkPackage: (id, access) => claims.observeWorkPackage(id, access),
     occupancyOf: (id) => claims.occupancyOf(id),
     organizationOccupancyOf: (ids) => claims.organizationOccupancyOf(ids),
     organizationUnitsOf: (ids) => claims.organizationUnitsOf(ids),
@@ -104,7 +106,7 @@ async function seeded(hold: Hold) {
     moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
     renewLeases: (personId, runId, now) => claims.renewLeases(personId, runId, now),
     expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
-    projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
+    workPackagesWithExpiredLeases: (at, limit) => claims.workPackagesWithExpiredLeases(at, limit),
     boundAccountOf: (personId) => Promise.resolve(BOUND.get(personId) ?? null),
     pinnedPersonOf: () => Promise.resolve(null),
   });
@@ -126,9 +128,9 @@ async function seeded(hold: Hold) {
   });
   const as = (actor: string, commands: PlanCommand[]) => () => {
     acting = actor;
-    return runner.run(projectId, actor, commands);
+    return runner.run(workPackageId, actor, commands);
   };
-  const plan = await runner.run(projectId, F, [
+  const plan = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'one', name: 'One', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'two', name: 'Two', parentId: null, afterId: null },
     { kind: 'setResourceCapacity', resourceId: RAM, units: 6 },

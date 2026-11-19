@@ -8,8 +8,8 @@ export interface ConnectedPlanCapture {
   readonly kind: 'connected';
   readonly organizationId: string;
   readonly mode: CapacityMode;
-  readonly projects: readonly {
-    readonly projectId: string;
+  readonly workPackages: readonly {
+    readonly workPackageId: string;
     readonly abbreviation: string;
     readonly rank: number;
     readonly reads: PlanInputReads;

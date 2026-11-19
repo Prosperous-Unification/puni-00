@@ -3,7 +3,7 @@ import type { CapacityService, CapacityServiceOptions } from './capacity.resourc
 /**
  * What a host must supply to install {@link capacityModule}.
  *
- * Exactly {@link CapacityServiceOptions}, unchanged by the move: the project
+ * Exactly {@link CapacityServiceOptions}, unchanged by the move: the work package
  * and capacity stores of the one scope being installed over, the broadcaster,
  * the edit admission and the clock. `servicesOver` supplies the stores of each admitted scope, so
  * one installation never outlives the scope it was built over.

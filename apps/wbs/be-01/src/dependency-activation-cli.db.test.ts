@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-project-dependency-activation';
+import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-work-package-dependency-activation';
 import { openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, it } from 'bun:test';
@@ -79,15 +79,15 @@ it('refuses an unreadable database without mutation', () => {
   expect(readFileSync(path)).toEqual(before);
 });
 for (const fault of [
-  'DELETE FROM cross_project_dependency_activation',
-  'DROP TABLE cross_project_dependency_activation_receipt',
-  'DROP TABLE cross_project_dependency_activation',
-  "PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN'",
-  "UPDATE cross_project_dependency_activation SET state='ENABLED'; INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}')",
+  'DELETE FROM cross_work_package_dependency_activation',
+  'DROP TABLE cross_work_package_dependency_activation_receipt',
+  'DROP TABLE cross_work_package_dependency_activation',
+  "PRAGMA ignore_check_constraints=ON; UPDATE cross_work_package_dependency_activation SET state='UNKNOWN'",
+  "UPDATE cross_work_package_dependency_activation SET state='ENABLED'; INSERT INTO cross_work_package_dependency_activation_receipt VALUES (1,'{}')",
   'DROP TABLE __drizzle_migrations',
-  "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation'",
-  "UPDATE cross_project_dependency_activation SET state='ENABLED'",
-  "INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}')",
+  "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_work_package_dependency_activation'",
+  "UPDATE cross_work_package_dependency_activation SET state='ENABLED'",
+  "INSERT INTO cross_work_package_dependency_activation_receipt VALUES (1,'{}')",
   'DROP TRIGGER external_dependency_admit_update',
 ])
   it(`refuses corrupt authority without mutation: ${fault}`, () => {
@@ -109,14 +109,14 @@ it('SQLite refuses a real write attempted by the inspector dependency', () => {
   const path = database();
   const preload = join(path, '..', 'write-inspector.ts');
   const inspector = new URL(
-    '../../../../libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts',
+    '../../../../libs/wbs/adapters/store-sqlite/src/cross-work-package-dependency-activation.ts',
     import.meta.url,
   ).pathname;
   writeFileSync(
     preload,
     `import { mock } from 'bun:test';
 import { inspectDependencyActivation as inspect } from ${JSON.stringify(inspector)};
-mock.module('@wbs/store-sqlite/cross-project-dependency-activation', () => ({ inspectDependencyActivation(db) {
+mock.module('@wbs/store-sqlite/cross-work-package-dependency-activation', () => ({ inspectDependencyActivation(db) {
   db.run('CREATE TABLE forbidden_inspection_write (id INTEGER)');
   return inspect(db);
 } }));`,

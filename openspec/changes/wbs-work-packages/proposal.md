@@ -1,65 +1,53 @@
 ## Why
 
-Today's `Project` is one WBS. A client engagement is several of those, and nothing above
-them owns the shared settings, their dependencies or a shared budget; the
-word "project" is spent on the wrong level. With no users, renaming costs one stop-the-world
-deploy; after the first tenant, a compatibility layer forever.
+Today's `Project` is one WBS. Engagements contain several work packages and need shared settings and budgets. Rename the existing level to work package, introduce projects
+above it, and migrate dev content through maintenance windows.
 
 ## What Changes
 
-**The old level is a work package** (slice 1)
-
-- From: `project` as table, `/api/projects/...`, `postApiProjects…` tools,
-  `project:<id>` subscriptions, plan document, audit subject, fe-01 words.
-- To: `work_package`, `/api/work-packages/...`, `postApiWorkPackages…`, `work-package:<id>`,
-  plan document 12 with `workPackage`, saved-plan input schema 10.
-- Impact: breaking everywhere, MCP tool names included; dev data migrates in place.
-
-**A project is the engagement** (slice 2)
-
-- To: `project(organization_id, name)`; every work package has one project, named on create
-  and import (`422 project_required`); project commands and `moveWorkPackage` with typed
-  refusals; no owner; plan document 13.
-
-**Settings inherit; spaces are the organization's structure** (slice 3a)
-
-- To: a project in one space or none; a setting catalogue resolving organization → space →
-  project → work package with provenance; timezone, calendar markers and the work item type
-  allow-list settable at space; budget factor fixed at the project.
-
-**Steps** (slice 3b) wait for the separate `wbs-step-catalogue` design.
-
-**Dev cleanup and regrouping** (before slice 2) are a runbook, not a migration.
+- **Work packages:** rename the existing tables, API/MCP operations, subscriptions, audit
+  subjects and UI terms. Current plan documents are ordinary 13/connected 14; saved-plan
+  input is 11. Preserve stable ids and strictly validated historical bytes, hashes and
+  receipts through versioned readers and explicit projections. The solver's Python 0.4.0
+  and wire 5 remain frozen behind host mappings.
+- **Projects:** require one engagement project on package create/import
+  (`422 project_required`), add project commands and package moves, and replace package
+  ownership with creator metadata and access grants. Documents advance to 15/16 and
+  saved-plan input 12; update Navigator, Burokrat and Dash consumers together.
+- **Settings and spaces:** resolve organization → space → project → work package with
+  provenance; each project belongs to one space or none. Budget factor belongs to the
+  project. Documents advance to 17/18 and saved-plan input 13.
+- **Step catalogue:** implement the settled [wbs-step-catalogue](../wbs-step-catalogue/proposal.md)
+  scope, preserving historical identities after integrity validation and using its
+  guarded rollback and snapshot window.
+- **Dev cleanup and regrouping:** use runbook selection and count guards
+  between rename and project windows.
 
 ## Non-Goals
 
-Per-project access (`wbs-permissions`); space-scope grants; nested spaces; calendar date
-ranges (`wbs-calendar-ranges`); budgets
-(`wbs-measure-budgets`, merged); cross-work-package dependencies themselves
-(`feat/cross-project-dependencies` rebases onto these names); keeping any old name, route
-or document version alive.
+Nested spaces, space-scope grants, calendar date ranges (`wbs-calendar-ranges`), new budget
+algorithms, and compatibility routes under the old package names. Historical document,
+canonical-request, receipt and backup readers remain required; old evidence is never
+retagged or rehashed. Permissions behavior belongs to the dependent `wbs-permissions` change.
 
 ## Constraints
 
-- Slices 1, 2 and 3a are a documented exception to the additive-migration rule: explicit
-  waivers, the application stopped, a backup report proving source, snapshot and ledger,
-  the snapshot as rollback. New report mode deliberately retains staging artifacts on
-  success and failure, reports their observed locations separately from its eight-field
-  report, and leaves cleanup to an operator holding exclusive namespace control.
-- Ids stay stable; one project per work package, one organization per project; no
-  per-project access invented.
-- The rename is a rerunnable script under `tools/`; residuals are listed. Old
-  `migration.sql` files are never edited.
+- Non-additive window migrations require exact waivers, stopped writers/readers, a backup
+  report binding source, snapshot and ledger, and snapshot rollback. Retained backup
+  artifacts remain operator-owned.
+- Keep ids and immutable evidence stable. Never edit historical migrations or released
+  solver schemas. Separate the reproducible mechanical rename from reviewed semantic repairs.
+- Respect permissions landing and activation order; rehearsal and health evidence precede completion. Production activation requires its own defined window.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `work-packages`: rename, projects, moves, settings, steps, spaces.
+- `work-packages`: rename, projects, moves, settings and spaces.
 
 ### Modified Capabilities
 
-None by delta; ten synced specs are edited in place in the slice 1 PR (E29).
+Current synced specs are edited in place in slice 1, preserving scenario ids (E29).
 
 ## Domain Terms
 
@@ -67,9 +55,8 @@ Work package, Project, Space, Space membership, Project settings, Setting proven
 
 ## Decisions Recorded
 
-E1 to E9 are Dany's; E10 onward assumed, overrulable by id; E47 to E49 settled 2026-10-25. ADR
-0063 supersedes ADR 0033.
+Recorded E1–E49 amendments govern this change; ADR 0063 supersedes ADR 0033.
 
 ## Impact
 
-Every `@wbs/*` library, be-01, gw-01, mcp-01, fe-01, twilight-navigator, docs, dev data.
+Every `@wbs/*` library, be-01, gw-01, mcp-01, fe-01, Navigator, Burokrat, Dash, docs and dev data.

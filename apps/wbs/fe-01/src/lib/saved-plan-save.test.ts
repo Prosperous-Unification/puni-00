@@ -98,7 +98,7 @@ describe('the Save plan action', () => {
    *
    * `calls[0]?.[1] === undefined` is true for a hook that passes an explicit
    * `undefined`, and also for one that passes nothing — but it is also true for
-   * `save(projectId, someNameThatHappensToBeUndefined)`, which is the shape a
+   * `save(workPackageId, someNameThatHappensToBeUndefined)`, which is the shape a
    * later "let the caller name it" change would arrive in. Asserting the whole
    * argument list says the rule once: this hook has no name to give, so it sends
    * one argument.
@@ -185,7 +185,7 @@ describe('the Save plan action', () => {
   /**
    * Sol I1, the half a component-local guard cannot cover.
    *
-   * `ProjectPage` moves one `SavedPlanShelf` between the app-header row and the
+   * `WorkPackagePage` moves one `SavedPlanShelf` between the app-header row and the
    * cards renderer's toolbar sheet, so crossing 768px wide or 500px tall
    * unmounts the shelf and mounts a fresh one. A `useRef(false)` guard is
    * component-local, so the replacement starts with the lock open while the
@@ -221,7 +221,7 @@ describe('the Save plan action', () => {
   });
 
   /**
-   * The same lock, reached the way the panel reaches it: through the project
+   * The same lock, reached the way the panel reaches it: through the work package
    * runtime's saved plans, which every mount of the shelf is handed afresh.
    */
   itDom('joins a save started before the shelf moved, rather than sending a second', () => {
@@ -311,7 +311,7 @@ describe('the Save plan action', () => {
    *
    * The lock is written before `deps.save` is called, so a synchronous throw
    * used to escape with no settle behind it to release the entry — and that
-   * entry outlives every mount, so the project's Save button was dead for the
+   * entry outlives every mount, so the work package's Save button was dead for the
    * rest of the session. The production API is `async` and cannot do this; the
    * `SaveDeps` type permits it, which is the whole reason this case exists.
    */
@@ -340,11 +340,11 @@ describe('the Save plan action', () => {
   });
 
   /**
-   * The lock is per project and per API, never global: two projects saving at
+   * The lock is per work package and per API, never global: two work packages saving at
    * once is an ordinary thing for a reader with two tabs' worth of work, and a
    * shared flag would silently drop the second save.
    */
-  itDom('locks one project at a time', async () => {
+  itDom('locks one work package at a time', async () => {
     const fake = deferredSave();
     const one = renderHook(() => useSavedPlanSave(fake.deps, 'p1'));
     const two = renderHook(() => useSavedPlanSave(fake.deps, 'p2'));

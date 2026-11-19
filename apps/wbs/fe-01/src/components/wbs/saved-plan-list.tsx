@@ -70,7 +70,7 @@ export function metaWords(row: SavedPlanListEntryView): string {
  * rather than behind a dialog that would put a decision in front of the reader
  * before they had one to make.
  *
- * The idiom is `ProjectPage`'s `ProjectNameField`, one screen up, and so are its
+ * The idiom is `WorkPackagePage`'s `WorkPackageNameField`, one screen up, and so are its
  * two lessons. The field is a **component**, mounted on arming, so the focus and
  * the whole-draft selection happen once instead of on every keystroke — an
  * inline callback ref is a new function per render, so React reattaches it each
@@ -159,7 +159,7 @@ function SavedPlanName({
 }
 
 /**
- * A project's saved plans, newest first as be-01 orders them.
+ * A work package's saved plans, newest first as be-01 orders them.
  *
  * Presentational: it is handed a state and renders it. The read, the broadcast
  * refresh and the save action are the caller's, which is what lets every branch

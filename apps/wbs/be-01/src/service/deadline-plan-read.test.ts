@@ -1,4 +1,6 @@
-import { CREATOR_ADMISSION } from '@wbs/core';
+import {createLegacyWorkPackageFixture} from '@wbs/core/testing/legacy-work-package-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -8,11 +10,11 @@ import type {
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
 } from '../module/optimization/optimized-schedule-reader';
-import type { DirectoryStore, ProjectStore, WriteStamp } from '../repository';
+import type { DirectoryStore, WorkPackageStore, WriteStamp } from '../repository';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { testClock } from '../testing/clock-fixture';
-import { inMemoryServices } from '../testing/harness';
-import { projectRow, testProjectService } from '../testing/project-fixture';
+import { createTestServices } from '../testing/harness';
+import { testWorkPackageService, workPackageRow } from '../testing/work-package-fixture';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**
@@ -48,27 +50,32 @@ import { optimizerWiring } from './optimizer-wiring';
 const OWNER = 'owner-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
 /**
- * A Monday, so `nextWorkday` leaves it alone and day zero is the project start
+ * A Monday, so `nextWorkday` leaves it alone and day zero is the work package start
  * itself. A weekend start would put day zero on the following Monday and every
  * offset below would be an assertion about `nextWorkday` rather than about this
  * read.
  */
 const START = '2026-03-02';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let directory: DirectoryStore;
 let serviceOptions: WorkItemServiceOptions;
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 let stepId: string;
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects, directory } = harness.stores);
+  const packageFixture = await createLegacyWorkPackageFixture(
+    OWNER,
+    'service-fixture-legacy',
+    PARENT_PROJECT_ID,
+  );
+  const harness = createTestServices(packageFixture.source);
+  ({ workPackages, directory } = harness.stores);
   serviceOptions = {
     dependencyContext: createLocalDependencyContext(harness.stores),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     ...harness.stores,
     broadcast: harness.broadcast,
@@ -76,9 +83,9 @@ beforeEach(async () => {
   };
   service = harness.service;
   stepId = crypto.randomUUID();
-  const project = projectRow({
+  const workPackage = workPackageRow({
     id: crypto.randomUUID(),
-    ownerId: OWNER,
+    projectId: PARENT_PROJECT_ID,
     startDate: START,
     // The estimate reaches the schedule as the number the fixture states, so a
     // span below is a claim about the deadline rather than about PERT's
@@ -86,12 +93,12 @@ beforeEach(async () => {
     estimateMethod: 'realistic',
     estimateRounding: 'exact',
   });
-  await projects.create(
-    project,
+  await workPackages.create(
+    workPackage,
     [
       {
         id: stepId,
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -101,12 +108,12 @@ beforeEach(async () => {
     ],
     WROTE,
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
 });
 
 /** A leaf on the plan, through the write path, carrying `days` of work. */
 async function leaf(name: string, days: number, parentId: string | null = null): Promise<string> {
-  const made = await service.create(projectId, OWNER, { parentId, afterId: null, name });
+  const made = await service.create(workPackageId, OWNER, { parentId, afterId: null, name });
   if (!made.ok) throw new Error(`create failed: ${made.reason}`);
   const estimated = await service.setEstimate(made.value.id, OWNER, stepId, {
     optimistic: days,
@@ -119,7 +126,7 @@ async function leaf(name: string, days: number, parentId: string | null = null):
 
 /** A parent with no estimate of its own — its children carry the work. */
 async function parent(name: string): Promise<string> {
-  const made = await service.create(projectId, OWNER, { parentId: null, afterId: null, name });
+  const made = await service.create(workPackageId, OWNER, { parentId: null, afterId: null, name });
   if (!made.ok) throw new Error(`create failed: ${made.reason}`);
   return made.value.id;
 }
@@ -132,8 +139,8 @@ async function setDeadline(id: string, deadline: string | null): Promise<void> {
 
 /** `lateBy` per work item name, as the payload carries it. */
 async function lateness(probe: WorkItemService = service): Promise<Map<string, number | null>> {
-  const tree = await probe.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await probe.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   const nameOf = new Map(tree.workItems.map((row) => [row.id, row.name]));
   return new Map(
     tree.slices.map((slice) => [nameOf.get(slice.workItemId) ?? slice.workItemId, slice.lateBy]),
@@ -142,8 +149,8 @@ async function lateness(probe: WorkItemService = service): Promise<Map<string, n
 
 /** The day each named work item's slice starts on. */
 async function starts(): Promise<Map<string, number>> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   const nameOf = new Map(tree.workItems.map((row) => [row.id, row.name]));
   return new Map(
     tree.slices.map((slice) => [
@@ -155,7 +162,7 @@ async function starts(): Promise<Map<string, number>> {
 
 /** The stored date, read back off the row rather than off the plan. */
 async function storedDeadline(id: string): Promise<string | null> {
-  const tree = await service.tree(projectId);
+  const tree = await service.tree(workPackageId);
   return tree?.workItems.find((row) => row.id === id)?.deadline ?? null;
 }
 
@@ -284,26 +291,26 @@ describe('the plan read and stored deadlines', () => {
     );
   });
 
-  it('reports a project start moved past a stored deadline late by the whole span', async () => {
+  it('reports a work package start moved past a stored deadline late by the whole span', async () => {
     // tasks.md 5.4, and the one state the write path cannot produce: 6.1
     // refuses a deadline that is already before day zero, so the only way a
-    // row reaches this is the project moving underneath a date that was legal
+    // row reaches this is the work package moving underneath a date that was legal
     // when it was typed. It is **legitimate input**, not malformed — the read
     // is not refused and the stored value is not rewritten.
     const rewire = await leaf('Rewire', 2);
     await setDeadline(rewire, '2026-03-04');
     expect(await lateness()).toEqual(new Map([['Rewire', null]]));
 
-    // The project starts a week later than it did, **through the layer that
-    // could refuse it**. `ProjectStore.update` is the repository and can only
+    // The work package starts a week later than it did, **through the layer that
+    // could refuse it**. `WorkPackageStore.update` is the repository and can only
     // report a vanished row, so a move driven through it would stay green even
     // if the request path rejected every start that passes a stored deadline —
-    // which is half of what this item claims. `ProjectService.update` is where
+    // which is half of what this item claims. `WorkPackageService.update` is where
     // a refusal would live: it is the layer that already refuses
     // `bad_start_date` and `bad_pert_weights`, and it is asked nothing about
     // deadlines. Found by the round-1 Sol seat, which read the assertion rather
     // than the claim.
-    const moved = await testProjectService(projects).update(projectId, OWNER, {
+    const moved = await testWorkPackageService(workPackages).update(workPackageId, OWNER, {
       startDate: '2026-03-09',
     });
     expect(moved.ok).toBe(true);
@@ -317,10 +324,10 @@ describe('the plan read and stored deadlines', () => {
     expect(await storedDeadline(rewire)).toBe('2026-03-04');
   });
 
-  it('applies no deadline to a project with no start date, and still stores the date', async () => {
+  it('applies no deadline to a work package with no start date, and still stores the date', async () => {
     // The `NO_DEADLINES` branch itself, and the other case that stays green
     // under the revert above — necessarily, since the revert makes every
-    // project take this branch. What it pins is the pair: the date is applied
+    // work package take this branch. What it pins is the pair: the date is applied
     // to nothing **and** is still stored.
     //
     // The same rule the floors beside it take:
@@ -328,8 +335,8 @@ describe('the plan read and stored deadlines', () => {
     // are read and applied to nothing. The row keeps what was written on it —
     // the plan being off the calendar is not a reason to lose a user's input.
     const rewire = await leaf('Rewire', 5);
-    const moved = await projects.update(projectId, { startDate: null }, WROTE);
-    if (moved === null) throw new Error('project vanished');
+    const moved = await workPackages.update(workPackageId, { startDate: null }, WROTE);
+    if (moved === null) throw new Error('work package vanished');
 
     await setDeadline(rewire, '2026-03-04');
 
@@ -347,15 +354,15 @@ describe('the plan read and stored deadlines', () => {
     // claim lives: `readOptimizedPair` hashes what it is handed here, and
     // whether it then misses is 4.1–4.8's, proved against real SQLite.
     const rewire = await leaf('Rewire', 5);
-    // The cache is only consulted for a project on the optimized engine, which
+    // The cache is only consulted for a work package on the optimized engine, which
     // is the seam `optimized-plan-read.test.ts` owns; this case rides it to
     // read the input rather than to assert anything about the branch.
-    const on = await projects.update(
-      projectId,
+    const on = await workPackages.update(
+      workPackageId,
       { optimizationEnabled: true, scheduleEngine: 'optimized' },
       WROTE,
     );
-    if (on === null) throw new Error('project vanished');
+    if (on === null) throw new Error('work package vanished');
     const before = recordingReader();
     const probe = new WorkItemService({
       ...serviceOptions,
@@ -364,7 +371,7 @@ describe('the plan read and stored deadlines', () => {
         readCaptured: before.read,
       }).scheduler,
     });
-    await probe.tree(projectId);
+    await probe.tree(workPackageId);
     expect(before.asks.map((ask) => [...ask.input.deadlines])).toEqual([[]]);
 
     expect((await probe.patch(rewire, OWNER, { deadline: '2026-03-04' })).ok).toBe(true);
@@ -376,10 +383,10 @@ describe('the plan read and stored deadlines', () => {
         readLive: (ask) => Promise.resolve(after.read(ask)),
         readCaptured: after.read,
       }).scheduler,
-    }).tree(projectId);
+    }).tree(workPackageId);
     // Keyed by the work item's own id and holding the resolved **offset**, not
     // the calendar date: a date in the key would make the hash depend on the
-    // project's start twice (`canonical-schedule-input.ts` (d) and (g)).
+    // work package's start twice (`canonical-schedule-input.ts` (d) and (g)).
     expect(after.asks.map((ask) => [...ask.input.deadlines])).toEqual([[[rewire, 2]]]);
   });
 });

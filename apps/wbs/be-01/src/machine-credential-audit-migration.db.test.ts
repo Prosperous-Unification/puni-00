@@ -88,7 +88,7 @@ describe(AUDIT_WIDENING, () => {
       audit('a3', 'machine_credential_revoked', 'machine_credential'),
       audit('a4', 'trusted_issuer_registered', 'trusted_issuer'),
       audit('a5', 'trusted_issuer_removed', 'trusted_issuer'),
-      audit('a6', 'restricted_project_recovery', 'project'),
+      audit('a6', 'restricted_work_package_recovery', 'work_package'),
       audit('a7', 'provisioning_token_issued', 'provisioning_token'),
     ]);
     expect(auditRows(dbPath)).toHaveLength(7);
@@ -113,7 +113,7 @@ describe(AUDIT_WIDENING, () => {
 
   it('rolls back over outgoing-release rows and comes forward again', async () => {
     const { root, dbPath } = migratedStore();
-    run(dbPath, [audit('a6', 'restricted_project_recovery', 'project')]);
+    run(dbPath, [audit('a6', 'restricted_work_package_recovery', 'work_package')]);
     const down = await rollBack(root, dbPath, MACHINE_CREDENTIAL);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
@@ -123,7 +123,7 @@ describe(AUDIT_WIDENING, () => {
       .reverse();
     expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     expect(auditRows(dbPath)).toEqual([
-      { action: 'restricted_project_recovery', subject_kind: 'project' },
+      { action: 'restricted_work_package_recovery', subject_kind: 'work_package' },
     ]);
     expect(() => {
       run(dbPath, [audit('a1', 'machine_credential_created', 'machine_credential')]);

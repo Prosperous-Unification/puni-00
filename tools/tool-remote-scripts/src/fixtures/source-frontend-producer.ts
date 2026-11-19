@@ -32,14 +32,6 @@ const PINS = {
     bytes: 527,
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
   },
-  'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
-  },
-  'apps/wbs/fe-01/project.json': {
-    bytes: 8117,
-    sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
-  },
   'deploy/dev-src/Dockerfile': {
     bytes: 1721,
     sha256: '431666ddc8762b08feaa201642c95df6d4b7de983d002b09d32e360161167fcc',
@@ -89,6 +81,30 @@ const PINS = {
     sha256: '4a001feffe9d32b5fb63860d4faa8725f8a4d7a13c2c37b92587234ab3d66c23',
   },
 };
+// Both selected files must belong to one complete member; recognized off-diagonals refuse.
+const CONFIGURATIONS = [
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8117,
+      sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+    },
+  },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19552,
+      sha256: 'd45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8132,
+      sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
+    },
+  },
+];
+
 const PAIRS = [
   {
     epoch: 'before-ctt',
@@ -176,7 +192,13 @@ async function inspectPins(
   root: string,
 ): Promise<{ epoch: string; selectedInputs: SelectedInputs }> {
   const selectedInputs: SelectedInputs = {};
-  for (const path of [...Object.keys(PINS), 'package.json', 'bun.lock']) {
+  for (const path of [
+    ...Object.keys(PINS),
+    'apps/wbs/fe-01/vite.config.ts',
+    'apps/wbs/fe-01/project.json',
+    'package.json',
+    'bun.lock',
+  ]) {
     const bytes = await readFile(join(root, path));
     selectedInputs[path] = { bytes: bytes.byteLength, sha256: digest(bytes) };
   }
@@ -190,7 +212,12 @@ async function inspectPins(
   );
   if (
     pair === undefined ||
-    !Object.entries(PINS).every(([path, expected]) => matches(path, expected))
+    !Object.entries(PINS).every(([path, expected]) => matches(path, expected)) ||
+    !CONFIGURATIONS.some(
+      (configuration) =>
+        matches('apps/wbs/fe-01/vite.config.ts', configuration['apps/wbs/fe-01/vite.config.ts']) &&
+        matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
+    )
   )
     throw new Error('unsupported source frontend producer inputs');
   return { epoch: pair.epoch, selectedInputs };

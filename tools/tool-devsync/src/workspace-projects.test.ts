@@ -590,7 +590,7 @@ describe('source-bundled activation graph', () => {
       'db',
       'backup',
       'migration-set',
-      'cross-project-dependency-activation',
+      'cross-work-package-dependency-activation',
       'migrate',
     ];
     const configuration: unknown = JSON.parse(

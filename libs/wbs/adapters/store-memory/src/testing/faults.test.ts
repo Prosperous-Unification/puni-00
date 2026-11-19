@@ -7,7 +7,7 @@ import { memoryLateWriteControl, openMemorySourceWithFault } from './faults';
 
 const entry = (id: string): NewJournalEntry => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   userId: 'owner',
   personId: null,
   kind: 'estimate',
@@ -18,7 +18,7 @@ const entry = (id: string): NewJournalEntry => ({
 });
 const event = (id: string): PlanEvent => ({
   id: `event-${id}`,
-  projectId: 'p1',
+  workPackageId: 'p1',
   userId: 'owner',
   kind: 'estimate',
   label: id,
@@ -30,7 +30,7 @@ const event = (id: string): PlanEvent => ({
 });
 const savedPlan = (id: string): SavedPlanWrite => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: id,
   createdBy: 'Owner',
   createdById: null,
@@ -44,7 +44,7 @@ const savedPlan = (id: string): SavedPlanWrite => ({
   },
 });
 const subtree = (id: string): SubtreeCopy => ({
-  rows: [workItemRow({ id, projectId: 'p1' })],
+  rows: [workItemRow({ id, workPackageId: 'p1' })],
   respaced: [],
   reparented: [],
   estimates: [{ workItemId: id, stepId: 'step-1', optimistic: 1, realistic: 2, pessimistic: 3 }],
@@ -137,7 +137,11 @@ describe('memory conformance fault controls', () => {
     // Proof: committing the staged state from the rejection path added `faulted` here.
     expect(
       (
-        await source.stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })
+        await source.stores.journal.entriesFor({
+          workPackageId: 'p1',
+          userId: 'owner',
+          personId: null,
+        })
       ).map(({ id }) => id),
     ).toEqual(['sentinel']);
     expect((await source.journalHistoryFor('p1')).map(({ id }) => id)).toEqual(['event-sentinel']);
@@ -149,7 +153,7 @@ describe('memory conformance fault controls', () => {
     expect(
       (
         await restored.stores.journal.entriesFor({
-          projectId: 'p1',
+          workPackageId: 'p1',
           userId: 'owner',
           personId: null,
         })
@@ -168,7 +172,7 @@ describe('memory conformance fault controls', () => {
       await stores.subtrees.insertSubtree(subtree('sentinel'), stamp);
       return { commit: true, value: undefined };
     });
-    expect(await source.stores.estimates.listByProject('p1')).toEqual([
+    expect(await source.stores.estimates.listByWorkPackage('p1')).toEqual([
       ...subtree('sentinel').estimates,
     ]);
     control.arm();
@@ -185,10 +189,10 @@ describe('memory conformance fault controls', () => {
     // Proof: moving the barrier before the estimate write returned [] here.
     expect(control.observedSatelliteKeys()).toEqual(['faulted:step-1']);
     // Proof: committing the staged state from the rejection path added `faulted` here.
-    expect((await source.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
+    expect((await source.stores.workItems.listByWorkPackage('p1')).map(({ id }) => id)).toEqual([
       'sentinel',
     ]);
-    expect(await source.stores.estimates.listByProject('p1')).toEqual([
+    expect(await source.stores.estimates.listByWorkPackage('p1')).toEqual([
       ...subtree('sentinel').estimates,
     ]);
     const restored = openMemorySourceWithFault(memoryLateWriteControl('subtree-final-satellite'));
@@ -196,10 +200,10 @@ describe('memory conformance fault controls', () => {
       await stores.subtrees.insertSubtree(subtree('restored'), stamp);
       return { commit: true, value: undefined };
     });
-    expect((await restored.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
+    expect((await restored.stores.workItems.listByWorkPackage('p1')).map(({ id }) => id)).toEqual([
       'restored',
     ]);
-    expect(await restored.stores.estimates.listByProject('p1')).toEqual([
+    expect(await restored.stores.estimates.listByWorkPackage('p1')).toEqual([
       ...subtree('restored').estimates,
     ]);
   });

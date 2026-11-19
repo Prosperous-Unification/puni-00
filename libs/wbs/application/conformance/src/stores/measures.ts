@@ -39,14 +39,20 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
       );
       const groups = [
         ...new Set(
-          (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+          (await port.listByWorkPackage(seed.workPackageIds[0])).map(
+            ({ workItemId }) => workItemId,
+          ),
         ),
       ];
-      expect(await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId])).toEqual(
+      expect(
+        await port.listPlacements(seed.workPackageIds[0], [secondId, 'missing', firstId]),
+      ).toEqual(
         groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
       );
-      expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
-      expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
+      expect(await port.listPlacements(seed.workPackageIds[0], [seed.workItemIds[1][0]])).toEqual(
+        [],
+      );
+      expect(await port.listPlacements(seed.workPackageIds[0], [])).toEqual([]);
     }),
     storeCase('measures', 'measures.listByWorkItems:scope-order', open, async ({ port, seed }) => {
       const targetId = seed.workItemIds[0][0];
@@ -94,17 +100,19 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
           seed.stamps[0],
         );
       }
-      const complete = await port.listByProject(seed.projectIds[0]);
+      const complete = await port.listByWorkPackage(seed.workPackageIds[0]);
       expect(
-        (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
+        (await port.listByWorkItems(seed.workPackageIds[0], [targetId])).map(
+          ({ stepId }) => stepId,
+        ),
       ).toEqual([firstStep, secondStep]);
-      const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
-      // Proof: validating ownership before project filtering made the memory
-      // adapter throw for this valid project-B measure instead of returning [].
+      const foreign = await port.listByWorkItems(seed.workPackageIds[0], [foreignId]);
+      // Proof: validating ownership before work package filtering made the memory
+      // adapter throw for this valid work-package-B measure instead of returning [].
       expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
       expect(foreign).toEqual([]);
       const mixedCase = await port.listByWorkItems(
-        seed.projectIds[0],
+        seed.workPackageIds[0],
         TARGETED_ORDER_WORK_ITEM_IDS,
       );
       // Proof: SQLite's old localeCompare post-sort returned work-a before
@@ -114,7 +122,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
           TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
         ),
       );
-      expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+      expect(await port.listByWorkItems(seed.workPackageIds[0], [])).toEqual([]);
     }),
     storeCase('measures', 'measures.set:metric-key', open, async ({ port, readers, seed }) => {
       const [firstId, secondId] = seed.workItemIds[0];
@@ -156,7 +164,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, metric: 'hours_actual', value: 12, recordedAt: 103 },
         { workItemId: firstId, stepId: devId, metric: 'token_actual', value: 11, recordedAt: 102 },
         {
@@ -169,7 +177,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         { workItemId: firstId, stepId: qaId, metric: 'token_actual', value: 13, recordedAt: 104 },
         { workItemId: secondId, stepId: devId, metric: 'token_actual', value: 14, recordedAt: 105 },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -184,7 +192,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, metric: 'hours_actual', value: 12, recordedAt: 103 },
         { workItemId: firstId, stepId: devId, metric: 'token_actual', value: 21, recordedAt: 201 },
         {
@@ -197,7 +205,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         { workItemId: firstId, stepId: qaId, metric: 'token_actual', value: 13, recordedAt: 104 },
         { workItemId: secondId, stepId: devId, metric: 'token_actual', value: 14, recordedAt: 105 },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -235,7 +243,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, metric: 'hours_actual', value: 12, recordedAt: 103 },
         { workItemId: firstId, stepId: devId, metric: 'token_actual', value: 11, recordedAt: 102 },
         {
@@ -248,7 +256,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         { workItemId: firstId, stepId: qaId, metric: 'token_actual', value: 13, recordedAt: 104 },
         { workItemId: secondId, stepId: devId, metric: 'token_actual', value: 14, recordedAt: 105 },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -259,7 +267,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
       ]);
 
       await port.remove(firstId, devId, 'token_actual', seed.stamps[1]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, metric: 'hours_actual', value: 12, recordedAt: 103 },
         {
           workItemId: firstId,
@@ -271,7 +279,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         { workItemId: firstId, stepId: qaId, metric: 'token_actual', value: 13, recordedAt: 104 },
         { workItemId: secondId, stepId: devId, metric: 'token_actual', value: 14, recordedAt: 105 },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -282,7 +290,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
       ]);
 
       await port.remove(firstId, devId, 'token_actual', seed.stamps[1]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, metric: 'hours_actual', value: 12, recordedAt: 103 },
         {
           workItemId: firstId,
@@ -294,7 +302,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         { workItemId: firstId, stepId: qaId, metric: 'token_actual', value: 13, recordedAt: 104 },
         { workItemId: secondId, stepId: devId, metric: 'token_actual', value: 14, recordedAt: 105 },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -341,7 +349,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: sourceId, stepId: devId, metric: 'hours_actual', value: 12, recordedAt: 103 },
         { workItemId: sourceId, stepId: devId, metric: 'token_actual', value: 11, recordedAt: 102 },
         {
@@ -360,7 +368,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         },
         { workItemId: targetId, stepId: qaId, metric: 'hours_actual', value: 14, recordedAt: 105 },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -372,7 +380,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
 
       await port.moveAll(sourceId, targetId, seed.stamps[1]);
 
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: targetId, stepId: devId, metric: 'hours_actual', value: 12, recordedAt: 103 },
         { workItemId: targetId, stepId: devId, metric: 'token_actual', value: 11, recordedAt: 102 },
         {
@@ -391,7 +399,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
           recordedAt: 104,
         },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -423,7 +431,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         {
           workItemId: seed.workItemIds[0][1],
           stepId: seed.stepIds[0][1],
@@ -432,7 +440,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
           recordedAt: 105,
         },
       ]);
-      expect(byKey(await readers.measures.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -452,12 +460,12 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         },
         seed.stamps[1],
       );
-      const projectA = byKey(await readers.measures.listByProject(seed.projectIds[0]));
-      const projectB = byKey(await readers.measures.listByProject(seed.projectIds[1]));
+      const workPackageA = byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[0]));
+      const workPackageB = byKey(await readers.measures.listByWorkPackage(seed.workPackageIds[1]));
 
-      expect({ outcome, projectA, projectB }).toEqual({
+      expect({ outcome, workPackageA, workPackageB }).toEqual({
         outcome: 'unknown_step',
-        projectA: [
+        workPackageA: [
           {
             workItemId: seed.workItemIds[0][1],
             stepId: seed.stepIds[0][1],
@@ -466,7 +474,7 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
             recordedAt: 105,
           },
         ],
-        projectB: [
+        workPackageB: [
           {
             workItemId: seed.workItemIds[1][0],
             stepId: seed.stepIds[1][0],

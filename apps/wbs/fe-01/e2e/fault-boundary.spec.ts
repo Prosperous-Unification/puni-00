@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 import { buildBrowserProbeBundle } from './browser-probe-bundle';
 // A type-only import, and it has to stay one: Playwright loads a spec in Node, so a value

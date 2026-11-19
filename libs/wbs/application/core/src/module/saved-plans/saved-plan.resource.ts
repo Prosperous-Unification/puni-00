@@ -4,6 +4,7 @@ import type { Digest } from '../../ports/runtime';
 import type { PlanInputReads, SavedPlanCaptureStore } from '../../ports/saved-plan-capture-store';
 import type {
   SavedPlanPrincipals,
+  SavedPlanRow,
   SavedPlanStore,
   SavedPlanTouchOutcome,
   SavedPlanWrite,
@@ -11,6 +12,7 @@ import type {
   ScopedSavedPlanWrite,
   StoredSavedPlan,
 } from '../../ports/saved-plan-store';
+import { retainSavedPlanTouch, type SavedPlanTouchWrite } from '../../ports/saved-plan-store';
 import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
 import {
   assertKnownBodyVersion,
@@ -25,6 +27,7 @@ import type {
   SavedPlanReadOutcome,
   SavedPlanReadSchedule,
   SavedPlanTouchResult,
+  VerifiedSavedPlanOutcome,
 } from './saved-plan-values';
 
 /**
@@ -34,30 +37,18 @@ import type {
  * because `no_such_plan` and `not_found` are the same fact under two names and a
  * second copy is how one of them ends up answering `snapshot_busy` as a 404.
  */
-function touchResultOf(outcome: SavedPlanTouchOutcome, projectId: string): SavedPlanTouchResult {
+function touchResultOf(
+  outcome: SavedPlanTouchOutcome,
+  workPackageId: string,
+): SavedPlanTouchResult {
   if (typeof outcome === 'object') return outcome;
   if (outcome === 'no_such_plan') return { outcome: 'not_found' };
-  return outcome === 'touched' ? { outcome, projectId } : { outcome };
+  return outcome === 'touched' ? { outcome, workPackageId } : { outcome };
 }
 
-/**
- * Whether `actorId` may rename or delete the plan those principals describe.
- *
- * **Creator or project owner** (task 6.1, design.md A-8), written as the plain
- * disjunction it is. The "falls back to the project owner" half of A-8 is not a
- * second branch and must not be written as one: `createdById` is `null` exactly
- * when no live account claims the plan, `null` matches no actor id, and the
- * owner arm is then the only one that can be true. A ternary that chose *which*
- * id to compare would say something different and worse — it would stop the
- * owner touching a plan somebody else saved on their project.
- *
- * Exported for its test and for 6.2's matrix. It reads `createdById` and never
- * `createdBy`: the latter is a display name, and an actor id compared against a
- * display name is not a permission check — it is two accounts called "Ada"
- * sharing a right.
- */
+/** Legacy touches retain only the saved plan author's identity; package creator metadata grants no authority. */
 export function mayTouchSavedPlan(principals: SavedPlanPrincipals, actorId: string): boolean {
-  return principals.createdById === actorId || principals.projectOwnerId === actorId;
+  return principals.createdById === actorId;
 }
 
 /** Repository scopes and reading rules for a saved plan. */
@@ -67,45 +58,85 @@ export interface SavedPlanResourceOptions {
   readonly digest: Digest;
 }
 
+/** Projects detached headers in supplied order without reading bodies, rehashing or applying an integrity verdict. */
+export function projectSavedPlanList(rows: readonly SavedPlanRow[]): SavedPlanListEntry[] {
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    inputBytes: row.inputBytes,
+    scheduleBytes: row.scheduleBytes,
+    scheduleAbsentReason: row.scheduleAbsentReason,
+  }));
+}
+
 /** Saved-plan persistence, integrity and touch authorization over one source. */
 export class SavedPlanResource {
   constructor(private readonly opts: SavedPlanResourceOptions) {}
 
   /** Capture one detached and coherent live plan input. */
-  capturePlan(projectId: string): Promise<PlanInputReads | null> {
-    return this.opts.capture.readPlanInput(projectId);
+  capturePlan(workPackageId: string): Promise<PlanInputReads | null> {
+    return this.opts.capture.readPlanInput(workPackageId);
   }
 
   /** Read and verify saved bytes, preserving typed corruption refusals. */
   async readPlan(savedPlanId: string): Promise<SavedPlanReadOutcome> {
+    return unwrapVerifiedPlan(await this.verifyPlan(savedPlanId));
+  }
+
+  /** Fetch once and verify original bytes once, retaining current identity evidence internally. */
+  private async verifyPlan(savedPlanId: string): Promise<VerifiedSavedPlanOutcome> {
     const stored = await this.opts.plans.readOf(savedPlanId);
     // Proof (2026-09-27): forcing this guard false failed `reports a plan that
     // was never saved as absent, not as corrupt` (0 pass, 1 fail).
     if (stored === null) return { outcome: 'not_found' };
-    return readOfStored(this.opts.digest, stored);
+    return this.verifyStoredPlan(stored);
   }
 
-  /** Check project scope from the header before reading or verifying bodies. */
-  async readPlanForProject(projectId: string, savedPlanId: string): Promise<SavedPlanReadOutcome> {
+  /** Verifies already detached exact stored bytes without acquiring a reader or revisiting authority. */
+  async readStoredPlan(
+    stored: StoredSavedPlan,
+  ): Promise<Exclude<SavedPlanReadOutcome, { readonly outcome: 'not_found' }>> {
+    const found = await this.verifyStoredPlan(stored);
+    return found.outcome === 'verified' ? { outcome: 'read', plan: found.verified.plan } : found;
+  }
+
+  /** Original integrity/version validation precedes any identity projection; no reader is reacquired. */
+  async verifyStoredPlan(
+    stored: StoredSavedPlan,
+  ): Promise<Exclude<VerifiedSavedPlanOutcome, { readonly outcome: 'not_found' }>> {
+    const stepIdentity = structuredClone(stored.stepIdentity);
+    const found = await readOfStored(this.opts.digest, stored);
+    return found.outcome === 'read'
+      ? { outcome: 'verified', verified: { plan: found.plan, stepIdentity } }
+      : found;
+  }
+
+  /** Check work package scope from the header before reading or verifying bodies. */
+  async readPlanForWorkPackage(
+    workPackageId: string,
+    savedPlanId: string,
+  ): Promise<SavedPlanReadOutcome> {
+    return unwrapVerifiedPlan(await this.verifyPlanForWorkPackage(workPackageId, savedPlanId));
+  }
+
+  /** Legacy comparison retains scope-before-bytes and the same single verifier as observed reads. */
+  async verifyPlanForWorkPackage(
+    workPackageId: string,
+    savedPlanId: string,
+  ): Promise<VerifiedSavedPlanOutcome> {
     const principals = await this.opts.plans.principalsOf(savedPlanId);
     // Proof (2026-09-27): bypassing this scope guard made the mounted corrupt
     // foreign-plan comparison answer 422 instead of 404 (0 pass, 1 fail).
-    if (principals?.projectId !== projectId) return { outcome: 'not_found' };
-    return this.readPlan(savedPlanId);
+    if (principals?.workPackageId !== workPackageId) return { outcome: 'not_found' };
+    return this.verifyPlan(savedPlanId);
   }
 
   /** List headers in repository order without reading or checking bodies. */
-  async listPlans(projectId: string): Promise<SavedPlanListEntry[]> {
-    const rows = await this.opts.plans.listOf(projectId);
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      createdBy: row.createdBy,
-      createdAt: row.createdAt,
-      inputBytes: row.inputBytes,
-      scheduleBytes: row.scheduleBytes,
-      scheduleAbsentReason: row.scheduleAbsentReason,
-    }));
+  async listPlans(workPackageId: string): Promise<SavedPlanListEntry[]> {
+    const rows = await this.opts.plans.listOf(workPackageId);
+    return projectSavedPlanList(rows);
   }
 
   /** Keep the holding-quota check inside the repository write transaction. */
@@ -124,9 +155,9 @@ export class SavedPlanResource {
     );
   }
 
-  /** The project a saved plan belongs to, read off its immutable header; null for an absent plan. */
-  async projectOfPlan(savedPlanId: string): Promise<string | null> {
-    return (await this.opts.plans.principalsOf(savedPlanId))?.projectId ?? null;
+  /** The work package a saved plan belongs to, read off its immutable header; null for an absent plan. */
+  async workPackageOfPlan(savedPlanId: string): Promise<string | null> {
+    return (await this.opts.plans.principalsOf(savedPlanId))?.workPackageId ?? null;
   }
 
   /** Check legacy principals here; a scoped writer rechecks them in its write transaction. */
@@ -134,13 +165,17 @@ export class SavedPlanResource {
     savedPlanId: string,
     actorId: string,
     name: string,
-    scoped?: ScopedSavedPlanWrite,
+    touch: SavedPlanTouchWrite,
   ): Promise<SavedPlanTouchResult> {
+    touch = retainSavedPlanTouch(touch, 'rename', name);
+    if (touch.actorId !== actorId)
+      throw new Error('saved-plan touch actor differs from its caller');
+    const scoped = 'kind' in touch ? undefined : touch;
     const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId, scoped);
     if ('refused' in checked) return checked.refused;
     return touchResultOf(
-      await this.opts.plans.renameTo(savedPlanId, name, scoped),
-      checked.principals.projectId,
+      await this.opts.plans.renameTo(savedPlanId, name, touch),
+      checked.principals.workPackageId,
     );
   }
 
@@ -148,13 +183,17 @@ export class SavedPlanResource {
   async deletePlan(
     savedPlanId: string,
     actorId: string,
-    scoped?: ScopedSavedPlanWrite,
+    touch: SavedPlanTouchWrite,
   ): Promise<SavedPlanTouchResult> {
+    touch = retainSavedPlanTouch(touch, 'delete');
+    if (touch.actorId !== actorId)
+      throw new Error('saved-plan touch actor differs from its caller');
+    const scoped = 'kind' in touch ? undefined : touch;
     const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId, scoped);
     if ('refused' in checked) return checked.refused;
     return touchResultOf(
-      await this.opts.plans.deleteOf(savedPlanId, scoped),
-      checked.principals.projectId,
+      await this.opts.plans.deleteOf(savedPlanId, touch),
+      checked.principals.workPackageId,
     );
   }
 
@@ -176,6 +215,11 @@ export class SavedPlanResource {
   }
 }
 
+/** Keep the internal identity roster off raw detail and compatibility wire values. */
+function unwrapVerifiedPlan(found: VerifiedSavedPlanOutcome): SavedPlanReadOutcome {
+  return found.outcome === 'verified' ? { outcome: 'read', plan: found.verified.plan } : found;
+}
+
 /**
  * Verifies one stored saved plan and shapes it, or refuses it.
  *
@@ -194,7 +238,7 @@ export class SavedPlanResource {
 async function readOfStored(
   digest: Digest,
   stored: StoredSavedPlan,
-): Promise<SavedPlanReadOutcome> {
+): Promise<Exclude<SavedPlanReadOutcome, { readonly outcome: 'not_found' }>> {
   const header = stored.header;
   // Task 5.5, and **before** the hash check on purpose: a body this reader
   // cannot parse is unreadable whether or not its bytes are intact, and
@@ -227,7 +271,7 @@ async function readOfStored(
   // cases in saved-plan.controller.db.test.ts (omit-resource-validation.log.txt).
   const shapeRefusal = verifySavedPlanBodies(
     header.id,
-    header.projectId,
+    header.workPackageId,
     { version: header.inputSchemaVersion, bytes: inputBytes },
     schedule.schedule.present
       ? {
@@ -244,7 +288,7 @@ async function readOfStored(
     outcome: 'read',
     plan: {
       id: header.id,
-      projectId: header.projectId,
+      workPackageId: header.workPackageId,
       name: header.name,
       createdBy: header.createdBy,
       createdAt: header.createdAt,

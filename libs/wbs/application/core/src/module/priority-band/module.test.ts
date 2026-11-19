@@ -1,34 +1,50 @@
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installPriorityBand } from './check';
 import { PRIORITY_BAND_LABEL } from './contract';
 import { priorityBandModule } from './module';
 
-const PROJECT = 'project-1';
+const WORK_PACKAGE = 'work-package-1';
 const OWNER = 'owner';
 
-/** One memory source holding one project, and the requirements a ladder write needs. */
+/** One memory source holding one work package, and the requirements a ladder write needs. */
 async function seeded() {
-  const source = openMemorySource();
-  await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-    at: 1,
-    by: OWNER,
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
+  await source.stores.users.create(
+    { id: OWNER, username: OWNER, passwordHash: null, createdAt: 1 },
+    { at: 1, by: OWNER },
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: OWNER,
   });
+  await source.stores.workPackages.create(
+    workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
+    [],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   const broadcast = recordingBroadcaster();
   return {
     broadcast,
     requirements: {
-      projects: source.stores.projects,
+      workPackages: source.stores.workPackages,
       bands: source.stores.priorityBands,
       clock: clockOf({ now: () => 2, newId: () => 'unused' }),
       broadcast,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
     },
   };
 }
@@ -36,7 +52,7 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.createProvider(() => source.stores.projects, {
+    workPackageStore: DiBag.createProvider(() => source.stores.workPackages, {
       factoryReturnKind: 'sync-value',
     }),
     priorityBandStore: DiBag.createProvider(() => source.stores.priorityBands, {
@@ -45,7 +61,7 @@ const hostRequirements = () => {
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),
-    editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
+    editAdmission: DiBag.createProvider(() => LEGACY_EDIT_ADMISSION, {
       factoryReturnKind: 'sync-value',
     }),
   };
@@ -75,13 +91,13 @@ describe('the Priority band module', () => {
     const { broadcast, requirements } = await seeded();
     const { priorityBands } = installPriorityBand(requirements);
 
-    const written = await priorityBands.set(PROJECT, OWNER, [
+    const written = await priorityBands.set(WORK_PACKAGE, OWNER, [
       { startsAt: 1, label: ' Now ', defaultValue: 10 },
     ]);
 
     expect(written).toEqual({ ok: true, value: [{ startsAt: 1, label: 'Now', defaultValue: 10 }] });
     expect(broadcast.published).toEqual([
-      { projectId: PROJECT, event: { type: 'priority_bands_changed' } },
+      { workPackageId: WORK_PACKAGE, event: { type: 'priority_bands_changed' } },
     ]);
   });
 
@@ -95,7 +111,7 @@ describe('the Priority band module', () => {
       admission: { admits: () => false },
     });
 
-    const written = await priorityBands.set(PROJECT, OWNER, [
+    const written = await priorityBands.set(WORK_PACKAGE, OWNER, [
       { startsAt: 1, label: 'Now', defaultValue: 10 },
     ]);
 

@@ -59,12 +59,12 @@ export interface SolverRequestPlan {
   /** The typed dependencies, resolved into edges beside the legacy ones. */
   readonly typed: readonly TypedDependency[];
   /**
-   * Original holder-bearing bookings in project workdays, quantised outward
+   * Original holder-bearing bookings in work package workdays, quantised outward
    * onto wire 3 by {@link quantiseElsewhere}.
    */
   readonly elsewhere?: Elsewhere;
   /**
-   * The project's stated resource capacities (wire 4, `wbs-resources` R5);
+   * The work package's stated resource capacities (wire 4, `wbs-resources` R5);
    * absent means none, as in `ScheduleInput`. The demands ride the slices.
    */
   readonly resourceCapacities?: PoolSizes;
@@ -128,7 +128,7 @@ export type BuiltSolverRequest =
  *
  * ## Why the grouping comes first
  *
- * `groupSlicesByLeaf` is called before anything projects, so a slice for a
+ * `groupSlicesByLeaf` is called before anything work packages, so a slice for a
  * non-leaf and a fractional width are refused naming the *plan*, not the wire.
  * Run it after `buildSolverSlices` and a slice belonging to a parent would be
  * projected happily, keyed, and then refused several steps later by a function

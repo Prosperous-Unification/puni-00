@@ -18,8 +18,7 @@ import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { PlanEventStore } from '../../ports/plan-event-store';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore } from '../../ports/progress-store';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
+import type { Broadcaster } from '../../ports/work-package-event';
 import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
 import type { Scheduler } from '../../ports/scheduler';
 import type { StepBlockageStore } from '../../ports/step-blockage-store';
@@ -39,7 +38,7 @@ import { WorkItemService, type WorkItemServiceOptions } from './work-item.resour
  * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.work-item/workItemOptions` rather than against
  * an anonymous binding. Every store is required under a `<name>Store` host key
- * because five of them (`workItems`, `projects`, `directory`, `capacity`,
+ * because five of them (`workItems`, `workPackages`, `directory`, `capacity`,
  * `priorityBands`) share their `servicesOver` name with a writing service, and
  * one host graph cannot hold a store and a service under one key.
  *
@@ -54,7 +53,7 @@ export const workItemModule = DiBag.createBuilder()
         livePlans,
         workItemStore,
         stepParallelStore,
-        projectStore,
+        workPackageStore,
         accessDecisions,
         estimateStore,
         actualStore,
@@ -89,7 +88,7 @@ export const workItemModule = DiBag.createBuilder()
         workItemStore: WorkItemStore;
         stepParallelStore: Pick<StepParallelStore, 'listByWorkItems'>;
         accessDecisions: WorkItemServiceOptions['accessDecisions'];
-        projectStore: ProjectStore;
+        workPackageStore: WorkItemServiceOptions['workPackages'];
         estimateStore: EstimateStore;
         actualStore: ActualStore;
         measureStore: MeasureStore;
@@ -124,7 +123,7 @@ export const workItemModule = DiBag.createBuilder()
         ...(livePlans === undefined ? {} : { livePlans }),
         workItems: workItemStore,
         stepParallels: stepParallelStore,
-        projects: projectStore,
+        workPackages: workPackageStore,
         accessDecisions,
         estimates: estimateStore,
         actuals: actualStore,

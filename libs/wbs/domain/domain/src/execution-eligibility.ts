@@ -97,8 +97,8 @@ export interface ExecutionAdmission {
   readonly blockers: readonly ExecutionPrerequisite[];
 }
 
-/** Projects graph positions to stable authored identities without local ordering assumptions. */
-export function projectExecutionBlockers(
+/** Work packages graph positions to stable authored identities without local ordering assumptions. */
+export function workPackageExecutionBlockers(
   blockers: readonly ExecutionBlocker[],
 ): ExecutionPrerequisite[] {
   return blockers.map(({ predecessor, edge }) => ({

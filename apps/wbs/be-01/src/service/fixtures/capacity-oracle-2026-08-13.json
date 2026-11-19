@@ -35,7 +35,7 @@
   ],
   "plans": [
     {
-      "projectId": "p1",
+      "workPackageId": "p1",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
@@ -277,7 +277,7 @@
       ]
     },
     {
-      "projectId": "p2",
+      "workPackageId": "p2",
       "stepIds": ["step-0", "step-1", "step-2"],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
@@ -388,7 +388,7 @@
       ]
     },
     {
-      "projectId": "p3",
+      "workPackageId": "p3",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
@@ -644,7 +644,7 @@
       ]
     },
     {
-      "projectId": "p4",
+      "workPackageId": "p4",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
@@ -750,7 +750,7 @@
       ]
     },
     {
-      "projectId": "p5",
+      "workPackageId": "p5",
       "stepIds": ["step-0", "step-1", "step-2"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
@@ -890,7 +890,7 @@
       ]
     },
     {
-      "projectId": "p6",
+      "workPackageId": "p6",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
@@ -1024,7 +1024,7 @@
       ]
     },
     {
-      "projectId": "p7",
+      "workPackageId": "p7",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "pessimistic",
       "startDate": null,
@@ -1158,7 +1158,7 @@
       ]
     },
     {
-      "projectId": "p8",
+      "workPackageId": "p8",
       "stepIds": ["step-0", "step-1", "step-2"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
@@ -1319,7 +1319,7 @@
       ]
     },
     {
-      "projectId": "p9",
+      "workPackageId": "p9",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
@@ -1449,7 +1449,7 @@
       ]
     },
     {
-      "projectId": "p10",
+      "workPackageId": "p10",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
@@ -1602,7 +1602,7 @@
       ]
     },
     {
-      "projectId": "p11",
+      "workPackageId": "p11",
       "stepIds": ["step-0", "step-1", "step-2"],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
@@ -1855,7 +1855,7 @@
       ]
     },
     {
-      "projectId": "p12",
+      "workPackageId": "p12",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
@@ -2075,7 +2075,7 @@
       ]
     },
     {
-      "projectId": "p13",
+      "workPackageId": "p13",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
@@ -2305,7 +2305,7 @@
       ]
     },
     {
-      "projectId": "p14",
+      "workPackageId": "p14",
       "stepIds": ["step-0", "step-1", "step-2"],
       "estimateMethod": "realistic",
       "startDate": null,
@@ -2598,7 +2598,7 @@
       ]
     },
     {
-      "projectId": "p15",
+      "workPackageId": "p15",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
@@ -2876,7 +2876,7 @@
       ]
     },
     {
-      "projectId": "p16",
+      "workPackageId": "p16",
       "stepIds": ["step-0", "step-1"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
@@ -3204,7 +3204,7 @@
       "workItems": [
         {
           "id": "p1-g0",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -3254,7 +3254,7 @@
         },
         {
           "id": "p1-g0-l0",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": "p1-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -3304,7 +3304,7 @@
         },
         {
           "id": "p1-g0-l1",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": "p1-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -3354,7 +3354,7 @@
         },
         {
           "id": "p1-g1",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -3404,7 +3404,7 @@
         },
         {
           "id": "p1-g1-l0",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": "p1-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -3454,7 +3454,7 @@
         },
         {
           "id": "p1-g1-l1",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": "p1-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -3504,7 +3504,7 @@
         },
         {
           "id": "p1-g2",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -3554,7 +3554,7 @@
         },
         {
           "id": "p1-g2-l0",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": "p1-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -3604,7 +3604,7 @@
         },
         {
           "id": "p1-g3",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": null,
           "position": 40,
           "name": "Group 3",
@@ -3654,7 +3654,7 @@
         },
         {
           "id": "p1-g3-l0",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": "p1-g3",
           "position": 10,
           "name": "Leaf 3.0",
@@ -3698,7 +3698,7 @@
         },
         {
           "id": "p1-g3-l1",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": "p1-g3",
           "position": 20,
           "name": "Leaf 3.1",
@@ -3742,7 +3742,7 @@
         },
         {
           "id": "p1-solo",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "parentId": null,
           "position": 50,
           "name": "On its own",
@@ -3811,7 +3811,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -3854,7 +3854,7 @@
           "float": 5.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -3892,7 +3892,7 @@
           "float": 6.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -4006,7 +4006,7 @@
           "float": 6.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -4044,7 +4044,7 @@
           "float": 9.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -4063,7 +4063,7 @@
           "float": 9.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -4109,13 +4109,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p1",
+          "workPackageId": "p1",
           "name": "Step 1",
           "position": 20
         }
@@ -4123,13 +4123,13 @@
       "assignedPeople": [],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p2-g0",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -4179,7 +4179,7 @@
         },
         {
           "id": "p2-g0-l0",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "parentId": "p2-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -4229,7 +4229,7 @@
         },
         {
           "id": "p2-g1",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -4279,7 +4279,7 @@
         },
         {
           "id": "p2-g1-l0",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "parentId": "p2-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -4329,7 +4329,7 @@
         },
         {
           "id": "p2-solo",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "parentId": null,
           "position": 30,
           "name": "On its own",
@@ -4404,7 +4404,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -4461,7 +4461,7 @@
           "float": 11,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -4564,19 +4564,19 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "name": "Step 1",
           "position": 20
         },
         {
           "id": "step-2",
-          "projectId": "p2",
+          "workPackageId": "p2",
           "name": "Step 2",
           "position": 30
         }
@@ -4584,13 +4584,13 @@
       "assignedPeople": [],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p3-g0",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -4634,7 +4634,7 @@
         },
         {
           "id": "p3-g0-l0",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -4678,7 +4678,7 @@
         },
         {
           "id": "p3-g1",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -4728,7 +4728,7 @@
         },
         {
           "id": "p3-g1-l0",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -4772,7 +4772,7 @@
         },
         {
           "id": "p3-g1-l1",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -4822,7 +4822,7 @@
         },
         {
           "id": "p3-g2",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -4872,7 +4872,7 @@
         },
         {
           "id": "p3-g2-l0",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -4922,7 +4922,7 @@
         },
         {
           "id": "p3-g2-l1",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g2",
           "position": 20,
           "name": "Leaf 2.1",
@@ -4972,7 +4972,7 @@
         },
         {
           "id": "p3-g3",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": null,
           "position": 40,
           "name": "Group 3",
@@ -5022,7 +5022,7 @@
         },
         {
           "id": "p3-g3-l0",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g3",
           "position": 10,
           "name": "Leaf 3.0",
@@ -5066,7 +5066,7 @@
         },
         {
           "id": "p3-g3-l1",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g3",
           "position": 20,
           "name": "Leaf 3.1",
@@ -5116,7 +5116,7 @@
         },
         {
           "id": "p3-g3-l2",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": "p3-g3",
           "position": 30,
           "name": "Leaf 3.2",
@@ -5160,7 +5160,7 @@
         },
         {
           "id": "p3-solo",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "parentId": null,
           "position": 50,
           "name": "On its own",
@@ -5229,7 +5229,7 @@
           "float": 8,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5267,7 +5267,7 @@
           "float": 11,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5286,7 +5286,7 @@
           "float": 11,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5305,7 +5305,7 @@
           "float": 15,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5381,7 +5381,7 @@
           "float": 3,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5419,7 +5419,7 @@
           "float": 14,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5457,7 +5457,7 @@
           "float": 6,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5495,7 +5495,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5533,7 +5533,7 @@
           "float": 6,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5560,13 +5560,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p3",
+          "workPackageId": "p3",
           "name": "Step 1",
           "position": 20
         }
@@ -5574,13 +5574,13 @@
       "assignedPeople": [],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p4-g0",
-          "projectId": "p4",
+          "workPackageId": "p4",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -5630,7 +5630,7 @@
         },
         {
           "id": "p4-g0-l0",
-          "projectId": "p4",
+          "workPackageId": "p4",
           "parentId": "p4-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -5680,7 +5680,7 @@
         },
         {
           "id": "p4-g1",
-          "projectId": "p4",
+          "workPackageId": "p4",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -5730,7 +5730,7 @@
         },
         {
           "id": "p4-g1-l0",
-          "projectId": "p4",
+          "workPackageId": "p4",
           "parentId": "p4-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -5780,7 +5780,7 @@
         },
         {
           "id": "p4-solo",
-          "projectId": "p4",
+          "workPackageId": "p4",
           "parentId": null,
           "position": 30,
           "name": "On its own",
@@ -5849,7 +5849,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5887,7 +5887,7 @@
           "float": 0.16666666666666652,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -5952,13 +5952,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p4",
+          "workPackageId": "p4",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p4",
+          "workPackageId": "p4",
           "name": "Step 1",
           "position": 20
         }
@@ -5966,13 +5966,13 @@
       "assignedPeople": [],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p5-g0",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -6022,7 +6022,7 @@
         },
         {
           "id": "p5-g0-l0",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "parentId": "p5-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -6072,7 +6072,7 @@
         },
         {
           "id": "p5-g1",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -6128,7 +6128,7 @@
         },
         {
           "id": "p5-g1-l0",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "parentId": "p5-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -6178,7 +6178,7 @@
         },
         {
           "id": "p5-g1-l1",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "parentId": "p5-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -6234,7 +6234,7 @@
         },
         {
           "id": "p5-solo",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "parentId": null,
           "position": 30,
           "name": "On its own",
@@ -6309,7 +6309,7 @@
           "float": 10,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -6328,7 +6328,7 @@
           "float": 10,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -6366,7 +6366,7 @@
           "float": 10,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -6423,7 +6423,7 @@
           "float": 12,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -6526,19 +6526,19 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "name": "Step 1",
           "position": 20
         },
         {
           "id": "step-2",
-          "projectId": "p5",
+          "workPackageId": "p5",
           "name": "Step 2",
           "position": 30
         }
@@ -6546,13 +6546,13 @@
       "assignedPeople": [],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p6-g0",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -6602,7 +6602,7 @@
         },
         {
           "id": "p6-g0-l0",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "parentId": "p6-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -6652,7 +6652,7 @@
         },
         {
           "id": "p6-g1",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -6702,7 +6702,7 @@
         },
         {
           "id": "p6-g1-l0",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "parentId": "p6-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -6754,7 +6754,7 @@
         },
         {
           "id": "p6-g1-l1",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "parentId": "p6-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -6806,7 +6806,7 @@
         },
         {
           "id": "p6-solo",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "parentId": null,
           "position": 30,
           "name": "On its own",
@@ -6875,7 +6875,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7016,13 +7016,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p6",
+          "workPackageId": "p6",
           "name": "Step 1",
           "position": 20
         }
@@ -7035,13 +7035,13 @@
       ],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p7-g0",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -7088,7 +7088,7 @@
         },
         {
           "id": "p7-g0-l0",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "parentId": "p7-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -7129,7 +7129,7 @@
         },
         {
           "id": "p7-g0-l1",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "parentId": "p7-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -7170,7 +7170,7 @@
         },
         {
           "id": "p7-g0-l2",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "parentId": "p7-g0",
           "position": 30,
           "name": "Leaf 0.2",
@@ -7211,7 +7211,7 @@
         },
         {
           "id": "p7-g1",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -7252,7 +7252,7 @@
         },
         {
           "id": "p7-g1-l0",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "parentId": "p7-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -7293,7 +7293,7 @@
         },
         {
           "id": "p7-solo",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "parentId": null,
           "position": 30,
           "name": "On its own",
@@ -7359,7 +7359,7 @@
           "float": 8,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7397,7 +7397,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7435,7 +7435,7 @@
           "float": 5.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7454,7 +7454,7 @@
           "float": 5.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7473,7 +7473,7 @@
           "float": 4.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7511,7 +7511,7 @@
           "float": 5.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7538,13 +7538,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p7",
+          "workPackageId": "p7",
           "name": "Step 1",
           "position": 20
         }
@@ -7552,13 +7552,13 @@
       "assignedPeople": [],
       "estimateMethod": "pessimistic",
       "startDate": null,
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p8-g0",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -7614,7 +7614,7 @@
         },
         {
           "id": "p8-g0-l0",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "parentId": "p8-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -7660,7 +7660,7 @@
         },
         {
           "id": "p8-g0-l1",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "parentId": "p8-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -7716,7 +7716,7 @@
         },
         {
           "id": "p8-g0-l2",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "parentId": "p8-g0",
           "position": 30,
           "name": "Leaf 0.2",
@@ -7766,7 +7766,7 @@
         },
         {
           "id": "p8-g1",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -7816,7 +7816,7 @@
         },
         {
           "id": "p8-g1-l0",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "parentId": "p8-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -7866,7 +7866,7 @@
         },
         {
           "id": "p8-solo",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "parentId": null,
           "position": 30,
           "name": "On its own",
@@ -7941,7 +7941,7 @@
           "float": 0.33333333333333304,
           "critical": false,
           "personId": "person-kat",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7960,7 +7960,7 @@
           "float": 0.33333333333333304,
           "critical": false,
           "personId": "person-kat",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -7998,7 +7998,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -8055,7 +8055,7 @@
           "float": 2.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -8074,7 +8074,7 @@
           "float": 2.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -8112,7 +8112,7 @@
           "float": 8.333333333333334,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -8215,19 +8215,19 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "name": "Step 1",
           "position": 20
         },
         {
           "id": "step-2",
-          "projectId": "p8",
+          "workPackageId": "p8",
           "name": "Step 2",
           "position": 30
         }
@@ -8240,13 +8240,13 @@
       ],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p9-g0",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -8296,7 +8296,7 @@
         },
         {
           "id": "p9-g0-l0",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "parentId": "p9-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -8346,7 +8346,7 @@
         },
         {
           "id": "p9-g0-l1",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "parentId": "p9-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -8396,7 +8396,7 @@
         },
         {
           "id": "p9-g1",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -8446,7 +8446,7 @@
         },
         {
           "id": "p9-g1-l0",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "parentId": "p9-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -8496,7 +8496,7 @@
         },
         {
           "id": "p9-solo",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "parentId": null,
           "position": 30,
           "name": "On its own",
@@ -8603,7 +8603,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -8679,7 +8679,7 @@
           "float": 3.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -8706,13 +8706,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p9",
+          "workPackageId": "p9",
           "name": "Step 1",
           "position": 20
         }
@@ -8720,13 +8720,13 @@
       "assignedPeople": [],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p10-g0",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -8776,7 +8776,7 @@
         },
         {
           "id": "p10-g0-l0",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": "p10-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -8828,7 +8828,7 @@
         },
         {
           "id": "p10-g1",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -8872,7 +8872,7 @@
         },
         {
           "id": "p10-g1-l0",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": "p10-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -8908,7 +8908,7 @@
         },
         {
           "id": "p10-g1-l1",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": "p10-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -8952,7 +8952,7 @@
         },
         {
           "id": "p10-g2",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -9002,7 +9002,7 @@
         },
         {
           "id": "p10-g2-l0",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": "p10-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -9052,7 +9052,7 @@
         },
         {
           "id": "p10-solo",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "parentId": null,
           "position": 40,
           "name": "On its own",
@@ -9121,7 +9121,7 @@
           "float": 6,
           "critical": false,
           "personId": "person-sam",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -9235,7 +9235,7 @@
           "float": 11.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -9300,13 +9300,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p10",
+          "workPackageId": "p10",
           "name": "Step 1",
           "position": 20
         }
@@ -9319,13 +9319,13 @@
       ],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p11-g0",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -9381,7 +9381,7 @@
         },
         {
           "id": "p11-g0-l0",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": "p11-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -9425,7 +9425,7 @@
         },
         {
           "id": "p11-g0-l1",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": "p11-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -9481,7 +9481,7 @@
         },
         {
           "id": "p11-g1",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -9537,7 +9537,7 @@
         },
         {
           "id": "p11-g1-l0",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": "p11-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -9593,7 +9593,7 @@
         },
         {
           "id": "p11-g1-l1",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": "p11-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -9651,7 +9651,7 @@
         },
         {
           "id": "p11-g1-l2",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": "p11-g1",
           "position": 30,
           "name": "Leaf 1.2",
@@ -9703,7 +9703,7 @@
         },
         {
           "id": "p11-g2",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -9753,7 +9753,7 @@
         },
         {
           "id": "p11-g2-l0",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": "p11-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -9797,7 +9797,7 @@
         },
         {
           "id": "p11-g2-l1",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": "p11-g2",
           "position": 20,
           "name": "Leaf 2.1",
@@ -9847,7 +9847,7 @@
         },
         {
           "id": "p11-solo",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "parentId": null,
           "position": 40,
           "name": "On its own",
@@ -9922,7 +9922,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -9941,7 +9941,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -9979,7 +9979,7 @@
           "float": 3,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -10207,7 +10207,7 @@
           "float": 26,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -10226,7 +10226,7 @@
           "float": 26,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -10264,7 +10264,7 @@
           "float": 15,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -10321,7 +10321,7 @@
           "float": 19,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -10367,19 +10367,19 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "name": "Step 1",
           "position": 20
         },
         {
           "id": "step-2",
-          "projectId": "p11",
+          "workPackageId": "p11",
           "name": "Step 2",
           "position": 30
         }
@@ -10396,13 +10396,13 @@
       ],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p12-g0",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -10452,7 +10452,7 @@
         },
         {
           "id": "p12-g0-l0",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": "p12-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -10496,7 +10496,7 @@
         },
         {
           "id": "p12-g0-l1",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": "p12-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -10546,7 +10546,7 @@
         },
         {
           "id": "p12-g0-l2",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": "p12-g0",
           "position": 30,
           "name": "Leaf 0.2",
@@ -10584,7 +10584,7 @@
         },
         {
           "id": "p12-g1",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -10634,7 +10634,7 @@
         },
         {
           "id": "p12-g1-l0",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": "p12-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -10684,7 +10684,7 @@
         },
         {
           "id": "p12-g2",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -10734,7 +10734,7 @@
         },
         {
           "id": "p12-g2-l0",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": "p12-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -10778,7 +10778,7 @@
         },
         {
           "id": "p12-g2-l1",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": "p12-g2",
           "position": 20,
           "name": "Leaf 2.1",
@@ -10828,7 +10828,7 @@
         },
         {
           "id": "p12-g2-l2",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": "p12-g2",
           "position": 30,
           "name": "Leaf 2.2",
@@ -10878,7 +10878,7 @@
         },
         {
           "id": "p12-solo",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "parentId": null,
           "position": 40,
           "name": "On its own",
@@ -10947,7 +10947,7 @@
           "float": 6,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -10985,7 +10985,7 @@
           "float": 5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11023,7 +11023,7 @@
           "float": 10.666666666666668,
           "critical": false,
           "personId": "person-sam",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11042,7 +11042,7 @@
           "float": 10.666666666666668,
           "critical": false,
           "personId": "person-sam",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11061,7 +11061,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11099,7 +11099,7 @@
           "float": 3,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11137,7 +11137,7 @@
           "float": 5.833333333333334,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11175,7 +11175,7 @@
           "float": 5.583333333333334,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11240,13 +11240,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p12",
+          "workPackageId": "p12",
           "name": "Step 1",
           "position": 20
         }
@@ -11259,13 +11259,13 @@
       ],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p13-g0",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -11315,7 +11315,7 @@
         },
         {
           "id": "p13-g0-l0",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": "p13-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -11365,7 +11365,7 @@
         },
         {
           "id": "p13-g0-l1",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": "p13-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -11411,7 +11411,7 @@
         },
         {
           "id": "p13-g1",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -11461,7 +11461,7 @@
         },
         {
           "id": "p13-g1-l0",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": "p13-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -11507,7 +11507,7 @@
         },
         {
           "id": "p13-g1-l1",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": "p13-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -11557,7 +11557,7 @@
         },
         {
           "id": "p13-g2",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -11607,7 +11607,7 @@
         },
         {
           "id": "p13-g2-l0",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": "p13-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -11657,7 +11657,7 @@
         },
         {
           "id": "p13-g2-l1",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": "p13-g2",
           "position": 20,
           "name": "Leaf 2.1",
@@ -11703,7 +11703,7 @@
         },
         {
           "id": "p13-g2-l2",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": "p13-g2",
           "position": 30,
           "name": "Leaf 2.2",
@@ -11753,7 +11753,7 @@
         },
         {
           "id": "p13-solo",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "parentId": null,
           "position": 40,
           "name": "On its own",
@@ -11822,7 +11822,7 @@
           "float": 3.5,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11860,7 +11860,7 @@
           "float": 0,
           "critical": true,
           "personId": "person-kat",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -11974,7 +11974,7 @@
           "float": 3,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -12012,7 +12012,7 @@
           "float": 9,
           "critical": false,
           "personId": "person-kat",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -12050,7 +12050,7 @@
           "float": 7,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -12115,13 +12115,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p13",
+          "workPackageId": "p13",
           "name": "Step 1",
           "position": 20
         }
@@ -12138,13 +12138,13 @@
       ],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p14-g0",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -12197,7 +12197,7 @@
         },
         {
           "id": "p14-g0-l0",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -12244,7 +12244,7 @@
         },
         {
           "id": "p14-g0-l1",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -12297,7 +12297,7 @@
         },
         {
           "id": "p14-g1",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -12350,7 +12350,7 @@
         },
         {
           "id": "p14-g1-l0",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -12397,7 +12397,7 @@
         },
         {
           "id": "p14-g1-l1",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -12444,7 +12444,7 @@
         },
         {
           "id": "p14-g2",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -12497,7 +12497,7 @@
         },
         {
           "id": "p14-g2-l0",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -12552,7 +12552,7 @@
         },
         {
           "id": "p14-g2-l1",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g2",
           "position": 20,
           "name": "Leaf 2.1",
@@ -12593,7 +12593,7 @@
         },
         {
           "id": "p14-g2-l2",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g2",
           "position": 30,
           "name": "Leaf 2.2",
@@ -12640,7 +12640,7 @@
         },
         {
           "id": "p14-g3",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": null,
           "position": 40,
           "name": "Group 3",
@@ -12693,7 +12693,7 @@
         },
         {
           "id": "p14-g3-l0",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": "p14-g3",
           "position": 10,
           "name": "Leaf 3.0",
@@ -12746,7 +12746,7 @@
         },
         {
           "id": "p14-solo",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "parentId": null,
           "position": 50,
           "name": "On its own",
@@ -12818,7 +12818,7 @@
           "float": 22.166666666666668,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -12875,7 +12875,7 @@
           "float": 17,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -12932,7 +12932,7 @@
           "float": 9,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -12989,7 +12989,7 @@
           "float": 24.666666666666668,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -13046,7 +13046,7 @@
           "float": 0,
           "critical": true,
           "personId": "person-sam",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -13169,7 +13169,7 @@
           "float": 4,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -13231,7 +13231,7 @@
           "float": 15,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -13334,19 +13334,19 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "name": "Step 1",
           "position": 20
         },
         {
           "id": "step-2",
-          "projectId": "p14",
+          "workPackageId": "p14",
           "name": "Step 2",
           "position": 30
         }
@@ -13359,13 +13359,13 @@
       ],
       "estimateMethod": "realistic",
       "startDate": null,
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p15-g0",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -13409,7 +13409,7 @@
         },
         {
           "id": "p15-g0-l0",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -13453,7 +13453,7 @@
         },
         {
           "id": "p15-g1",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -13503,7 +13503,7 @@
         },
         {
           "id": "p15-g1-l0",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -13555,7 +13555,7 @@
         },
         {
           "id": "p15-g1-l1",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -13605,7 +13605,7 @@
         },
         {
           "id": "p15-g1-l2",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g1",
           "position": 30,
           "name": "Leaf 1.2",
@@ -13649,7 +13649,7 @@
         },
         {
           "id": "p15-g2",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -13699,7 +13699,7 @@
         },
         {
           "id": "p15-g2-l0",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -13749,7 +13749,7 @@
         },
         {
           "id": "p15-g2-l1",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g2",
           "position": 20,
           "name": "Leaf 2.1",
@@ -13799,7 +13799,7 @@
         },
         {
           "id": "p15-g3",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": null,
           "position": 40,
           "name": "Group 3",
@@ -13849,7 +13849,7 @@
         },
         {
           "id": "p15-g3-l0",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g3",
           "position": 10,
           "name": "Leaf 3.0",
@@ -13893,7 +13893,7 @@
         },
         {
           "id": "p15-g3-l1",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g3",
           "position": 20,
           "name": "Leaf 3.1",
@@ -13945,7 +13945,7 @@
         },
         {
           "id": "p15-g3-l2",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": "p15-g3",
           "position": 30,
           "name": "Leaf 3.2",
@@ -13981,7 +13981,7 @@
         },
         {
           "id": "p15-solo",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "parentId": null,
           "position": 50,
           "name": "On its own",
@@ -14050,7 +14050,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14069,7 +14069,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14202,7 +14202,7 @@
           "float": 9,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14240,7 +14240,7 @@
           "float": 2,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14278,7 +14278,7 @@
           "float": 12,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14316,7 +14316,7 @@
           "float": 9,
           "critical": false,
           "personId": "person-kat",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14354,7 +14354,7 @@
           "float": 17,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14373,7 +14373,7 @@
           "float": 17,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -14419,13 +14419,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p15",
+          "workPackageId": "p15",
           "name": "Step 1",
           "position": 20
         }
@@ -14442,13 +14442,13 @@
       ],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     },
     {
       "workItems": [
         {
           "id": "p16-g0",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": null,
           "position": 10,
           "name": "Group 0",
@@ -14498,7 +14498,7 @@
         },
         {
           "id": "p16-g0-l0",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g0",
           "position": 10,
           "name": "Leaf 0.0",
@@ -14548,7 +14548,7 @@
         },
         {
           "id": "p16-g0-l1",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g0",
           "position": 20,
           "name": "Leaf 0.1",
@@ -14600,7 +14600,7 @@
         },
         {
           "id": "p16-g0-l2",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g0",
           "position": 30,
           "name": "Leaf 0.2",
@@ -14644,7 +14644,7 @@
         },
         {
           "id": "p16-g1",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": null,
           "position": 20,
           "name": "Group 1",
@@ -14694,7 +14694,7 @@
         },
         {
           "id": "p16-g1-l0",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g1",
           "position": 10,
           "name": "Leaf 1.0",
@@ -14746,7 +14746,7 @@
         },
         {
           "id": "p16-g1-l1",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g1",
           "position": 20,
           "name": "Leaf 1.1",
@@ -14796,7 +14796,7 @@
         },
         {
           "id": "p16-g1-l2",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g1",
           "position": 30,
           "name": "Leaf 1.2",
@@ -14846,7 +14846,7 @@
         },
         {
           "id": "p16-g2",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": null,
           "position": 30,
           "name": "Group 2",
@@ -14890,7 +14890,7 @@
         },
         {
           "id": "p16-g2-l0",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g2",
           "position": 10,
           "name": "Leaf 2.0",
@@ -14928,7 +14928,7 @@
         },
         {
           "id": "p16-g2-l1",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g2",
           "position": 20,
           "name": "Leaf 2.1",
@@ -14972,7 +14972,7 @@
         },
         {
           "id": "p16-g2-l2",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g2",
           "position": 30,
           "name": "Leaf 2.2",
@@ -15016,7 +15016,7 @@
         },
         {
           "id": "p16-g3",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": null,
           "position": 40,
           "name": "Group 3",
@@ -15066,7 +15066,7 @@
         },
         {
           "id": "p16-g3-l0",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g3",
           "position": 10,
           "name": "Leaf 3.0",
@@ -15110,7 +15110,7 @@
         },
         {
           "id": "p16-g3-l1",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": "p16-g3",
           "position": 20,
           "name": "Leaf 3.1",
@@ -15160,7 +15160,7 @@
         },
         {
           "id": "p16-solo",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "parentId": null,
           "position": 50,
           "name": "On its own",
@@ -15229,7 +15229,7 @@
           "float": 0,
           "critical": true,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15267,7 +15267,7 @@
           "float": 13.333333333333334,
           "critical": false,
           "personId": "person-kat",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15305,7 +15305,7 @@
           "float": 10.333333333333336,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15343,7 +15343,7 @@
           "float": 15.500000000000002,
           "critical": false,
           "personId": "person-sam",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15419,7 +15419,7 @@
           "float": 17.500000000000004,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15457,7 +15457,7 @@
           "float": 22.333333333333336,
           "critical": false,
           "personId": "person-sam",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15476,7 +15476,7 @@
           "float": 22.333333333333336,
           "critical": false,
           "personId": "person-sam",
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15495,7 +15495,7 @@
           "float": 20.333333333333336,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15533,7 +15533,7 @@
           "float": 18.333333333333336,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15571,7 +15571,7 @@
           "float": 17.333333333333336,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15590,7 +15590,7 @@
           "float": 17.333333333333336,
           "critical": false,
           "personId": null,
-          "boundBy": "projectStart",
+          "boundBy": "workPackageStart",
           "resourcePredecessorId": null,
           "capacityPredecessorIds": []
         },
@@ -15678,13 +15678,13 @@
       "steps": [
         {
           "id": "step-0",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "name": "Step 0",
           "position": 10
         },
         {
           "id": "step-1",
-          "projectId": "p16",
+          "workPackageId": "p16",
           "name": "Step 1",
           "position": 20
         }
@@ -15701,7 +15701,7 @@
       ],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
-      "projectRevision": 0
+      "workPackageRevision": 0
     }
   ]
 }

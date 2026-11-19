@@ -6,7 +6,7 @@ import { organizationContextRefusal, organizationRefusal } from './organization-
 import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 
-const projectParams = requestSchema(type({ id: 'string' }));
+const workPackageParams = requestSchema(type({ id: 'string' }));
 const stepParams = requestSchema(type({ id: 'string', stepId: 'string' }));
 /**
  * Whitespace is a domain name refusal, not a structural request defect. The
@@ -54,7 +54,7 @@ const newStepBody = requestSchema(
  */
 export const stepShape = type({
   id: 'string',
-  projectId: 'string',
+  workPackageId: 'string',
   name: 'string',
   position: 'number',
   'code?': 'string | null',
@@ -103,13 +103,13 @@ const nameRefusals = [
   },
 ] as const;
 
-/** Adds a named step to a project, with an optional allowance; retains the 200 response. */
+/** Adds a named step to a work package, with an optional allowance; retains the 200 response. */
 export const addStep = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/steps',
-  operationId: 'postApiProjectsByIdSteps',
+  path: '/api/work-packages/:id/steps',
+  operationId: 'postApiWorkPackagesByIdSteps',
   policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
-  params: projectParams,
+  params: workPackageParams,
   body: newStepBody,
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
   responses: [{ kind: 'json', status: 200, schema: stepReply }],
@@ -118,19 +118,19 @@ export const addStep = defineEndpointShape({
     { status: 422, schema: responseSchema(type({ error: "'invalid_code' | 'reserved_code'" })) },
     { status: 409, schema: responseSchema(type({ error: "'code_taken' | 'dependency_cycle'" })) },
   ] as const,
-  document: { summary: 'Add a project step.' },
+  document: { summary: 'Add a work package step.' },
 });
 
 /**
- * Renames the addressed project step, sets its estimate allowance, or both.
+ * Renames the addressed work package step, sets its estimate allowance, or both.
  * The allowance edit is the journalled `setStepAllowance` command — one undo —
  * and a rename sent with it settles with it: both, or neither. An allowance
  * that would place the plan past the supported calendar is `calendar_range`.
  */
 export const renameStep = defineEndpointShape({
   method: 'PATCH',
-  path: '/api/projects/:id/steps/:stepId',
-  operationId: 'patchApiProjectsByIdStepsByStepId',
+  path: '/api/work-packages/:id/steps/:stepId',
+  operationId: 'patchApiWorkPackagesByIdStepsByStepId',
   policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: stepParams,
   body: patchBody,
@@ -144,7 +144,7 @@ export const renameStep = defineEndpointShape({
     },
     { status: 422, schema: responseSchema(type({ error: "'calendar_range'" })) },
   ] as const,
-  document: { summary: 'Rename a project step or set its estimate allowance.' },
+  document: { summary: 'Rename a work package step or set its estimate allowance.' },
 });
 
 /**
@@ -154,8 +154,8 @@ export const renameStep = defineEndpointShape({
  */
 export const removeStep = defineEndpointShape({
   method: 'DELETE',
-  path: '/api/projects/:id/steps/:stepId',
-  operationId: 'deleteApiProjectsByIdStepsByStepId',
+  path: '/api/work-packages/:id/steps/:stepId',
+  operationId: 'deleteApiWorkPackagesByIdStepsByStepId',
   policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: stepParams,
   // Proof: the tolerant wrapper deleted the used step,204 instead of400 in
@@ -212,5 +212,32 @@ export const removeStep = defineEndpointShape({
     // Removing the step would move a legacy anchor into a step-node cycle.
     { status: 409, schema: responseSchema(type({ error: "'dependency_cycle'" })) },
   ],
-  document: { summary: 'Remove a project step, confirming cascade when it is used.' },
+  document: { summary: 'Remove a work package step, confirming cascade when it is used.' },
 });
+
+/**
+ * Explicit values for one current package/step pair. Shared definition metadata
+ * and binding membership belong to their organization/scope routes. Allowance
+ * arrives as integer hundredths of a percent; allowance commands retain undo/redo.
+ */
+export const patchWorkPackageStepValues = defineEndpointShape({
+  method: 'PATCH',
+  path: '/api/work-packages/:id/steps/:stepId',
+  operationId: 'patchWorkPackageStepValues',
+  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
+  params: stepParams,
+  body: requestSchema(type({
+    'estimateUnit?': "'workdays' | 'minutes'",
+    'allowanceBps?': '0 <= number.integer <= 100000',
+  })),
+  bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
+  responses: [{ kind: 'json', status: 200, schema: stepReply }],
+  refusals: [
+    ...sharedRefusals,
+    { status: 400, schema: responseSchema(type({ error: "'invalid_json'" })) },
+    { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
+    { status: 422, schema: responseSchema(type({ error: "'calendar_range'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'estimates_present'", count: 'number' })) },
+  ] as const,
+  document: { summary: 'Set the addressed work package step unit or allowance.' },
+} as const);

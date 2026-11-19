@@ -6,9 +6,9 @@ import type { DependencyLookup } from '@/modules/dependency-lookup/contract';
 import type { DependencySelection } from './dependency-selection';
 import { RemoteDependencyEditor } from './remote-dependency-editor';
 
-const project = { projectId: 'remote', abbreviation: 'PUNI', name: 'Remote' };
+const workPackage = { workPackageId: 'remote', abbreviation: 'PUNI', name: 'Remote' };
 const whole = {
-  projectId: 'remote',
+  workPackageId: 'remote',
   workItemId: 'r',
   number: '080',
   name: 'Build',
@@ -23,8 +23,8 @@ const dev = {
 };
 const selection: Extract<DependencySelection, { kind: 'remote' }> = {
   kind: 'remote',
-  endpoint: { projectId: 'remote', ...whole.endpoint },
-  project,
+  endpoint: { workPackageId: 'remote', ...whole.endpoint },
+  workPackage,
   addressRevision: 'r1',
   candidate: whole,
 };
@@ -36,7 +36,7 @@ const successor = {
     {
       key: 'local-dev',
       endpoint: {
-        projectId: 'local',
+        workPackageId: 'local',
         scope: 'node' as const,
         workItemId: 'l',
         stepId: 'local-dev',
@@ -49,7 +49,7 @@ const successor = {
 };
 const page = (candidates: (typeof whole | typeof dev)[], nextCursor: string | null) => ({
   kind: 'success' as const,
-  body: { project, addressRevision: 'r1', candidates, nextCursor },
+  body: { workPackage, addressRevision: 'r1', candidates, nextCursor },
 });
 async function tick() {
   await act(async () => {
@@ -62,7 +62,7 @@ describe('remote Customize completeness', () => {
   it('suggests its own unique matching step only after explicit pagination proves completeness', async () => {
     vi.useFakeTimers();
     const service: DependencyLookup = {
-      discoverProjects: vi.fn(),
+      discoverWorkPackages: vi.fn(),
       resolveReference: vi.fn(),
       searchEndpoints: vi
         .fn()
@@ -74,7 +74,7 @@ describe('remote Customize completeness', () => {
       <RemoteDependencyEditor
         selection={selection}
         lookup={service}
-        ownerProjectId="local"
+        ownerWorkPackageId="local"
         ownerId="l"
         successor={successor}
         preferredCode="DEV"
@@ -90,7 +90,7 @@ describe('remote Customize completeness', () => {
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(onSave).toHaveBeenCalledWith(
-      { projectId: 'remote', scope: 'node', workItemId: 'r', stepId: 'remote-dev' },
+      { workPackageId: 'remote', scope: 'node', workItemId: 'r', stepId: 'remote-dev' },
       successor.choices[0]?.endpoint,
       'FS',
     );
@@ -104,7 +104,7 @@ describe('remote Customize completeness', () => {
       step: { ...dev.step, id: 'other-dev' },
     };
     const service: DependencyLookup = {
-      discoverProjects: vi.fn(),
+      discoverWorkPackages: vi.fn(),
       resolveReference: vi.fn(),
       searchEndpoints: vi.fn().mockResolvedValue(page([whole, dev, duplicate], null)),
     };
@@ -112,7 +112,7 @@ describe('remote Customize completeness', () => {
       <RemoteDependencyEditor
         selection={selection}
         lookup={service}
-        ownerProjectId="local"
+        ownerWorkPackageId="local"
         ownerId="l"
         successor={successor}
         preferredCode="DEV"
@@ -131,11 +131,11 @@ describe('remote Customize completeness', () => {
       <RemoteDependencyEditor
         selection={{
           ...selection,
-          endpoint: { projectId: 'remote', ...dev.endpoint },
+          endpoint: { workPackageId: 'remote', ...dev.endpoint },
           candidate: dev,
         }}
         lookup={service}
-        ownerProjectId="local"
+        ownerWorkPackageId="local"
         ownerId="l"
         successor={successor}
         onSave={vi.fn()}
@@ -149,10 +149,10 @@ describe('remote Customize completeness', () => {
   });
 });
 
-it('changed address revision discards choices until explicit stable-project refresh', async () => {
+it('changed address revision discards choices until explicit stable-work-package refresh', async () => {
   vi.useFakeTimers();
   const service: DependencyLookup = {
-    discoverProjects: vi.fn(),
+    discoverWorkPackages: vi.fn(),
     resolveReference: vi.fn(),
     searchEndpoints: vi.fn().mockResolvedValue({
       ...page([whole, dev], null),
@@ -163,7 +163,7 @@ it('changed address revision discards choices until explicit stable-project refr
     <RemoteDependencyEditor
       selection={selection}
       lookup={service}
-      ownerProjectId="local"
+      ownerWorkPackageId="local"
       ownerId="l"
       successor={successor}
       preferredCode="DEV"
@@ -177,7 +177,7 @@ it('changed address revision discards choices until explicit stable-project refr
   await tick();
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(false);
   expect(service.searchEndpoints).toHaveBeenCalledTimes(2);
-  expect(service.discoverProjects).not.toHaveBeenCalled();
+  expect(service.discoverWorkPackages).not.toHaveBeenCalled();
 });
 
 it.each([null, undefined])(
@@ -185,7 +185,7 @@ it.each([null, undefined])(
   async (preferredCode) => {
     vi.useFakeTimers();
     const service: DependencyLookup = {
-      discoverProjects: vi.fn(),
+      discoverWorkPackages: vi.fn(),
       resolveReference: vi.fn(),
       searchEndpoints: vi.fn().mockResolvedValue(page([whole, dev], null)),
     };
@@ -193,7 +193,7 @@ it.each([null, undefined])(
       <RemoteDependencyEditor
         selection={selection}
         lookup={service}
-        ownerProjectId="local"
+        ownerWorkPackageId="local"
         ownerId="l"
         successor={successor}
         preferredCode={preferredCode}
@@ -209,7 +209,7 @@ it.each([null, undefined])(
 it('new revision or lookup resets manual scopes and relationship type for the same endpoint', async () => {
   vi.useFakeTimers();
   const service: DependencyLookup = {
-    discoverProjects: vi.fn(),
+    discoverWorkPackages: vi.fn(),
     resolveReference: vi.fn(),
     searchEndpoints: vi.fn().mockResolvedValue(page([whole, dev], null)),
   };
@@ -218,7 +218,7 @@ it('new revision or lookup resets manual scopes and relationship type for the sa
     <RemoteDependencyEditor
       selection={{ ...selection, addressRevision: revision }}
       lookup={lookup}
-      ownerProjectId="local"
+      ownerWorkPackageId="local"
       ownerId="l"
       successor={successor}
       preferredCode="DEV"
@@ -262,31 +262,32 @@ it('new revision or lookup resets manual scopes and relationship type for the sa
   );
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   expect(onSave).toHaveBeenCalledWith(
-    { projectId: 'remote', ...dev.endpoint },
+    { workPackageId: 'remote', ...dev.endpoint },
     successor.choices[0]?.endpoint,
     'FS',
   );
 });
 
-it.each(['project', 'work-item'] as const)(
+it.each(['work_package', 'work-item'] as const)(
   'offers no scope when observed %s identity differs from the selected coordinate',
   async (mismatch) => {
     vi.useFakeTimers();
-    const observedProject = mismatch === 'project' ? { ...project, projectId: 'other' } : project;
+    const observedWorkPackage =
+      mismatch === 'work_package' ? { ...workPackage, workPackageId: 'other' } : workPackage;
     const observedWorkItemId = mismatch === 'work-item' ? 'other-row' : whole.workItemId;
     const observed = {
       ...whole,
-      projectId: observedProject.projectId,
+      workPackageId: observedWorkPackage.workPackageId,
       workItemId: observedWorkItemId,
       endpoint: { scope: 'whole' as const, workItemId: observedWorkItemId },
     };
     const service: DependencyLookup = {
-      discoverProjects: vi.fn(),
+      discoverWorkPackages: vi.fn(),
       resolveReference: vi.fn(),
       searchEndpoints: vi.fn().mockResolvedValue({
         kind: 'success',
         body: {
-          project: observedProject,
+          workPackage: observedWorkPackage,
           addressRevision: 'r1',
           candidates: [observed],
           nextCursor: null,
@@ -294,12 +295,12 @@ it.each(['project', 'work-item'] as const)(
       }),
     };
     const onSave = vi.fn();
-    // Inject a broken selected-project descriptor while retaining its stable coordinate.
+    // Inject a broken selected-work-package descriptor while retaining its stable coordinate.
     render(
       <RemoteDependencyEditor
-        selection={{ ...selection, project: observedProject }}
+        selection={{ ...selection, workPackage: observedWorkPackage }}
         lookup={service}
-        ownerProjectId="local"
+        ownerWorkPackageId="local"
         ownerId="l"
         successor={successor}
         onSave={onSave}

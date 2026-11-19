@@ -10,7 +10,7 @@ import {
   createRuntimeReceiver,
 } from '@wbs/core/module/plan-commands/composition';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
-import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { CommittedWorkPackageEvent } from '@wbs/core/ports/committed-fanout';
 import { NO_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
@@ -59,16 +59,18 @@ async function mountRuntime() {
   harness.bind('creator', 'org-a');
   harness.bind('super', 'org-a');
   harness.activate();
-  const created = await harness.call('creator', 'POST', '/api/projects', { name: 'Principal cap' });
+  const created = await harness.call('creator', 'POST', '/api/work-packages', {
+    name: 'Principal cap',
+  });
   expect(created.status).toBe(200);
-  const projectId = (created.body as { project: { id: string } }).project.id;
+  const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('super'));
   addAgentPerson(harness.sqlite, 'unbound', 'org-a', null);
   addAgentPerson(harness.sqlite, 'other-account', 'org-a', harness.userId('creator'));
   const observed = await harness.call(
     'creator',
     'GET',
-    `/api/projects/${projectId}/runtime-state?personId=agent`,
+    `/api/work-packages/${workPackageId}/runtime-state?personId=agent`,
   );
   expect(observed.status).toBe(200);
   const state = observed.body as RuntimeState;
@@ -84,19 +86,24 @@ async function mountRuntime() {
     authorities: harness.sqlite.query('SELECT * FROM runtime_authority').all(),
     receipts: harness.sqlite.query('SELECT * FROM runtime_command_receipt').all(),
   });
-  return { harness, projectId, acquisition, history };
+  return { harness, workPackageId, acquisition, history };
 }
 
-async function restrictProject() {
+async function restrictWorkPackage() {
   const fixture = await mountRuntime();
   expect(
     (
-      await fixture.harness.call('creator', 'PATCH', `/api/projects/${fixture.projectId}`, {
-        restricted: true,
-      })
+      await fixture.harness.call(
+        'creator',
+        'PATCH',
+        `/api/work-packages/${fixture.workPackageId}`,
+        {
+          restricted: true,
+        },
+      )
     ).status,
   ).toBe(200);
-  fixture.harness.grant('org-a', 'super', 'package-manager', 'work_package', fixture.projectId);
+  fixture.harness.grant('org-a', 'super', 'package-manager', 'work_package', fixture.workPackageId);
   return fixture;
 }
 
@@ -138,7 +145,7 @@ describe('runtime principal role cap', () => {
     test(
       kind + ' explicit package manager grant writes restricted runtime within its contributor cap',
       async () => {
-        const { harness, projectId, acquisition } = await restrictProject();
+        const { harness, workPackageId, acquisition } = await restrictWorkPackage();
         const credential =
           kind === 'machine'
             ? await issueApiKey(harness.sqlite, {
@@ -154,44 +161,53 @@ describe('runtime principal role cap', () => {
           credential === null ? 'verified-consent' : credential.id,
           'package-manager',
           'work_package',
-          projectId,
+          workPackageId,
         );
         const call = (method: string, path: string, body?: unknown) =>
           kind === 'machine'
             ? callForwarded(harness, token, method, path, body)
             : harness.callWith(token, method, path, body);
         expect(
-          (await call('GET', `/api/projects/${projectId}/runtime-state?personId=agent`)).status,
+          (await call('GET', `/api/work-packages/${workPackageId}/runtime-state?personId=agent`))
+            .status,
         ).toBe(200);
         expect(
-          (await call('POST', `/api/projects/${projectId}/runtime-authority`, acquisition)).status,
+          (await call('POST', `/api/work-packages/${workPackageId}/runtime-authority`, acquisition))
+            .status,
         ).toBe(200);
         if (kind === 'machine')
           expect(
-            await call('PATCH', `/api/projects/${projectId}`, { name: 'Denied settings' }),
+            await call('PATCH', `/api/work-packages/${workPackageId}`, { name: 'Denied settings' }),
           ).toMatchObject({
             status: 403,
             body: { error: 'forbidden', permission: 'package.manage_settings' },
           });
         expect(
-          await call('GET', `/api/projects/${projectId}/runtime-state?personId=other-account`),
+          await call(
+            'GET',
+            `/api/work-packages/${workPackageId}/runtime-state?personId=other-account`,
+          ),
         ).toMatchObject({
           status: 403,
           body: { error: 'forbidden', permission: 'package.claim_for_others' },
         });
-        expect(harness.sqlite.query('SELECT name FROM project WHERE id=?').get(projectId)).toEqual({
+        expect(
+          harness.sqlite.query('SELECT name FROM work_package WHERE id=?').get(workPackageId),
+        ).toEqual({
           name: 'Principal cap',
         });
         expect(
           harness.sqlite
-            .query("SELECT * FROM organization_audit WHERE action='restricted_project_recovery'")
+            .query(
+              "SELECT * FROM organization_audit WHERE action='restricted_work_package_recovery'",
+            )
             .all(),
         ).toEqual([]);
       },
     );
   for (const operation of ['read', 'acquire'] as const) {
-    test(`refuses real machine key restricted-project ${operation} for the correctly pinned noncreator super-admin`, async () => {
-      const { harness, projectId, acquisition, history } = await restrictProject();
+    test(`refuses real machine key restricted-work-package ${operation} for the correctly pinned noncreator super-admin`, async () => {
+      const { harness, workPackageId, acquisition, history } = await restrictWorkPackage();
       const credential = await issueApiKey(harness.sqlite, {
         organizationId: 'org-a',
         personId: 'agent',
@@ -204,20 +220,20 @@ describe('runtime principal role cap', () => {
               harness,
               credential.key,
               'GET',
-              `/api/projects/${projectId}/runtime-state?personId=agent`,
+              `/api/work-packages/${workPackageId}/runtime-state?personId=agent`,
             )
           : await callForwarded(
               harness,
               credential.key,
               'POST',
-              `/api/projects/${projectId}/runtime-authority`,
+              `/api/work-packages/${workPackageId}/runtime-authority`,
               acquisition,
             );
       expect(answer).toEqual({ status: 404, body: { error: 'not_found' } });
       expect(history()).toEqual(before);
     });
-    test(`refuses verified consent restricted-project ${operation} for its correctly pinned noncreator super-admin`, async () => {
-      const { harness, projectId, acquisition, history } = await restrictProject();
+    test(`refuses verified consent restricted-work-package ${operation} for its correctly pinned noncreator super-admin`, async () => {
+      const { harness, workPackageId, acquisition, history } = await restrictWorkPackage();
       const token = stubConsent(harness);
       const before = history();
       const answer =
@@ -225,12 +241,12 @@ describe('runtime principal role cap', () => {
           ? await harness.callWith(
               token,
               'GET',
-              `/api/projects/${projectId}/runtime-state?personId=agent`,
+              `/api/work-packages/${workPackageId}/runtime-state?personId=agent`,
             )
           : await harness.callWith(
               token,
               'POST',
-              `/api/projects/${projectId}/runtime-authority`,
+              `/api/work-packages/${workPackageId}/runtime-authority`,
               acquisition,
             );
       expect(answer).toEqual({ status: 404, body: { error: 'not_found' } });
@@ -241,7 +257,7 @@ describe('runtime principal role cap', () => {
   for (const kind of ['machine', 'consent'] as const) {
     for (const personId of ['unbound', 'other-account']) {
       test(`keeps capped claim_for_others refusal for ${kind} runtime read and acquisition as ${personId}`, async () => {
-        const { harness, projectId, acquisition, history } = await mountRuntime();
+        const { harness, workPackageId, acquisition, history } = await mountRuntime();
         const credential =
           kind === 'machine'
             ? await issueApiKey(harness.sqlite, {
@@ -266,13 +282,16 @@ describe('runtime principal role cap', () => {
             ? callForwarded(harness, token, method, path, body)
             : harness.callWith(token, method, path, body);
         expect(
-          await call('GET', `/api/projects/${projectId}/runtime-state?personId=${personId}`),
+          await call(
+            'GET',
+            `/api/work-packages/${workPackageId}/runtime-state?personId=${personId}`,
+          ),
         ).toEqual({
           status: 403,
           body: { error: 'forbidden', permission: 'package.claim_for_others' },
         });
         expect(
-          await call('POST', `/api/projects/${projectId}/runtime-authority`, {
+          await call('POST', `/api/work-packages/${workPackageId}/runtime-authority`, {
             ...acquisition,
             personId,
           }),
@@ -286,24 +305,29 @@ describe('runtime principal role cap', () => {
   }
 
   test('preserves explicitly granted human binding bypass for unbound and other-account runtime persons', async () => {
-    const { harness, projectId, acquisition } = await restrictProject();
+    const { harness, workPackageId, acquisition } = await restrictWorkPackage();
     for (const personId of ['unbound', 'other-account']) {
       expect(
         (
           await harness.call(
             'super',
             'GET',
-            `/api/projects/${projectId}/runtime-state?personId=${personId}`,
+            `/api/work-packages/${workPackageId}/runtime-state?personId=${personId}`,
           )
         ).status,
       ).toBe(200);
       expect(
         (
-          await harness.call('super', 'POST', `/api/projects/${projectId}/runtime-authority`, {
-            ...acquisition,
-            commandId: `human-${personId}`,
-            personId,
-          })
+          await harness.call(
+            'super',
+            'POST',
+            `/api/work-packages/${workPackageId}/runtime-authority`,
+            {
+              ...acquisition,
+              commandId: `human-${personId}`,
+              personId,
+            },
+          )
         ).status,
       ).toBe(200);
     }
@@ -342,14 +366,14 @@ async function createQueuedFixture() {
     at: 2,
     by: 'ada',
   });
-  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
+  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent', {at: 2, by: 'ada'});
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, { at: 2, by: 'ada' }),
   ).toMatchObject({ ok: true });
   await source.stores.steps.add(
     {
       id: 'dev',
-      projectId: 'a1',
+      workPackageId: 'a1',
       name: 'Dev',
       code: 'dev',
       allowancePercent: 0,
@@ -359,7 +383,7 @@ async function createQueuedFixture() {
   );
   for (const id of ['leaf', 'other'])
     await source.stores.workItems.insert(
-      workItemRow({ id, projectId: 'a1', readiness: 'ready' }),
+      workItemRow({ id, workPackageId: 'a1', readiness: 'ready' }),
       [],
       { at: 2, by: 'ada' },
     );
@@ -371,7 +395,7 @@ async function createQueuedFixture() {
     broadcast,
     scheduler: fastScheduler,
   };
-  const delivered: CommittedProjectEvent[] = [];
+  const delivered: CommittedWorkPackageEvent[] = [];
   const runner = createPlanCommandRunner(
     {
       committedFanout: {
@@ -412,7 +436,7 @@ async function createQueuedFixture() {
       scopes: ['read', 'write'],
       authentication: { kind: 'first_party', issuedAt: 1 },
     },
-    projectId: 'a1',
+    workPackageId: 'a1',
     personId: 'agent',
     access: {
       principal: { id: 'ada' },
@@ -460,7 +484,7 @@ async function createQueuedFixture() {
     },
   };
   acceptReply(await runner.writeRuntime(human, writeRequest));
-  sqlite.db.run("UPDATE project SET restricted=1, owner_id='creator' WHERE id='a1'");
+  sqlite.db.run("UPDATE work_package SET restricted=1, owner_id='creator' WHERE id='a1'");
   await source.stores.directory.patchPerson('agent', { accountId: null }, { at: 3, by: 'ada' });
   const freshBasis = acceptReply(await receiver.readRuntimeState(human, {})).basis;
   const history = () => ({

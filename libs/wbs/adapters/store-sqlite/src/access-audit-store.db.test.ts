@@ -32,6 +32,11 @@ const createDraft = (
   roleId,
   origin,
 });
+function seedDirectHolder(): void {
+  connection.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('audit-holder','org-a','organization','org-a','user','ada','org-super-admin','route',1)`,
+  );
+}
 function readAuditRows() {
   return connection.db
     .all<{
@@ -118,6 +123,7 @@ it('audits an actual grant with its authenticated actor, addressed scope, subjec
 });
 
 it('audits revoke provenance from the current actor rather than the grant creator or stored origin', async () => {
+  seedDirectHolder();
   const change = createDraft('org-viewer', 'creation');
   await grants.grant('org-a', change, createAct());
   const performed = createAct('ben', 30);
@@ -179,6 +185,7 @@ for (const name of ['Ops', 'Operations']) {
 }
 
 it('audits actual group-member addition and removal without duplicating refused acts', async () => {
+  seedDirectHolder();
   await grants.createGroup('org-a', { id: 'ops', name: 'Ops' }, createAct());
   const added = createAct('ada', 20);
   const removed = createAct('ben', 30);
@@ -212,6 +219,7 @@ it('audits actual group-member addition and removal without duplicating refused 
 });
 
 async function populateGroup(): Promise<void> {
+  seedDirectHolder();
   await grants.createGroup('org-a', { id: 'ops', name: 'Ops' }, createAct());
   await grants.createGroup('org-b', { id: 'foreign', name: 'Ops' }, createAct());
   for (const userId of ['ada', 'ben', 'cy'])
@@ -331,6 +339,7 @@ for (const operation of [
   'member-remove',
 ]) {
   it('retains the actual audit act before the queued access owner at ' + operation, async () => {
+    if (['revoke', 'group-delete', 'member-remove'].includes(operation)) seedDirectHolder();
     const gate = new WriteCoordinator();
     const repository = new AccessGrantRepository(connection.db, gate);
     const change = createDraft();
@@ -421,6 +430,7 @@ for (const operation of [
   it(
     'rolls the complete access act back when required audit storage refuses at ' + operation,
     async () => {
+      if (['revoke', 'group-delete', 'member-remove'].includes(operation)) seedDirectHolder();
       const change = createDraft();
       if (operation === 'revoke') await grants.grant('org-a', change, createAct());
       if (!['grant', 'revoke', 'group-create'].includes(operation))
@@ -461,6 +471,7 @@ it('borrows grant and membership writes from an already-owned plain connection w
   connection = openConnection(join(directory, 'plan.db'), undefined, () => {
     nativeOwners += 1;
   });
+  seedDirectHolder();
   const before = readState();
   const members = connection.db.all(
     sql`SELECT * FROM organization_membership ORDER BY organization_id,user_id`,

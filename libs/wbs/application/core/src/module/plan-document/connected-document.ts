@@ -1,7 +1,7 @@
 import {
   type DocumentConnected,
   documentConnected,
-  type DocumentV12TypedDependency,
+  type DocumentV14TypedDependency,
 } from '@wbs/contracts';
 import {
   canonicalConnectedStageInput,
@@ -12,14 +12,14 @@ import { type } from '@wbs/validation';
 
 import type { ConnectedOptimizedCandidate } from '../../ports/scheduler';
 import type { LivePlanRead } from '../../ports/shared-people-values';
-import { type ConnectedTreeEndpoint, projectConnectedTree } from '../../service/connected-tree';
+import { type ConnectedTreeEndpoint, workPackageConnectedTree } from '../../service/connected-tree';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const compare = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
 
 function internalEndpoint(
   endpoint: ConnectedTreeEndpoint,
-): DocumentV12TypedDependency['successor'] {
+): DocumentV14TypedDependency['successor'] {
   const identity = endpoint.endpoint;
   return identity.scope === 'whole'
     ? { kind: 'internal', scope: 'whole', workItem: identity.workItemId }
@@ -33,16 +33,16 @@ function internalEndpoint(
 function predecessorEndpoint(
   captured: ConnectedRead,
   endpoint: ConnectedTreeEndpoint,
-  projectId: string,
-): DocumentV12TypedDependency['predecessor'] {
-  if (endpoint.endpoint.projectId === projectId) return internalEndpoint(endpoint);
-  const owner = captured.metadataByProject.get(endpoint.endpoint.projectId);
+  workPackageId: string,
+): DocumentV14TypedDependency['predecessor'] {
+  if (endpoint.endpoint.workPackageId === workPackageId) return internalEndpoint(endpoint);
+  const owner = captured.metadataByWorkPackage.get(endpoint.endpoint.workPackageId);
   if (owner === undefined) throw new Error('missing connected document endpoint owner');
   const display = {
-    projectName: owner.project.name,
-    abbreviation: endpoint.projectAbbreviation,
+    workPackageName: owner.workPackage.name,
+    abbreviation: endpoint.workPackageAbbreviation,
     workItemName: endpoint.name,
-    address: `${endpoint.projectAbbreviation}.${endpoint.workItemNumber}`,
+    address: `${endpoint.workPackageAbbreviation}.${endpoint.workItemNumber}`,
   };
   return endpoint.endpoint.scope === 'whole'
     ? { kind: 'external', ...endpoint.endpoint, display }
@@ -56,10 +56,10 @@ function requireStepName(endpoint: ConnectedTreeEndpoint): string {
   if (endpoint.step === null) throw new Error('missing connected document endpoint step');
   return endpoint.step.name;
 }
-function decisionOf(decision: ConnectedPublicationDecision | null, projectId: string) {
+function decisionOf(decision: ConnectedPublicationDecision | null, workPackageId: string) {
   if (decision === null) return null;
   // Proof: comparison-scope.txt: removing this predicate accepted a comparison attributed to a foreign stage.
-  if (decision.scope.projectId !== projectId)
+  if (decision.scope.workPackageId !== workPackageId)
     throw new Error('connected document comparison scope');
   return {
     scope: { ...decision.scope },
@@ -81,34 +81,34 @@ function candidateOf(candidate: ConnectedOptimizedCandidate | null) {
 }
 
 /**
- * Projects complete detached capture into transfer content and read-only history.
+ * Work packages complete detached capture into transfer content and read-only history.
  * No repository or scheduler capability is accepted; stage bytes come from the
  * retained stage rather than rebuilding a boundary from selected placement.
  * @throws for incomplete trusted metadata, foreign positions or mismatched owners.
  */
-export function projectConnectedDocument(
+export function workPackageConnectedDocument(
   captured: ConnectedRead,
-  projectId: string,
+  workPackageId: string,
 ): {
-  typedDependencies: DocumentV12TypedDependency[];
+  typedDependencies: DocumentV14TypedDependency[];
   connected: DocumentConnected;
 } {
-  const target = projectConnectedTree(captured, projectId);
+  const target = workPackageConnectedTree(captured, workPackageId);
   const capture = captured.projection.capture;
-  const members = [...capture.projects].sort(
-    (left, right) => left.rank - right.rank || compare(left.projectId, right.projectId),
+  const members = [...capture.workPackages].sort(
+    (left, right) => left.rank - right.rank || compare(left.workPackageId, right.workPackageId),
   );
-  const projects = members.map((member) => {
-    const metadata = captured.metadataByProject.get(member.projectId);
+  const workPackages = members.map((member) => {
+    const metadata = captured.metadataByWorkPackage.get(member.workPackageId);
     if (metadata === undefined) throw new Error('missing connected document member metadata');
     return {
-      projectId: member.projectId,
-      name: metadata.project.name,
-      abbreviation: metadata.project.abbreviation,
+      workPackageId: member.workPackageId,
+      name: metadata.workPackage.name,
+      abbreviation: metadata.workPackage.abbreviation,
       rank: member.rank,
-      startDate: member.reads.project.startDate,
-      timezone: member.reads.project.timezone,
-      revision: metadata.project.revision,
+      startDate: member.reads.workPackage.startDate,
+      timezone: member.reads.workPackage.timezone,
+      revision: metadata.workPackage.revision,
       seq: metadata.seq,
     };
   });
@@ -116,7 +116,7 @@ export function projectConnectedDocument(
     .sort((left, right) => compare(left.id, right.id))
     .map((relationship) => {
       // Proof: relationship-owner.txt: removing this guard accepted a foreign stored owner.
-      if (relationship.projectId !== relationship.successor.projectId)
+      if (relationship.workPackageId !== relationship.successor.workPackageId)
         throw new Error('connected document relationship owner');
       return {
         ...relationship,
@@ -126,12 +126,12 @@ export function projectConnectedDocument(
     });
   const typedDependencies = target.dependencies
     // Proof: incident-transfer.txt: incident selection emitted outgoing authored links.
-    .filter((relationship) => relationship.successor.endpoint.projectId === projectId)
+    .filter((relationship) => relationship.successor.endpoint.workPackageId === workPackageId)
     .sort((left, right) => compare(left.id, right.id))
     .map((relationship) => ({
       id: relationship.id,
       type: relationship.type,
-      predecessor: predecessorEndpoint(captured, relationship.predecessor, projectId),
+      predecessor: predecessorEndpoint(captured, relationship.predecessor, workPackageId),
       successor: internalEndpoint(relationship.successor),
     }));
   const placement = captured.projection.placement;
@@ -146,8 +146,9 @@ export function projectConnectedDocument(
     [...schedule.slices.values()]
       .map((slice) => {
         if (placement.kind !== 'scheduled') throw new Error('missing connected document placement');
-        const ownerId = placement.identities.projectIdByWorkItem.get(slice.workItemId);
-        const owner = ownerId === undefined ? undefined : captured.metadataByProject.get(ownerId);
+        const ownerId = placement.identities.workPackageIdByWorkItem.get(slice.workItemId);
+        const owner =
+          ownerId === undefined ? undefined : captured.metadataByWorkPackage.get(ownerId);
         // Proof: position-ownership.txt: bypassing row ownership accepted an A slice attributed to B.
         if (
           owner === undefined ||
@@ -156,7 +157,7 @@ export function projectConnectedDocument(
         )
           throw new Error('connected document position ownership');
         return {
-          projectId: owner.project.id,
+          workPackageId: owner.workPackage.id,
           workItemId: slice.workItemId,
           stepId: slice.stepId,
           start: slice.earliestStart,
@@ -165,19 +166,19 @@ export function projectConnectedDocument(
       })
       .sort(
         (left, right) =>
-          compare(left.projectId, right.projectId) ||
+          compare(left.workPackageId, right.workPackageId) ||
           compare(left.workItemId, right.workItemId) ||
           compare(left.stepId ?? '', right.stepId ?? ''),
       );
   const evidence = {
     kind: 'connected' as const,
-    projectId,
+    workPackageId,
     mode: capture.mode,
-    projects,
+    workPackages,
     relationships,
     placement:
       placement.kind !== 'scheduled'
-        ? // Proof: returning the source placement emptied exported calendar projects in
+        ? // Proof: returning the source placement emptied exported calendar work packages in
           // `unavailable document evidence is detached from later capture mutation`.
           structuredClone(placement)
         : {
@@ -186,26 +187,28 @@ export function projectConnectedDocument(
             baseline: positions(placement.baseline),
             // Proof: selected-baseline.txt: serializing baseline lost selected start 0 (received 3).
             selected: positions(placement.combined),
-            idleProjects: [...placement.idleProjects],
+            idleWorkPackages: [...placement.idleWorkPackages],
             stages: placement.stages.map((selection) => {
               const stage = selection.stage;
-              const member = members.find((candidate) => candidate.projectId === stage.projectId);
+              const member = members.find(
+                (candidate) => candidate.workPackageId === stage.workPackageId,
+              );
               // Proof: stage-metadata.txt: bypassing this predicate accepted a Fast capture as an optimized stage.
               if (
-                selection.engine !== member?.reads.project.scheduleEngine ||
-                selection.objective !== member.reads.project.scheduleObjective
+                selection.engine !== member?.reads.workPackage.scheduleEngine ||
+                selection.objective !== member.reads.workPackage.scheduleObjective
               )
                 throw new Error('connected document stage metadata');
               // Proof: stage-boundary.txt: replacing these retained bytes failed exact stage equality.
               const canonical = canonicalConnectedStageInput(stage);
               const optimization = selection.optimization;
               return {
-                projectId: stage.projectId,
+                workPackageId: stage.workPackageId,
                 engine: selection.engine,
                 objective: selection.objective,
                 boundary: {
                   format: 'wbs-connected-stage' as const,
-                  version: 1 as const,
+                  version: 2 as const,
                   canonical,
                 },
                 optimization:
@@ -223,10 +226,10 @@ export function projectConnectedDocument(
                         },
                       },
                 decisions: {
-                  pri: decisionOf(selection.decisions.pri, stage.projectId),
-                  time: decisionOf(selection.decisions.time, stage.projectId),
+                  pri: decisionOf(selection.decisions.pri, stage.workPackageId),
+                  time: decisionOf(selection.decisions.time, stage.workPackageId),
                 },
-                chosen: decisionOf(selection.chosen, stage.projectId),
+                chosen: decisionOf(selection.chosen, stage.workPackageId),
               };
             }),
           },

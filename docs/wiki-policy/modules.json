@@ -134,7 +134,7 @@
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+            "path": "libs/wbs/application/core/src/http/work-package.routes.ts"
           },
           {
             "kind": "path",
@@ -206,7 +206,7 @@
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+            "path": "libs/wbs/application/core/src/http/work-package.routes.ts"
           },
           {
             "kind": "path",
@@ -331,16 +331,16 @@
     },
     {
       "moduleId": "module.application.project",
-      "name": "Project sealed DI Bag module",
+      "name": "Work package sealed DI Bag module",
       "memberships": [
         {
           "kind": "directory-prefix",
-          "prefix": "libs/wbs/application/core/src/module/project",
+          "prefix": "libs/wbs/application/core/src/module/work-package",
           "exclusions": []
         }
       ],
       "predecessorModuleIds": [],
-      "indexPath": "libs/wbs/application/core/src/module/project/README.md",
+      "indexPath": "libs/wbs/application/core/src/module/work-package/README.md",
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
@@ -362,7 +362,7 @@
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+            "path": "libs/wbs/application/core/src/http/work-package.routes.ts"
           },
           {
             "kind": "path",
@@ -563,7 +563,7 @@
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+            "path": "libs/wbs/application/core/src/http/work-package.routes.ts"
           },
           {
             "kind": "path",
@@ -841,15 +841,15 @@
         "memberships": [
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/composition.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/contract.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+            "path": "apps/wbs/fe-01/src/runtime/work-package-runtime.ts"
           }
         ]
       }
@@ -971,15 +971,15 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/composition.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/contract.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+            "path": "apps/wbs/fe-01/src/runtime/work-package-runtime.ts"
           }
         ]
       }
@@ -1001,7 +1001,7 @@
         "memberships": [
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx"
+            "path": "apps/wbs/fe-01/src/components/wbs/work-package-page.tsx"
           },
           {
             "kind": "path",
@@ -1009,15 +1009,15 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/composition.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/contract.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+            "path": "apps/wbs/fe-01/src/runtime/work-package-runtime.ts"
           }
         ]
       }
@@ -1047,11 +1047,11 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/contract.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+            "path": "apps/wbs/fe-01/src/runtime/work-package-runtime.ts"
           }
         ]
       }
@@ -1077,7 +1077,7 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/components/wbs/project-settings-modal.tsx"
+            "path": "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.tsx"
           },
           {
             "kind": "path",
@@ -1104,16 +1104,16 @@
     },
     {
       "moduleId": "module.frontend.project",
-      "name": "Project frontend module",
+      "name": "Work package frontend module",
       "memberships": [
         {
           "kind": "directory-prefix",
-          "prefix": "apps/wbs/fe-01/src/modules/project",
+          "prefix": "apps/wbs/fe-01/src/modules/work-package",
           "exclusions": []
         }
       ],
       "predecessorModuleIds": [],
-      "indexPath": "apps/wbs/fe-01/src/modules/project/README.md",
+      "indexPath": "apps/wbs/fe-01/src/modules/work-package/README.md",
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
@@ -1123,7 +1123,7 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx"
+            "path": "apps/wbs/fe-01/src/components/wbs/work-package-page.tsx"
           },
           {
             "kind": "path",
@@ -1135,7 +1135,7 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+            "path": "apps/wbs/fe-01/src/runtime/work-package-runtime.ts"
           },
           {
             "kind": "path",
@@ -1161,7 +1161,7 @@
         "memberships": [
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx"
+            "path": "apps/wbs/fe-01/src/components/wbs/work-package-page.tsx"
           },
           {
             "kind": "path",
@@ -1177,15 +1177,15 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/composition.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/contract.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+            "path": "apps/wbs/fe-01/src/runtime/work-package-runtime.ts"
           }
         ]
       }
@@ -1249,7 +1249,7 @@
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+            "path": "libs/wbs/application/core/src/http/work-package.routes.ts"
           },
           {
             "kind": "path",
@@ -1375,15 +1375,15 @@
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/composition.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+            "path": "apps/wbs/fe-01/src/modules/work-package/contract.ts"
           },
           {
             "kind": "path",
-            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+            "path": "apps/wbs/fe-01/src/runtime/work-package-runtime.ts"
           }
         ]
       }

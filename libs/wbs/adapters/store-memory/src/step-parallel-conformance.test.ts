@@ -1,26 +1,38 @@
 import { stepParallelConformance } from '@wbs/conformance';
+import { seedLegacyPackageParent } from '@wbs/core/testing/legacy-package-source-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { afterEach, beforeEach, describe } from 'bun:test';
 
-import { projectRow } from './project-fixture';
-import { openMemorySource } from './source';
+import type { openMemorySource } from './source';
+import { openMemorySourceFixture } from './source';
+import { workPackageRow } from './work-package-fixture';
 
 let source: ReturnType<typeof openMemorySource>;
 const stamp = { at: 1, by: 'u' };
 beforeEach(async () => {
-  source = openMemorySource();
+  const fixture = openMemorySourceFixture();
+  source = fixture.source;
   const { stores } = source;
   await stores.users.create({ id: 'u', username: 'u', passwordHash: 'x', createdAt: 1 }, stamp);
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: 'u',
+  });
   for (const id of ['p', 'foreign']) {
-    await stores.projects.create(projectRow({ id, ownerId: 'u' }), [], stamp);
+    await stores.workPackages.create(
+      workPackageRow({ id, projectId: 'fixture-project' }),
+      [],
+      stamp,
+    );
   }
-  for (const [id, projectId, name] of [
+  for (const [id, workPackageId, name] of [
     ['dev', 'p', 'Dev'],
     ['qa', 'p', 'QA'],
     ['foreign', 'foreign', 'Foreign'],
   ] as const)
     await stores.steps.add(
-      { id, projectId, name, allowancePercent: 0, estimateUnit: 'workdays' },
+      { id, workPackageId, name, allowancePercent: 0, estimateUnit: 'workdays' },
       stamp,
     );
   for (const [id, parentId] of [
@@ -28,7 +40,7 @@ beforeEach(async () => {
     ['parent', null],
     ['child', 'parent'],
   ] as const)
-    await stores.workItems.insert(workItemRow({ id, parentId, projectId: 'p' }), [], stamp);
+    await stores.workItems.insert(workItemRow({ id, parentId, workPackageId: 'p' }), [], stamp);
 });
 afterEach(async () => {
   await source.close();

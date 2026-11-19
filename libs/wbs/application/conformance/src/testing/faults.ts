@@ -37,20 +37,20 @@ export const FAULT_VARIANTS = {
     caseId: 'savedPlans.write:bytes-and-bodies',
     sources: ['sqlite'],
   },
-  'break:priorityBands.replace:whole-project:priority-first-rung': {
-    caseId: 'priorityBands.replace:whole-project',
+  'break:priorityBands.replace:whole-work-package:priority-first-rung': {
+    caseId: 'priorityBands.replace:whole-work-package',
     sources: ['memory', 'sqlite'],
   },
-  'break:priorityBands.replace:whole-project:priority-project-scope': {
-    caseId: 'priorityBands.replace:whole-project',
+  'break:priorityBands.replace:whole-work-package:priority-work-package-scope': {
+    caseId: 'priorityBands.replace:whole-work-package',
     sources: ['memory', 'sqlite'],
   },
-  'break:calendarMarkers.write:project-scope:marker-project-scope': {
-    caseId: 'calendarMarkers.write:project-scope',
+  'break:calendarMarkers.write:work-package-scope:marker-work-package-scope': {
+    caseId: 'calendarMarkers.write:work-package-scope',
     sources: ['memory', 'sqlite'],
   },
-  'break:calendarMarkers.write:project-scope:marker-literal-date': {
-    caseId: 'calendarMarkers.write:project-scope',
+  'break:calendarMarkers.write:work-package-scope:marker-literal-date': {
+    caseId: 'calendarMarkers.write:work-package-scope',
     sources: ['memory', 'sqlite'],
   },
   'break:workItems.setFrozenNumbers:clear:frozen-acquire': {

@@ -1,3 +1,9 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
+import { memoryWorkPackageTables } from '@wbs/store-memory/work-package-fixture';
+
+import { refusingPlanExports } from './testing/plan-export-fixture';
+import { createLegacyWorkPackageObservation } from './testing/work-package-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
   bodyMediaFor,
@@ -13,7 +19,8 @@ import {
   validateSchema,
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
-import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
+import { memoryUserTable } from '@wbs/store-memory/auth-fixture';
+import { inMemorySpaces, memorySpaceTables } from '@wbs/store-memory/space-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 import fc from 'fast-check';
@@ -50,19 +57,23 @@ import {
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
-import { inMemoryProjects, testProjectService } from './testing/project-fixture';
-import { refusingProjectRanks } from './testing/project-rank-fixture';
+import { createLegacyPackageContext } from './testing/project-fixture';
+import { refusingProjects } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { REQUEST_BODIES, REQUEST_QUERIES } from './testing/route-requests';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
 import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from './testing/work-package-address-search-fixture';
+import { inMemoryWorkPackages, testWorkPackageService } from './testing/work-package-fixture';
+import { refusingWorkPackageRanks } from './testing/work-package-rank-fixture';
 import { testWrites } from './testing/writes-fixture';
 
-function options(): AppOptions {
-  const spaces = inMemorySpaces(new Map());
-  const writes = testWrites();
+function options(workPackageStore = inMemoryWorkPackages()): AppOptions {
+  const workPackages = testWorkPackageService(workPackageStore);
+  const history = testHistoryService();
+  const spaces = inMemorySpaces(memorySpaceTables(new Map(), new Map()));
+  const writes = testWrites(undefined, { workPackages,workItems:testWorkItemService(openTestSource()) }, workPackageStore);
   const scoped: AppOptions['writes'] = {
     ...writes,
     uow: {
@@ -84,7 +95,10 @@ function options(): AppOptions {
     },
   };
   return {
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: createLegacyWorkPackageObservation(workPackages, history),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     resourceRuntime: {
       bind: () => Promise.resolve({ ok: false, reason: 'not_found' }),
       read: () => Promise.resolve({ ok: false, reason: 'not_found' }),
@@ -107,7 +121,7 @@ function options(): AppOptions {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces,
-    projectRanks: refusingProjectRanks,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       isActive: () => Promise.resolve(false),
@@ -123,10 +137,10 @@ function options(): AppOptions {
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     priorityBands: testPriorityBandService(),
-    history: testHistoryService(),
+    history,
     auth: testAuthService(inMemoryUsers()),
-    projects: testProjectService(),
-    workItems: testWorkItemService(),
+    workPackages,
+    workItems: testWorkItemService(openTestSource()),
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
@@ -231,6 +245,13 @@ const PUBLIC_OPERATIONS = [
   'postApiSmokeEcho',
 ] as const;
 const SIGNED_IN_OPERATIONS = [
+  'listStepCatalogue',
+  'readProjectSteps',
+  'readProjectStepManifest',
+  'readProjectStepUsage',
+  'getApiProjects',
+  'getApiProjectsById',
+  'getApiProjectsByIdSettings',
   'getApiExternal-systems',
   'getApiMeasures',
   'getApiOnboarding',
@@ -245,7 +266,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationMachine-credentials',
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
-  'getApiOrganizationProject-rank',
+  'getApiOrganizationWorkPackage-rank',
   'getApiOrganizationProvisioningTokens',
   'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
@@ -254,28 +275,28 @@ const SIGNED_IN_OPERATIONS = [
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
-  'getApiProjects',
-  'getApiProjectsById',
-  'getApiProjectsByIdBudget-headroom',
-  'getApiProjectsByIdCalendar-markers',
-  'getApiProjectsByIdClaim-history',
-  'getApiProjectsByIdClaims',
-  'getApiProjectsByIdHistory',
-  'getApiProjectsByIdPeopleByPersonIdWork',
-  'getApiProjectsByIdResourceUses',
-  'getApiProjectsByIdResourceUsesByUseIdHistory',
-  'getApiProjectsByIdResources',
-  'getApiProjectsByIdSaved-plans',
-  'getApiProjectsByIdSaved-plansCompare',
-  'getApiProjectsByIdStartable',
-  'getApiProjectAddressesProjects',
-  'getApiProjectsByIdAddressCandidates',
-  'getApiProjectsByIdAddressReferences',
-  'getApiProjectsByIdStep-references',
-  'getApiProjectsByIdWork-item-rows',
-  'getApiProjectsByIdWork-items',
-  'getApiProjectsByIdWork-itemsByWorkItemId',
-  'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiWorkPackages',
+  'getApiWorkPackagesById',
+  'getApiWorkPackagesByIdBudget-headroom',
+  'getApiWorkPackagesByIdCalendar-markers',
+  'getApiWorkPackagesByIdClaim-history',
+  'getApiWorkPackagesByIdClaims',
+  'getApiWorkPackagesByIdHistory',
+  'getApiWorkPackagesByIdPeopleByPersonIdWork',
+  'getApiWorkPackagesByIdResourceUses',
+  'getApiWorkPackagesByIdResourceUsesByUseIdHistory',
+  'getApiWorkPackagesByIdResources',
+  'getApiWorkPackagesByIdSaved-plans',
+  'getApiWorkPackagesByIdSaved-plansCompare',
+  'getApiWorkPackagesByIdStartable',
+  'getApiWorkPackageAddressesWorkPackages',
+  'getApiWorkPackagesByIdAddressCandidates',
+  'getApiWorkPackagesByIdAddressReferences',
+  'getApiWorkPackagesByIdStep-references',
+  'getApiWorkPackagesByIdWork-item-rows',
+  'getApiWorkPackagesByIdWork-items',
+  'getApiWorkPackagesByIdWork-itemsByWorkItemId',
+  'getApiWorkPackagesByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
   'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
@@ -290,12 +311,21 @@ const SIGNED_IN_OPERATIONS = [
   'postApiOrganizationActive',
 ] as const;
 const READ_SCOPE_OPERATIONS = [
-  'getApiProjectsByIdExport',
+  'getApiWorkPackagesByIdExport',
   'getPlansBy-solutionBySlug',
   'lookupRuntimeReceipt',
   'readRuntimeState',
 ] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'bindCatalogueStep',
+  'patchStepDefinition',
+  'retireStepDefinition',
+  'unbindCatalogueStep',
+  'reorderCatalogueBindings',
+  'postApiProjects',
+  'patchApiProjectsById',
+  'patchApiProjectsByIdSettings',
+  'deleteApiProjectsById',
   'acquireRuntimeAuthority',
   'applyRuntimeCommands',
   'deleteApiOrganizationAgent-poolsById',
@@ -307,17 +337,16 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiOrganizationProvisioningTokensById',
   'deleteApiOrganizationSso-connectionsById',
   'deleteApiOrganizationTrusted-issuersById',
-  'deleteApiProjectsByIdCalendar-markersByMarkerId',
-  'deleteApiProjectsByIdStepsByStepId',
+  'deleteApiWorkPackagesByIdCalendar-markersByMarkerId',
   'deleteApiSaved-plansById',
   'deleteApiSpacesById',
   'deleteApiSpacesByIdProjectsByProjectId',
   'patchApiOrganization',
   'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationSso-connectionsById',
-  'patchApiProjectsById',
-  'patchApiProjectsByIdCalendar-markersByMarkerId',
-  'patchApiProjectsByIdStepsByStepId',
+  'patchApiWorkPackagesById',
+  'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
+  'patchWorkPackageStepValues',
   'patchApiSaved-plansById',
   'patchApiSpacesById',
   'postApiClaimsRenew',
@@ -338,25 +367,25 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdDeny',
   'postApiOrganizationMachine-credentials',
   'postApiOrganizationMachine-credentialsByIdRotate',
-  'postApiOrganizationProjectsByIdRank',
+  'postApiOrganizationWorkPackagesByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
   'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
-  'postApiProjects',
-  'postApiProjectsByIdCalendar-markers',
-  'postApiProjectsByIdCommands',
-  'postApiProjectsByIdOpened',
-  'postApiProjectsByIdOptimizationRetry',
-  'postApiProjectsByIdRedo',
-  'postApiProjectsByIdResourceUses',
-  'postApiProjectsByIdResourceUsesByUseIdEvents',
-  'postApiProjectsByIdSaved-plans',
-  'postApiProjectsByIdSteps',
-  'postApiProjectsByIdUndo',
-  'postApiProjectsImport',
+  'postApiWorkPackages',
+  'postApiWorkPackagesByIdCalendar-markers',
+  'postApiWorkPackagesByIdCommands',
+  'postApiWorkPackagesByIdMove',
+  'postApiWorkPackagesByIdOpened',
+  'postApiWorkPackagesByIdOptimizationRetry',
+  'postApiWorkPackagesByIdRedo',
+  'postApiWorkPackagesByIdResourceUses',
+  'postApiWorkPackagesByIdResourceUsesByUseIdEvents',
+  'postApiWorkPackagesByIdSaved-plans',
+  'postApiWorkPackagesByIdUndo',
+  'postApiWorkPackagesImport',
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
@@ -385,14 +414,14 @@ const MCP_INTERNAL_OPERATIONS = [
 const MCP_DEDICATED_OPERATIONS = ['postInternalMcpMachineGrants'] as const;
 /** Internal routes whose own handler then needs the user's upstream Bearer, absent here. */
 const UPSTREAM_BEARER_OPERATIONS: ReadonlySet<string> = new Set([
-  'postInternalGatewayProjectAccess',
+  'postInternalGatewayWorkPackageAccess',
   'postInternalMcpOrganizations',
   'postInternalMcpCredentials',
   'postInternalMcpDelegation',
 ]);
-const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
+const GATEWAY_OPERATIONS = ['postInternalGatewayWorkPackageAccess'] as const;
 const GATEWAY_BROWSER_OPERATIONS = [
-  'postInternalGatewayProjectBrowserAccess',
+  'postInternalGatewayWorkPackageBrowserAccess',
   'postInternalResume',
 ] as const;
 const ALWAYS_ORIGIN_OPERATIONS = [
@@ -411,6 +440,15 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'bindCatalogueStep',
+  'patchStepDefinition',
+  'retireStepDefinition',
+  'unbindCatalogueStep',
+  'reorderCatalogueBindings',
+  'postApiProjects',
+  'patchApiProjectsById',
+  'patchApiProjectsByIdSettings',
+  'deleteApiProjectsById',
   'acquireRuntimeAuthority',
   'applyRuntimeCommands',
   'deleteApiOrganizationAgent-poolsById',
@@ -421,18 +459,17 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationProvisioningTokensById',
   'deleteApiOrganizationSso-connectionsById',
   'deleteApiOrganizationTrusted-issuersById',
-  'deleteApiProjectsByIdCalendar-markersByMarkerId',
-  'deleteApiProjectsByIdStepsByStepId',
+  'deleteApiWorkPackagesByIdCalendar-markersByMarkerId',
   'deleteApiSaved-plansById',
   'deleteApiSpacesById',
   'deleteApiSpacesByIdProjectsByProjectId',
-  'getApiProjectsByIdHistory',
+  'getApiWorkPackagesByIdHistory',
   'patchApiOrganization',
   'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationSso-connectionsById',
-  'patchApiProjectsById',
-  'patchApiProjectsByIdCalendar-markersByMarkerId',
-  'patchApiProjectsByIdStepsByStepId',
+  'patchApiWorkPackagesById',
+  'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
+  'patchWorkPackageStepValues',
   'patchApiSaved-plansById',
   'patchApiSpacesById',
   'postApiAuthContext',
@@ -449,25 +486,25 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationDomainsChallenges',
   'postApiOrganizationMachine-credentials',
   'postApiOrganizationMachine-credentialsByIdRotate',
-  'postApiOrganizationProjectsByIdRank',
+  'postApiOrganizationWorkPackagesByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
   'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
-  'postApiProjects',
-  'postApiProjectsByIdCalendar-markers',
-  'postApiProjectsByIdCommands',
-  'postApiProjectsByIdOpened',
-  'postApiProjectsByIdOptimizationRetry',
-  'postApiProjectsByIdRedo',
-  'postApiProjectsByIdResourceUses',
-  'postApiProjectsByIdResourceUsesByUseIdEvents',
-  'postApiProjectsByIdSaved-plans',
-  'postApiProjectsByIdSteps',
-  'postApiProjectsByIdUndo',
-  'postApiProjectsImport',
+  'postApiWorkPackages',
+  'postApiWorkPackagesByIdCalendar-markers',
+  'postApiWorkPackagesByIdCommands',
+  'postApiWorkPackagesByIdMove',
+  'postApiWorkPackagesByIdOpened',
+  'postApiWorkPackagesByIdOptimizationRetry',
+  'postApiWorkPackagesByIdRedo',
+  'postApiWorkPackagesByIdResourceUses',
+  'postApiWorkPackagesByIdResourceUsesByUseIdEvents',
+  'postApiWorkPackagesByIdSaved-plans',
+  'postApiWorkPackagesByIdUndo',
+  'postApiWorkPackagesImport',
   'postApiSmokeEcho',
   'postApiSpaces',
   'postApiSpacesByIdProjects',
@@ -479,6 +516,13 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
+  'listStepCatalogue',
+  'readProjectSteps',
+  'readProjectStepManifest',
+  'readProjectStepUsage',
+  'getApiProjects',
+  'getApiProjectsById',
+  'getApiProjectsByIdSettings',
   'lookupRuntimeReceipt',
   'readRuntimeState',
   'getApiAuthLinkAuth0Callback',
@@ -500,7 +544,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationAgent-pools',
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
-  'getApiOrganizationProject-rank',
+  'getApiOrganizationWorkPackage-rank',
   'getApiOrganizationProvisioningTokens',
   'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
@@ -509,28 +553,28 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
-  'getApiProjects',
-  'getApiProjectsById',
-  'getApiProjectsByIdBudget-headroom',
-  'getApiProjectsByIdCalendar-markers',
-  'getApiProjectsByIdClaim-history',
-  'getApiProjectsByIdClaims',
-  'getApiProjectsByIdExport',
-  'getApiProjectsByIdPeopleByPersonIdWork',
-  'getApiProjectsByIdResourceUses',
-  'getApiProjectsByIdResourceUsesByUseIdHistory',
-  'getApiProjectsByIdResources',
-  'getApiProjectsByIdSaved-plans',
-  'getApiProjectsByIdSaved-plansCompare',
-  'getApiProjectsByIdStartable',
-  'getApiProjectAddressesProjects',
-  'getApiProjectsByIdAddressCandidates',
-  'getApiProjectsByIdAddressReferences',
-  'getApiProjectsByIdStep-references',
-  'getApiProjectsByIdWork-item-rows',
-  'getApiProjectsByIdWork-items',
-  'getApiProjectsByIdWork-itemsByWorkItemId',
-  'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiWorkPackages',
+  'getApiWorkPackagesById',
+  'getApiWorkPackagesByIdBudget-headroom',
+  'getApiWorkPackagesByIdCalendar-markers',
+  'getApiWorkPackagesByIdClaim-history',
+  'getApiWorkPackagesByIdClaims',
+  'getApiWorkPackagesByIdExport',
+  'getApiWorkPackagesByIdPeopleByPersonIdWork',
+  'getApiWorkPackagesByIdResourceUses',
+  'getApiWorkPackagesByIdResourceUsesByUseIdHistory',
+  'getApiWorkPackagesByIdResources',
+  'getApiWorkPackagesByIdSaved-plans',
+  'getApiWorkPackagesByIdSaved-plansCompare',
+  'getApiWorkPackagesByIdStartable',
+  'getApiWorkPackageAddressesWorkPackages',
+  'getApiWorkPackagesByIdAddressCandidates',
+  'getApiWorkPackagesByIdAddressReferences',
+  'getApiWorkPackagesByIdStep-references',
+  'getApiWorkPackagesByIdWork-item-rows',
+  'getApiWorkPackagesByIdWork-items',
+  'getApiWorkPackagesByIdWork-itemsByWorkItemId',
+  'getApiWorkPackagesByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
   'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
@@ -548,8 +592,8 @@ const NO_ORIGIN_OPERATIONS = [
   'getPlansBy-solutionBySlug',
   'postInternalForward',
   'postInternalGatewayDependencyAdmission',
-  'postInternalGatewayProjectAccess',
-  'postInternalGatewayProjectBrowserAccess',
+  'postInternalGatewayWorkPackageAccess',
+  'postInternalGatewayWorkPackageBrowserAccess',
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
@@ -562,7 +606,8 @@ const NO_ORIGIN_OPERATIONS = [
 async function reachabilityOptions(
   mode: 'local' | 'oidc',
 ): Promise<{ options: AppOptions; shapes: readonly (typeof httpShapes)[number][] }> {
-  const users = inMemoryUsers();
+  const userTable = memoryUserTable();
+  const users = inMemoryUsers(userTable);
   await users.create(
     {
       id: 'route-owner',
@@ -572,7 +617,17 @@ async function reachabilityOptions(
     },
     { at: 1, by: 'route-owner' },
   );
-  const projects = inMemoryProjects(users);
+  const workPackageTables = memoryWorkPackageTables();
+  const workPackages = inMemoryWorkPackages(
+    users,
+    workPackageTables,
+    createLegacyPackageContext(
+      userTable.byId,
+      workPackageTables,
+      'http-fixture-legacy',
+      PROJECT_ID,
+    ),
+  );
   const savedPlans = testSavedPlanService();
   spyOn(savedPlans, 'read').mockResolvedValue({ outcome: 'not_found' });
   spyOn(savedPlans, 'rename').mockResolvedValue({ outcome: 'not_found' });
@@ -590,12 +645,27 @@ async function reachabilityOptions(
     },
   });
   const oidc = mode === 'oidc' ? reachabilityOidcOptions() : undefined;
+  const appOptions = options(workPackages);
   return {
     options: {
-      ...options(),
+      ...appOptions,
       appOrigin: ORIGIN,
       auth,
-      projects: testProjectService(projects),
+      workPackages: testWorkPackageService(workPackages),
+      planExports: {
+        async readExport(id, access) {
+          if (access.kind !== 'legacy')
+            throw new Error('Scoped export reached the legacy HTTP inventory fixture');
+          const addressed = await workPackages.findById(id);
+          if (addressed !== null)
+            throw new Error('A present inventory package requires a real plan export capture');
+          return { kind: 'not_found' };
+        },
+      },
+      workPackageObservation: createLegacyWorkPackageObservation(
+        testWorkPackageService(workPackages),
+        appOptions.history,
+      ),
       savedPlans,
       internalAuthSecret: INTERNAL_SECRET,
       oidc,
@@ -642,7 +712,7 @@ function reachabilityOidcOptions(): NonNullable<AppOptions['oidc']> {
 
 function requestFor(shape: (typeof httpShapes)[number]): Request {
   const path = shape.path
-    .replace(':projectId', ROUTE_ID)
+    .replace(':workPackageId', ROUTE_ID)
     .replace(':markerId', ROUTE_MARKER_ID)
     .replace(':stepId', ROUTE_ID)
     .replace(':slug', 'route-probe')
@@ -700,14 +770,14 @@ function strayInputRequests(
  */
 const STRAY_INPUT_EXCEPTIONS: ReadonlyMap<string, { status: number; error: string | null }> =
   new Map([
-    ['postApiProjectsImport query', { status: 400, error: 'invalid_body' }],
-    ['postInternalGatewayProjectAccess query', { status: 401, error: 'unauthenticated' }],
-    ['postInternalGatewayProjectAccess body', { status: 401, error: 'unauthenticated' }],
+    ['postApiWorkPackagesImport query', { status: 400, error: 'invalid_body' }],
+    ['postInternalGatewayWorkPackageAccess query', { status: 401, error: 'unauthenticated' }],
+    ['postInternalGatewayWorkPackageAccess body', { status: 401, error: 'unauthenticated' }],
     // No dedicated mcp-01 secret is composed here, so identity refuses first.
     ['postInternalMcpMachineGrants query', { status: 401, error: 'internal_unauthorized' }],
     ['getApiAuthLinkAuth0Callback query', { status: 302, error: null }],
     ['getApiAuthOktaCallback query', { status: 400, error: null }],
-    ['getApiProjectsByIdSaved-plansCompare query', { status: 422, error: 'invalid_query' }],
+    ['getApiWorkPackagesByIdSaved-plansCompare query', { status: 422, error: 'invalid_query' }],
   ]);
 
 interface WireReply {
@@ -801,7 +871,7 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
 // The production tables hold no two same-method paths one request could both match, so
 // precedence is proved in `http/endpoint-index.test.ts`; this proves the buckets.
 // Proof: dropping `methods.add('HEAD')` failed this on `HEAD
-// /api/projects/register/runtime-commands/0`, and bucketing the untrimmed pathname failed it on
+// /api/work-packages/register/runtime-commands/0`, and bucketing the untrimmed pathname failed it on
 // `GET /health/` (watched 2026-10-28).
 it('selects the endpoint the linear lookup selects, over every production table', () => {
   for (const endpoints of [
@@ -892,7 +962,7 @@ async function refusedStatus(shape: EndpointShape, code: BoundaryCode): Promise<
  * Proof: removing the 400 from `renewClaimLeases` made this audit list
  * `postApiClaimsRenew invalid_query` and `invalid_body` (watched 2026-10-24).
  * Proof: the batch classifier (`classifyCommand`) answering its fallback with an
- * undeclared 422 made it list `postApiProjectsByIdCommands` and
+ * undeclared 422 made it list `postApiWorkPackagesByIdCommands` and
  * `postApiDirectoryCommands` `invalid_query`/`invalid_json` (and params) as null;
  * the earlier audit skipped every classified endpoint (watched 2026-10-24).
  * Proof: a `503 { error: string }` placed before renew's 400 made it list
@@ -979,7 +1049,9 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
   const foreignOrigin = buildApp(composition.options);
   for (const operationId of [
     ...ALWAYS_ORIGIN_OPERATIONS,
-    ...COOKIE_ORIGIN_OPERATIONS.filter((candidate) => candidate !== 'getApiProjectsByIdHistory'),
+    ...COOKIE_ORIGIN_OPERATIONS.filter(
+      (candidate) => candidate !== 'getApiWorkPackagesByIdHistory',
+    ),
   ]) {
     const shape = httpShapes.find((candidate) => candidate.operationId === operationId);
     if (shape === undefined) throw new Error(`missing origin fixture: ${operationId}`);
@@ -994,16 +1066,16 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
 
   expect(policyOperations('identity', 'signed-in')).toEqual([...SIGNED_IN_OPERATIONS].sort());
   expect(policyOperations('identity', 'read-scope')).toEqual([...READ_SCOPE_OPERATIONS]);
-  expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
+  expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS].sort());
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
   expect(policyOperations('identity', 'mcp-internal')).toEqual([...MCP_INTERNAL_OPERATIONS]);
   expect(policyOperations('identity', 'mcp-dedicated')).toEqual([...MCP_DEDICATED_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-delegation')).toEqual([...GATEWAY_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-browser')).toEqual([...GATEWAY_BROWSER_OPERATIONS]);
   expect(policyOperations('origin', 'always')).toEqual([...ALWAYS_ORIGIN_OPERATIONS]);
-  expect(policyOperations('origin', 'always-unsafe-with-session-cookie')).toEqual([
-    ...COOKIE_ORIGIN_OPERATIONS,
-  ]);
+  expect(policyOperations('origin', 'always-unsafe-with-session-cookie')).toEqual(
+    [...COOKIE_ORIGIN_OPERATIONS].sort(),
+  );
   const everyOperation = httpShapes.map((shape) => shape.operationId).sort();
   expect(
     [

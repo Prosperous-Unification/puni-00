@@ -59,7 +59,9 @@ beforeEach(() => {
   connection.sqlite.run(
     "INSERT INTO users(id,username,password_hash,created_at) VALUES('u','u','x',1)",
   );
-  connection.sqlite.run("INSERT INTO project(id,name,owner_id,created_at) VALUES('B','B','u',1)");
+  connection.sqlite.run(
+    "INSERT INTO work_package(id,name,owner_id,created_at) VALUES('B','B','u',1)",
+  );
   connection.close();
 });
 afterEach(() => {
@@ -181,13 +183,13 @@ for (const capability of [
       const invoke = {
         acquisition: () => capturedSchedulerIn(connection.db, { schedulerOf }, lifetime, installed),
         'local callback': () =>
-          retained?.({ projectId: 'B', objective: 'time', input, enabled: true }),
+          retained?.({ workPackageId: 'B', objective: 'time', input, enabled: true }),
         supports: () => view.scheduler.supports('fast'),
         'resolved Fast': () => view.scheduler.readResolvedFast(stage().input),
         'local schedule': () =>
           view.scheduler.read({
             mode: 'capture',
-            projectId: 'B',
+            workPackageId: 'B',
             objective: 'time',
             engine: 'fast',
             enabled: false,
@@ -201,7 +203,7 @@ for (const capability of [
           }),
       }[capability];
       expect(invoke).toThrow('read snapshot is closed');
-      expect(connection.sqlite.query('SELECT count(*) AS count FROM project').get()).toEqual({
+      expect(connection.sqlite.query('SELECT count(*) AS count FROM work_package').get()).toEqual({
         count: 1,
       });
     } finally {
@@ -227,7 +229,7 @@ it('retains a stored boundary certificate and refuses malformed terminal evidenc
       hashConnectedBytes,
     );
     connection.sqlite.run(
-      'INSERT INTO optimization_boundary_certificate(project_id,input_hash,objective,contract_version,budget_ms,certificate_json,generation,attempt_token,created_at) VALUES(?,?,?,?,?,?,1,?,1)',
+      'INSERT INTO optimization_boundary_certificate(work_package_id,input_hash,objective,contract_version,budget_ms,certificate_json,generation,attempt_token,created_at) VALUES(?,?,?,?,?,?,1,?,1)',
       [
         'B',
         question.inputHash,

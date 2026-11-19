@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { openWorkPackageActions, selectOrdinaryProject } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * A name's markdown, in a browser.
@@ -74,7 +75,9 @@ async function seedRows(page: Page, rows: number): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('banner').getByRole('button', { name: 'Create new project' }).click();
+  await selectOrdinaryProject(page);
+  await openWorkPackageActions(page);
+  await page.getByRole('banner').getByRole('button', { name: 'Create new work package' }).click();
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (let made = 1; made <= rows; made += 1) {
     await addRow.click();

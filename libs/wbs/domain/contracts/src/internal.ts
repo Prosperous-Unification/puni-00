@@ -50,7 +50,7 @@ export type ReplayedEvent = typeof ReplayedEvent.infer;
  * one client reconnecting would make every other client refetch. A count would
  * also be a second statement of `events.length`, free to disagree with it.
  * `forbidden` is a subscription the forwarded browser principal may not read
- * now, including one that names no project; nothing of it is replayed.
+ * now, including one that names no work package; nothing of it is replayed.
  */
 export const InternalResumeResponse = type({
   '[string]': [

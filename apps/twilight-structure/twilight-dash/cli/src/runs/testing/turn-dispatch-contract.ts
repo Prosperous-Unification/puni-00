@@ -240,6 +240,7 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
       'authority',
       'ledger',
       'scope',
+      'owner_scope',
     ] as const)
       test('refuses fresh live ' + fault + ' before stage', async () => {
         const setup = await fixture();
@@ -292,7 +293,10 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
             setup.state.ledgerId = 'other';
             break;
           case 'scope':
-            setup.state.scope = { ...setup.scope, personId: 'other' };
+            setup.state.scope = { ...setup.state.scope, personId: 'other' };
+            break;
+          case 'owner_scope':
+            setup.state.scope = { ...setup.state.scope, workPackageId: 'other-owner' };
             break;
         }
         expect(await dispatch(setup)).toEqual({ kind: 'refused', reason: 'authority_conflict' });

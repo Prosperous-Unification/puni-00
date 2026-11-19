@@ -1,8 +1,8 @@
 # Plan feed
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-feed","memberships":[{"kind":"path","path":"composition.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"delivered-plan-store.model.test.ts"},{"kind":"path","path":"delivered-plan-store.ts"},{"kind":"path","path":"plan-feed.feature.test.ts"},{"kind":"path","path":"plan-feed.feature.ts"},{"kind":"path","path":"plan-feed.resource.test.ts"},{"kind":"path","path":"plan-feed.resource.ts"},{"kind":"path","path":"presence-store.model.test.ts"},{"kind":"path","path":"presence-store.ts"},{"kind":"path","path":"same-steps.test.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The anchor rule and the one-stream rule are documented on the resource, and the stores carry their own model tests; the ownership test between feature and resource is described under What the feature owns below."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/project-page.tsx"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/composition.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-feed","memberships":[{"kind":"path","path":"composition.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"delivered-plan-store.model.test.ts"},{"kind":"path","path":"delivered-plan-store.ts"},{"kind":"path","path":"plan-feed.feature.test.ts"},{"kind":"path","path":"plan-feed.feature.ts"},{"kind":"path","path":"plan-feed.resource.test.ts"},{"kind":"path","path":"plan-feed.resource.ts"},{"kind":"path","path":"presence-store.model.test.ts"},{"kind":"path","path":"presence-store.ts"},{"kind":"path","path":"same-steps.test.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The anchor rule and the one-stream rule are documented on the resource, and the stores carry their own model tests; the ownership test between feature and resource is described under What the feature owns below."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/work-package-page.tsx"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/work-package/composition.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/work-package/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/work-package-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
 
-One project's reading of the plan: the refresh owner of this project and API lifetime, the live
+One work package's reading of the plan: the refresh owner of this work package and API lifetime, the live
 subscription it opens once an anchor exists, the sequence it acknowledges, and the decision about
 which part of an owner snapshot the reader has not been given yet.
 
@@ -18,11 +18,11 @@ contract in `apps/wbs/fe-01/src/modules/store.ts`, which is rule F2.
   K2).
 - `composition.ts` is where the refresh owner's factory and the feature meet, over the routes the
   refresh owner reads — `PlanReadRoutes` in `apps/wbs/fe-01/src/lib/plan-refresh.ts`, this
-  module's private repository port. The project composition root calls it; a screen does not.
+  module's private repository port. The work package composition root calls it; a screen does not.
 - `delivered-plan-store.ts` is the **store** the feed publishes into: every publication folded
   into the one snapshot a screen selects from, with the connection the stream last reported.
-- `presence-store.ts` is the **store** of who else has the project open and whether the socket
-  saying so is up. The project runtime owns one per selected project, and its stream writes into
+- `presence-store.ts` is the **store** of who else has the work package open and whether the socket
+  saying so is up. The work package runtime owns one per selected work package, and its stream writes into
   it only while that runtime is current.
 
 Both stores are plain TypeScript over `modules/channel.ts`, keep their snapshot the same object
@@ -32,7 +32,7 @@ them against reference models under scheduler-ordered deliveries and re-entrant 
 
 ## What the resource owns
 
-- The refresh owner's lifetime: built for one project and one API, closed with them.
+- The refresh owner's lifetime: built for one work package and one API, closed with them.
 - Opening the stream exactly once, when the first anchored read has landed, at that anchor's
   sequence; and never opening a second one during a recovery.
 - Acknowledging a covered sequence to the stream, and only ever forwards.
@@ -50,7 +50,7 @@ them against reference models under scheduler-ordered deliveries and re-entrant 
 ## What the feature owns
 
 Whether this reader still owns the screen, at the two moments that question has different answers:
-the project or the API changing under it, and the screen closing. Everything the resource produces
+the work package or the API changing under it, and the screen closing. Everything the resource produces
 passes through that one test on its way out — a publication, a refusal of the first read, a
 connection change — so a reader that has gone is told nothing.
 
@@ -60,7 +60,7 @@ Anything React holds, and any sentence. The rows, the chart payload, the vocabul
 stack, the estimate drafts and the hover card belong to the plan read hook, which applies each
 delivery to them; a refusal travels as its **cause**, and the words for it are built where they
 are said. Gestures belong to the plan writer beside this module. Which presence the header shows is the
-page's choice: the current project runtime's, or nobody while none is published.
+page's choice: the current work package runtime's, or nobody while none is published.
 
 ## How it is read
 
@@ -77,22 +77,22 @@ the delivered plan's own notification.
 
 There is no `module.ts`: DI Bag 0.4.0 is installed but nothing in this application is composed
 through it yet, which is the rollout's lifetimes task, so `composition.ts` is a function, as
-`modules/directory-management/composition.ts` is. Its one caller is the project composition root,
-`modules/project/composition.ts`, which hands it the page's one client as its routes. The plan read
-runtime, `apps/wbs/fe-01/src/runtime/project-runtime.ts`, opens the feed once per selected project
-through the project's services, with the delivered plan and the presence it writes into, and
+`modules/directory-management/composition.ts` is. Its one caller is the work package composition root,
+`modules/work-package/composition.ts`, which hands it the page's one client as its routes. The plan read
+runtime, `apps/wbs/fe-01/src/runtime/work-package-runtime.ts`, opens the feed once per selected work package
+through the work package's services, with the delivered plan and the presence it writes into, and
 wires it to the plan writer module beside it: the writer compares the owner's identity and sends
 its rereads through the runtime, which reads only while it is current. The runtime gives the feed
-back — owner disposed, stream unsubscribed — when the page's project owner retires it.
+back — owner disposed, stream unsubscribed — when the page's work package owner retires it.
 
 ## Checks
 
 The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the module's suites are
 `plan-feed.resource.test.ts`, `plan-feed.feature.test.ts` and the two store model tests. The behaviour this extraction
-preserves is proved by the plan table's and the project page's own suites, which run in the `test`
-target of the same project.
+preserves is proved by the plan table's and the work package page's own suites, which run in the `test`
+target of the same work package.
 
-Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+Its isolated type check is the `typecheck:module` target of the same work package, which `typecheck`
 depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
 extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.
 

@@ -3,14 +3,14 @@ import { useId } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Who else is in this project, and whether the socket saying so is up.
+ * Who else is in this work package, and whether the socket saying so is up.
  *
  * Presence is push-only after the first frame: gw-01 broadcasts the roster
  * whenever anyone joins or leaves, and the `who` the stream sends on open is
  * what a client entering a quiet room is answered with.
  *
- * **The roster is a project's**, scoped by the `subscribe` frame — gw-01's
- * roster was every username connected to the *gateway* until F4, so a project
+ * **The roster is a work package's**, scoped by the `subscribe` frame — gw-01's
+ * roster was every username connected to the *gateway* until F4, so a work package
  * one second old listed accounts that had never opened it (observed live
  * 2026-08-09).
  */
@@ -34,15 +34,15 @@ export interface PresencePanelProps extends Roster {
  * The roster, in the header bar.
  *
  * **It opens no socket, and that is the change of 2026-09-02.** It held its own
- * WebSocket per project until then — a second connection per browser, a second
+ * WebSocket per work package until then — a second connection per browser, a second
  * `subscribe`, a second entry in the gateway's fan-out, to be told the same
  * thing by the same gateway the table was already listening to. The roster
- * arrives on the plan's own stream now (`subscribeToProject`'s `onPresence`),
- * and `ProjectPage` holds it because it renders both halves of the screen.
+ * arrives on the plan's own stream now (`subscribeToWorkPackage`'s `onPresence`),
+ * and `WorkPackagePage` holds it because it renders both halves of the screen.
  *
  * Two things follow, and the second was a caveat this file used to carry:
  *
- * - A page with no project open shows nobody, because nothing subscribes.
+ * - A page with no work package open shows nobody, because nothing subscribes.
  * - **A dropped connection recovers.** The old socket did not reconnect, so the
  *   roster froze at whoever was there and only a reload started another; the
  *   stream reconnects, resubscribes and asks again.

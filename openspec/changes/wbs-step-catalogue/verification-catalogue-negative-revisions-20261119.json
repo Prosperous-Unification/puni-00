@@ -1,0 +1,521 @@
+{
+  "date": "2026-11-19",
+  "scope": "Nonnegative package/project revision preconditions for catalogue mutations and actual organization type mapping/removal.",
+  "qualification": "Root authored; Astra pending at known account usage limit. No full SC22/full entity/PUNI/Bun completion claim.",
+  "source": {
+    "path": "/tmp/puni-catalogue-negative-revision-source-live-v1/source-pins.json",
+    "sha256": "851c791f041074bd069af04c2765be3cddd28c0c4b0c6ec0a490246af6c2e8d9",
+    "bytes": 5209458,
+    "mode": 384
+  },
+  "first": {
+    "receipt": {
+      "path": "/tmp/puni-catalogue-negative-revision-first-live-v2/negativeRevisions/native.receipt.json",
+      "sha256": "e2328e7c14952fe84203615014c2e8babf00701f01ba355860a35ffc90287f7a",
+      "bytes": 1538,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-catalogue-negative-revision-first-live-v2/negativeRevisions/native.validation.json",
+      "sha256": "e7ebb7dbeedbf741c379983d02c629a09b99cc91cca2aa6076573844fcfdb48f",
+      "bytes": 2032,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-catalogue-negative-revision-first-live-v2/negativeRevisions/native.log",
+      "sha256": "3e245c986adda100d4af7c38c97b5e12210b974646b6e52a503ee38b3b11c82e",
+      "bytes": 6774,
+      "mode": 384
+    },
+    "exitCode": 1
+  },
+  "firstObserved": "All six real first owners resolve instead of refusing: both package/project counters in Memory and SQLite, plus actual SQLite type mapping/removal. 0pass6fail142assertions.",
+  "green": {
+    "receipt": {
+      "path": "/tmp/puni-catalogue-negative-revision-source-live-v1/negativeRevisions/native.receipt.json",
+      "sha256": "a321800c6c994c085662a2254ebaead39419e4eb03f640085ac54b063d801240",
+      "bytes": 1539,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-catalogue-negative-revision-source-live-v1/negativeRevisions/native.validation.json",
+      "sha256": "df801c7906b166cb2f7ca01715c840ef3c80ccefd43980a44bd4f719475fe040",
+      "bytes": 2034,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-catalogue-negative-revision-source-live-v1/negativeRevisions/native.log",
+      "sha256": "f872c8336548ce6e5f45b1f63310721cfdf9ed09f14523e5d4cd489fa77b30b7",
+      "bytes": 682,
+      "mode": 384
+    },
+    "exitCode": 0
+  },
+  "greenObserved": "6pass161assertions. Each healthy writer premise passes; negative persisted/factory counters refuse, exact complete state is retained, restoring the counter allows the same write. Type writers catch refusal and commit an unrelated tag to prove local rollback survives outer commit.",
+  "proofPlan": {
+    "path": "/tmp/puni-negative-revision-proof-plan-v1/plan.json",
+    "sha256": "e14ca3035e7e433eaf2515c7cbed806bcc35625967836c0f0aceab41d8e7d9c1",
+    "bytes": 6153,
+    "mode": 384
+  },
+  "proofEngine": {
+    "path": "/tmp/puni-negative-revision-proofs-engine-root-v1.ts",
+    "sha256": "773bf67139da5087855aac9d29cf1928c753417309059dc7de7b6a2c4475cfe1",
+    "bytes": 9319,
+    "mode": 384
+  },
+  "proofs": [
+    {
+      "id": "NEGATIVE_MEMORY_PACKAGE",
+      "plan": {
+        "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/plan.json",
+        "sha256": "e2605ee551a9b039980bb05f5c02e1394c8255c67cc0eaddb322e2cefde38c15",
+        "bytes": 3858,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/baseline/native.receipt.json",
+          "sha256": "96c1b706f53582981b2e6e7efe1cae2e8720278a0113128aa7e6c0384f123bc7",
+          "bytes": 1537,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/baseline/native.validation.json",
+          "sha256": "4e17e090f0c4886d90a191823f044386ab6028759c51dc304b72f599c3d3e77e",
+          "bytes": 712,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/baseline/native.log",
+          "sha256": "cad198777e18554ba6b9f51bbd439f5e46f54d3e6919c4067f877e1eebd1c84d",
+          "bytes": 259,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/fault/native.receipt.json",
+          "sha256": "ecf6b51d6847d438ef320ce191fd4fcd084b42f8799a07057076cfeb6d4ae078",
+          "bytes": 1532,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/fault/native.validation.json",
+          "sha256": "9828a7aa24ad9d5aceaf887d06cd6dd8fa138511d2afd68273bfe8de828181fb",
+          "bytes": 707,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/fault/native.log",
+          "sha256": "ec732a23828aedae7d51dc1bdb8fbae4b02fbfd856f6b3f0cfe9ee27256c13b9",
+          "bytes": 1247,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/restored.json",
+        "sha256": "a17094fb7e4781b18082a2ddf0b3e9eb4879f601d5e1809c87c8cfecfe17633c",
+        "bytes": 498,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/after/native.receipt.json",
+          "sha256": "dcb00ed5586c8e2931398892fe72ebd7f49ed057b9360a9f5edcf7b80857b0e7",
+          "bytes": 1531,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/after/native.validation.json",
+          "sha256": "e7f27a519bc6d93f63343a085097fbe8a221106117dcd40203ae050e5449c869",
+          "bytes": 706,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_package-v1/after/native.log",
+          "sha256": "0ea68cc606672e795bacb3ccfc680bd5f7c84e749e7a430545a02158f812fb9c",
+          "bytes": 259,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": "Removing only this nonnegative term admits revision -1 and resolves the actual define-and-bind write after a healthy writer premise. The exact original is restored and the same owner passes. First rejection oracle only; rollback and retry assertions are normal coverage."
+    },
+    {
+      "id": "NEGATIVE_MEMORY_PROJECT",
+      "plan": {
+        "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/plan.json",
+        "sha256": "ac01cbcfc3701daecfeffaf44a2f8014aa50c3323b17fba4f7cb4e7e70112f95",
+        "bytes": 3858,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/baseline/native.receipt.json",
+          "sha256": "0346b8ff0b10b8fc976ff1fc88aec07b329cd348f6d5de85cd7ccbccdea1d5cc",
+          "bytes": 1537,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/baseline/native.validation.json",
+          "sha256": "c5ef1f3da42b8ff1354feefc0554f3b95067af303e61d8339548a6bd0b4053f4",
+          "bytes": 712,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/baseline/native.log",
+          "sha256": "3783a49bf6400d36a6d17373bc440cfd9f7f9e46fc9c7ec403854cfc2194c93c",
+          "bytes": 259,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/fault/native.receipt.json",
+          "sha256": "03d0c37ab6be4db8196aed8408d11071aaed7421e58c5d7a23da92918fa23949",
+          "bytes": 1532,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/fault/native.validation.json",
+          "sha256": "d5dd3ad7063dde443a9e6822a7f518c088dbf472fa359910ac33b7c23270002c",
+          "bytes": 707,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/fault/native.log",
+          "sha256": "63dbcacefca97fa1b9650651638980fe4d233b308a7432995887f24382d488a9",
+          "bytes": 1247,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/restored.json",
+        "sha256": "7c5c6bf699f6d907047f38b5417754bb2d3b49f963b7a8ca4f1f376f45fbad09",
+        "bytes": 498,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/after/native.receipt.json",
+          "sha256": "6ff93b29fb907369501948773302a11cacd44fab8e1d33f550d953afc16522d9",
+          "bytes": 1531,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/after/native.validation.json",
+          "sha256": "eeecc38a578e6a78895f23fc3f1c85d85134ac0e10cd6b42bb59ae27ebf3bf06",
+          "bytes": 706,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_memory_project-v1/after/native.log",
+          "sha256": "6bccf46e2583ce99da9c9b35b414a784a7f39ebc21fe7b82e5547e1fee2c00b2",
+          "bytes": 259,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": "Removing only this nonnegative term admits revision -1 and resolves the actual define-and-bind write after a healthy writer premise. The exact original is restored and the same owner passes. First rejection oracle only; rollback and retry assertions are normal coverage."
+    },
+    {
+      "id": "NEGATIVE_SQLITE_PACKAGE",
+      "plan": {
+        "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/plan.json",
+        "sha256": "e6c87bc7a89075a64152f29886a19e376bb823d09a3c3aa9cc1dbb2f9686a810",
+        "bytes": 3921,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/baseline/native.receipt.json",
+          "sha256": "8944117d94f40c419430b7c068ef981f969437499eab94eb363523d7862dd864",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/baseline/native.validation.json",
+          "sha256": "0d2257201ac5346ca33ab869940b23dfead409da055802188d67f4472d24929c",
+          "bytes": 712,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/baseline/native.log",
+          "sha256": "b18696f8a3264d3ff9c3100203961d90c73249061c2ea9be9917657cb0eadbec",
+          "bytes": 263,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/fault/native.receipt.json",
+          "sha256": "f5f23896621cd9cf2544555b00064e7384c20212ba1d286269338c8a07cfbcd3",
+          "bytes": 1535,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/fault/native.validation.json",
+          "sha256": "4e127ccc743e1192bd4e93cb294e74df830113e42629e514aecc43b54c0145fc",
+          "bytes": 707,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/fault/native.log",
+          "sha256": "f348b4551435bb442de18fbfa99fe9355907ec5c10c114e18deba8e3a011f983",
+          "bytes": 1389,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/restored.json",
+        "sha256": "1938230e0972a64827e4fe603e82ecfa86fe0fb1de1977e002bfe3e7329a02f6",
+        "bytes": 498,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/after/native.receipt.json",
+          "sha256": "0ed95fc9238c1ee0912118c87eb3b979cf6cef8dd9a9e0e5e6c4a83dd485f559",
+          "bytes": 1534,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/after/native.validation.json",
+          "sha256": "95444d7b245fc706f5db2a4141c777d76997e69433adf451cd194f11822889ea",
+          "bytes": 706,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_package-v1/after/native.log",
+          "sha256": "e6cb0f164cc1b3ab94a37571813d6c42b4bd28b820694acba06d4802a14306e2",
+          "bytes": 263,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": "Removing only this nonnegative term admits revision -1 and resolves the actual define-and-bind write after a healthy writer premise. The exact original is restored and the same owner passes. First rejection oracle only; rollback and retry assertions are normal coverage."
+    },
+    {
+      "id": "NEGATIVE_SQLITE_PROJECT",
+      "plan": {
+        "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/plan.json",
+        "sha256": "ebdea1e5cbd7789cbb2327ca2fee0da4258b755a49b9d035182e9f7dcf5a22e1",
+        "bytes": 3913,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/baseline/native.receipt.json",
+          "sha256": "915be38a43776ddee5fba45234c52307509016d4228d1a10ea79818f36657f48",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/baseline/native.validation.json",
+          "sha256": "cf0f6af5bc783b57e9a67206d8046641c0815b5f44fcaadeb6e38f2e0057261d",
+          "bytes": 712,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/baseline/native.log",
+          "sha256": "30a1c2386f58911a164170746ca6f5d2d4414cc3463c27096549037afb42125e",
+          "bytes": 263,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/fault/native.receipt.json",
+          "sha256": "37daae845221cab3d2354b2ca9e01442158982bbb1fc045319f1a9f66ed4145d",
+          "bytes": 1535,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/fault/native.validation.json",
+          "sha256": "6692582a967e0f8e41017e6cdda45f9b5a6ab16248d22bf11e10ea8af3ff86af",
+          "bytes": 707,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/fault/native.log",
+          "sha256": "7f8bf378c9cba9af6e00eac7774253eece98da73f2aa83f97c4fa58c7c064edd",
+          "bytes": 1389,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/restored.json",
+        "sha256": "4355ec1be24f2dd34640b3c81a06d1f0c7f0e2e6627ea55cabf088a61dbd0f76",
+        "bytes": 498,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/after/native.receipt.json",
+          "sha256": "c378952ddbb2f1a7cded32635236642958243d210aa8a4c05ddd3ef003b68433",
+          "bytes": 1534,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/after/native.validation.json",
+          "sha256": "5ea4fbe92f12914b921a773b8f6cec8a6486b24d685587eb8953c91b3d073ed3",
+          "bytes": 706,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-negative-revision-proof-negative_sqlite_project-v1/after/native.log",
+          "sha256": "b5505977a7605852ea91b643736ba15f6e48a193d666999c47d4c38a6b66c520",
+          "bytes": 263,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": "Removing only this nonnegative term admits revision -1 and resolves the actual define-and-bind write after a healthy writer premise. The exact original is restored and the same owner passes. First rejection oracle only; rollback and retry assertions are normal coverage."
+    }
+  ],
+  "implementation": "Both package and project counter admissions in Memory preparation and SQLite touch reject negative safe integers before increment. Existing safe-integer and increment-overflow checks remain. Memory prepares every counter before publication; SQL callers retain their existing same-writer transactions.",
+  "boundaries": "SQLite tests persist one actual negative counter with native checks temporarily disabled only for injection and restored before the real writer. Memory uses the production store factory rebound from complete detached genuine Source evidence and compares every table, without mutating the genuine Source.",
+  "corrections": [
+    "First preparation script failed to parse before staging; no source mutation or test credit.",
+    "The first published SQLite test used an escaped placeholder instead of a template delimiter and failed before collection; no SQLite negative-write credit. Memory first regressions still reached the intended oracle. Delimiters were corrected without production changes, then all six actual first owners failed as required."
+  ],
+  "unverified": [
+    "Other revision scalar/identity/overflow checks have only their separately recorded earlier evidence; these four controls prove only added nonnegative terms.",
+    "No Memory scoped type-map write capability was introduced; SQLite current type writers are covered.",
+    "The broader runtime/resource compatibility suite remains RED at legacy fixture atomic117 setup and needs repair.",
+    "Offline Burokrat per-type/default/revision/digest acceptance remains required; producer and negative-write coverage do not close task2.3.",
+    "Astra review, full original UI/history/import/scheduler/migration/CLI/client-surface/integration and host gate remain open."
+  ],
+  "afterControls": {
+    "source": {
+      "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/source-pins.json",
+      "sha256": "d496359b15f0132bcedb88bbd2adb42127b2c1ada6584e66239764ef861d4bc5",
+      "bytes": 5209740,
+      "mode": 384
+    },
+    "controls": [
+      {
+        "phase": "negativeRevisions",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/negativeRevisions/native.receipt.json",
+          "sha256": "db67ba7d94f4d5f8c27410e4584a309bd078e2a8f0632aeaf9bb98b617405f11",
+          "bytes": 1543,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/negativeRevisions/native.validation.json",
+          "sha256": "2e8830cbfbf30581a33c6271257c3278575b3f02cece14b06214c044ec4f7b82",
+          "bytes": 2040,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/negativeRevisions/native.log",
+          "sha256": "1797414b09aa88cf3e4c55f0f47e67084a3a6c8d382e4fc5ed0aee3b3bdfb318",
+          "bytes": 686,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "catalogueRevisions",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/catalogueRevisions/native.receipt.json",
+          "sha256": "ec6c7e1e2601f652623966176f1541936bd5b563d8dad8abf6c8e9e217327c5c",
+          "bytes": 1534,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/catalogueRevisions/native.validation.json",
+          "sha256": "03023759a71d6df6749c951cf0d0b815ea49a21cd977e3e264b8add1ff5b7189",
+          "bytes": 2044,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/catalogueRevisions/native.log",
+          "sha256": "c9fd4a4d16f18ceb566ea0561bcf9f4adae83227e13570fbc16cfd5e745f6527",
+          "bytes": 1393,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "backendTypes",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/backendTypes/native.receipt.json",
+          "sha256": "95e4ab80410f38dba830672d4df9010b03e45dc39e3078b563ee103f0e2f8d90",
+          "bytes": 1387,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/backendTypes/native.validation.json",
+          "sha256": "b3948638ce0658fe5c20275272f3ab4e9d99f64987087c58ebd218d107bc3511",
+          "bytes": 2023,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/backendTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "negativeRevisionFormat",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/negativeRevisionFormat/native.receipt.json",
+          "sha256": "6a5b144af40ab9b16d8e42f0a145af4c4bab994ec35ecba13d289cc606f41922",
+          "bytes": 1663,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/negativeRevisionFormat/native.validation.json",
+          "sha256": "121128d58061ebfc068750804c96a346f1264d7f20b074f40c8fdcdaa66aad8d",
+          "bytes": 2054,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/negativeRevisionFormat/native.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "globalCatalogueHttp",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/globalCatalogueHttp/native.receipt.json",
+          "sha256": "62cbd1329342de695ee35ab55ea30b85107410879442339267ea56964eb66570",
+          "bytes": 1516,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/globalCatalogueHttp/native.validation.json",
+          "sha256": "1ed94bf339344554297998c4b1f3303b0df9560d1c11747bfc5c3a4d491087d8",
+          "bytes": 2047,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-negative-revision-evidence-live-v1/globalCatalogueHttp/native.log",
+          "sha256": "dc6a315ec5660e7d03868be0b35fa24a9a427468b275d936f7e88427c0e32063",
+          "bytes": 9608,
+          "mode": 384
+        }
+      }
+    ],
+    "observed": {
+      "negativeRevisions": "6pass161assertions",
+      "catalogueRevisions": "16pass780assertions",
+      "backendTypes": "exit0",
+      "negativeRevisionFormat": "4changedTypeScriptfilespass",
+      "globalCatalogueHttp": "36pass1907assertions"
+    },
+    "qualification": "Actual source after bounded proof comments and formatting; exact six inventories matched before and after, all native owners stopped/reaped/closed. Publication after these controls changes evidence only."
+  }
+}

@@ -3,18 +3,19 @@ import {
   bodyBytesRefusal,
   buildScheduleBody,
   CalendarRangeError,
-  canonicalisePlanInput,
-  type CanonicalPlanInput,
-  type CanonicalPlanInputV10,
+  canonicalisePlanInputV12,
+  type CanonicalPlanInputV12,
   DEFAULT_SAVED_PLAN_QUOTA,
   defaultSavedPlanName,
-  diffPlans,
-  normalisePlanInputForward,
   planInputRowsOf,
   PlanInputVersionError,
   type PlanScheduleValue,
   type PlanSide,
-  readSavedPlanInput,
+  projectSavedPlanInput,
+  projectSavedStepIdentity,
+  readSavedConnectedScheduleBody,
+  readSavedPlainScheduleBody,
+  SavedHistoryError,
   type SavedPlanQuota,
   type SavedPlanQuotaRefusal,
   type Schedule,
@@ -23,24 +24,29 @@ import {
   serialiseCanonicalPlanInput,
   serialiseScheduleBody,
   serializeSavedConnectedScheduleBody,
+  type StepIdentityRead,
 } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
+import type { SavedPlanTouchWrite } from '../../ports/saved-plan-store';
 import type {
   SavedPlanBodyWrite,
   SavedPlanScheduleWrite,
   SavedPlanWrite,
   ScopedSavedPlanWrite,
+  StoredSavedPlan,
 } from '../../ports/saved-plan-values';
-import type { Scheduler } from '../../ports/scheduler';
+import type { Scheduler, ScheduleRead } from '../../ports/scheduler';
 import type {
   AccessRefused,
   LivePlanRead,
   SharedPeopleRead,
 } from '../../ports/shared-people-values';
+import type { SavedCurrentCapture } from '../../ports/work-package-observation';
 import { captureConnectedHistory, type ConnectedHistoryCapture } from './connected-history';
+import { compareSavedPlanMeaning } from './plan-comparison-meaning';
 import type { SavedPlanResource } from './saved-plan.resource';
 import { summarizeSavedComparisonSide } from './saved-plan-comparison';
 import { bodyByteLength } from './saved-plan-integrity';
@@ -49,10 +55,12 @@ import type {
   SavedPlanCompareOutcome,
   SavedPlanListEntry,
   SavedPlanRead,
+  SavedPlanReadBody,
   SavedPlanReadOutcome,
   SavedPlanSideOutcome,
   SavedPlanSideRef,
   SavedPlanTouchResult,
+  VerifiedSavedPlanOutcome,
 } from './saved-plan-values';
 
 const representableScheduleBody = (
@@ -82,7 +90,7 @@ export type SavedPlanScheduleAbsentReason = 'pending' | 'infeasible' | 'unavaila
 
 /** What one save asks for. The bodies are read, never passed in. */
 export interface SavedPlanSaveRequest {
-  readonly projectId: string;
+  readonly workPackageId: string;
   /**
    * Optional, per assumption A-1: "save writes immediately with the server
    * timestamp as the default name, and naming is an edit afterwards, not a
@@ -103,9 +111,9 @@ export interface SavedPlanSaveRequest {
    * The saving account, by reference — what task 6.1's permission rule reads.
    *
    * Required and nullable, never optional: `null` says "no account is behind
-   * this save", which is the same fact a deleted creator leaves and falls back
-   * to the project owner. A caller that forgets the field must not compile into
-   * that fallback silently. See {@link SavedPlanWrite.createdById}.
+   * this save", so no legacy author right remains. Scoped managers use current
+   * permissions. A caller must state this provenance explicitly; see
+   * {@link SavedPlanWrite.createdById}.
    */
   readonly createdById: string | null;
   /** Reclassified by the writer on its separate connection, after capture. */
@@ -118,21 +126,21 @@ export interface SavedPlanSaveRequest {
  * The save answers, including a scoped in-transaction permission refusal.
  *
  * `refused` carries the quota refusal rather than a boolean because the caller
- * has to say *which* limit was hit; `no_project` is separate from `refused`
- * because a project that does not exist is not a project over its quota, and a
+ * has to say *which* limit was hit; `no_work_package` is separate from `refused`
+ * because a work package that does not exist is not a work package over its quota, and a
  * route maps them to different statuses.
  *
  * `snapshot_busy` is separate from `refused` for the same reason and a stronger
- * one: a quota refusal is a fact about the project that will still be true in a
+ * one: a quota refusal is a fact about the work package that will still be true in a
  * second, and this one is a fact about *this instant* that a retry may find
  * gone. A surface that folded them together would offer "try again" for a
- * project at its hundredth plan, or fail to offer it here (task 8.5).
+ * work package at its hundredth plan, or fail to offer it here (task 8.5).
  */
 export type SavedPlanSaveOutcome =
   | { readonly outcome: 'saved'; readonly record: SavedPlanWrite }
   | { readonly outcome: 'forbidden'; readonly permission?: Permission }
   | { readonly outcome: 'refused'; readonly refusal: SavedPlanQuotaRefusal }
-  | { readonly outcome: 'no_project' }
+  | { readonly outcome: 'no_work_package' }
   /** Another connection held the write lock. Nothing was written; a retry may succeed. */
   | { readonly outcome: 'snapshot_busy' };
 
@@ -171,7 +179,7 @@ export interface SavedPlanServiceOptions {
   readonly scheduler: Scheduler;
   /** Shared/connected capture keeps component selection coherent; isolated reads use the legacy capture store. */
   readonly captureSharedPlan?: (
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ) => Promise<
     | SharedPeopleRead
@@ -207,7 +215,7 @@ interface ScheduleAttempt {
 }
 
 interface SerializedSchedulePlan {
-  readonly input: CanonicalPlanInput | CanonicalPlanInputV10;
+  readonly input: CanonicalPlanInputV12;
   readonly inputBytes: string;
   readonly schedule:
     | { readonly present: false; readonly absentReason: SavedPlanScheduleAbsentReason }
@@ -276,30 +284,58 @@ export class SavedPlanService {
     return this.opts.resource.readPlan(savedPlanId);
   }
 
-  /**
-   * Compare the current authorized observation using save's exact input and schedule serializers.
-   * Connected evidence retains captured component placement and optimization boundaries; ordinary
-   * isolated and shared observations retain their legacy input8/schedule1 byte contract.
-   * No quota or write is consumed. Missing projects return null; expired capture authority throws.
-   */
-  async projectCurrentPlan(projectId: string, access?: ResourceAccess): Promise<PlanSide | null> {
-    const captured = await this.captureSchedulePlan(projectId, access);
-    if (captured === null) return null;
-    return {
-      input: captured.input,
-      schedule: captured.schedule.present
-        ? {
-            present: true,
-            algorithmId: captured.schedule.algorithmId,
-            // Boundary: captureSchedulePlan serialized a validated domain schedule body.
-            body: JSON.parse(captured.schedule.bytes) as PlanScheduleValue,
-          }
-        : captured.schedule,
-    };
+  /** Verifies detached stored bytes with the existing integrity/version rules, after admission has settled. */
+  readStoredPlan(stored: StoredSavedPlan) {
+    return this.opts.resource.readStoredPlan(stored);
+  }
+
+  /** Projects an already admitted saved side without persistence or current-plan capture. */
+  async readStoredSide(stored: StoredSavedPlan): Promise<SavedPlanSideOutcome> {
+    return this.projectVerifiedRead(
+      await this.opts.resource.verifyStoredPlan(stored),
+      stored.header.id,
+    );
   }
 
   /**
-   * A project's saved plans, newest first — headers only, and **unverified**.
+   * Compare the existing current capture using save's exact input and schedule serializers.
+   * Connected evidence retains captured component placement and optimization boundaries; ordinary
+   * isolated and shared observations use current input12/schedule3 with actual captured parent.
+   * No quota or write is consumed. Missing work packages return null; expired capture authority throws.
+   */
+  async workPackageCurrentPlan(
+    workPackageId: string,
+    access?: ResourceAccess,
+  ): Promise<PlanSide | null> {
+    const captured = await this.captureSchedulePlan(workPackageId, access);
+    if (captured === null) return null;
+    return projectCurrentSide(captured);
+  }
+
+  /** Projects a completed current-purpose value without acquiring, capturing or consulting a live cache. */
+  projectCapturedCurrent(captured: SavedCurrentCapture, workPackageId: string): PlanSide {
+    let attempt:
+      ScheduleAttempt | { readonly kind: 'connected'; readonly history: ConnectedHistoryCapture };
+    if (captured.kind === 'connected')
+      attempt = { kind: 'connected', history: captureConnectedHistory(captured, workPackageId) };
+    else if (captured.kind === 'local')
+      attempt =
+        captured.scheduled.kind === 'cycle'
+          ? { reads: captured.reads, schedule: { present: false, absentReason: 'infeasible' } }
+          : this.attemptOfScheduled(captured.reads, captured.scheduled);
+    else if (captured.kind === 'engine_unavailable')
+      attempt = {
+        reads: captured.reads,
+        schedule: { present: false, absentReason: 'unavailable' },
+      };
+    else if (captured.kind === 'unavailable')
+      attempt = { reads: captured.reads, schedule: { present: false, absentReason: 'infeasible' } };
+    else attempt = this.attemptOfScheduled(captured.reads, captured.scheduled);
+    return projectCurrentSide(this.serializeCapturedAttempt(attempt));
+  }
+
+  /**
+   * A work package's saved plans, newest first — headers only, and **unverified**.
    *
    * The asymmetry with {@link read} is the point and not an oversight. `read`
    * recomputes both digests because it is handing over bytes somebody will act
@@ -312,85 +348,92 @@ export class SavedPlanService {
    * The absent reason is passed through as stored, not narrowed to the three
    * this build knows. That is {@link SavedPlanResource.readPlan}'s rule and this stays consistent
    * with it: refusing a list because one row's reason string is unfamiliar
-   * would deny access to every other plan in the project over a label.
+   * would deny access to every other plan in the work package over a label.
    */
-  async list(projectId: string): Promise<SavedPlanListEntry[]> {
-    return this.opts.resource.listPlans(projectId);
+  async list(workPackageId: string): Promise<SavedPlanListEntry[]> {
+    return this.opts.resource.listPlans(workPackageId);
   }
 
   /**
-   * Compares two sides of one project's plan (task 7.3b's service half).
+   * Compares two sides of one work package's plan (task 7.3b's service half).
    *
-   * **Both sides are resolved against `projectId`, and a saved plan that
-   * belongs elsewhere answers `not_found`.** The project id is not decoration
+   * **Both sides are resolved against `workPackageId`, and a saved plan that
+   * belongs elsewhere answers `not_found`.** The work package id is not decoration
    * on this route the way it would be on {@link read}: `current` has no id of
-   * its own and can only mean "the live plan of the project named in the path",
-   * so the path's project is load-bearing here. Once it is, a side that names a
-   * plan of some *other* project has to be refused rather than compared, or the
-   * route quietly compares two projects and reports every work item of each as
-   * added and removed — and, worse, a caller who may read project A's plans
-   * could name one of them beside `current` on project B.
+   * its own and can only mean "the live plan of the work package named in the path",
+   * so the path's work package is load-bearing here. Once it is, a side that names a
+   * plan of some *other* work package has to be refused rather than compared, or the
+   * route quietly compares two work packages and reports every work item of each as
+   * added and removed — and, worse, a caller who may read work package A's plans
+   * could name one of them beside `current` on work package B.
    *
-   * `not_found` rather than a distinct "wrong project": the caller learns
+   * `not_found` rather than a distinct "wrong work package": the caller learns
    * exactly what a caller naming a plan id that does not exist learns, which is
    * the same rule {@link read}'s single-prefix URL enforces structurally.
    *
-   * **The stored side is parsed here and normalised forward** (task 7.4), never
-   * rewritten. {@link SavedPlanResource.readPlan} has already refused a version outside
-   * `SUPPORTED_INPUT_BODY_VERSIONS`, so today's normalisation is the identity
-   * and its three refusals are unreachable from this path — stated rather than
-   * claimed as coverage. It is called anyway because the day a second version
-   * exists is the day this call is the only thing standing between an old body
-   * and a diff that reports a removed field as a change nobody made.
+   * Stored bytes, hashes and links are verified by {@link SavedPlanResource.readPlan}.
+   * The versioned projection then separates common authored facts from original parent,
+   * retired-owner and dependency evidence. Historical formats retain their own grammar;
+   * comparison never rewrites a body or invents facts absent from its original version.
    */
   async compare(
-    projectId: string,
+    workPackageId: string,
     left: SavedPlanSideRef,
     right: SavedPlanSideRef,
     access?: ResourceAccess,
   ): Promise<SavedPlanCompareOutcome> {
-    const leftSide = await this.sideOf(projectId, left, access);
+    const leftSide = await this.sideOf(workPackageId, left, access);
     if (leftSide.outcome !== 'side') return leftSide;
     // Proof: removing reuse made mounted `captures current/current once` observe two captures.
     const rightSide =
       left.kind === 'current' && right.kind === 'current'
         ? leftSide
-        : await this.sideOf(projectId, right, access);
+        : await this.sideOf(workPackageId, right, access);
     if (rightSide.outcome !== 'side') return rightSide;
+    return this.compareSides(left, leftSide.side, right, rightSide.side);
+  }
+
+  /** Compares already resolved sides using only their historical meaning and original references. */
+  compareSides(
+    left: SavedPlanSideRef,
+    leftSide: PlanSide,
+    right: SavedPlanSideRef,
+    rightSide: PlanSide,
+  ): Extract<SavedPlanCompareOutcome, { readonly outcome: 'compared' }> {
     return {
       outcome: 'compared',
-      diff: diffPlans(leftSide.side, rightSide.side),
+      diff: compareSavedPlanMeaning(leftSide, rightSide),
       // Proof: forcing a current read made the poisoned-capability SQLite comparison throw.
-      left: summarizeSavedComparisonSide(leftSide.side, left),
-      right: summarizeSavedComparisonSide(rightSide.side, right),
+      left: summarizeSavedComparisonSide(leftSide, left),
+      right: summarizeSavedComparisonSide(rightSide, right),
     };
   }
 
   /**
    * One side of {@link compare}, or the refusal that stands in for it.
    *
-   * `current` answering `null` is `no_project`: {@link projectCurrentPlan}
-   * returns it when the project is gone, which is the same fact the route's own
-   * project read would have found a moment earlier.
+   * `current` answering `null` is `no_work_package`: {@link workPackageCurrentPlan}
+   * returns it when the work package is gone, which is the same fact the route's own
+   * work package read would have found a moment earlier.
    */
   private async sideOf(
-    projectId: string,
+    workPackageId: string,
     ref: SavedPlanSideRef,
     access?: ResourceAccess,
   ): Promise<SavedPlanSideOutcome> {
     if (ref.kind === 'current') {
-      const side = await this.projectCurrentPlan(projectId, access);
-      return side === null ? { outcome: 'no_project' } : { outcome: 'side', side };
+      const side = await this.workPackageCurrentPlan(workPackageId, access);
+      return side === null ? { outcome: 'no_work_package' } : { outcome: 'side', side };
     }
     /*
       **Scope before bytes**, and the order is the finding.
 
       This check used to sit *after* `read`, which verifies every stored byte
       and can answer `corrupt`. A corrupt saved plan belonging to **another**
-      project therefore left here as 422 `corrupt` — naming the foreign id and
+      work package therefore left here as 422 `corrupt` — naming the foreign id and
       its condition — where every foreign plan is promised the same
       indistinguishable 404 an unknown id gets. Sol's I2 on PR 202: the path's
-      project id was authoritative on the healthy path and not on the error
+      work package id was authoritative on the healthy path and not on the error
       paths, which is where a prober would look.
 
       `principalsOf` is the right read for it and already exists for exactly
@@ -399,16 +442,23 @@ export class SavedPlanService {
       delete off, and for the reason stated there — a plan too damaged to open
       must still be answerable *about*.
 
-      No second scope check after the read: `project_id` is written once and
+      No second scope check after the read: `work_package_id` is written once and
       never updated (`saved-plan.ts`: "No `UPDATE` is issued here, ever", and
       rename touches `name` alone), so the two reads cannot disagree about
-      which project owns a plan.
+      which work package owns a plan.
     */
-    const found = await this.opts.resource.readPlanForProject(projectId, ref.savedPlanId);
+    const found = await this.opts.resource.verifyPlanForWorkPackage(workPackageId, ref.savedPlanId);
     if (found.outcome === 'not_found')
       return { outcome: 'not_found', savedPlanId: ref.savedPlanId };
+    return this.projectVerifiedRead(found, ref.savedPlanId);
+  }
+
+  private projectVerifiedRead(
+    found: Exclude<VerifiedSavedPlanOutcome, { readonly outcome: 'not_found' }>,
+    savedPlanId: string,
+  ): SavedPlanSideOutcome {
     if (found.outcome === 'corrupt') {
-      return { outcome: 'corrupt', savedPlanId: ref.savedPlanId, refusal: found.refusal };
+      return { outcome: 'corrupt', savedPlanId, refusal: found.refusal };
     }
     /*
       `planSideOfRead` normalises the stored input forward, and that throws.
@@ -422,15 +472,30 @@ export class SavedPlanService {
       refusals and leaves as the same 422 the route already sends for `corrupt`.
     */
     try {
-      return { outcome: 'side', side: planSideOfRead(found.plan) };
+      return {
+        outcome: 'side',
+        side: planSideOfRead(found.verified.plan, found.verified.stepIdentity),
+      };
     } catch (failure) {
+      if (failure instanceof SavedHistoryError)
+        return {
+          outcome: 'corrupt',
+          savedPlanId,
+          refusal: {
+            reason: 'body_invalid',
+            savedPlanId,
+            body: failure.path.startsWith('$.schedule') ? 'schedule' : 'input',
+            path: failure.path,
+            code: failure.code,
+          },
+        };
       if (!(failure instanceof PlanInputVersionError)) throw failure;
       return {
         outcome: 'corrupt',
-        savedPlanId: ref.savedPlanId,
+        savedPlanId,
         refusal: {
           reason: 'input_version_unreadable',
-          savedPlanId: ref.savedPlanId,
+          savedPlanId,
           body: 'input',
           storedVersion: failure.storedVersion,
           readerVersion: failure.readerVersion,
@@ -441,27 +506,27 @@ export class SavedPlanService {
   }
 
   /**
-   * The project a saved plan belongs to, from its header alone, so a corrupt
+   * The work package a saved plan belongs to, from its header alone, so a corrupt
    * plan still answers; null for a plan that is not there. Routes addressed by
-   * a saved plan's id check that project against the caller's access.
+   * a saved plan's id check that work package against the caller's access.
    */
-  projectOf(savedPlanId: string): Promise<string | null> {
-    return this.opts.resource.projectOfPlan(savedPlanId);
+  workPackageOf(savedPlanId: string): Promise<string | null> {
+    return this.opts.resource.workPackageOfPlan(savedPlanId);
   }
 
   /**
    * Renames a saved plan, if `actorId` may touch it. Writes `name` and nothing
    * else — the repository's one `UPDATE` is the whole of the write.
    *
-   * **Authorised off `principalsOf`, never off {@link read}.** `read` verifies
+   * **Header-only authorization rechecked by the actual writer, never off {@link read}.** `read` verifies
    * every stored byte and can answer `corrupt`, and a corrupt plan must stay
-   * renameable and deletable or it holds its project's quota forever with
+   * renameable and deletable or it holds its work package's quota forever with
    * nothing able to reach it. Routing the check through `read` would make "your
    * saved plan is damaged" and "you may not rename your damaged saved plan" the
    * same answer.
    *
-   * **Not the project's ordinary write rule** (`canEdit`), and that is the point
-   * of task 6.1: on an unrestricted project every authenticated account may
+   * **Not the work package's ordinary write rule** (`canEdit`), and that is the point
+   * of task 6.1: on an unrestricted work package every authenticated account may
    * write, so the ordinary rule would let any account relabel anybody's
    * permanent record. A saved plan is not an editable row of the plan; it is
    * somebody's record of it.
@@ -470,9 +535,9 @@ export class SavedPlanService {
     savedPlanId: string,
     actorId: string,
     name: string,
-    scoped?: ScopedSavedPlanWrite,
+    touch: SavedPlanTouchWrite,
   ): Promise<SavedPlanTouchResult> {
-    return this.opts.resource.renamePlan(savedPlanId, actorId, name, scoped);
+    return this.opts.resource.renamePlan(savedPlanId, actorId, name, touch);
   }
 
   /**
@@ -486,9 +551,9 @@ export class SavedPlanService {
   async delete(
     savedPlanId: string,
     actorId: string,
-    scoped?: ScopedSavedPlanWrite,
+    touch: SavedPlanTouchWrite,
   ): Promise<SavedPlanTouchResult> {
-    return this.opts.resource.deletePlan(savedPlanId, actorId, scoped);
+    return this.opts.resource.deletePlan(savedPlanId, actorId, touch);
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {
@@ -498,8 +563,8 @@ export class SavedPlanService {
     // earlier than the snapshot, never later, so the label never claims to
     // cover a write that happened after it.
     const createdAt = this.opts.now();
-    const captured = await this.captureSchedulePlan(request.projectId, request.access);
-    if (captured === null) return { outcome: 'no_project' };
+    const captured = await this.captureSchedulePlan(request.workPackageId, request.access);
+    if (captured === null) return { outcome: 'no_work_package' };
     const input = await bodyWrite(
       this.opts.digest,
       captured.inputBytes,
@@ -529,7 +594,7 @@ export class SavedPlanService {
 
     const record: SavedPlanWrite = {
       id: this.opts.newId(),
-      projectId: request.projectId,
+      workPackageId: request.workPackageId,
       // A-1's default, off the `createdAt` above rather than a second clock
       // read: the name and the timestamp it claims to be are one value. `??`
       // and not `||`, so a caller who genuinely sends `''` is refused by the
@@ -557,7 +622,7 @@ export class SavedPlanService {
           ...(written.permission === undefined ? {} : { permission: written.permission }),
         };
       case 'not_found':
-        return { outcome: 'no_project' };
+        return { outcome: 'no_work_package' };
     }
   }
 
@@ -565,15 +630,23 @@ export class SavedPlanService {
    * Serialize one detached observation for both saving and current comparison.
    * Connected derivation/cache selection finishes before the live reader returns;
    * historical conversion, serialization and subsequent digest work hold no live snapshot.
-   * Header versions and algorithm identity come from the serialized body. Legacy input8/schedule1
-   * use their existing serializers unchanged; dates use the captured target anchor.
+   * Header versions and algorithm identity come from the serialized body: current input12
+   * with ordinary schedule3 or connected schedule4. Dates use the captured target anchor.
    */
   private async captureSchedulePlan(
-    projectId: string,
+    workPackageId: string,
     access?: ResourceAccess,
   ): Promise<SerializedSchedulePlan | null> {
-    const attempt = await this.captureAndAttempt(projectId, access);
+    const attempt = await this.captureAndAttempt(workPackageId, access);
     if (attempt === null) return null;
+    return this.serializeCapturedAttempt(attempt);
+  }
+
+  /** Serialization uses only completed detached evidence and performs no observation or scheduling. */
+  private serializeCapturedAttempt(
+    attempt:
+      ScheduleAttempt | { readonly kind: 'connected'; readonly history: ConnectedHistoryCapture },
+  ): SerializedSchedulePlan {
     if ('kind' in attempt) {
       const { input, schedule } = attempt.history;
       return {
@@ -589,11 +662,13 @@ export class SavedPlanService {
           : schedule,
       };
     }
-    const input = canonicalisePlanInput(planInputRowsOf(attempt.reads));
+    // Successful ordinary capture is local evidence: its owner runs captureLocalTypedDependency
+    // over every incident edge in the same snapshot and refuses either foreign endpoint.
+    const input = canonicalisePlanInputV12(planInputRowsOf(attempt.reads), { kind: 'local' });
     const built = attempt.schedule.present
       ? representableScheduleBody(
           attempt.schedule.planned,
-          attempt.reads.project.startDate,
+          attempt.reads.workPackage.startDate,
           attempt.schedule.algorithmId,
         )
       : null;
@@ -631,10 +706,10 @@ export class SavedPlanService {
    * selected ready answers are stored with their exact algorithm identity;
    * work still converging is `pending`; failed or corrupt work is
    * `unavailable`; solver infeasibility and dependency cycles are
-   * `infeasible`. A missing project remains distinct as `null`.
+   * `infeasible`. A missing work package remains distinct as `null`.
    */
   private async captureAndAttempt(
-    projectId: string,
+    workPackageId: string,
     access?: ResourceAccess,
   ): Promise<
     | ScheduleAttempt
@@ -649,16 +724,16 @@ export class SavedPlanService {
       // current test invoke the shared callback twice before any authorization.
       if (access === undefined)
         throw new Error('installed shared saved-plan capture requires admitted human access');
-      observed = await this.opts.captureSharedPlan(projectId, access);
+      observed = await this.opts.captureSharedPlan(workPackageId, access);
     }
     // Proof: a second callback failed installed cache-replacement equality; forcing live scheduler mode wrote a generation in the mounted no-admission test (2026-10-22).
     if (observed?.kind === 'connected')
-      return { kind: 'connected', history: captureConnectedHistory(observed, projectId) };
+      return { kind: 'connected', history: captureConnectedHistory(observed, workPackageId) };
     if (observed?.kind === 'access_refused') throw new SavedPlanCaptureRefusal(observed.refusal);
     const shared = observed?.kind === 'isolated' ? undefined : observed;
     if (shared?.kind === 'not_found') return null;
     const reads =
-      shared === undefined ? await this.opts.resource.capturePlan(projectId) : shared.reads;
+      shared === undefined ? await this.opts.resource.capturePlan(workPackageId) : shared.reads;
     if (reads === null) return null;
     if (shared?.kind === 'engine_unavailable')
       return { reads, schedule: { present: false, absentReason: 'unavailable' } };
@@ -675,87 +750,119 @@ export class SavedPlanService {
       const scheduled =
         shared?.scheduled ??
         this.opts.scheduler.read({
-          projectId,
+          workPackageId,
           input,
-          engine: reads.project.scheduleEngine,
-          objective: reads.project.scheduleObjective,
-          enabled: reads.project.optimizationEnabled,
+          engine: reads.workPackage.scheduleEngine,
+          objective: reads.workPackage.scheduleObjective,
+          enabled: reads.workPackage.optimizationEnabled,
           mode: 'capture',
         });
-      if (scheduled.kind === 'engine_unavailable')
-        return { reads, schedule: { present: false, absentReason: 'unavailable' } };
-      if (!reads.project.optimizationEnabled || reads.project.scheduleEngine === 'fast') {
-        return {
-          reads,
-          schedule: {
-            present: true,
-            planned: scheduled.fast,
-            algorithmId: SCHEDULE_ALGORITHM_ID,
-          },
-        };
-      }
-      const optimization = scheduled.optimization;
-      if (optimization === null) {
-        throw new Error('optimized capture returned no optimization state');
-      }
-      const objective = reads.project.scheduleObjective;
-      const variant = optimization.variants[objective];
-      switch (variant.state) {
-        case 'ready': {
-          const planned = optimization.schedules[objective];
-          if (planned === null)
-            throw new Error(`optimized capture reported ready without ${objective}`);
-          return {
-            reads,
-            schedule: {
-              present: true,
-              // Proof: substituting `scheduled.fast` here stored
-              // `waitingForCapacity: 0`; the selected ready schedule test expected 73.
-              // Proof: mounted shared selected-ready save stored start 3 instead of 8.
-              planned,
-              algorithmId: `optimized:${optimization.contractVersion}:${objective}:${String(optimization.budgetMs)}`,
-            },
-          };
-        }
-        case 'idle':
-        case 'pending':
-        case 'retrying':
-          return { reads, schedule: { present: false, absentReason: 'pending' } };
-        case 'failed':
-        case 'corrupt':
-          return { reads, schedule: { present: false, absentReason: 'unavailable' } };
-        case 'plan-infeasible':
-          return { reads, schedule: { present: false, absentReason: 'infeasible' } };
-      }
+      return this.attemptOfScheduled(reads, scheduled);
     } catch (failure) {
       if (!(failure instanceof ScheduleCycleError)) throw failure;
       return { reads, schedule: { present: false, absentReason: 'infeasible' } };
     }
   }
+  /** Preserves the existing saved S4 interpretation for one completed scheduler observation. */
+  private attemptOfScheduled(reads: PlanInputReads, scheduled: ScheduleRead): ScheduleAttempt {
+    if (scheduled.kind === 'engine_unavailable')
+      return { reads, schedule: { present: false, absentReason: 'unavailable' } };
+    if (!reads.workPackage.optimizationEnabled || reads.workPackage.scheduleEngine === 'fast') {
+      return {
+        reads,
+        schedule: {
+          present: true,
+          planned: scheduled.fast,
+          algorithmId: SCHEDULE_ALGORITHM_ID,
+        },
+      };
+    }
+    const optimization = scheduled.optimization;
+    if (optimization === null) {
+      throw new Error('optimized capture returned no optimization state');
+    }
+    const objective = reads.workPackage.scheduleObjective;
+    const variant = optimization.variants[objective];
+    switch (variant.state) {
+      case 'ready': {
+        const planned = optimization.schedules[objective];
+        if (planned === null)
+          throw new Error(`optimized capture reported ready without ${objective}`);
+        return {
+          reads,
+          schedule: {
+            present: true,
+            // Proof: substituting `scheduled.fast` here stored
+            // `waitingForCapacity: 0`; the selected ready schedule test expected 73.
+            // Proof: mounted shared selected-ready save stored start 3 instead of 8.
+            planned,
+            algorithmId: `optimized:${optimization.contractVersion}:${objective}:${String(optimization.budgetMs)}`,
+          },
+        };
+      }
+      case 'idle':
+      case 'pending':
+      case 'retrying':
+        return { reads, schedule: { present: false, absentReason: 'pending' } };
+      case 'failed':
+      case 'corrupt':
+        return { reads, schedule: { present: false, absentReason: 'unavailable' } };
+      case 'plan-infeasible':
+        return { reads, schedule: { present: false, absentReason: 'infeasible' } };
+    }
+  }
+}
+
+/** Projects the same serialized current representation for raw compatibility and admitted current captures. */
+function projectCurrentSide(captured: SerializedSchedulePlan): PlanSide {
+  return {
+    ...projectSavedPlanInput(captured.input, captured.input.schemaVersion),
+    comparison: { kind: 'captured' },
+    schedule: captured.schedule.present
+      ? {
+          present: true,
+          algorithmId: captured.schedule.algorithmId,
+          // Boundary: serializeCapturedAttempt serialized a validated domain schedule body.
+          body: JSON.parse(captured.schedule.bytes) as PlanScheduleValue,
+        }
+      : captured.schedule,
+  };
 }
 
 /**
  * A verified read, as a comparison side (task 7.3b).
  *
  * The resource verifies new-format semantics without rewriting stored bytes.
- * This projection decodes input10 with its captured context and retains the legacy
- * forward normalizer for older bodies. Neither path consults live foreign facts.
+ * This projection decodes every supported input through its versioned historical boundary.
+ * Original stored bytes were already verified, and no live foreign facts are consulted.
  */
-function planSideOfRead(plan: SavedPlanRead): PlanSide {
-  return {
-    // Proof: always using the legacy decoder returned 422 for the mounted complete
-    // connected self-comparison (use-legacy-comparison-reader.log.txt).
-    input:
-      // Proof: dispatching input10 through the legacy normalizer failed mounted connected save/read (2026-10-24).
-      plan.input.schemaVersion === 10
-        ? readSavedPlanInput(JSON.parse(plan.input.bytes), 10)
-        : normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),
-    schedule: plan.schedule.present
-      ? {
-          present: true,
-          algorithmId: plan.schedule.algorithmId,
-          body: JSON.parse(plan.schedule.body.bytes) as PlanScheduleValue,
-        }
-      : { present: false, absentReason: plan.schedule.absentReason },
-  };
+function planSideOfRead(plan: SavedPlanRead, stepIdentity: StepIdentityRead): PlanSide {
+  const projected = projectSavedPlanInput(JSON.parse(plan.input.bytes), plan.input.schemaVersion);
+  return projectSavedStepIdentity(
+    {
+      // Proof: always using the legacy decoder returned 422 for the mounted complete
+      // connected self-comparison (use-legacy-comparison-reader.log.txt).
+      ...projected,
+      comparison: { kind: 'captured' },
+      schedule: plan.schedule.present
+        ? {
+            present: true,
+            algorithmId: plan.schedule.algorithmId,
+            body: readScheduleProjection(plan.schedule.body),
+          }
+        : { present: false, absentReason: plan.schedule.absentReason },
+    },
+    stepIdentity,
+  );
+}
+
+/** Original bytes were verified before this detached projection; no live plan or scheduler is consulted. */
+function readScheduleProjection(body: SavedPlanReadBody): PlanScheduleValue {
+  const raw: unknown = JSON.parse(body.bytes);
+  const projected =
+    body.schemaVersion === 2 || body.schemaVersion === 4
+      ? readSavedConnectedScheduleBody(raw)
+      : readSavedPlainScheduleBody(raw, body.schemaVersion);
+  // Boundary: both versioned readers validate every unknown extension recursively as finite plain JSON via detachHistory.
+  return projected as unknown as PlanScheduleValue;
 }

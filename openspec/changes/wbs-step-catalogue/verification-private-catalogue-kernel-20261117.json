@@ -1,0 +1,426 @@
+{
+  "scope": "Private persistence kernel and bounded original-code rollback observations; not operator activation or current consumer cutover",
+  "canonicalSource": {
+    "path": "/tmp/puni-wbs-budget-publication-v1/next-source-pins.json",
+    "sha256": "f91ecd5910349d88054c00cd8cea41503a3bbd5c1c88af515e305f9b4578071d",
+    "bytes": 145510,
+    "mode": 384
+  },
+  "observedSqlPair": {
+    "up": {
+      "path": "/tmp/puni-step-catalogue-null-provenance-v1/migration.sql",
+      "sha256": "8a0190da639e17eabc12ea2f4e8096b0a2085db5325ba76fe6cce1080b9994d6",
+      "bytes": 37185,
+      "mode": 384
+    },
+    "down": {
+      "path": "/tmp/puni-step-catalogue-null-provenance-v1/down.sql",
+      "sha256": "ac0d66adb24b596d9082247d2c262f628e91971229eb6954ef9e85ff4b4acc80",
+      "bytes": 27859,
+      "mode": 384
+    }
+  },
+  "observedTests": {
+    "original84": {
+      "path": "/tmp/puni-step-catalogue-null-provenance-v1/test84-bound.ts",
+      "sha256": "35c2d1135bdce590964ec4415baea965974dd4b7e7d08237f7b0a0aefdebf0ff",
+      "bytes": 178173,
+      "mode": 384
+    },
+    "refusal86": {
+      "path": "/tmp/puni-step-catalogue-provenance-refusal-tests-v1/candidate.ts",
+      "sha256": "e3f717f616c05b689b70862d6319cacf805da205808efa0abbe5209b79ca2ca1",
+      "bytes": 187629,
+      "mode": 384
+    }
+  },
+  "currentCandidateCommentOnlyDown": {
+    "path": "/tmp/puni-step-catalogue-provenance-observed-v2/candidates/down.sql",
+    "sha256": "63ff1aa14f87be82fc6f30a5994ec79e4bc0d6fe9bb679c8a5b6541f2b8b0afd",
+    "bytes": 28559,
+    "mode": 384
+  },
+  "currentCandidateHashOnlyTest": {
+    "path": "/tmp/puni-step-catalogue-provenance-observed-v2/candidates/test86.ts",
+    "sha256": "4f5795b295f90863d9992061379e9a6b324642f944f797fe772441b34b8711d3",
+    "bytes": 187629,
+    "mode": 384
+  },
+  "runs": [
+    {
+      "id": "original-null-loss",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^restores original NULL step code and unmerged facts and history through public catalogue rollback$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-uncoded-down-first-red-v3/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 1,
+      "counts": {
+        "pass": 0,
+        "fail": 1,
+        "filtered": 83,
+        "expects": 77
+      },
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-uncoded-down-first-red-v3/native.log",
+        "sha256": "35993bc7a867fe8a8421f6832ef19697aad3d918c94b1d40d86f1fdbc8d2746b",
+        "bytes": 1138,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-uncoded-down-first-red-v3/native.receipt.json",
+        "sha256": "aa204adc6859704baa9840c765f012cb1f53e39510d08604fa9ff4edb608b90a",
+        "bytes": 1497,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-uncoded-down-first-red-v3/native.validation.json",
+        "sha256": "49c51cf62c3c2ecba7ccc877f150f5ac44e84ceffa4a294fa3225943793e3c29",
+        "bytes": 1048,
+        "mode": 384
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": []
+      },
+      "post602Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    },
+    {
+      "id": "original-null-restored",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^restores original NULL step code and unmerged facts and history through public catalogue rollback$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-null-provenance-green-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "counts": {
+        "pass": 1,
+        "fail": 0,
+        "filtered": 83,
+        "expects": 98
+      },
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-green-v1/native.log",
+        "sha256": "c5c3791a583253f63ee6ad5f3dacc7c3880906fcf3a978dbde46afcee8c50afb",
+        "bytes": 306,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-green-v1/native.receipt.json",
+        "sha256": "f8361ae587ad452bab38b98419b168e8e0b8b0e1951c69b320d08eee67caeb64",
+        "bytes": 1493,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-green-v1/native.validation.json",
+        "sha256": "e4011cd4d8f12ca9c642b7fb280e6cd7066e2f3a0157ddfcf7965346a72149d1",
+        "bytes": 1047,
+        "mode": 384
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": []
+      },
+      "post602Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    },
+    {
+      "id": "full84",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-null-provenance-green-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "counts": {
+        "pass": 84,
+        "fail": 0,
+        "filtered": 0,
+        "expects": 2433
+      },
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-full84-v1/native.log",
+        "sha256": "32543936530e590754fbdabd28155d17393eb63075c1a7bc5c1b54986d1c8b47",
+        "bytes": 9180,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-full84-v1/native.receipt.json",
+        "sha256": "8d3586c59380d021034e64dd2c6a133a101c66aabdf8d3487a37cc5d957f253a",
+        "bytes": 1358,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-full84-v1/native.validation.json",
+        "sha256": "ffcbc7fe03a74b9bef0d101597188613766a599950511dc333052d5c669ea2c5",
+        "bytes": 1048,
+        "mode": 384
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": []
+      },
+      "post602Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    },
+    {
+      "id": "store-types",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "libs/wbs/adapters/store-sqlite/tsconfig.json"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-null-provenance-green-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "counts": null,
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-types-v1/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-types-v1/native.receipt.json",
+        "sha256": "a92b56e3d3265a1a0c71002b4476db021b39c102ac8d22b14f7257762ab1df87",
+        "bytes": 1374,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-null-provenance-types-v1/native.validation.json",
+        "sha256": "5759bea429cee12961354777f059f781a52c2b1e9f01fc85bbb69d695e2d3533",
+        "bytes": 1047,
+        "mode": 384
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": []
+      },
+      "post602Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    },
+    {
+      "id": "provenance-baseline",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^(?:refuses public catalogue rollback with a cleared raw-code capture marker after CHECK enforcement is restored|refuses public catalogue rollback with non-NULL raw legacy code differing from its immutable catalogue code)$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-provenance-refusal-baseline-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "counts": {
+        "pass": 2,
+        "fail": 0,
+        "filtered": 84,
+        "expects": 84
+      },
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-provenance-refusal-baseline-v1/native.log",
+        "sha256": "a23c8fd00b2fe0db58f570539134df6e2a01e5066edfa2e8ad948fb3139e7b15",
+        "bytes": 440,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-provenance-refusal-baseline-v1/native.receipt.json",
+        "sha256": "08cf6df45084cca5a99b5933e298e23c64963c12f7e2da6877cebf2eb3cc306f",
+        "bytes": 1634,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-provenance-refusal-baseline-v1/native.validation.json",
+        "sha256": "17e2816eda4e1f243f0e043b44187ed6f03d451db57f18da161b1d631e9cc446",
+        "bytes": 1053,
+        "mode": 384
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": []
+      },
+      "post602Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    },
+    {
+      "id": "provenance-omission",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^(?:refuses public catalogue rollback with a cleared raw-code capture marker after CHECK enforcement is restored|refuses public catalogue rollback with non-NULL raw legacy code differing from its immutable catalogue code)$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-provenance-omission-v1/fault/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 1,
+      "counts": {
+        "pass": 0,
+        "fail": 2,
+        "filtered": 84,
+        "expects": 74
+      },
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-provenance-omission-v1/fault/native.log",
+        "sha256": "db113a0854b614fe777da4e0e1f1f36639649b89b82a817a4f7644ee37a909f3",
+        "bytes": 1896,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-provenance-omission-v1/fault/native.receipt.json",
+        "sha256": "bf953957a2e19ad541b01f484541a87310294df39b126d293893019dfccfc453",
+        "bytes": 1629,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-provenance-omission-v1/fault/native.validation.json",
+        "sha256": "c564b010a9b335be27c74944bd1b8ed9c28bb43c9a7bb37b2c5b19dc25a4992b",
+        "bytes": 1054,
+        "mode": 384
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": []
+      },
+      "post602Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    },
+    {
+      "id": "provenance-after",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "^(?:refuses public catalogue rollback with a cleared raw-code capture marker after CHECK enforcement is restored|refuses public catalogue rollback with non-NULL raw legacy code differing from its immutable catalogue code)$",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-provenance-refusal-baseline-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "counts": {
+        "pass": 2,
+        "fail": 0,
+        "filtered": 84,
+        "expects": 84
+      },
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-provenance-omission-v1/after/native.log",
+        "sha256": "16f022ab23ee020d5e8526d0c26d80cda062629a985b31f6f7a33031f6d9ebc0",
+        "bytes": 440,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-provenance-omission-v1/after/native.receipt.json",
+        "sha256": "981cd65440034dcdb8fa05e8c796f2aadf764b64690043fc85434792a181cbae",
+        "bytes": 1630,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-provenance-omission-v1/after/native.validation.json",
+        "sha256": "e9a04461fed7bef24a821b13c9409a9c48ebd5cfa1d04f7d127890a23f170295",
+        "bytes": 1054,
+        "mode": 384
+      },
+      "custody": {
+        "settled": true,
+        "originalObserved": true,
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "primary": null,
+        "cleanup": []
+      },
+      "post602Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    }
+  ],
+  "firstFaults": {
+    "originalNullLoss": "After public rollback removed117, step.code was deploy rather than original NULL. Later equality tails unreached.",
+    "provenanceOmission": "Both selected cases first failed at outcome.rejected=false vs true at3423. Later diagnostic/full-state tails unreached."
+  },
+  "qualifications": [
+    "Baseline and after are grouped2-case observations, not independent per-case triples.",
+    "WHERE0 is one whole provenance admission effect; schema-CHECK/per-conjunct necessity not established.",
+    "Full84/typecheck precede the appended2 refusal controls; no fresh full86/typecheck claim.",
+    "V2 allocator-length failure was setup only and excluded from NULL-loss credit.",
+    "Disk recovery removed generated Git evidence after the completed runs; historical requests are not replayable unchanged. New omission requests bind the correction.",
+    "No arbitrary tampering, generic paired cleanup, full SC13 consumer integration, real host barrier, canonical migration117 publication, gate or deployment claim."
+  ],
+  "recoveryRecords": [
+    {
+      "path": "/tmp/puni-generated-disk-recovery-20261117-v1.json",
+      "sha256": "2e13ad3ce9bd029c0075166da267e0c15be23bd4d5b6db16e3cdb6d14ce008d6",
+      "bytes": 408,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-generated-disk-recovery-20261117-correction-v1.json",
+      "sha256": "2fe24e4f40a5c610d0d31e4e14c2bacdaffb74951d4eaf72991083c078f9b858",
+      "bytes": 1487,
+      "mode": 384
+    }
+  ]
+}

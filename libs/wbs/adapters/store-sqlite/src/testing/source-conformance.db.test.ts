@@ -7,6 +7,7 @@ import {
   assertCompleteStateAlternative,
   assertFaultVariantCoverage,
   assertSeedState,
+  assertSettingSettlement,
   brokenSource,
   type Capabilities,
   type CaptureDirectoryChange,
@@ -20,6 +21,10 @@ import {
   DELEGATED_CLAIMS,
   DEPENDENCY_SURVIVOR_IDS,
   DETERMINISTIC_SEED,
+  CURRENT_SOURCE_PROJECT_IDS,
+  type SourceProjectLayout,
+  seedCurrentSourceSteps,
+  seedSourceCreationSettings,
   type ExistingStoreOpeners,
   existingStoreRegistrations,
   expectedCasesFor,
@@ -44,6 +49,8 @@ import {
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
+  seedSettingCase,
+  SETTINGS_CASE_IDS,
   SHARED_OCCUPANCY_OWNERSHIP,
   sourceConformanceRegistrations,
   type SourceDeclaration,
@@ -69,6 +76,7 @@ import type {
   SavedPlanWriteOutcome,
   StoredDependency,
   StoredSavedPlan,
+  StoredSavedPlanBytes,
   SubtreeCopy,
   TeamWithServices,
   TransactionalStores,
@@ -79,12 +87,11 @@ import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_ESTIMATE_RULE, isLegacyMetric, schedule, scheduleResolved } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 import { endLeasesOfUncredentialed } from '../claim';
 import { writeImmediately } from '../immediate-write';
 import type { SqliteLateWriteEvidence } from '../late-write-seam';
-import { runMigrations } from '../migrate';
 import { OrganizationLimitGaugeRepository } from '../organization-limits';
 import { SavedPlanCaptureRepository } from '../saved-plan-capture';
 import {
@@ -112,10 +119,16 @@ import {
   openSqliteSourceWithNonAtomicSubtreeFault,
   sqliteLateWriteControl,
 } from './faults';
+import { seedLegacyPackageParent,seedPackageParent } from './legacy-package-parent';
+import {migrateEmptyCatalogueFixture} from './catalogue-database';
 import { activateTestStepBlockages } from './step-blockage-activation';
 
-const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-type ExistingFamily = Exclude<keyof ExistingStoreOpeners, 'savedPlans' | 'savedPlanCapture'>;
+import { openSqliteStepCatalogueCase } from './step-catalogue-fixture';
+
+type ExistingFamily = Exclude<
+  keyof ExistingStoreOpeners,
+  'savedPlans' | 'savedPlanCapture' | 'stepCatalogue'
+>;
 type OpenSource = (options: OpenSqliteSourceOptions) => SqliteSource;
 type Task62SqliteSource = SqliteSource & {
   quotaRivalOwner?: { settlement?: Promise<unknown> };
@@ -125,39 +138,18 @@ type SavedPlanCheck<Refusal> = (
   incomingBytes: number,
 ) => Promise<Refusal | null>;
 
+/**
+ * A refused Source close retains its database namespace for explicit completion.
+ * Proof: restoring unlink-after-refused-close made the real Source close-refusal
+ * owner lose its database at13 assertions; baseline and exact restored controls
+ * retained it at14. The injected close rejection precedes actual Source cleanup.
+ */
 async function closeSqliteResources(
   source: SqliteSource | undefined,
   directory: string,
 ): Promise<void> {
-  let didCloseFail = false;
-  let closeFailure: unknown;
-  if (source !== undefined) {
-    try {
-      await source.close();
-    } catch (failure) {
-      didCloseFail = true;
-      closeFailure = failure;
-    }
-  }
-
-  let didRemoveFail = false;
-  let removeFailure: unknown;
-  try {
-    rmSync(directory, { recursive: true, force: true });
-  } catch (failure) {
-    didRemoveFail = true;
-    removeFailure = failure;
-  }
-
-  if (didCloseFail && didRemoveFail) {
-    throw new AggregateError(
-      [closeFailure, removeFailure],
-      'SQLite conformance source close and directory removal failed',
-      { cause: closeFailure },
-    );
-  }
-  if (didCloseFail) throw closeFailure;
-  if (didRemoveFail) throw removeFailure;
+  if (source !== undefined) await source.close();
+  rmSync(directory, { recursive: true, force: true });
 }
 
 async function throwAfterCleanup(
@@ -179,7 +171,7 @@ async function throwAfterCleanup(
 
 function readersOf(source: SqliteSource): SourceReaders {
   return {
-    projects: source.stores.projects,
+    workPackages: source.stores.workPackages,
     workItems: source.stores.workItems,
     steps: source.stores.steps,
     estimates: source.stores.estimates,
@@ -200,23 +192,29 @@ function readersOf(source: SqliteSource): SourceReaders {
 async function seedSqliteSource(
   openSource: OpenSource = openSqliteSource,
   finishSeed?: (source: SqliteSource) => Promise<void>,
+  layout:SourceProjectLayout='separate-projects',
 ): Promise<{
   readonly source: SqliteSource;
   readonly directory: string;
 }> {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-sqlite-conformance-'));
   let source: SqliteSource | undefined;
+  const custody={hasUnknownOwner:false};
   try {
     const dbPath = join(directory, 'source.db');
-    runMigrations(dbPath, MIGRATIONS);
-    activateTestStepBlockages(dbPath);
-    seedDependencyAuthority(dbPath);
-    source = openSource({ dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath });
+    migrateEmptyCatalogueFixture({path:dbPath,directory,reportedAt:DETERMINISTIC_SEED.stamps[0].at},custody);
+    try{
+      seedLegacyPackageParent(dbPath,'fixture-legacy-org',CURRENT_SOURCE_PROJECT_IDS[0]);
+      seedPackageParent(dbPath,'fixture-legacy-org',CURRENT_SOURCE_PROJECT_IDS[1]);
+      activateTestStepBlockages(dbPath);
+      seedDependencyAuthority(dbPath);
+    }catch(cause:unknown){custody.hasUnknownOwner=true;throw cause;}
+    try{source = openSource({ dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath });}
+    catch(cause:unknown){custody.hasUnknownOwner=true;throw cause;}
     const seed = DETERMINISTIC_SEED;
     for (const [index, ownerId] of seed.ownerIds.entries()) {
       const stamp = seed.stamps[index] ?? seed.stamps[0];
-      const projectId = seed.projectIds[index] ?? seed.projectIds[0];
-      const stepIds = seed.stepIds[index] ?? seed.stepIds[0];
+      const workPackageId = seed.workPackageIds[index] ?? seed.workPackageIds[0];
       await source.stores.users.create(
         {
           id: ownerId,
@@ -226,11 +224,11 @@ async function seedSqliteSource(
         },
         stamp,
       );
-      await source.stores.projects.create(
+      await source.stores.workPackages.create(
         {
-          id: projectId,
-          ownerId,
-          name: `Project ${String(index + 1)}`,
+          id: workPackageId,
+          projectId:layout==='shared-project'||index===0?CURRENT_SOURCE_PROJECT_IDS[0]:CURRENT_SOURCE_PROJECT_IDS[1],
+          name: `Work package ${String(index + 1)}`,
           restricted: false,
           estimateMethod: 'pert',
           depReach: 'whole-item',
@@ -244,21 +242,13 @@ async function seedSqliteSource(
           scheduleEngine: 'fast',
           scheduleObjective: 'pri',
         },
-        stepIds.map((id, stepIndex) => ({
-          id,
-          projectId,
-          name: stepIndex === 0 ? 'Dev' : 'QA',
-          code: stepIndex === 0 ? 'dev' : 'qa',
-          position: (stepIndex + 1) * 10,
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        })),
+        [],
         stamp,
       );
       const workItemIds = seed.workItemIds[index] ?? seed.workItemIds[0];
       for (const [rowIndex, id] of workItemIds.entries()) {
         await source.stores.workItems.insert(
-          workItemRow({ id, projectId, name: `Work ${String(rowIndex + 1)}` }),
+          workItemRow({ id, workPackageId, name: `Work ${String(rowIndex + 1)}` }),
           [],
           stamp,
         );
@@ -286,10 +276,19 @@ async function seedSqliteSource(
         seed.stamps[0],
       );
     }
-    await verifySqliteSeed(source);
+    await seedCurrentSourceSteps(source.stores,layout,'fixture-legacy-org');
+    await verifySqliteSeed(source,layout);
     await finishSeed?.(source);
     return { source, directory };
   } catch (failure) {
+    if(custody.hasUnknownOwner){
+      if(source!==undefined){
+        try{await source.close();}catch(cleanup:unknown){
+          throw new AggregateError([failure,cleanup],'SQLite conformance setup and Source close failed; retained '+directory,{cause:cleanup});
+        }
+      }
+      throw failure;
+    }
     return throwAfterCleanup(failure, source, directory);
   }
 }
@@ -297,31 +296,39 @@ async function seedSqliteSource(
 async function seedTargetedOrderWorkItems(source: SqliteSource): Promise<void> {
   for (const id of TARGETED_ORDER_WORK_ITEM_IDS) {
     await source.stores.workItems.insert(
-      workItemRow({ id, projectId: DETERMINISTIC_SEED.projectIds[0], name: id }),
+      workItemRow({ id, workPackageId: DETERMINISTIC_SEED.workPackageIds[0], name: id }),
       [],
       DETERMINISTIC_SEED.stamps[0],
     );
   }
 }
 
-async function verifySqliteSeed(source: SqliteSource): Promise<void> {
+async function verifySqliteSeed(source: SqliteSource,layout:SourceProjectLayout): Promise<void> {
   const seed = DETERMINISTIC_SEED;
-  for (const [index, projectId] of seed.projectIds.entries()) {
-    const project = await source.stores.projects.findById(projectId);
-    expect(project).toMatchObject({
-      id: projectId,
-      ownerId: seed.ownerIds[index],
-      name: `Project ${String(index + 1)}`,
+  for (const [index, workPackageId] of seed.workPackageIds.entries()) {
+    const workPackage = await source.stores.workPackages.findById(workPackageId);
+    expect(workPackage).toMatchObject({
+      id: workPackageId,
+      projectId:layout==='shared-project'||index===0?CURRENT_SOURCE_PROJECT_IDS[0]:CURRENT_SOURCE_PROJECT_IDS[1],
+      name: `Work package ${String(index + 1)}`,
     });
     expect(
-      (await source.stores.steps.listByProject(projectId)).map(({ id, name }) => ({ id, name })),
-    ).toEqual([
-      { id: seed.stepIds[index][0], name: 'Dev' },
-      { id: seed.stepIds[index][1], name: 'QA' },
+      (await source.stores.steps.listByWorkPackage(workPackageId)).map(({ id, name }) => ({
+        id,
+        name,
+      })),
+    ).toEqual(layout==='shared-project'?[
+      {id:seed.stepIds[0][0],name:'Dev'},
+      {id:seed.stepIds[0][1],name:'QA'},
+      {id:seed.stepIds[1][0],name:'Other Dev'},
+      {id:seed.stepIds[1][1],name:'Other QA'},
+    ]:[
+      { id: seed.stepIds[index][0], name:index===0?'Dev':'Other Dev' },
+      { id: seed.stepIds[index][1], name:index===0?'QA':'Other QA' },
     ]);
-    expect((await source.stores.workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([
-      ...seed.workItemIds[index],
-    ]);
+    expect(
+      (await source.stores.workItems.listByWorkPackage(workPackageId)).map(({ id }) => id),
+    ).toEqual([...seed.workItemIds[index]]);
   }
   expect((await source.stores.directory.listTeams()).map(({ id }) => id).sort()).toEqual([
     ...seed.teamIds,
@@ -374,9 +381,11 @@ async function openSqliteCase<Family extends ExistingFamily>(
       ? openSource
       : (options) => openSqliteSourceWithFault(options, lateControl);
   const { source, directory } = await seedSqliteSource(selectedOpen, async (seeded) => {
+    if(caseId==='workPackages.create:steps')await seedSourceCreationSettings(seeded.stores);
     if (caseId.endsWith('listByWorkItems:scope-order')) {
       await seedTargetedOrderWorkItems(seeded);
     }
+    if (family === 'settings') await seedSettingCase(seeded.stores, DETERMINISTIC_SEED);
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
@@ -410,7 +419,7 @@ async function openSqliteCase<Family extends ExistingFamily>(
     }
     if (isMeasureFactCase(caseId)) {
       seeded.db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${DETERMINISTIC_SEED.projectIds[0]}, ${CONFORMANCE_MEASURE_ORGANIZATIONS.legacy})`,
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${DETERMINISTIC_SEED.workPackageIds[0]}, ${CONFORMANCE_MEASURE_ORGANIZATIONS.legacy})`,
       );
       await seedMeasureFactCase(seeded.stores, caseId, DETERMINISTIC_SEED);
     }
@@ -425,18 +434,18 @@ async function openSqliteCase<Family extends ExistingFamily>(
         seeded.db.run(
           sql`INSERT INTO organization (id, name, created_at) VALUES (${id}, ${id}, 1)`,
         );
-      for (const [projectId, owner] of [
-        [DETERMINISTIC_SEED.projectIds[0], organizationId],
-        [DETERMINISTIC_SEED.projectIds[1], otherOrganizationId],
+      for (const [workPackageId, owner] of [
+        [DETERMINISTIC_SEED.workPackageIds[0], organizationId],
+        [DETERMINISTIC_SEED.workPackageIds[1], otherOrganizationId],
       ] as const)
         seeded.db.run(
-          sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${owner})`,
+          sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${workPackageId}, ${owner})`,
         );
       seeded.db.run(
         sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${resourceId})`,
       );
     }
-  });
+  },family==='settings'?'shared-project':'separate-projects');
   if (family === 'subtrees') {
     return {
       ...sqliteFixture(source, directory, family, caseId),
@@ -544,10 +553,13 @@ async function openSqliteSavedPlanCaptureCase(
     caseId === 'savedPlanCapture.readPlanInput:coherent-interleave'
       ? (options) =>
           openSqliteSourceWithCaptureReadSeam(options, {
-            async afterFirstRead({ projectId, project }) {
-              if (projectId !== 'project-a' || didEnter) return;
-              if (project.id !== 'project-a' || project.name !== 'Captured project A')
-                throw new Error('SQLite capture first-read evidence is not project A');
+            async afterFirstRead({ workPackageId, workPackage }) {
+              if (workPackageId !== 'work-package-a' || didEnter) return;
+              if (
+                workPackage.id !== 'work-package-a' ||
+                workPackage.name !== 'Captured work package A'
+              )
+                throw new Error('SQLite capture first-read evidence is not work package A');
               didEnter = true;
               enter();
               await released;
@@ -600,10 +612,10 @@ async function openSqliteHistoryBatchCase(
     ? {
         write: (plan, check) => source.gate.enter(async () => await base.write(plan, check)),
         readOf: (id) => base.readOf(id),
-        listOf: (projectId) => base.listOf(projectId),
+        listOf: (workPackageId) => base.listOf(workPackageId),
         principalsOf: (id) => base.principalsOf(id),
-        renameTo: (id, name) => base.renameTo(id, name),
-        deleteOf: (id) => base.deleteOf(id),
+        renameTo: (id, name, touch) => base.renameTo(id, name, touch),
+        deleteOf: (id, touch) => base.deleteOf(id, touch),
       }
     : base;
   let release: (decision: 'commit' | 'rollback') => void = () => undefined;
@@ -626,14 +638,14 @@ async function openSqliteHistoryBatchCase(
       async begin() {
         if (batch !== undefined) throw new Error('SQLite history batch began twice');
         batch = source.uow.run(async ({ stores }) => {
-          const projectId = DETERMINISTIC_SEED.projectIds[0];
+          const workPackageId = DETERMINISTIC_SEED.workPackageIds[0];
           const stamp = { at: 700, by: DETERMINISTIC_SEED.ownerIds[0] };
           const updated = await (lifecycle?.rejectAt === 'update'
             ? Promise.reject(new Error('injected SQLite history update failure'))
-            : stores.projects.update(projectId, { name: `Held ${caseId}` }, stamp));
+            : stores.workPackages.update(workPackageId, { name: `Held ${caseId}` }, stamp));
           const observed = await (lifecycle?.rejectAt === 'readback'
             ? Promise.reject(new Error('injected SQLite history readback failure'))
-            : stores.projects.findById(projectId));
+            : stores.workPackages.findById(workPackageId));
           if (updated === null || observed?.name !== `Held ${caseId}`)
             throw new Error('SQLite history batch did not complete its in-scope update');
           enter();
@@ -722,7 +734,7 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
       tag: {
         ok: true,
         tag: { id: 'tag-a', name: 'Tag after interleave' },
-        projectIds: ['project-a'],
+        workPackageIds: ['work-package-a'],
       },
       person: {
         ok: true,
@@ -733,7 +745,7 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
           teamIds: ['team-a'],
           accountId: null,
         },
-        projectIds: [],
+        workPackageIds: [],
       },
     },
     tags: [
@@ -755,17 +767,14 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
   return change;
 }
 
-async function seedProgressStep(source: SqliteSource): Promise<void> {
-  await source.stores.steps.add(
-    {
-      id: PROGRESS_SENTINEL_STEP_ID,
-      projectId: DETERMINISTIC_SEED.projectIds[0],
-      name: 'Review',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-    DETERMINISTIC_SEED.stamps[0],
-  );
+async function seedProgressStep(source:SqliteSource):Promise<void>{
+  const defined=await source.stores.stepCatalogue.defineAndBindStep('fixture-legacy-org',{
+    id:PROGRESS_SENTINEL_STEP_ID,code:'review',name:'Review',position:30,
+    defaultEstimateUnit:'workdays',defaultAllowancePercent:0,
+  },{bindingId:PROGRESS_SENTINEL_STEP_ID+':current-binding',scopeKind:'project',scopeId:CURRENT_SOURCE_PROJECT_IDS[0],
+    position:30,workItemTypeId:null},DETERMINISTIC_SEED.stamps[0]);
+  expect(defined.ok).toBe(true);
+  if(!defined.ok)throw new Error('authored current progress sentinel was refused: '+defined.reason);
 }
 
 async function seedDependencyWorkItems(source: SqliteSource): Promise<void> {
@@ -773,7 +782,7 @@ async function seedDependencyWorkItems(source: SqliteSource): Promise<void> {
     await source.stores.workItems.insert(
       workItemRow({
         id,
-        projectId: DETERMINISTIC_SEED.projectIds[0],
+        workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
         name: `Dependency survivor ${String(index + 1)}`,
         position: (index + 3) * 10,
       }),
@@ -782,7 +791,7 @@ async function seedDependencyWorkItems(source: SqliteSource): Promise<void> {
     );
   }
   expect(
-    (await source.stores.workItems.listByProject(DETERMINISTIC_SEED.projectIds[0]))
+    (await source.stores.workItems.listByWorkPackage(DETERMINISTIC_SEED.workPackageIds[0]))
       .map(({ id }) => id)
       .toSorted(),
   ).toEqual([...DETERMINISTIC_SEED.workItemIds[0], ...DEPENDENCY_SURVIVOR_IDS].toSorted());
@@ -831,9 +840,9 @@ async function openSqliteLimitsCase(
           sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${personId}, ${organizationId}, ${personId})`,
         );
       },
-      ownProject: (projectId, organizationId) => {
+      ownWorkPackage: (workPackageId, organizationId) => {
         seeded.db.run(
-          sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${organizationId})`,
+          sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${workPackageId}, ${organizationId})`,
         );
       },
       ownResource: (resourceId, organizationId) => {
@@ -855,6 +864,7 @@ async function openSqliteLimitsCase(
 }
 
 const openers: ExistingStoreOpeners = {
+  stepCatalogue: openSqliteStepCatalogueCase,
   livePlans: async (caseId) => {
     const { source, directory } = await seedSqliteSource();
     const configured = source.bindLivePlans({
@@ -883,7 +893,7 @@ const openers: ExistingStoreOpeners = {
       caseId,
     );
   },
-  projects: (caseId) => openSqliteCase('projects', caseId),
+  workPackages: (caseId) => openSqliteCase('workPackages', caseId),
   spaces: async (caseId) => {
     const { source, directory } = await seedSqliteSource();
     source.db.run(
@@ -891,27 +901,27 @@ const openers: ExistingStoreOpeners = {
     );
     return sqliteFixture(source, directory, 'spaces', caseId);
   },
-  projectRanks: async (caseId) => {
+  workPackageRanks: async (caseId) => {
     const { source, directory } = await seedSqliteSource();
     source.db.run(
       sql`INSERT INTO organization (id, name, created_at) VALUES ('rank-conformance-org', 'Rank', 1)`,
     );
-    for (const projectId of DETERMINISTIC_SEED.projectIds) {
+    for (const workPackageId of DETERMINISTIC_SEED.workPackageIds) {
       source.db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'rank-conformance-org')`,
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${workPackageId}, 'rank-conformance-org')`,
       );
     }
-    return sqliteFixture(source, directory, 'projectRanks', caseId);
+    return sqliteFixture(source, directory, 'workPackageRanks', caseId);
   },
   accessDecisions: async (caseId) => {
     const { source, directory } = await seedSqliteSource();
-    const [granted] = DETERMINISTIC_SEED.projectIds;
+    const [granted] = DETERMINISTIC_SEED.workPackageIds;
     source.db.run(
       sql`INSERT INTO organization (id, name, created_at) VALUES (${ACCESS_CONFORMANCE_ORGANIZATION}, 'Access', 1)`,
     );
-    for (const projectId of DETERMINISTIC_SEED.projectIds)
+    for (const workPackageId of DETERMINISTIC_SEED.workPackageIds)
       source.db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${ACCESS_CONFORMANCE_ORGANIZATION})`,
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${workPackageId}, ${ACCESS_CONFORMANCE_ORGANIZATION})`,
       );
     for (const ownerId of DETERMINISTIC_SEED.ownerIds)
       source.db.run(
@@ -928,6 +938,7 @@ const openers: ExistingStoreOpeners = {
   capacity: (caseId) => openSqliteCase('capacity', caseId),
   resourceCapacity: (caseId) => openSqliteCase('resourceCapacity', caseId),
   priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
+  settings: (caseId) => openSqliteCase('settings', caseId),
   calendarMarkers: (caseId) => openSqliteCase('calendarMarkers', caseId),
   workItems: (caseId) => openSqliteCase('workItems', caseId),
   steps: (caseId) => openSqliteCase('steps', caseId),
@@ -949,9 +960,9 @@ const openers: ExistingStoreOpeners = {
     source.db.run(
       sql`INSERT INTO organization (id, name, created_at) VALUES ('typed-conformance-org', 'Typed', 1)`,
     );
-    for (const projectId of DETERMINISTIC_SEED.projectIds) {
+    for (const workPackageId of DETERMINISTIC_SEED.workPackageIds) {
       source.db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'typed-conformance-org')`,
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${workPackageId}, 'typed-conformance-org')`,
       );
     }
     return sqliteFixture(source, directory, 'typedDependencies', caseId);
@@ -986,7 +997,7 @@ const declaration: SourceDeclaration = {
       gaps: [],
       open: openSqliteLimitsCase,
     },
-    projects: { kind: 'offered', gaps: [], open: openers.projects },
+    workPackages: { kind: 'offered', gaps: [], open: openers.workPackages },
     spaces: {
       kind: 'offered',
       gaps: [],
@@ -996,13 +1007,16 @@ const declaration: SourceDeclaration = {
         return openers.spaces(caseId);
       },
     },
-    projectRanks: {
+    workPackageRanks: {
       kind: 'offered',
       gaps: [],
       open: (caseId) => {
-        if (caseId !== 'projectRanks.orderIn:scoped-move' || openers.projectRanks === undefined)
-          throw new Error('unexpected project rank case');
-        return openers.projectRanks(caseId);
+        if (
+          caseId !== 'workPackageRanks.orderIn:scoped-move' ||
+          openers.workPackageRanks === undefined
+        )
+          throw new Error('unexpected work package rank case');
+        return openers.workPackageRanks(caseId);
       },
     },
     accessDecisions: {
@@ -1021,8 +1035,10 @@ const declaration: SourceDeclaration = {
     capacity: { kind: 'offered', gaps: [], open: openers.capacity },
     resourceCapacity: { kind: 'offered', gaps: [], open: openers.resourceCapacity },
     priorityBands: { kind: 'offered', gaps: [], open: openers.priorityBands },
+    settings: { kind: 'offered', gaps: [], open: openers.settings },
     calendarMarkers: { kind: 'offered', gaps: [], open: openers.calendarMarkers },
     workItems: { kind: 'offered', gaps: [], open: openers.workItems },
+    stepCatalogue: { kind: 'offered', gaps: [], open: openers.stepCatalogue },
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [], open: openers.estimates },
     actuals: { kind: 'offered', gaps: [], open: openers.actuals },
@@ -1065,35 +1081,40 @@ function withSavedPlanCapture(
 
 function captureMatchesOracle(
   capture: PlanInputReads,
-  projectIndex: 0 | 1,
+  workPackageIndex: 0 | 1,
   directoryEpoch: 'before' | 'after' = 'before',
 ): boolean {
   const observed = observePlanInput(capture);
   return (['memory-unbumped', 'sqlite-bumped'] as const).some((revisionPolicy) =>
     Bun.deepEquals(
       observed,
-      savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy, directoryEpoch),
+      savedPlanCaptureExpected(
+        DETERMINISTIC_SEED,
+        workPackageIndex,
+        revisionPolicy,
+        directoryEpoch,
+      ),
     ),
   );
 }
 
 function optionalCaptureMatchesOracle(
   capture: PlanInputReads | null,
-  projectIndex: 0 | 1,
+  workPackageIndex: 0 | 1,
 ): boolean {
-  return capture !== null && captureMatchesOracle(capture, projectIndex);
+  return capture !== null && captureMatchesOracle(capture, workPackageIndex);
 }
 
 function captureObservationMatchesOracle(
   observed: ReturnType<typeof observePlanInput> | null,
-  projectIndex: 0 | 1,
+  workPackageIndex: 0 | 1,
 ): boolean {
   return (
     observed !== null &&
     (['memory-unbumped', 'sqlite-bumped'] as const).some((revisionPolicy) =>
       Bun.deepEquals(
         observed,
-        savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy),
+        savedPlanCaptureExpected(DETERMINISTIC_SEED, workPackageIndex, revisionPolicy),
       ),
     )
   );
@@ -1101,10 +1122,10 @@ function captureObservationMatchesOracle(
 
 function emptyMissingCapture(): PlanInputReads {
   return {
-    project: {
-      id: 'capture-project-missing',
+    workPackage: {
+      id: 'capture-work-package-missing',
       name: 'Invented empty capture',
-      ownerId: 'owner-a',
+      projectId: 'fixture-project',
       restricted: false,
       estimateMethod: 'pert',
       depReach: 'whole-item',
@@ -1151,26 +1172,26 @@ function captureFaultSource(
   control: ReturnType<typeof createFaultControl>,
   mode: 'complete' | 'missing' | 'detached',
   mutateResult = true,
-  targetId = mode === 'missing' ? 'capture-project-missing' : 'project-a',
+  targetId = mode === 'missing' ? 'capture-work-package-missing' : 'work-package-a',
 ): SqliteSource {
   let retainedTags: readonly { readonly id: string; readonly name: string }[] | null = null;
   let targetReads = 0;
   return withSavedPlanCapture(source, {
-    async readPlanInput(projectId) {
-      const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+    async readPlanInput(workPackageId) {
+      const captured = await source.history.savedPlanCapture.readPlanInput(workPackageId);
       if (!control.isArmed()) return captured;
-      if (mode === 'complete' && projectId === targetId) {
+      if (mode === 'complete' && workPackageId === targetId) {
         if (captured === null || !captureMatchesOracle(captured, 0))
           throw new Error('complete capture prerequisite was not established');
         if (!control.reach(control.phase)) return captured;
         return mutateResult ? { ...captured, tags: [] } : captured;
       }
-      if (mode === 'missing' && projectId === targetId) {
+      if (mode === 'missing' && workPackageId === targetId) {
         if (captured !== null) throw new Error('missing capture prerequisite was not null');
         if (!control.reach(control.phase)) return captured;
         return mutateResult ? emptyMissingCapture() : captured;
       }
-      if (mode === 'detached' && projectId === targetId) {
+      if (mode === 'detached' && workPackageId === targetId) {
         targetReads += 1;
         if (captured === null || !captureMatchesOracle(captured, 0))
           throw new Error('detached capture prerequisite was not complete');
@@ -1202,8 +1223,8 @@ function rejectCaptureRead(
       },
     },
     replaceMethod(source.history.savedPlanCapture, 'readPlanInput', (readPlanInput) => {
-      return (projectId) => {
-        if (projectId !== targetId) return readPlanInput(projectId);
+      return (workPackageId) => {
+        if (workPackageId !== targetId) return readPlanInput(workPackageId);
         probe.attempts += 1;
         return Promise.reject(new Error('injected capture failure before the real read'));
       };
@@ -1219,8 +1240,8 @@ const captureCompleteFault = defineFault({
 });
 
 const captureMissingFault = defineFault({
-  id: 'break:savedPlanCapture.readPlanInput:missing-project',
-  caseId: 'savedPlanCapture.readPlanInput:missing-project',
+  id: 'break:savedPlanCapture.readPlanInput:missing-work-package',
+  caseId: 'savedPlanCapture.readPlanInput:missing-work-package',
   createControl: () => createFaultControl('saved-plan-capture:missing:empty-capture'),
   mutate: (source: SqliteSource, control) => captureFaultSource(source, control, 'missing'),
 });
@@ -1236,13 +1257,13 @@ function coherentCaptureFaultSource(
   source: SqliteSource,
   control: ReturnType<typeof createFaultControl>,
   mutateResult = true,
-  targetId = 'project-a',
+  targetId = 'work-package-a',
 ): SqliteSource {
   let targetReads = 0;
   return withSavedPlanCapture(source, {
-    async readPlanInput(projectId) {
-      const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
-      if (!control.isArmed() || projectId !== targetId) return captured;
+    async readPlanInput(workPackageId) {
+      const captured = await source.history.savedPlanCapture.readPlanInput(workPackageId);
+      if (!control.isArmed() || workPackageId !== targetId) return captured;
       targetReads += 1;
       if (targetReads > 1) return captured;
       if (captured === null || !captureMatchesOracle(captured, 0, 'before'))
@@ -1276,30 +1297,30 @@ function replaceSavedPlanWrite(
   return {
     write: replace(savedPlans.write.bind(savedPlans)),
     readOf: (savedPlanId) => savedPlans.readOf(savedPlanId),
-    listOf: (projectId) => savedPlans.listOf(projectId),
+    listOf: (workPackageId) => savedPlans.listOf(workPackageId),
     principalsOf: (savedPlanId) => savedPlans.principalsOf(savedPlanId),
-    renameTo: (savedPlanId, name) => savedPlans.renameTo(savedPlanId, name),
-    deleteOf: (savedPlanId) => savedPlans.deleteOf(savedPlanId),
+    renameTo: (savedPlanId, name, touch) => savedPlans.renameTo(savedPlanId, name, touch),
+    deleteOf: (savedPlanId, touch) => savedPlans.deleteOf(savedPlanId, touch),
   };
 }
 
-const capacityProjectTeamFault = defineFault({
-  id: 'break:capacity.set:project-team-key',
-  caseId: 'capacity.set:project-team-key',
-  createControl: () => createFaultControl('capacity.set:project-team-key'),
+const capacityWorkPackageTeamFault = defineFault({
+  id: 'break:capacity.set:work-package-team-key',
+  caseId: 'capacity.set:work-package-team-key',
+  createControl: () => createFaultControl('capacity.set:work-package-team-key'),
   mutate(source: SqliteSource, control) {
-    const projectByTeam = new Map<string, string>();
+    const workPackageByTeam = new Map<string, string>();
     return withStores(source, {
       capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
-        return (projectId, teamId, size, stamp) => {
-          const firstProjectId = projectByTeam.get(teamId);
-          projectByTeam.set(teamId, firstProjectId ?? projectId);
+        return (workPackageId, teamId, size, stamp) => {
+          const firstWorkPackageId = workPackageByTeam.get(teamId);
+          workPackageByTeam.set(teamId, firstWorkPackageId ?? workPackageId);
           return set(
-            firstProjectId !== undefined &&
-              firstProjectId !== projectId &&
-              control.reach('capacity.set:project-team-key')
-              ? firstProjectId
-              : projectId,
+            firstWorkPackageId !== undefined &&
+              firstWorkPackageId !== workPackageId &&
+              control.reach('capacity.set:work-package-team-key')
+              ? firstWorkPackageId
+              : workPackageId,
             teamId,
             size,
             stamp,
@@ -1317,13 +1338,13 @@ const capacityClearFault = defineFault({
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
-        return async (projectId, teamId, size, stamp) => {
+        return async (workPackageId, teamId, size, stamp) => {
           if (size !== null || !control.reach('capacity.set:clear')) {
-            return set(projectId, teamId, size, stamp);
+            return set(workPackageId, teamId, size, stamp);
           }
           source.db.run(sql.raw('PRAGMA ignore_check_constraints = ON'));
           try {
-            return await set(projectId, teamId, 0, stamp);
+            return await set(workPackageId, teamId, 0, stamp);
           } finally {
             source.db.run(sql.raw('PRAGMA ignore_check_constraints = OFF'));
           }
@@ -1340,15 +1361,15 @@ const capacityMissingReferenceFault = defineFault({
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
-        return (projectId, teamId, size, stamp) =>
+        return (workPackageId, teamId, size, stamp) =>
           control.reach('capacity.set:missing-reference')
             ? set(
-                projectId === 'project-missing' ? 'project-a' : projectId,
+                workPackageId === 'work-package-missing' ? 'work-package-a' : workPackageId,
                 teamId === 'team-missing' ? 'team-a' : teamId,
                 size,
                 stamp,
               )
-            : set(projectId, teamId, size, stamp);
+            : set(workPackageId, teamId, size, stamp);
       }),
     });
   },
@@ -1361,8 +1382,8 @@ const priorityDefaultsFault = defineFault({
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       priorityBands: replaceMethod(source.stores.priorityBands, 'listFor', (listFor) => {
-        return async (projectId) => {
-          const bands = await listFor(projectId);
+        return async (workPackageId) => {
+          const bands = await listFor(workPackageId);
           return control.reach('priorityBands.listFor:defaults') ? [] : bands;
         };
       }),
@@ -1371,59 +1392,60 @@ const priorityDefaultsFault = defineFault({
 });
 
 const priorityFirstRungFault = defineFault({
-  id: 'break:priorityBands.replace:whole-project:priority-first-rung',
-  caseId: 'priorityBands.replace:whole-project',
-  createControl: () => createFaultControl('priorityBands.replace:whole-project:first-rung'),
+  id: 'break:priorityBands.replace:whole-work-package:priority-first-rung',
+  caseId: 'priorityBands.replace:whole-work-package',
+  createControl: () => createFaultControl('priorityBands.replace:whole-work-package:first-rung'),
   mutate(source: SqliteSource, control) {
-    const replaceCountByProject = new Map<string, number>();
+    const replaceCountByWorkPackage = new Map<string, number>();
     return withStores(source, {
       priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
-        return async (projectId, bands, stamp) => {
-          const replaceCount = (replaceCountByProject.get(projectId) ?? 0) + 1;
-          replaceCountByProject.set(projectId, replaceCount);
+        return async (workPackageId, bands, stamp) => {
+          const replaceCount = (replaceCountByWorkPackage.get(workPackageId) ?? 0) + 1;
+          replaceCountByWorkPackage.set(workPackageId, replaceCount);
           if (
             replaceCount !== 2 ||
-            !control.reach('priorityBands.replace:whole-project:first-rung')
+            !control.reach('priorityBands.replace:whole-work-package:first-rung')
           ) {
-            return replace(projectId, bands, stamp);
+            return replace(workPackageId, bands, stamp);
           }
           const replacement = bands.at(0);
           if (replacement === undefined) throw new Error('replacement ladder has no first band');
-          const existing = await source.stores.priorityBands.listFor(projectId);
-          return replace(projectId, [replacement, ...existing.slice(1)], stamp);
+          const existing = await source.stores.priorityBands.listFor(workPackageId);
+          return replace(workPackageId, [replacement, ...existing.slice(1)], stamp);
         };
       }),
     });
   },
 });
 
-const priorityProjectScopeFault = defineFault({
-  id: 'break:priorityBands.replace:whole-project:priority-project-scope',
-  caseId: 'priorityBands.replace:whole-project',
-  createControl: () => createFaultControl('priorityBands.replace:whole-project:project-scope'),
+const priorityWorkPackageScopeFault = defineFault({
+  id: 'break:priorityBands.replace:whole-work-package:priority-work-package-scope',
+  caseId: 'priorityBands.replace:whole-work-package',
+  createControl: () =>
+    createFaultControl('priorityBands.replace:whole-work-package:work-package-scope'),
   mutate(source: SqliteSource, control) {
-    const replaceCountByProject = new Map<string, number>();
+    const replaceCountByWorkPackage = new Map<string, number>();
     return withStores(source, {
       priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
-        return async (projectId, bands, stamp) => {
-          const replaceCount = (replaceCountByProject.get(projectId) ?? 0) + 1;
-          replaceCountByProject.set(projectId, replaceCount);
+        return async (workPackageId, bands, stamp) => {
+          const replaceCount = (replaceCountByWorkPackage.get(workPackageId) ?? 0) + 1;
+          replaceCountByWorkPackage.set(workPackageId, replaceCount);
           if (
             replaceCount !== 2 ||
-            !control.reach('priorityBands.replace:whole-project:project-scope')
+            !control.reach('priorityBands.replace:whole-work-package:work-package-scope')
           ) {
-            return replace(projectId, bands, stamp);
+            return replace(workPackageId, bands, stamp);
           }
           source.db.run(
             sql.raw(`CREATE TEMP TRIGGER conformance_priority_band_unscoped_delete
-              AFTER DELETE ON project_priority_band
-              WHEN OLD.project_id = '${DETERMINISTIC_SEED.projectIds[0]}'
+              AFTER DELETE ON work_package_priority_band
+              WHEN OLD.work_package_id = '${DETERMINISTIC_SEED.workPackageIds[0]}'
               BEGIN
-                DELETE FROM project_priority_band WHERE project_id <> OLD.project_id;
+                DELETE FROM work_package_priority_band WHERE work_package_id <> OLD.work_package_id;
               END`),
           );
           try {
-            return await replace(projectId, bands, stamp);
+            return await replace(workPackageId, bands, stamp);
           } finally {
             source.db.run(sql.raw('DROP TRIGGER conformance_priority_band_unscoped_delete'));
           }
@@ -1433,16 +1455,18 @@ const priorityProjectScopeFault = defineFault({
   },
 });
 
-const priorityMissingProjectFault = defineFault({
-  id: 'break:priorityBands.replace:missing-project',
-  caseId: 'priorityBands.replace:missing-project',
-  createControl: () => createFaultControl('priorityBands.replace:missing-project'),
+const priorityMissingWorkPackageFault = defineFault({
+  id: 'break:priorityBands.replace:missing-work-package',
+  caseId: 'priorityBands.replace:missing-work-package',
+  createControl: () => createFaultControl('priorityBands.replace:missing-work-package'),
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
-        return (projectId, bands, stamp) =>
+        return (workPackageId, bands, stamp) =>
           replace(
-            control.reach('priorityBands.replace:missing-project') ? 'project-a' : projectId,
+            control.reach('priorityBands.replace:missing-work-package')
+              ? 'work-package-a'
+              : workPackageId,
             bands,
             stamp,
           );
@@ -1552,35 +1576,38 @@ const verifiedConflictFault = defineFault({
   },
 });
 
-const createProjectStepsFault = defineFault({
-  id: 'break:projects.create:steps',
-  caseId: 'projects.create:steps',
-  createControl: () => createFaultControl('projects.create:steps'),
+const createWorkPackageStepsFault = defineFault({
+  id: 'break:workPackages.create:steps',
+  caseId: 'workPackages.create:steps',
+  createControl: () => createFaultControl('workPackages.create:steps'),
   mutate(source: SqliteSource, control) {
     return withStores(source, {
-      projects: replaceMethod(
-        source.stores.projects,
+      workPackages: replaceMethod(
+        source.stores.workPackages,
         'create',
-        (create) => (project, steps, stamp) =>
-          create(project, control.reach('projects.create:steps') ? [] : steps, stamp),
+        (create) => (workPackage, steps, stamp) =>
+          create(workPackage, control.reach('workPackages.create:steps') ? [] : steps, stamp),
       ),
     });
   },
 });
 
-const updateProjectScopeFault = defineFault({
-  id: 'break:projects.update:scope',
-  caseId: 'projects.update:scope',
-  createControl: () => createFaultControl('projects.update:scope'),
+const updateWorkPackageScopeFault = defineFault({
+  id: 'break:workPackages.update:scope',
+  caseId: 'workPackages.update:scope',
+  createControl: () => createFaultControl('workPackages.update:scope'),
   mutate(source: SqliteSource, control) {
     return withStores(source, {
-      projects: replaceMethod(
-        source.stores.projects,
+      workPackages: replaceMethod(
+        source.stores.workPackages,
         'update',
         (update) => async (id, patch, stamp) => {
           const updated = await update(id, patch, stamp);
-          if (id === DETERMINISTIC_SEED.projectIds[0] && control.reach('projects.update:scope')) {
-            await update(DETERMINISTIC_SEED.projectIds[1], patch, stamp);
+          if (
+            id === DETERMINISTIC_SEED.workPackageIds[0] &&
+            control.reach('workPackages.update:scope')
+          ) {
+            await update(DETERMINISTIC_SEED.workPackageIds[1], patch, stamp);
           }
           return updated;
         },
@@ -1589,18 +1616,18 @@ const updateProjectScopeFault = defineFault({
   },
 });
 
-const projectReaderOrderFault = defineFault({
-  id: 'break:projects.recordOpen:reader-order',
-  caseId: 'projects.recordOpen:reader-order',
-  createControl: () => createFaultControl('projects.recordOpen:reader-order'),
+const workPackageReaderOrderFault = defineFault({
+  id: 'break:workPackages.recordOpen:reader-order',
+  caseId: 'workPackages.recordOpen:reader-order',
+  createControl: () => createFaultControl('workPackages.recordOpen:reader-order'),
   mutate(source: SqliteSource, control) {
     return withStores(source, {
-      projects: replaceMethod(
-        source.stores.projects,
+      workPackages: replaceMethod(
+        source.stores.workPackages,
         'listFor',
         (listFor) => (userId) =>
           listFor(
-            control.reach('projects.recordOpen:reader-order')
+            control.reach('workPackages.recordOpen:reader-order')
               ? DETERMINISTIC_SEED.ownerIds[0]
               : userId,
           ),
@@ -1616,19 +1643,24 @@ const markerOrderFault = defineFault({
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'listFor', (listFor) => {
-        return async (projectId) => {
-          if (!control.reach('calendarMarkers.listFor:total-order')) return listFor(projectId);
+        return async (workPackageId) => {
+          if (!control.reach('calendarMarkers.listFor:total-order')) return listFor(workPackageId);
           return await source.db
             .select({
               id: markerTable.id,
-              projectId: markerTable.projectId,
+              workPackageId: markerTable.scopeId,
               date: markerTable.date,
               name: markerTable.name,
               color: markerTable.color,
               createdAt: markerTable.createdAt,
             })
             .from(markerTable)
-            .where(eq(markerTable.projectId, projectId))
+            .where(
+              and(
+                eq(markerTable.scopeKind, 'work_package'),
+                eq(markerTable.scopeId, workPackageId),
+              ),
+            )
             .orderBy(asc(markerTable.date), asc(markerTable.createdAt));
         };
       }),
@@ -1636,20 +1668,21 @@ const markerOrderFault = defineFault({
   },
 });
 
-const markerProjectScopeFault = defineFault({
-  id: 'break:calendarMarkers.write:project-scope:marker-project-scope',
-  caseId: 'calendarMarkers.write:project-scope',
-  createControl: () => createFaultControl('calendarMarkers.write:project-scope:project-predicate'),
+const markerWorkPackageScopeFault = defineFault({
+  id: 'break:calendarMarkers.write:work-package-scope:marker-work-package-scope',
+  caseId: 'calendarMarkers.write:work-package-scope',
+  createControl: () =>
+    createFaultControl('calendarMarkers.write:work-package-scope:work-package-predicate'),
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'rename', (rename) => {
-        return (projectId, id, name) =>
+        return (workPackageId, id, name) =>
           rename(
             id === 'marker-owned-a' &&
-              projectId === DETERMINISTIC_SEED.projectIds[1] &&
-              control.reach('calendarMarkers.write:project-scope:project-predicate')
-              ? DETERMINISTIC_SEED.projectIds[0]
-              : projectId,
+              workPackageId === DETERMINISTIC_SEED.workPackageIds[1] &&
+              control.reach('calendarMarkers.write:work-package-scope:work-package-predicate')
+              ? DETERMINISTIC_SEED.workPackageIds[0]
+              : workPackageId,
             id,
             name,
           );
@@ -1659,16 +1692,16 @@ const markerProjectScopeFault = defineFault({
 });
 
 const markerLiteralDateFault = defineFault({
-  id: 'break:calendarMarkers.write:project-scope:marker-literal-date',
-  caseId: 'calendarMarkers.write:project-scope',
-  createControl: () => createFaultControl('calendarMarkers.write:project-scope:literal-date'),
+  id: 'break:calendarMarkers.write:work-package-scope:marker-literal-date',
+  caseId: 'calendarMarkers.write:work-package-scope',
+  createControl: () => createFaultControl('calendarMarkers.write:work-package-scope:literal-date'),
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'create', (create) => {
         return (marker) =>
           create(
             marker.id === 'marker-owned-a' &&
-              control.reach('calendarMarkers.write:project-scope:literal-date')
+              control.reach('calendarMarkers.write:work-package-scope:literal-date')
               ? Object.assign(marker, { date: '2026-09-11' })
               : marker,
           );
@@ -1805,8 +1838,8 @@ const estimateMoveOwnershipFault = defineFault({
           if (!control.reach('estimates.moveAll:ownership')) {
             return moveAll(fromWorkItemId, toWorkItemId, stamp);
           }
-          const estimates = await source.stores.estimates.listByProject(
-            DETERMINISTIC_SEED.projectIds[0],
+          const estimates = await source.stores.estimates.listByWorkPackage(
+            DETERMINISTIC_SEED.workPackageIds[0],
           );
           for (const estimate of estimates.filter(
             ({ workItemId }) => workItemId === fromWorkItemId,
@@ -1887,8 +1920,8 @@ const actualMoveOwnershipFault = defineFault({
           if (!control.reach('actuals.moveAll:ownership')) {
             return moveAll(fromWorkItemId, toWorkItemId, stamp);
           }
-          const actuals = await source.stores.actuals.listByProject(
-            DETERMINISTIC_SEED.projectIds[0],
+          const actuals = await source.stores.actuals.listByWorkPackage(
+            DETERMINISTIC_SEED.workPackageIds[0],
           );
           for (const actual of actuals.filter(({ workItemId }) => workItemId === fromWorkItemId)) {
             await source.stores.actuals.set({ ...actual, workItemId: toWorkItemId }, stamp);
@@ -1919,10 +1952,10 @@ const actualUnknownStepFault = defineFault({
       };
     });
     return withStores(source, {
-      actuals: replaceMethod(acceptingActuals, 'listByProject', (listByProject) => {
-        return async (projectId) => {
-          const rows = await listByProject(projectId);
-          if (projectId !== DETERMINISTIC_SEED.projectIds[0]) return rows;
+      actuals: replaceMethod(acceptingActuals, 'listByWorkPackage', (listByWorkPackage) => {
+        return async (workPackageId) => {
+          const rows = await listByWorkPackage(workPackageId);
+          if (workPackageId !== DETERMINISTIC_SEED.workPackageIds[0]) return rows;
           const escaped = await source.db
             .select({
               workItemId: actualTable.workItemId,
@@ -2016,8 +2049,8 @@ const measureMoveOneMetricFault = defineFault({
           if (!control.reach('measures.moveAll:all-metrics')) {
             return moveAll(fromWorkItemId, toWorkItemId, stamp);
           }
-          const measures = await source.stores.measures.listByProject(
-            DETERMINISTIC_SEED.projectIds[0],
+          const measures = await source.stores.measures.listByWorkPackage(
+            DETERMINISTIC_SEED.workPackageIds[0],
           );
           for (const measure of measures.filter(
             ({ workItemId, metric }) =>
@@ -2087,10 +2120,10 @@ const measureUnknownStepFault = defineFault({
       };
     });
     return withStores(source, {
-      measures: replaceMethod(acceptingMeasures, 'listByProject', (listByProject) => {
-        return async (projectId) => {
-          const rows = await listByProject(projectId);
-          if (projectId !== DETERMINISTIC_SEED.projectIds[0]) return rows;
+      measures: replaceMethod(acceptingMeasures, 'listByWorkPackage', (listByWorkPackage) => {
+        return async (workPackageId) => {
+          const rows = await listByWorkPackage(workPackageId);
+          if (workPackageId !== DETERMINISTIC_SEED.workPackageIds[0]) return rows;
           const escaped = await source.db
             .select({
               workItemId: measureTable.workItemId,
@@ -2167,7 +2200,9 @@ const progressMoveOwnershipFault = defineFault({
           if (!control.reach('progress.moveAll:ownership')) {
             return moveAll(fromWorkItemId, toWorkItemId, stamp);
           }
-          const rows = await source.stores.progress.listByProject(DETERMINISTIC_SEED.projectIds[0]);
+          const rows = await source.stores.progress.listByWorkPackage(
+            DETERMINISTIC_SEED.workPackageIds[0],
+          );
           for (const progress of rows.filter(({ workItemId }) => workItemId === fromWorkItemId)) {
             await source.stores.progress.set({ ...progress, workItemId: toWorkItemId }, stamp);
           }
@@ -2199,10 +2234,10 @@ const progressUnknownStepFault = defineFault({
       };
     });
     return withStores(source, {
-      progress: replaceMethod(acceptingProgress, 'listByProject', (listByProject) => {
-        return async (projectId) => {
-          const rows = await listByProject(projectId);
-          if (projectId !== DETERMINISTIC_SEED.projectIds[0]) return rows;
+      progress: replaceMethod(acceptingProgress, 'listByWorkPackage', (listByWorkPackage) => {
+        return async (workPackageId) => {
+          const rows = await listByWorkPackage(workPackageId);
+          if (workPackageId !== DETERMINISTIC_SEED.workPackageIds[0]) return rows;
           // The public reader's inner step join hides the stored orphan, so this
           // proof reads `step_progress` directly rather than fabricating a row.
           const escaped = await source.db
@@ -2244,7 +2279,9 @@ const dependencyIdFault = defineFault({
             usesIdUniqueness = true;
           }
           await add(dependency, stamp);
-          const storedPair = (await source.stores.dependencies.listByProject(dependency.projectId))
+          const storedPair = (
+            await source.stores.dependencies.listByWorkPackage(dependency.workPackageId)
+          )
             .filter(
               (edge) =>
                 edge.predecessorId === dependency.predecessorId &&
@@ -2361,7 +2398,7 @@ const directoryTeamAtomicityFault = defineFault({
               name: 'Directory escaped',
               serviceIds: [DETERMINISTIC_SEED.serviceIds[0]],
             },
-            projectIds: [],
+            workPackageIds: [],
           });
           // Proof: omitting this real early rename made this public snapshot
           // receive Directory original where Directory escaped was expected.
@@ -2402,8 +2439,8 @@ const dependencyPairPredicateFault = defineFault({
           }
           const edges = (
             await Promise.all(
-              DETERMINISTIC_SEED.projectIds.map((projectId) =>
-                source.stores.dependencies.listByProject(projectId),
+              DETERMINISTIC_SEED.workPackageIds.map((workPackageId) =>
+                source.stores.dependencies.listByWorkPackage(workPackageId),
               ),
             )
           ).flat();
@@ -2428,8 +2465,8 @@ const dependencyOutgoingOnlyFault = defineFault({
             return removeAllFor(workItemIds, stamp);
           }
           const doomed = new Set(workItemIds);
-          const edges = await source.stores.dependencies.listByProject(
-            DETERMINISTIC_SEED.projectIds[0],
+          const edges = await source.stores.dependencies.listByWorkPackage(
+            DETERMINISTIC_SEED.workPackageIds[0],
           );
           for (const edge of edges.filter((edge) => doomed.has(edge.predecessorId))) {
             await source.stores.dependencies.remove(edge.predecessorId, edge.successorId, stamp);
@@ -2525,15 +2562,15 @@ function createSeedFailureFault(observeReach: (reached: boolean) => void) {
     mutate(source: SqliteSource, control) {
       const decorated = addFault.mutate(source, control);
       return withStores(decorated, {
-        projects: replaceMethod(
-          decorated.stores.projects,
+        workPackages: replaceMethod(
+          decorated.stores.workPackages,
           'create',
-          (create) => async (project, steps, stamp) => {
-            await create(project, steps, stamp);
+          (create) => async (workPackage, steps, stamp) => {
+            await create(workPackage, steps, stamp);
             await decorated.stores.steps.add(
               {
                 id: 'probe-step',
-                projectId: project.id,
+                workPackageId: workPackage.id,
                 name: 'Setup step',
                 allowancePercent: 0,
                 estimateUnit: 'workdays' as const,
@@ -2576,8 +2613,13 @@ const renameFault = defineFault({
       steps: replaceMethod(
         source.stores.steps,
         'rename',
-        (rename) => (projectId, stepId, name, stamp) =>
-          rename(projectId, stepId, control.reach('steps.rename') ? 'faulted rename' : name, stamp),
+        (rename) => (workPackageId, stepId, name, stamp) =>
+          rename(
+            workPackageId,
+            stepId,
+            control.reach('steps.rename') ? 'faulted rename' : name,
+            stamp,
+          ),
       ),
     });
   },
@@ -2655,7 +2697,7 @@ const pruneFault = defineFault({
 });
 
 function task52JournalEntry(
-  id: 'flip-target' | 'flip-peer' | 'flip-other-project',
+  id: 'flip-target' | 'flip-peer' | 'flip-other-work-package',
   undone: boolean,
   expectedRevision?: number,
   fromRevision?: number,
@@ -2663,12 +2705,12 @@ function task52JournalEntry(
   const isTarget = id === 'flip-target';
   const isPeer = id === 'flip-peer';
   const createdAt = isTarget ? 101 : isPeer ? 102 : 103;
-  const projectId = id === 'flip-other-project' ? 'project-b' : 'project-a';
-  const userId = id === 'flip-other-project' ? 'owner-b' : 'owner-a';
+  const workPackageId = id === 'flip-other-work-package' ? 'work-package-b' : 'work-package-a';
+  const userId = id === 'flip-other-work-package' ? 'owner-b' : 'owner-a';
   const revisionKey = isTarget ? 'work-a-one' : isPeer ? 'work-a-two' : id;
   return {
     id,
-    projectId,
+    workPackageId,
     userId,
     personId: null,
     seq: isPeer ? 2 : 1,
@@ -2686,12 +2728,12 @@ function task52JournalEntry(
 
 function task52FlipHistory(): [PlanEvent[], PlanEvent[]] {
   const expectedEvent = (
-    id: 'flip-target' | 'flip-peer' | 'flip-other-project',
+    id: 'flip-target' | 'flip-peer' | 'flip-other-work-package',
     createdAt: number,
   ): PlanEvent => ({
     id: `event-${id}`,
-    projectId: id === 'flip-other-project' ? 'project-b' : 'project-a',
-    userId: id === 'flip-other-project' ? 'owner-b' : 'owner-a',
+    workPackageId: id === 'flip-other-work-package' ? 'work-package-b' : 'work-package-a',
+    userId: id === 'flip-other-work-package' ? 'owner-b' : 'owner-a',
     kind: 'rename',
     label: `Rename ${id}`,
     workItemId: `${id}-work`,
@@ -2702,7 +2744,7 @@ function task52FlipHistory(): [PlanEvent[], PlanEvent[]] {
   });
   return [
     [expectedEvent('flip-peer', 102), expectedEvent('flip-target', 101)],
-    [expectedEvent('flip-other-project', 103)],
+    [expectedEvent('flip-other-work-package', 103)],
   ];
 }
 
@@ -2710,23 +2752,31 @@ async function readTask52FlipState(source: SqliteSource) {
   return {
     entries: await Promise.all([
       source.stores.journal.entriesFor({
-        projectId: 'project-a',
+        workPackageId: 'work-package-a',
         userId: 'owner-a',
         personId: null,
       }),
       source.stores.journal.entriesFor({
-        projectId: 'project-b',
+        workPackageId: 'work-package-b',
         userId: 'owner-b',
         personId: null,
       }),
     ]),
     states: await Promise.all([
-      source.stores.journal.stateOf({ projectId: 'project-a', userId: 'owner-a', personId: null }),
-      source.stores.journal.stateOf({ projectId: 'project-b', userId: 'owner-b', personId: null }),
+      source.stores.journal.stateOf({
+        workPackageId: 'work-package-a',
+        userId: 'owner-a',
+        personId: null,
+      }),
+      source.stores.journal.stateOf({
+        workPackageId: 'work-package-b',
+        userId: 'owner-b',
+        personId: null,
+      }),
     ]),
     history: await Promise.all([
-      source.stores.planEvents.listFor('project-a', {}),
-      source.stores.planEvents.listFor('project-b', {}),
+      source.stores.planEvents.listFor('work-package-a', {}),
+      source.stores.planEvents.listFor('work-package-b', {}),
     ]),
   };
 }
@@ -2755,7 +2805,7 @@ const journalRetainedPreconditionsFault = defineFault({
                 task52JournalEntry('flip-target', true, 11, 10),
                 task52JournalEntry('flip-peer', false, 12, 11),
               ],
-              [task52JournalEntry('flip-other-project', false)],
+              [task52JournalEntry('flip-other-work-package', false)],
             ],
             states: [
               { undoable: true, redoable: true },
@@ -2772,7 +2822,7 @@ const journalRetainedPreconditionsFault = defineFault({
 
 /** The stack `flip-target` sits on in `journal.flip:preconditions`. */
 const FLIP_TARGET_STACK = {
-  projectId: DETERMINISTIC_SEED.projectIds[0],
+  workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
   userId: DETERMINISTIC_SEED.ownerIds[0],
   personId: null,
 };
@@ -2798,7 +2848,7 @@ const journalRestampFlipsFault = defineFault({
                 task52JournalEntry('flip-target', false, 31, 11),
                 task52JournalEntry('flip-peer', false, 12, 11),
               ],
-              [task52JournalEntry('flip-other-project', false)],
+              [task52JournalEntry('flip-other-work-package', false)],
             ],
             states: [
               { undoable: true, redoable: false },
@@ -2815,16 +2865,16 @@ const journalRestampFlipsFault = defineFault({
 
 function task52PlanEvent(
   id: string,
-  projectId: 'project-a' | 'project-b',
+  workPackageId: 'work-package-a' | 'work-package-b',
   userId: 'owner-a' | 'owner-b',
   workItemId: string | null,
   kind: string,
   createdAt: number,
 ): PlanEvent {
-  const prefix = projectId === 'project-a' ? 'a' : 'b';
+  const prefix = workPackageId === 'work-package-a' ? 'a' : 'b';
   return {
     id: `history-${prefix}-${id}`,
-    projectId,
+    workPackageId,
     userId,
     kind,
     label: `History history-${prefix}-${id}`,
@@ -2839,35 +2889,35 @@ function task52PlanEvent(
 function task52PlanEvents(): [PlanEvent[], PlanEvent[]] {
   return [
     [
-      task52PlanEvent('101-wide', 'project-a', 'owner-a', null, 'freeze', 101),
-      task52PlanEvent('100-z', 'project-a', 'owner-a', 'work-a-one', 'clear_estimate', 100),
-      task52PlanEvent('100-m', 'project-a', 'owner-a', 'work-a-one', 'actual', 100),
-      task52PlanEvent('100-a', 'project-a', 'owner-a', 'work-a-two', 'rename', 100),
-      task52PlanEvent('99', 'project-a', 'owner-a', 'work-a-one', 'estimate', 99),
+      task52PlanEvent('101-wide', 'work-package-a', 'owner-a', null, 'freeze', 101),
+      task52PlanEvent('100-z', 'work-package-a', 'owner-a', 'work-a-one', 'clear_estimate', 100),
+      task52PlanEvent('100-m', 'work-package-a', 'owner-a', 'work-a-one', 'actual', 100),
+      task52PlanEvent('100-a', 'work-package-a', 'owner-a', 'work-a-two', 'rename', 100),
+      task52PlanEvent('99', 'work-package-a', 'owner-a', 'work-a-one', 'estimate', 99),
     ],
     [
-      task52PlanEvent('101-wide', 'project-b', 'owner-b', null, 'freeze', 101),
-      task52PlanEvent('100', 'project-b', 'owner-b', 'work-b-two', 'rename', 100),
-      task52PlanEvent('99', 'project-b', 'owner-b', 'work-b-one', 'actual', 99),
+      task52PlanEvent('101-wide', 'work-package-b', 'owner-b', null, 'freeze', 101),
+      task52PlanEvent('100', 'work-package-b', 'owner-b', 'work-b-two', 'rename', 100),
+      task52PlanEvent('99', 'work-package-b', 'owner-b', 'work-b-one', 'actual', 99),
     ],
   ];
 }
 
 function task52HistoryEntry(
   id: string,
-  projectId: 'project-a' | 'project-b',
+  workPackageId: 'work-package-a' | 'work-package-b',
   userId: 'owner-a' | 'owner-b',
   seq: number,
   workItemId: string | null,
   kind: string,
   createdAt: number,
 ): JournalEntry {
-  const prefix = projectId === 'project-a' ? 'a' : 'b';
+  const prefix = workPackageId === 'work-package-a' ? 'a' : 'b';
   const journalId = `journal-${prefix}-${id}`;
   const eventId = `history-${prefix}-${id}`;
   return {
     id: journalId,
-    projectId,
+    workPackageId,
     userId,
     personId: null,
     seq,
@@ -2883,32 +2933,40 @@ function task52HistoryEntry(
 function task52HistoryJournals(): [JournalEntry[], JournalEntry[]] {
   return [
     [
-      task52HistoryEntry('99', 'project-a', 'owner-a', 1, 'work-a-one', 'estimate', 99),
-      task52HistoryEntry('100-z', 'project-a', 'owner-a', 2, 'work-a-one', 'clear_estimate', 100),
-      task52HistoryEntry('100-a', 'project-a', 'owner-a', 3, 'work-a-two', 'rename', 100),
-      task52HistoryEntry('100-m', 'project-a', 'owner-a', 4, 'work-a-one', 'actual', 100),
-      task52HistoryEntry('101-wide', 'project-a', 'owner-a', 5, null, 'freeze', 101),
+      task52HistoryEntry('99', 'work-package-a', 'owner-a', 1, 'work-a-one', 'estimate', 99),
+      task52HistoryEntry(
+        '100-z',
+        'work-package-a',
+        'owner-a',
+        2,
+        'work-a-one',
+        'clear_estimate',
+        100,
+      ),
+      task52HistoryEntry('100-a', 'work-package-a', 'owner-a', 3, 'work-a-two', 'rename', 100),
+      task52HistoryEntry('100-m', 'work-package-a', 'owner-a', 4, 'work-a-one', 'actual', 100),
+      task52HistoryEntry('101-wide', 'work-package-a', 'owner-a', 5, null, 'freeze', 101),
     ],
     [
-      task52HistoryEntry('99', 'project-b', 'owner-b', 1, 'work-b-one', 'actual', 99),
-      task52HistoryEntry('100', 'project-b', 'owner-b', 2, 'work-b-two', 'rename', 100),
-      task52HistoryEntry('101-wide', 'project-b', 'owner-b', 3, null, 'freeze', 101),
+      task52HistoryEntry('99', 'work-package-b', 'owner-b', 1, 'work-b-one', 'actual', 99),
+      task52HistoryEntry('100', 'work-package-b', 'owner-b', 2, 'work-b-two', 'rename', 100),
+      task52HistoryEntry('101-wide', 'work-package-b', 'owner-b', 3, null, 'freeze', 101),
     ],
   ];
 }
 
 async function readTask52HistoryState(source: SqliteSource) {
   return {
-    projectAEvents: await source.stores.planEvents.listFor('project-a', {}),
-    projectBEvents: await source.stores.planEvents.listFor('project-b', {}),
+    workPackageAEvents: await source.stores.planEvents.listFor('work-package-a', {}),
+    workPackageBEvents: await source.stores.planEvents.listFor('work-package-b', {}),
     journals: await Promise.all([
       source.stores.journal.entriesFor({
-        projectId: 'project-a',
+        workPackageId: 'work-package-a',
         userId: 'owner-a',
         personId: null,
       }),
       source.stores.journal.entriesFor({
-        projectId: 'project-b',
+        workPackageId: 'work-package-b',
         userId: 'owner-b',
         personId: null,
       }),
@@ -2923,26 +2981,26 @@ const planEventsIgnoreItemFilterFault = defineFault({
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       planEvents: replaceMethod(source.stores.planEvents, 'listFor', (listFor) => {
-        return async (projectId, filter) => {
+        return async (workPackageId, filter) => {
           if (
             !control.isArmed() ||
-            projectId !== 'project-a' ||
+            workPackageId !== 'work-package-a' ||
             filter.workItemId !== 'work-a-one' ||
             filter.kinds !== undefined
           ) {
-            return listFor(projectId, filter);
+            return listFor(workPackageId, filter);
           }
           // Proof: with the shared prerequisite removed, the two incomplete
           // setup negatives still phase-failed here; removing this guard too
           // changed both outcomes to `observed`.
           expect(await readTask52HistoryState(source)).toEqual({
-            projectAEvents: task52PlanEvents()[0],
-            projectBEvents: task52PlanEvents()[1],
+            workPackageAEvents: task52PlanEvents()[0],
+            workPackageBEvents: task52PlanEvents()[1],
             journals: task52HistoryJournals(),
           });
           // Proof: forwarding the item filter removed the leaked item-two event
           // and changed the four-fault reversal to `assertion-passed` throughout.
-          const leaked = await listFor(projectId, {});
+          const leaked = await listFor(workPackageId, {});
           // Proof: removing this complete-result guard changed the partial real
           // listFor negative from `phase-failed` to `observed`.
           expect(leaked).toEqual(task52PlanEvents()[0]);
@@ -2966,11 +3024,11 @@ const planEventsInclusivePruneFault = defineFault({
           // Proof: forwarding cutoff 100 retained every cutoff row and changed
           // the four-fault reversal to four `assertion-passed` outcomes.
           const deletedCount = await pruneOlderThan(101);
-          const [projectAEvents, projectBEvents] = task52PlanEvents();
+          const [workPackageAEvents, workPackageBEvents] = task52PlanEvents();
           expect({ deletedCount, ...(await readTask52HistoryState(source)) }).toEqual({
             deletedCount: 6,
-            projectAEvents: [projectAEvents[0]],
-            projectBEvents: [projectBEvents[0]],
+            workPackageAEvents: [workPackageAEvents[0]],
+            workPackageBEvents: [workPackageBEvents[0]],
             journals: task52HistoryJournals(),
           });
           control.reach('planEvents.pruneOlderThan:strict-cutoff:inclusive');
@@ -3001,7 +3059,7 @@ const journalIndependentHistoryFault = defineFault({
           expect(
             source.db.all<{
               id: string;
-              projectId: string;
+              workPackageId: string;
               userId: string;
               kind: string;
               label: string;
@@ -3010,14 +3068,14 @@ const journalIndependentHistoryFault = defineFault({
               before: string;
               after: string;
               createdAt: number;
-            }>(sql`SELECT id, project_id AS projectId, user_id AS userId, kind, label,
+            }>(sql`SELECT id, work_package_id AS workPackageId, user_id AS userId, kind, label,
                          work_item_id AS workItemId, step_id AS stepId, before, after,
                          created_at AS createdAt
                   FROM conformance_independent_journal_history`),
           ).toEqual([
             {
               id: event.id,
-              projectId: event.projectId,
+              workPackageId: event.workPackageId,
               userId: event.userId,
               kind: event.kind,
               label: event.label,
@@ -3030,14 +3088,14 @@ const journalIndependentHistoryFault = defineFault({
           ]);
           expect(
             await source.stores.journal.entriesFor({
-              projectId: entry.projectId,
+              workPackageId: entry.workPackageId,
               userId: entry.userId,
               personId: null,
             }),
           ).toContainEqual({ ...entry, seq: 2, undone: false });
-          expect(await source.stores.planEvents.listFor(event.projectId, {})).not.toContainEqual(
-            event,
-          );
+          expect(
+            await source.stores.planEvents.listFor(event.workPackageId, {}),
+          ).not.toContainEqual(event);
           control.reach('journal.append:history-atomic:independent-history');
         };
       }),
@@ -3075,12 +3133,14 @@ const journalLateOutsideFault = defineFault({
           if (entry.id !== 'atomic-late-target') return;
           expect(
             await source.stores.journal.entriesFor({
-              projectId: entry.projectId,
+              workPackageId: entry.workPackageId,
               userId: entry.userId,
               personId: null,
             }),
           ).toContainEqual({ ...entry, seq: 3, undone: false });
-          expect(await source.stores.planEvents.listFor(event.projectId, {})).toContainEqual(event);
+          expect(await source.stores.planEvents.listFor(event.workPackageId, {})).toContainEqual(
+            event,
+          );
           control.reach('journal.append:history-atomic:outside-transaction');
           throw new Error('injected SQLite journal-history-insert failure outside transaction');
         };
@@ -3117,24 +3177,24 @@ function commitJournalWithoutLateHistory(
           source.db.run(sql`DELETE FROM plan_event WHERE id = ${event.id}`);
           probe.entries = await Promise.all([
             source.stores.journal.entriesFor({
-              projectId: DETERMINISTIC_SEED.projectIds[0],
+              workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
               userId: DETERMINISTIC_SEED.ownerIds[0],
               personId: null,
             }),
             source.stores.journal.entriesFor({
-              projectId: DETERMINISTIC_SEED.projectIds[0],
+              workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
               userId: DETERMINISTIC_SEED.ownerIds[1],
               personId: null,
             }),
             source.stores.journal.entriesFor({
-              projectId: DETERMINISTIC_SEED.projectIds[1],
+              workPackageId: DETERMINISTIC_SEED.workPackageIds[1],
               userId: DETERMINISTIC_SEED.ownerIds[1],
               personId: null,
             }),
           ]);
           probe.history = await Promise.all(
-            DETERMINISTIC_SEED.projectIds.map((projectId) =>
-              source.stores.planEvents.listFor(projectId, {}),
+            DETERMINISTIC_SEED.workPackageIds.map((workPackageId) =>
+              source.stores.planEvents.listFor(workPackageId, {}),
             ),
           );
         };
@@ -3145,14 +3205,14 @@ function commitJournalWithoutLateHistory(
 
 function expectedAtomicEntry(
   id: string,
-  projectId: string,
+  workPackageId: string,
   userId: string,
   seq: number,
   createdAt: number,
 ): JournalEntry {
   return {
     id,
-    projectId,
+    workPackageId,
     userId,
     personId: null,
     seq,
@@ -3167,13 +3227,13 @@ function expectedAtomicEntry(
 
 function expectedAtomicEvent(
   id: string,
-  projectId: string,
+  workPackageId: string,
   userId: string,
   createdAt: number,
 ): PlanEvent {
   return {
     id: `event-${id}`,
-    projectId,
+    workPackageId,
     userId,
     kind: 'rename',
     label: `Rename ${id}`,
@@ -3223,7 +3283,7 @@ const journalReplacementCorruptionFault = defineFault({
 function expectedActorBRedo() {
   return {
     id: 'redo-b',
-    projectId: DETERMINISTIC_SEED.projectIds[0],
+    workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
     userId: DETERMINISTIC_SEED.ownerIds[1],
     personId: null,
     seq: 1,
@@ -3248,7 +3308,7 @@ const journalBroadRedoFault = defineFault({
           if (entry.id !== 'redo-a-replacement') return;
           expect(
             await source.stores.journal.entriesFor({
-              projectId: DETERMINISTIC_SEED.projectIds[0],
+              workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
               userId: DETERMINISTIC_SEED.ownerIds[1],
               personId: null,
             }),
@@ -3288,21 +3348,22 @@ const subtreeDependencyBackingFault = defineFault({
       subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
         return async (copy, stamp) => {
           if (!control.isArmed()) return insertSubtree(copy, stamp);
-          await insertSubtree({ ...copy, dependencies: [] }, stamp);
+          const written=await insertSubtree({ ...copy, dependencies: [] }, stamp);
+          if(written!=='written')return written;
           source.db.run(
             sql.raw(
-              'CREATE TEMP TABLE IF NOT EXISTS conformance_isolated_dependency (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, predecessor_id TEXT NOT NULL, successor_id TEXT NOT NULL)',
+              'CREATE TEMP TABLE IF NOT EXISTS conformance_isolated_dependency (id TEXT PRIMARY KEY, work_package_id TEXT NOT NULL, predecessor_id TEXT NOT NULL, successor_id TEXT NOT NULL)',
             ),
           );
           for (const edge of copy.dependencies) {
             source.db.run(
-              sql`INSERT INTO conformance_isolated_dependency (id, project_id, predecessor_id, successor_id)
-                  VALUES (${edge.id}, ${edge.projectId}, ${edge.predecessorId}, ${edge.successorId})`,
+              sql`INSERT INTO conformance_isolated_dependency (id, work_package_id, predecessor_id, successor_id)
+                  VALUES (${edge.id}, ${edge.workPackageId}, ${edge.predecessorId}, ${edge.successorId})`,
             );
           }
           expect(
             source.db.all<StoredDependency>(
-              sql`SELECT id, project_id AS projectId, predecessor_id AS predecessorId,
+              sql`SELECT id, work_package_id AS workPackageId, predecessor_id AS predecessorId,
                          successor_id AS successorId
                   FROM conformance_isolated_dependency ORDER BY id`,
             ),
@@ -3310,11 +3371,12 @@ const subtreeDependencyBackingFault = defineFault({
           // Proof: removing only this complete-state prerequisite changed the
           // successful-incomplete dependency proof from phase-failed to observed.
           assertCompleteStateAlternative(
-            await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
+            await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.workPackageIds[0]),
             DETERMINISTIC_SEED,
             [{ dependencyIds: copy.dependencies.map(({ id }) => id) }, {}],
           );
           control.reach('subtrees.insertSubtree:complete-copy:dependencies');
+          return written;
         };
       }),
     });
@@ -3334,13 +3396,14 @@ const subtreeRemovedMeasureFault = defineFault({
           const pairWide = copy.removedMeasures.flatMap(({ workItemId, stepId }) =>
             metrics.map((metric) => ({ workItemId, stepId, metric })),
           );
-          await insertSubtree({ ...copy, removedMeasures: pairWide }, stamp);
+          const written=await insertSubtree({ ...copy, removedMeasures: pairWide }, stamp);
+          if(written!=='written')return written;
           const [firstItemId, removalItemId] = DETERMINISTIC_SEED.workItemIds[0];
           const [devStepId, qaStepId] = DETERMINISTIC_SEED.stepIds[0];
           // Proof: removing only this complete-state prerequisite changed the
           // successful-incomplete measure proof from phase-failed to observed.
           assertCompleteStateAlternative(
-            await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
+            await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.workPackageIds[0]),
             DETERMINISTIC_SEED,
             [
               {
@@ -3354,6 +3417,7 @@ const subtreeRemovedMeasureFault = defineFault({
             ],
           );
           control.reach('subtrees.insertSubtree:complete-copy:removed-measure');
+          return written;
         };
       }),
     });
@@ -3419,11 +3483,12 @@ function sqliteSavedPlanWriteFault<const Id extends SqliteSavedPlanWriteFaultId>
   });
 }
 
-function expectedTask61Present() {
+function expectedTask61Present(): StoredSavedPlan {
   return {
+    stepIdentity: { kind: 'pre_catalogue' },
     header: {
       id: 'saved-present',
-      projectId: 'project-a',
+      workPackageId: 'work-package-a',
       name: 'Present plan',
       createdBy: 'Ada Display',
       createdById: 'owner-b',
@@ -3459,7 +3524,7 @@ function runTask61Mutation(
 
 function expectedTask61Touch(
   id: string,
-  projectId: string,
+  workPackageId: string,
   name: string,
   createdBy: string,
   createdById: string | null,
@@ -3468,11 +3533,12 @@ function expectedTask61Touch(
   bytes: string,
   inputBytes: number,
   hash: string,
-) {
+): StoredSavedPlan {
   return {
+    stepIdentity: { kind: 'pre_catalogue' },
     header: {
       id,
-      projectId,
+      workPackageId,
       name,
       createdBy,
       createdById,
@@ -3494,7 +3560,7 @@ function expectedTask61Touch(
 async function assertCompleteTask61UnknownState(source: SqliteSource) {
   const target = expectedTask61Touch(
     'touch-target',
-    'project-a',
+    'work-package-a',
     'Renamed target',
     'External author',
     'owner-b',
@@ -3506,7 +3572,7 @@ async function assertCompleteTask61UnknownState(source: SqliteSource) {
   );
   const nullable = expectedTask61Touch(
     'touch-null-creator',
-    'project-a',
+    'work-package-a',
     'Null creator',
     'Deleted account display',
     null,
@@ -3518,8 +3584,8 @@ async function assertCompleteTask61UnknownState(source: SqliteSource) {
   );
   const peer = expectedTask61Touch(
     'touch-peer',
-    'project-a',
-    'Project peer',
+    'work-package-a',
+    'Work package peer',
     'Owner A display',
     'owner-a',
     403,
@@ -3529,10 +3595,10 @@ async function assertCompleteTask61UnknownState(source: SqliteSource) {
     'hash-peer',
   );
   const other = expectedTask61Touch(
-    'touch-other-project',
-    'project-b',
-    'Other project sentinel',
-    'Owner A cross-project',
+    'touch-other-work-package',
+    'work-package-b',
+    'Other work package sentinel',
+    'Owner A cross-work-package',
     'owner-a',
     404,
     4,
@@ -3544,7 +3610,7 @@ async function assertCompleteTask61UnknownState(source: SqliteSource) {
     'touch-target',
     'touch-null-creator',
     'touch-peer',
-    'touch-other-project',
+    'touch-other-work-package',
     'missing-touch-plan',
   ];
   expect(await Promise.all(ids.map((id) => source.history.savedPlans.readOf(id)))).toEqual([
@@ -3556,32 +3622,32 @@ async function assertCompleteTask61UnknownState(source: SqliteSource) {
   ]);
   expect(
     await Promise.all(
-      DETERMINISTIC_SEED.projectIds.map((id) => source.history.savedPlans.listOf(id)),
+      DETERMINISTIC_SEED.workPackageIds.map((id) => source.history.savedPlans.listOf(id)),
     ),
   ).toEqual([[peer.header, nullable.header, target.header], [other.header]]);
   expect(await Promise.all(ids.map((id) => source.history.savedPlans.principalsOf(id)))).toEqual([
     {
       savedPlanId: 'touch-target',
-      projectId: 'project-a',
-      projectOwnerId: 'owner-a',
+      workPackageId: 'work-package-a',
+
       createdById: 'owner-b',
     },
     {
       savedPlanId: 'touch-null-creator',
-      projectId: 'project-a',
-      projectOwnerId: 'owner-a',
+      workPackageId: 'work-package-a',
+
       createdById: null,
     },
     {
       savedPlanId: 'touch-peer',
-      projectId: 'project-a',
-      projectOwnerId: 'owner-a',
+      workPackageId: 'work-package-a',
+
       createdById: 'owner-a',
     },
     {
-      savedPlanId: 'touch-other-project',
-      projectId: 'project-b',
-      projectOwnerId: 'owner-b',
+      savedPlanId: 'touch-other-work-package',
+      workPackageId: 'work-package-b',
+
       createdById: 'owner-a',
     },
     null,
@@ -3737,18 +3803,18 @@ const savedPlanPrincipalFault = defineFault({
               check,
             );
             if (plan.id !== 'touch-target' || outcome.outcome !== 'written') return outcome;
-            // Proof: conflating the creator with the project owner reached only after
+            // Proof: conflating the creator with the work package owner reached only after
             // the repository and principal query exposed owner-a in both roles.
             expect(await source.history.savedPlans.principalsOf(plan.id)).toEqual({
               savedPlanId: 'touch-target',
-              projectId: 'project-a',
-              projectOwnerId: 'owner-a',
+              workPackageId: 'work-package-a',
+
               createdById: 'owner-a',
             });
             expect(await source.history.savedPlans.readOf(plan.id)).toEqual({
               ...expectedTask61Touch(
                 'touch-target',
-                'project-a',
+                'work-package-a',
                 'Touch target',
                 'External author',
                 'owner-a',
@@ -3761,7 +3827,7 @@ const savedPlanPrincipalFault = defineFault({
               header: {
                 ...expectedTask61Touch(
                   'touch-target',
-                  'project-a',
+                  'work-package-a',
                   'Touch target',
                   'External author',
                   'owner-a',
@@ -3796,8 +3862,8 @@ function sqliteSavedPlanUnknownTouchFault(method: 'renameTo' | 'deleteOf', phase
           ? replaceMethod(
               source.history.savedPlans,
               'renameTo',
-              (renameTo) => async (savedPlanId, name) => {
-                const outcome = await renameTo(savedPlanId, name);
+              (renameTo) => async (savedPlanId, name, touch) => {
+                const outcome = await renameTo(savedPlanId, name, touch);
                 if (savedPlanId !== 'missing-touch-plan') return outcome;
                 // Proof: returning touched only after these repository outcomes and
                 // readback checks failed the shared unknown rename assertion.
@@ -3810,8 +3876,8 @@ function sqliteSavedPlanUnknownTouchFault(method: 'renameTo' | 'deleteOf', phase
           : replaceMethod(
               source.history.savedPlans,
               'deleteOf',
-              (deleteOf) => async (savedPlanId) => {
-                const outcome = await deleteOf(savedPlanId);
+              (deleteOf) => async (savedPlanId, touch) => {
+                const outcome = await deleteOf(savedPlanId, touch);
                 if (savedPlanId !== 'missing-touch-plan') return outcome;
                 // Proof: returning touched only after these repository outcomes and
                 // readback checks failed the shared unknown delete assertion.
@@ -3843,12 +3909,13 @@ function expectedTask62Plan(
   inputBytes: number,
   inputSha256: string,
   schedule?: { readonly body: string; readonly bytes: number; readonly sha256: string },
-  projectId = 'project-a',
+  workPackageId = 'work-package-a',
 ): StoredSavedPlan {
   return {
+    stepIdentity: { kind: 'pre_catalogue' },
     header: {
       id,
-      projectId,
+      workPackageId,
       name,
       createdBy: 'Quota Writer',
       createdById: 'owner-b',
@@ -3869,14 +3936,14 @@ function expectedTask62Plan(
 
 function task62OtherPlan() {
   return expectedTask62Plan(
-    'saved-other-project',
-    'Other project sentinel',
+    'saved-other-work-package',
+    'Other work package sentinel',
     500,
     'é',
     2,
     '4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c',
     undefined,
-    'project-b',
+    'work-package-b',
   );
 }
 
@@ -3886,15 +3953,17 @@ async function assertTask62FaultState(source: SqliteSource, plans: readonly Stor
     reads: [...plans],
     lists: [
       plans
-        .filter(({ header }) => header.projectId === 'project-a')
+        .filter(({ header }) => header.workPackageId === 'work-package-a')
         .map(({ header }) => header)
         .toSorted((a, b) => b.createdAt - a.createdAt),
-      plans.filter(({ header }) => header.projectId === 'project-b').map(({ header }) => header),
+      plans
+        .filter(({ header }) => header.workPackageId === 'work-package-b')
+        .map(({ header }) => header),
     ],
     principals: plans.map(({ header }) => ({
       savedPlanId: header.id,
-      projectId: header.projectId,
-      projectOwnerId: header.projectId === 'project-a' ? 'owner-a' : 'owner-b',
+      workPackageId: header.workPackageId,
+
       createdById: header.createdById,
     })),
   });
@@ -3906,9 +3975,9 @@ function expectedTask62PublicState(
 ): SavedPlanPublicState {
   return {
     reads: ids.map((id) => plans.find(({ header }) => header.id === id) ?? null),
-    lists: ['project-a', 'project-b'].map((projectId) =>
+    lists: ['work-package-a', 'work-package-b'].map((workPackageId) =>
       plans
-        .filter(({ header }) => header.projectId === projectId)
+        .filter(({ header }) => header.workPackageId === workPackageId)
         .map(({ header }) => header)
         .toSorted((a, b) => b.createdAt - a.createdAt),
     ),
@@ -3918,8 +3987,8 @@ function expectedTask62PublicState(
         ? null
         : {
             savedPlanId: id,
-            projectId: plan.header.projectId,
-            projectOwnerId: plan.header.projectId === 'project-a' ? 'owner-a' : 'owner-b',
+            workPackageId: plan.header.workPackageId,
+
             createdById: plan.header.createdById,
           };
     }),
@@ -3930,7 +3999,7 @@ function expectedPrematureTask62States(): SavedPlanPublicState[] {
   const other = task62OtherPlan();
   return [
     expectedTask62PublicState(
-      ['quota-refused', 'quota-held', 'saved-other-project'],
+      ['quota-refused', 'quota-held', 'saved-other-work-package'],
       [
         expectedTask62Plan(
           'quota-held',
@@ -3949,7 +4018,7 @@ function expectedPrematureTask62States(): SavedPlanPublicState[] {
       ],
     ),
     expectedTask62PublicState(
-      ['quota-window-last', 'quota-window-held', 'quota-window-rival', 'saved-other-project'],
+      ['quota-window-last', 'quota-window-held', 'quota-window-rival', 'saved-other-work-package'],
       [
         expectedTask62Plan(
           'quota-window-held',
@@ -3963,7 +4032,7 @@ function expectedPrematureTask62States(): SavedPlanPublicState[] {
       ],
     ),
     expectedTask62PublicState(
-      ['late-target', 'late-sentinel', 'saved-other-project'],
+      ['late-target', 'late-sentinel', 'saved-other-work-package'],
       [
         expectedTask62Plan(
           'late-sentinel',
@@ -4149,7 +4218,7 @@ const savedPlanMissingInputFault = defineFault({
     return observeTask62Write(source, sqliteMissingInputProbe, 'late-target', [
       'late-target',
       'late-sentinel',
-      'saved-other-project',
+      'saved-other-work-package',
     ]);
   },
 });
@@ -4216,10 +4285,10 @@ function prematureTask62Source(source: SqliteSource, probe: SavedPlanPhaseProbe,
 }
 
 function task62ProbeIds(targetId: string): readonly string[] {
-  if (targetId === 'quota-refused') return [targetId, 'quota-held', 'saved-other-project'];
+  if (targetId === 'quota-refused') return [targetId, 'quota-held', 'saved-other-work-package'];
   if (targetId === 'quota-window-last')
-    return [targetId, 'quota-window-held', 'quota-window-rival', 'saved-other-project'];
-  return [targetId, 'late-sentinel', 'saved-other-project'];
+    return [targetId, 'quota-window-held', 'quota-window-rival', 'saved-other-work-package'];
+  return [targetId, 'late-sentinel', 'saved-other-work-package'];
 }
 
 function observeTask62Write(
@@ -4352,7 +4421,7 @@ interface SavedPlanPhaseProbe {
   attempts: number;
   closeCalls: number;
   state: SavedPlanPublicState | null;
-  boundary?: StoredSavedPlan | null;
+  boundary?: StoredSavedPlanBytes | null;
   observations?: { readonly holding: SavedPlanHoldingRow; readonly incomingBytes: number }[];
   failure?: unknown;
 }
@@ -4374,7 +4443,7 @@ const TASK61_TOUCH_IDS = [
   'touch-target',
   'touch-null-creator',
   'touch-peer',
-  'touch-other-project',
+  'touch-other-work-package',
   'missing-touch-plan',
 ] as const;
 
@@ -4385,7 +4454,9 @@ async function readSavedPlanPublicState(
   return {
     reads: await Promise.all(ids.map((id) => source.history.savedPlans.readOf(id))),
     lists: await Promise.all(
-      DETERMINISTIC_SEED.projectIds.map((projectId) => source.history.savedPlans.listOf(projectId)),
+      DETERMINISTIC_SEED.workPackageIds.map((workPackageId) =>
+        source.history.savedPlans.listOf(workPackageId),
+      ),
     ),
     principals: await Promise.all(ids.map((id) => source.history.savedPlans.principalsOf(id))),
   };
@@ -4399,8 +4470,8 @@ function expectedTask61PartialBodiesState(): SavedPlanPublicState {
     principals: [
       {
         savedPlanId: 'saved-present',
-        projectId: 'project-a',
-        projectOwnerId: 'owner-a',
+        workPackageId: 'work-package-a',
+
         createdById: 'owner-b',
       },
       null,
@@ -4411,7 +4482,7 @@ function expectedTask61PartialBodiesState(): SavedPlanPublicState {
 function expectedTask61PartialCreatorState(): SavedPlanPublicState {
   const target = expectedTask61Touch(
     'touch-target',
-    'project-a',
+    'work-package-a',
     'Touch target',
     'Corrupt display',
     'owner-a',
@@ -4427,8 +4498,8 @@ function expectedTask61PartialCreatorState(): SavedPlanPublicState {
     principals: [
       {
         savedPlanId: 'touch-target',
-        projectId: 'project-a',
-        projectOwnerId: 'owner-a',
+        workPackageId: 'work-package-a',
+
         createdById: 'owner-a',
       },
       null,
@@ -4442,7 +4513,7 @@ function expectedTask61PartialCreatorState(): SavedPlanPublicState {
 function expectedTask61CollateralState(): SavedPlanPublicState {
   const target = expectedTask61Touch(
     'touch-target',
-    'project-a',
+    'work-package-a',
     'Renamed target',
     'External author',
     'owner-b',
@@ -4454,7 +4525,7 @@ function expectedTask61CollateralState(): SavedPlanPublicState {
   );
   const nullable = expectedTask61Touch(
     'touch-null-creator',
-    'project-a',
+    'work-package-a',
     'Null creator',
     'Deleted account display',
     null,
@@ -4465,10 +4536,10 @@ function expectedTask61CollateralState(): SavedPlanPublicState {
     'hash-nullable',
   );
   const other = expectedTask61Touch(
-    'touch-other-project',
-    'project-b',
-    'Other project sentinel',
-    'Owner A cross-project',
+    'touch-other-work-package',
+    'work-package-b',
+    'Other work package sentinel',
+    'Owner A cross-work-package',
     'owner-a',
     404,
     4,
@@ -4482,21 +4553,21 @@ function expectedTask61CollateralState(): SavedPlanPublicState {
     principals: [
       {
         savedPlanId: 'touch-target',
-        projectId: 'project-a',
-        projectOwnerId: 'owner-a',
+        workPackageId: 'work-package-a',
+
         createdById: 'owner-b',
       },
       {
         savedPlanId: 'touch-null-creator',
-        projectId: 'project-a',
-        projectOwnerId: 'owner-a',
+        workPackageId: 'work-package-a',
+
         createdById: null,
       },
       null,
       {
-        savedPlanId: 'touch-other-project',
-        projectId: 'project-b',
-        projectOwnerId: 'owner-b',
+        savedPlanId: 'touch-other-work-package',
+        workPackageId: 'work-package-b',
+
         createdById: 'owner-a',
       },
       null,
@@ -4596,25 +4667,43 @@ function collateralSavedPlanTouch(
       ? replaceMethod(
           source.history.savedPlans,
           'renameTo',
-          (renameTo) => async (savedPlanId, name) => {
-            const outcome = await renameTo(savedPlanId, name);
+          (renameTo) => async (savedPlanId, name, touch) => {
+            const outcome = await renameTo(savedPlanId, name, touch);
             if (savedPlanId === 'missing-touch-plan') {
               probe.attempts += 1;
-              expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
+              expect(
+                await source.history.savedPlans.deleteOf('touch-peer', {
+                  kind: 'legacy',
+                  actorId: 'owner-a',
+                  source: 'internal',
+                  operation: 'delete',
+                }),
+              ).toBe('touched');
               probe.state = await readSavedPlanPublicState(source, TASK61_TOUCH_IDS);
             }
             return outcome;
           },
         )
-      : replaceMethod(source.history.savedPlans, 'deleteOf', (deleteOf) => async (savedPlanId) => {
-          const outcome = await deleteOf(savedPlanId);
-          if (savedPlanId === 'missing-touch-plan') {
-            probe.attempts += 1;
-            expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
-            probe.state = await readSavedPlanPublicState(source, TASK61_TOUCH_IDS);
-          }
-          return outcome;
-        });
+      : replaceMethod(
+          source.history.savedPlans,
+          'deleteOf',
+          (deleteOf) => async (savedPlanId, touch) => {
+            const outcome = await deleteOf(savedPlanId, touch);
+            if (savedPlanId === 'missing-touch-plan') {
+              probe.attempts += 1;
+              expect(
+                await source.history.savedPlans.deleteOf('touch-peer', {
+                  kind: 'legacy',
+                  actorId: 'owner-a',
+                  source: 'internal',
+                  operation: 'delete',
+                }),
+              ).toBe('touched');
+              probe.state = await readSavedPlanPublicState(source, TASK61_TOUCH_IDS);
+            }
+            return outcome;
+          },
+        );
   return withSavedPlans(owned, savedPlans);
 }
 
@@ -4660,24 +4749,24 @@ function rejectJournalBeforeAppend(
           probe.attempts += 1;
           probe.entries = await Promise.all([
             source.stores.journal.entriesFor({
-              projectId: DETERMINISTIC_SEED.projectIds[0],
+              workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
               userId: DETERMINISTIC_SEED.ownerIds[0],
               personId: null,
             }),
             source.stores.journal.entriesFor({
-              projectId: DETERMINISTIC_SEED.projectIds[0],
+              workPackageId: DETERMINISTIC_SEED.workPackageIds[0],
               userId: DETERMINISTIC_SEED.ownerIds[1],
               personId: null,
             }),
             source.stores.journal.entriesFor({
-              projectId: DETERMINISTIC_SEED.projectIds[1],
+              workPackageId: DETERMINISTIC_SEED.workPackageIds[1],
               userId: DETERMINISTIC_SEED.ownerIds[1],
               personId: null,
             }),
           ]);
           probe.history = await Promise.all(
-            DETERMINISTIC_SEED.projectIds.map((projectId) =>
-              source.stores.planEvents.listFor(projectId, {}),
+            DETERMINISTIC_SEED.workPackageIds.map((workPackageId) =>
+              source.stores.planEvents.listFor(workPackageId, {}),
             ),
           );
           throw new Error('injected journal-history-insert failure before target append');
@@ -4723,11 +4812,12 @@ function omitCopiedProgress(source: SqliteSource, probe: SubtreeIncompleteProbe)
       subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
         return async (copy, stamp) => {
           probe.attempts += 1;
-          await insertSubtree({ ...copy, progress: [] }, stamp);
+          const outcome = await insertSubtree({ ...copy, progress: [] }, stamp);
           probe.state = await readSubtreePublicState(
             readersOf(source),
-            DETERMINISTIC_SEED.projectIds[0],
+            DETERMINISTIC_SEED.workPackageIds[0],
           );
+          return outcome;
         };
       }),
     },
@@ -4739,11 +4829,11 @@ function rejectSubtreeBeforeWrite(
   probe: SubtreePrewriteProbe,
   message: string,
 ): SqliteSource {
-  const reject = async (_copy: SubtreeCopy, _stamp: WriteStamp): Promise<void> => {
+  const reject = async (_copy: SubtreeCopy, _stamp: WriteStamp): Promise<never> => {
     probe.attempts += 1;
     probe.state = await Promise.all(
-      DETERMINISTIC_SEED.projectIds.map((projectId) =>
-        readSubtreePublicState(readersOf(source), projectId),
+      DETERMINISTIC_SEED.workPackageIds.map((workPackageId) =>
+        readSubtreePublicState(readersOf(source), workPackageId),
       ),
     );
     throw new Error(message);
@@ -4791,7 +4881,7 @@ async function proveFault(
   decorate: (source: SqliteSource) => SqliteSource = (source) => source,
   prepare: (source: SqliteSource) => Promise<void> = () => Promise.resolve(),
   observeDirectory: (directory: string) => void = () => undefined,
-  observeLateBoundary: (stored: StoredSavedPlan | undefined) => void = () => undefined,
+  observeLateBoundary: (stored: StoredSavedPlanBytes | undefined) => void = () => undefined,
 ): Promise<FaultProof> {
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
@@ -4850,7 +4940,9 @@ async function proveFault(
       );
       const { source, directory } = await seedSqliteSource(
         openSource,
-        fault.caseId.startsWith('progress.')
+        fault.caseId==='workPackages.create:steps'
+          ? async (seeded)=>seedSourceCreationSettings(seeded.stores)
+          : fault.caseId.startsWith('progress.')
           ? seedProgressStep
           : fault.caseId.startsWith('dependencies.')
             ? seedDependencyWorkItems
@@ -4971,11 +5063,13 @@ async function proveFault(
         });
       };
       const registrations = existingStoreRegistrations({
-        projects: (caseId) => takeFixture('projects', caseId),
+        stepCatalogue: openSqliteStepCatalogueCase,
+        workPackages: (caseId) => takeFixture('workPackages', caseId),
         users: (caseId) => takeFixture('users', caseId),
         capacity: (caseId) => takeFixture('capacity', caseId),
         resourceCapacity: (caseId) => takeFixture('resourceCapacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
+        settings: (caseId) => takeFixture('settings', caseId),
         calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
         workItems: (caseId) => takeFixture('workItems', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
@@ -5057,9 +5151,12 @@ async function proveCoherentCaptureFault(
           (options) =>
             decorate(
               openSqliteSourceWithCaptureReadSeam(options, {
-                async afterFirstRead({ projectId, project }) {
-                  if (projectId !== 'project-a' || didEnter) return;
-                  if (project.id !== projectId || project.name !== 'Captured project A')
+                async afterFirstRead({ workPackageId, workPackage }) {
+                  if (workPackageId !== 'work-package-a' || didEnter) return;
+                  if (
+                    workPackage.id !== workPackageId ||
+                    workPackage.name !== 'Captured work package A'
+                  )
                     throw new Error('coherent SQLite barrier received wrong first-read evidence');
                   didEnter = true;
                   enter();
@@ -5209,7 +5306,7 @@ interface Task52HistorySetupProbe {
   state: Awaited<ReturnType<typeof readTask52HistoryState>> | null;
 }
 
-function suppressTask52ProjectBAppends(
+function suppressTask52WorkPackageBAppends(
   source: SqliteSource,
   probe: Task52HistorySetupProbe,
 ): SqliteSource {
@@ -5224,7 +5321,7 @@ function suppressTask52ProjectBAppends(
     {
       journal: replaceMethod(source.stores.journal, 'append', (append) => {
         return async (entry, event) => {
-          if (entry.projectId !== 'project-b') return append(entry, event);
+          if (entry.workPackageId !== 'work-package-b') return append(entry, event);
           probe.attempts += 1;
           if (entry.id === 'journal-b-101-wide') {
             probe.state = await readTask52HistoryState(source);
@@ -5304,7 +5401,7 @@ function partiallyFilterTask52LeakedRead(
   source: SqliteSource,
   probe: Task52ListWindowProbe,
 ): SqliteSource {
-  let projectAFullReads = 0;
+  let workPackageAFullReads = 0;
   return withStores(
     {
       ...source,
@@ -5315,18 +5412,18 @@ function partiallyFilterTask52LeakedRead(
     },
     {
       planEvents: replaceMethod(source.stores.planEvents, 'listFor', (listFor) => {
-        return async (projectId, filter) => {
+        return async (workPackageId, filter) => {
           if (
-            projectId !== 'project-a' ||
+            workPackageId !== 'work-package-a' ||
             filter.workItemId !== undefined ||
             filter.kinds !== undefined
           ) {
-            return listFor(projectId, filter);
+            return listFor(workPackageId, filter);
           }
-          projectAFullReads += 1;
-          if (projectAFullReads !== 3) return listFor(projectId, filter);
+          workPackageAFullReads += 1;
+          if (workPackageAFullReads !== 3) return listFor(workPackageId, filter);
           probe.attempts += 1;
-          probe.returned = await listFor(projectId, { kinds: ['estimate', 'freeze'] });
+          probe.returned = await listFor(workPackageId, { kinds: ['estimate', 'freeze'] });
           probe.state = await readTask52HistoryState(source);
           return probe.returned;
         };
@@ -5348,8 +5445,8 @@ const namedFaultVariants = [
   seedFailureFault,
   cleanupFailureFault,
   priorityFirstRungFault,
-  priorityProjectScopeFault,
-  markerProjectScopeFault,
+  priorityWorkPackageScopeFault,
+  markerWorkPackageScopeFault,
   markerLiteralDateFault,
   frozenAcquireFault,
   frozenClearFault,
@@ -5471,7 +5568,7 @@ describe('SQLite existing source conformance', () => {
             task52JournalEntry('flip-target', false, 11, 10),
             task52JournalEntry('flip-peer', false, 12, 11),
           ],
-          [task52JournalEntry('flip-other-project', false)],
+          [task52JournalEntry('flip-other-work-package', false)],
         ],
         states: [
           { undoable: true, redoable: false },
@@ -5484,15 +5581,15 @@ describe('SQLite existing source conformance', () => {
       attempts: 1,
       closeCalls: 1,
       state: {
-        projectAEvents: task52PlanEvents()[0],
-        projectBEvents: task52PlanEvents()[1],
+        workPackageAEvents: task52PlanEvents()[0],
+        workPackageBEvents: task52PlanEvents()[1],
         journals: task52HistoryJournals(),
       },
     });
   });
 
   it('refuses incomplete Task 5.2 SQLite history setup before the item-filter fault reaches', async () => {
-    const missingProjectProbe: Task52HistorySetupProbe = {
+    const missingWorkPackageProbe: Task52HistorySetupProbe = {
       attempts: 0,
       closeCalls: 0,
       state: null,
@@ -5502,9 +5599,9 @@ describe('SQLite existing source conformance', () => {
       closeCalls: 0,
       state: null,
     };
-    const [missingProjectProof, missingJournalProof] = await Promise.all([
+    const [missingWorkPackageProof, missingJournalProof] = await Promise.all([
       proveFault(planEventsIgnoreItemFilterFault, openSqliteSource, (source) =>
-        suppressTask52ProjectBAppends(source, missingProjectProbe),
+        suppressTask52WorkPackageBAppends(source, missingWorkPackageProbe),
       ),
       proveFault(planEventsIgnoreItemFilterFault, openSqliteSource, (source) =>
         discardTask52JournalsAfterAppend(source, missingJournalProbe),
@@ -5512,16 +5609,16 @@ describe('SQLite existing source conformance', () => {
     ]);
     // Proof: removing both complete setup guards changed these exact outcomes
     // from two `phase-failed` values to two `observed` values.
-    expect([missingProjectProof.kind, missingJournalProof.kind]).toEqual([
+    expect([missingWorkPackageProof.kind, missingJournalProof.kind]).toEqual([
       'phase-failed',
       'phase-failed',
     ]);
-    expect(missingProjectProbe).toEqual({
+    expect(missingWorkPackageProbe).toEqual({
       attempts: 3,
       closeCalls: 1,
       state: {
-        projectAEvents: task52PlanEvents()[0],
-        projectBEvents: [],
+        workPackageAEvents: task52PlanEvents()[0],
+        workPackageBEvents: [],
         journals: [task52HistoryJournals()[0], []],
       },
     });
@@ -5529,8 +5626,8 @@ describe('SQLite existing source conformance', () => {
       attempts: 1,
       closeCalls: 1,
       state: {
-        projectAEvents: task52PlanEvents()[0],
-        projectBEvents: task52PlanEvents()[1],
+        workPackageAEvents: task52PlanEvents()[0],
+        workPackageBEvents: task52PlanEvents()[1],
         journals: [[], []],
       },
     });
@@ -5564,7 +5661,7 @@ describe('SQLite existing source conformance', () => {
             task52JournalEntry('flip-target', true, 21, 11),
             task52JournalEntry('flip-peer', false, 12, 11),
           ],
-          [task52JournalEntry('flip-other-project', false)],
+          [task52JournalEntry('flip-other-work-package', false)],
         ],
         states: [
           { undoable: true, redoable: true },
@@ -5578,8 +5675,8 @@ describe('SQLite existing source conformance', () => {
       closeCalls: 1,
       returned: [task52PlanEvents()[0][0], task52PlanEvents()[0][4]],
       state: {
-        projectAEvents: task52PlanEvents()[0],
-        projectBEvents: task52PlanEvents()[1],
+        workPackageAEvents: task52PlanEvents()[0],
+        workPackageBEvents: task52PlanEvents()[1],
         journals: task52HistoryJournals(),
       },
     });
@@ -5619,12 +5716,12 @@ describe('SQLite existing source conformance', () => {
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
     // Proof: the independently routed target history leaves this complete event
-    // absent from project A after its real journal entry commits.
+    // absent from work package A after its real journal entry commits.
     expect(failures[0]).toContain(`-       "createdAt": 201,
 -       "id": "event-atomic-target",
 -       "kind": "rename",
 -       "label": "Rename atomic-target",
--       "projectId": "project-a",`);
+-       "workPackageId": "work-package-a",`);
     // Proof: throwing outside the transaction leaves this complete entry committed.
     expect(failures[1]).toContain(`+       "id": "atomic-late-target",
 +       "inverse": {`);
@@ -5744,26 +5841,26 @@ describe('SQLite existing source conformance', () => {
     );
     // Proof: reaching before the real target append changed this to observed.
     expect(proof.kind).toBe('phase-failed');
-    const [projectA, projectB] = DETERMINISTIC_SEED.projectIds;
+    const [workPackageA, workPackageB] = DETERMINISTIC_SEED.workPackageIds;
     const [actorA, actorB] = DETERMINISTIC_SEED.ownerIds;
     expect(probe).toEqual({
       attempts: 1,
       closeCalls: 1,
       entries: [
         [
-          expectedAtomicEntry('atomic-sentinel-a', projectA, actorA, 1, 101),
-          expectedAtomicEntry('atomic-target', projectA, actorA, 2, 201),
+          expectedAtomicEntry('atomic-sentinel-a', workPackageA, actorA, 1, 101),
+          expectedAtomicEntry('atomic-target', workPackageA, actorA, 2, 201),
         ],
-        [expectedAtomicEntry('atomic-sentinel-b', projectA, actorB, 1, 102)],
-        [expectedAtomicEntry('atomic-other-project', projectB, actorB, 1, 103)],
+        [expectedAtomicEntry('atomic-sentinel-b', workPackageA, actorB, 1, 102)],
+        [expectedAtomicEntry('atomic-other-work-package', workPackageB, actorB, 1, 103)],
       ],
       history: [
         [
-          expectedAtomicEvent('atomic-target', projectA, actorA, 201),
-          expectedAtomicEvent('atomic-sentinel-b', projectA, actorB, 102),
-          expectedAtomicEvent('atomic-sentinel-a', projectA, actorA, 101),
+          expectedAtomicEvent('atomic-target', workPackageA, actorA, 201),
+          expectedAtomicEvent('atomic-sentinel-b', workPackageA, actorB, 102),
+          expectedAtomicEvent('atomic-sentinel-a', workPackageA, actorA, 101),
         ],
-        [expectedAtomicEvent('atomic-other-project', projectB, actorB, 103)],
+        [expectedAtomicEvent('atomic-other-work-package', workPackageB, actorB, 103)],
       ],
     });
   });
@@ -5778,7 +5875,7 @@ describe('SQLite existing source conformance', () => {
     const proof = await proveFault(journalLateOutsideFault, openSqliteSource, (source) =>
       commitJournalWithoutLateHistory(source, probe),
     );
-    const [projectA, projectB] = DETERMINISTIC_SEED.projectIds;
+    const [workPackageA, workPackageB] = DETERMINISTIC_SEED.workPackageIds;
     const [actorA, actorB] = DETERMINISTIC_SEED.ownerIds;
     // Proof: removing only the outside-transaction complete history prerequisite
     // changed this result to `observed` after the incomplete source committed its rows.
@@ -5788,20 +5885,20 @@ describe('SQLite existing source conformance', () => {
       closeCalls: 1,
       entries: [
         [
-          expectedAtomicEntry('atomic-sentinel-a', projectA, actorA, 1, 101),
-          expectedAtomicEntry('atomic-target', projectA, actorA, 2, 201),
-          expectedAtomicEntry('atomic-late-target', projectA, actorA, 3, 202),
+          expectedAtomicEntry('atomic-sentinel-a', workPackageA, actorA, 1, 101),
+          expectedAtomicEntry('atomic-target', workPackageA, actorA, 2, 201),
+          expectedAtomicEntry('atomic-late-target', workPackageA, actorA, 3, 202),
         ],
-        [expectedAtomicEntry('atomic-sentinel-b', projectA, actorB, 1, 102)],
-        [expectedAtomicEntry('atomic-other-project', projectB, actorB, 1, 103)],
+        [expectedAtomicEntry('atomic-sentinel-b', workPackageA, actorB, 1, 102)],
+        [expectedAtomicEntry('atomic-other-work-package', workPackageB, actorB, 1, 103)],
       ],
       history: [
         [
-          expectedAtomicEvent('atomic-target', projectA, actorA, 201),
-          expectedAtomicEvent('atomic-sentinel-b', projectA, actorB, 102),
-          expectedAtomicEvent('atomic-sentinel-a', projectA, actorA, 101),
+          expectedAtomicEvent('atomic-target', workPackageA, actorA, 201),
+          expectedAtomicEvent('atomic-sentinel-b', workPackageA, actorB, 102),
+          expectedAtomicEvent('atomic-sentinel-a', workPackageA, actorA, 101),
         ],
-        [expectedAtomicEvent('atomic-other-project', projectB, actorB, 103)],
+        [expectedAtomicEvent('atomic-other-work-package', workPackageB, actorB, 103)],
       ],
     });
   });
@@ -5855,7 +5952,7 @@ describe('SQLite existing source conformance', () => {
     // then fails on this signed complete public edge.
     expect(failures[0]).toContain(`-       "id": "subtree-copy-dependency",
 -       "predecessorId": "subtree-copy-root",
--       "projectId": "project-a",
+-       "workPackageId": "work-package-a",
 -       "successorId": "subtree-copy-child",
 -     },
 -     {`);
@@ -5952,7 +6049,7 @@ describe('SQLite existing source conformance', () => {
     if (dependencyProbe.state === null || measureProbe.state === null) {
       throw new Error('successful incomplete SQLite insertion was not publicly observed');
     }
-    const missingProgress = ['subtree-copy-root\u0000step-a-dev'];
+    const missingProgress = ['subtree-copy-child\u0000step-a-dev'];
     assertCompleteStateAlternative(dependencyProbe.state, DETERMINISTIC_SEED, [
       {
         dependencyIds: ['subtree-copy-dependency'],
@@ -6018,7 +6115,7 @@ describe('SQLite existing source conformance', () => {
 +         "parentId": null,
 +         "position": 20,
 +         "priority": 2,
-+         "projectId": "project-a",
++         "workPackageId": "work-package-a",
 +         "readiness": null,
 +         "revision": 0,
 +         "serviceId": "service-a",
@@ -6530,12 +6627,12 @@ describe('SQLite existing source conformance', () => {
     );
     expect(failures[0]).toContain('capture-tag-only');
     expect(failures[0]).toContain('tag-a');
-    expect(failures[1]).toContain('capture-project-missing');
+    expect(failures[1]).toContain('capture-work-package-missing');
     expect(failures[1]).toContain('missing: null');
-    expect(failures[1]).toContain('projectB');
+    expect(failures[1]).toContain('workPackageB');
     expect(failures[2]).toContain('capture-tag-only');
-    expect(failures[2]).toContain('projectB');
-    expect(failures[2]).toContain('project-b');
+    expect(failures[2]).toContain('workPackageB');
+    expect(failures[2]).toContain('work-package-b');
 
     const neutralFaults: readonly Fault<SqliteSource>[] = [
       defineFault({
@@ -6602,14 +6699,14 @@ describe('SQLite existing source conformance', () => {
     ]);
 
     const suppressed = [
-      { fault: captureCompleteFault, targetId: 'project-a', attempts: 0, closeCalls: 0 },
+      { fault: captureCompleteFault, targetId: 'work-package-a', attempts: 0, closeCalls: 0 },
       {
         fault: captureMissingFault,
-        targetId: 'capture-project-missing',
+        targetId: 'capture-work-package-missing',
         attempts: 0,
         closeCalls: 0,
       },
-      { fault: captureDetachedFault, targetId: 'project-a', attempts: 0, closeCalls: 0 },
+      { fault: captureDetachedFault, targetId: 'work-package-a', attempts: 0, closeCalls: 0 },
     ];
     const suppressedProofs = await Promise.all(
       suppressed.map((probe) =>
@@ -6635,9 +6732,9 @@ describe('SQLite existing source conformance', () => {
       ...captureCompleteFault,
       mutate(source: SqliteSource, control) {
         const incomplete = withSavedPlanCapture(source, {
-          async readPlanInput(projectId) {
-            const capture = await source.history.savedPlanCapture.readPlanInput(projectId);
-            return projectId === 'project-a' && capture !== null
+          async readPlanInput(workPackageId) {
+            const capture = await source.history.savedPlanCapture.readPlanInput(workPackageId);
+            return workPackageId === 'work-package-a' && capture !== null
               ? { ...capture, tags: [] }
               : capture;
           },
@@ -6660,17 +6757,17 @@ describe('SQLite existing source conformance', () => {
       {
         ...captureCompleteFault,
         mutate: (source, control) =>
-          captureFaultSource(source, control, 'complete', true, 'project-never-read'),
+          captureFaultSource(source, control, 'complete', true, 'work-package-never-read'),
       },
       {
         ...captureMissingFault,
         mutate: (source, control) =>
-          captureFaultSource(source, control, 'missing', true, 'project-never-read'),
+          captureFaultSource(source, control, 'missing', true, 'work-package-never-read'),
       },
       {
         ...captureDetachedFault,
         mutate: (source, control) =>
-          captureFaultSource(source, control, 'detached', true, 'project-never-read'),
+          captureFaultSource(source, control, 'detached', true, 'work-package-never-read'),
       },
     ];
     const wrongTargetCloseCalls = wrongTargetFaults.map(() => 0);
@@ -6685,7 +6782,7 @@ describe('SQLite existing source conformance', () => {
         })),
       ),
     );
-    // Proof: targeting an unrelated project leaves the shared cases healthy,
+    // Proof: targeting an unrelated work package leaves the shared cases healthy,
     // so every fault remains unreached and each owned fixture closes once.
     expect(wrongTargetProofs.map(({ kind }) => kind)).toEqual([
       'phase-failed',
@@ -6879,10 +6976,10 @@ describe('SQLite existing source conformance', () => {
         },
         async (source) => {
           const capacity = replaceMethod(source.stores.capacity, 'set', (set) => {
-            return (projectId, teamId, size, stamp) =>
-              projectId === 'project-a' && teamId === 'team-b'
+            return (workPackageId, teamId, size, stamp) =>
+              workPackageId === 'work-package-a' && teamId === 'team-b'
                 ? Promise.reject(new Error('injected capture capacity setup failure'))
-                : set(projectId, teamId, size, stamp);
+                : set(workPackageId, teamId, size, stamp);
           });
           await seedSavedPlanCapture({ ...source.stores, capacity }, DETERMINISTIC_SEED);
         },
@@ -6906,20 +7003,20 @@ describe('SQLite existing source conformance', () => {
     let closeCalls = 0;
     let directory = '';
     let realMissing: PlanInputReads | null | undefined;
-    let projectA: PlanInputReads | null = null;
-    let projectB: PlanInputReads | null = null;
+    let workPackageA: PlanInputReads | null = null;
+    let workPackageB: PlanInputReads | null = null;
     const fault = defineFault({
       ...captureMissingFault,
       mutate(source: SqliteSource, control) {
         const invalid = withSavedPlanCapture(source, {
-          async readPlanInput(projectId) {
-            const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
-            if (projectId !== 'capture-project-missing') return captured;
+          async readPlanInput(workPackageId) {
+            const captured = await source.history.savedPlanCapture.readPlanInput(workPackageId);
+            if (workPackageId !== 'capture-work-package-missing') return captured;
             unknownReads += 1;
             realMissing = captured;
-            [projectA, projectB] = await Promise.all([
-              source.history.savedPlanCapture.readPlanInput('project-a'),
-              source.history.savedPlanCapture.readPlanInput('project-b'),
+            [workPackageA, workPackageB] = await Promise.all([
+              source.history.savedPlanCapture.readPlanInput('work-package-a'),
+              source.history.savedPlanCapture.readPlanInput('work-package-b'),
             ]);
             return emptyMissingCapture();
           },
@@ -6963,8 +7060,8 @@ describe('SQLite existing source conformance', () => {
       closeCalls: 1,
       directoryExists: false,
     });
-    expect(optionalCaptureMatchesOracle(projectA, 0)).toBe(true);
-    expect(optionalCaptureMatchesOracle(projectB, 1)).toBe(true);
+    expect(optionalCaptureMatchesOracle(workPackageA, 0)).toBe(true);
+    expect(optionalCaptureMatchesOracle(workPackageB, 1)).toBe(true);
   });
 
   it('Task 6.3 proves the detached second-read prerequisite and ordinal', async () => {
@@ -6976,17 +7073,17 @@ describe('SQLite existing source conformance', () => {
     let firstCapture: PlanInputReads | null = null;
     let firstSnapshot: ReturnType<typeof observePlanInput> | null = null;
     let secondCapture: PlanInputReads | null = null;
-    let projectB: PlanInputReads | null = null;
+    let workPackageB: PlanInputReads | null = null;
     const incompleteFault = defineFault({
       ...captureDetachedFault,
       mutate(source: SqliteSource, control) {
         const incomplete = withSavedPlanCapture(source, {
-          async readPlanInput(projectId) {
-            if (projectId !== 'project-a')
-              return source.history.savedPlanCapture.readPlanInput(projectId);
+          async readPlanInput(workPackageId) {
+            if (workPackageId !== 'work-package-a')
+              return source.history.savedPlanCapture.readPlanInput(workPackageId);
             targetReads += 1;
             if (targetReads === 2) mutationObserved = firstTags?.length === 0;
-            const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+            const captured = await source.history.savedPlanCapture.readPlanInput(workPackageId);
             if (captured === null) return null;
             if (targetReads === 1) {
               firstTags = captured.tags;
@@ -6995,7 +7092,7 @@ describe('SQLite existing source conformance', () => {
               return captured;
             }
             secondCapture = captured;
-            projectB = await source.history.savedPlanCapture.readPlanInput('project-b');
+            workPackageB = await source.history.savedPlanCapture.readPlanInput('work-package-b');
             return { ...captured, tags: [] };
           },
         });
@@ -7035,7 +7132,7 @@ describe('SQLite existing source conformance', () => {
     expect(captureObservationMatchesOracle(firstSnapshot, 0)).toBe(true);
     expect(optionalCaptureMatchesOracle(firstCapture, 0)).toBe(false);
     expect(optionalCaptureMatchesOracle(secondCapture, 0)).toBe(true);
-    expect(optionalCaptureMatchesOracle(projectB, 1)).toBe(true);
+    expect(optionalCaptureMatchesOracle(workPackageB, 1)).toBe(true);
   });
 
   it('Task 6.3 requires the second real detached read before fault reach', async () => {
@@ -7046,7 +7143,7 @@ describe('SQLite existing source conformance', () => {
     let firstTags: readonly { readonly id: string; readonly name: string }[] | null = null;
     let firstCapture: PlanInputReads | null = null;
     let firstSnapshot: ReturnType<typeof observePlanInput> | null = null;
-    let projectB: PlanInputReads | null = null;
+    let workPackageB: PlanInputReads | null = null;
     const refusalProof = await proveFault(
       captureDetachedFault,
       openSqliteSource,
@@ -7060,12 +7157,12 @@ describe('SQLite existing source conformance', () => {
             },
           },
           {
-            async readPlanInput(projectId) {
-              if (projectId !== 'project-a')
-                return source.history.savedPlanCapture.readPlanInput(projectId);
+            async readPlanInput(workPackageId) {
+              if (workPackageId !== 'work-package-a')
+                return source.history.savedPlanCapture.readPlanInput(workPackageId);
               targetReads += 1;
               if (targetReads === 1) {
-                const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+                const captured = await source.history.savedPlanCapture.readPlanInput(workPackageId);
                 if (captured !== null) {
                   firstTags = captured.tags;
                   firstCapture = captured;
@@ -7074,7 +7171,7 @@ describe('SQLite existing source conformance', () => {
                 return captured;
               }
               mutationObserved = firstTags?.length === 0;
-              projectB = await source.history.savedPlanCapture.readPlanInput('project-b');
+              workPackageB = await source.history.savedPlanCapture.readPlanInput('work-package-b');
               throw new Error('injected second SQLite capture refusal');
             },
           },
@@ -7102,7 +7199,7 @@ describe('SQLite existing source conformance', () => {
     }).toEqual({ targetReads: 2, mutationObserved: true, closeCalls: 1, directoryExists: false });
     expect(captureObservationMatchesOracle(firstSnapshot, 0)).toBe(true);
     expect(optionalCaptureMatchesOracle(firstCapture, 0)).toBe(false);
-    expect(optionalCaptureMatchesOracle(projectB, 1)).toBe(true);
+    expect(optionalCaptureMatchesOracle(workPackageB, 1)).toBe(true);
   });
 
   it('Task 6.3 rejects an omitted capture-only directory before fault reach', async () => {
@@ -7196,9 +7293,9 @@ describe('SQLite existing source conformance', () => {
       ...captureCoherentFault,
       mutate(source: SqliteSource, control) {
         const incompleteSource = withSavedPlanCapture(source, {
-          async readPlanInput(projectId) {
-            const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
-            return projectId === 'project-a' && captured !== null
+          async readPlanInput(workPackageId) {
+            const captured = await source.history.savedPlanCapture.readPlanInput(workPackageId);
+            return workPackageId === 'work-package-a' && captured !== null
               ? { ...captured, tags: [] }
               : captured;
           },
@@ -7216,7 +7313,7 @@ describe('SQLite existing source conformance', () => {
     const wrongTarget = defineFault({
       ...captureCoherentFault,
       mutate: (source: SqliteSource, control) =>
-        coherentCaptureFaultSource(source, control, true, 'project-b'),
+        coherentCaptureFaultSource(source, control, true, 'work-package-b'),
     });
     const wrongTargetProof = await proveCoherentCaptureFault(
       wrongTarget,
@@ -7276,9 +7373,9 @@ describe('SQLite existing source conformance', () => {
     const seeded = await seedSqliteSource(
       (options) =>
         openSqliteSourceWithCaptureReadSeam(options, {
-          async afterFirstRead({ projectId, project }) {
-            if (projectId !== 'project-a' || didEnter) return;
-            if (project.id !== projectId || project.name !== 'Captured project A')
+          async afterFirstRead({ workPackageId, workPackage }) {
+            if (workPackageId !== 'work-package-a' || didEnter) return;
+            if (workPackage.id !== workPackageId || workPackage.name !== 'Captured work package A')
               throw new Error('SQLite rollback probe reached before the real first read');
             didEnter = true;
             enter();
@@ -7297,7 +7394,7 @@ describe('SQLite existing source conformance', () => {
       },
     };
     try {
-      const held = source.history.savedPlanCapture.readPlanInput('project-a');
+      const held = source.history.savedPlanCapture.readPlanInput('work-package-a');
       await entered;
       const change = await changeSqliteCaptureDirectory(source);
       release();
@@ -7310,7 +7407,7 @@ describe('SQLite existing source conformance', () => {
       expect((captureFailure as Error | undefined)?.message).toBe(
         'injected SQLite capture failure after independent writer',
       );
-      const after = await source.history.savedPlanCapture.readPlanInput('project-a');
+      const after = await source.history.savedPlanCapture.readPlanInput('work-package-a');
       expect(change.tag).toMatchObject({ ok: true });
       expect(change.person).toMatchObject({ ok: true });
       expect(after === null ? false : captureMatchesOracle(after, 0, 'after')).toBe(true);
@@ -7345,9 +7442,9 @@ describe('SQLite existing source conformance', () => {
         }),
       },
       {
-        async afterFirstRead({ projectId, project }) {
-          if (projectId !== 'project-a' || project.name !== 'Captured project A')
-            throw new Error('shared SQLite owner reached before project A first read');
+        async afterFirstRead({ workPackageId, workPackage }) {
+          if (workPackageId !== 'work-package-a' || workPackage.name !== 'Captured work package A')
+            throw new Error('shared SQLite owner reached before work package A first read');
           const tagWrite = source.db
             .update(tagTable)
             .set({ name: 'Tag after interleave', updatedAt: 600, createdBy: 'owner-b' })
@@ -7391,7 +7488,7 @@ describe('SQLite existing source conformance', () => {
     );
     let failure: unknown;
     try {
-      await borrowedCapture.readPlanInput('project-a');
+      await borrowedCapture.readPlanInput('work-package-a');
     } catch (cause) {
       failure = cause;
     } finally {
@@ -7418,18 +7515,22 @@ describe('SQLite existing source conformance', () => {
     });
   });
 
-  it('reinjects project step, scope, and reader-order faults', async () => {
-    const faults = [createProjectStepsFault, updateProjectScopeFault, projectReaderOrderFault];
+  it('reinjects work package step, scope, and reader-order faults', async () => {
+    const faults = [
+      createWorkPackageStepsFault,
+      updateWorkPackageScopeFault,
+      workPackageReaderOrderFault,
+    ];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
     expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    expect(failures[0]).toContain('project-created-dev');
-    expect(failures[1]).toContain('"name": "Renamed project"');
-    expect(failures[2]).toContain('"Project 2"');
-    expect(failures[2]).toContain('"Project 1"');
+    expect(failures[0]).toContain('work-package-created-dev');
+    expect(failures[1]).toContain('"name": "Renamed work package"');
+    expect(failures[2]).toContain('"Work package 2"');
+    expect(failures[2]).toContain('"Work package 1"');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),
@@ -7469,12 +7570,12 @@ describe('SQLite existing source conformance', () => {
 
   it('reinjects capacity and priority-band configuration faults', async () => {
     const faults = [
-      capacityProjectTeamFault,
+      capacityWorkPackageTeamFault,
       capacityClearFault,
       capacityMissingReferenceFault,
       priorityDefaultsFault,
       priorityFirstRungFault,
-      priorityMissingProjectFault,
+      priorityMissingWorkPackageFault,
     ];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
@@ -7486,10 +7587,10 @@ describe('SQLite existing source conformance', () => {
     );
     expect(failures[0]).toContain('"team-a" => 5');
     expect(failures[1]).toContain('"size": 0');
-    expect(failures[2]).toContain('"missingProject"');
+    expect(failures[2]).toContain('"missingWorkPackage"');
     expect(failures[2]).toContain('"ok": true');
     expect(failures[3]).toContain('"Critical"');
-    expect(failures[3]).toContain('"projectA": []');
+    expect(failures[3]).toContain('"workPackageA": []');
     expect(failures[4]).toContain('"label": "Soon"');
     expect(failures[5]).toContain('"ok": true');
 
@@ -7501,26 +7602,27 @@ describe('SQLite existing source conformance', () => {
     );
   });
 
-  it('reinjects project-scope destruction inside the priority-band transaction', async () => {
-    const proof = await proveFault(priorityProjectScopeFault);
+  it('reinjects work-package-scope destruction inside the priority-band transaction', async () => {
+    const proof = await proveFault(priorityWorkPackageScopeFault);
 
     expect(proof.kind).toBe('observed');
-    if (proof.kind !== 'observed') throw new Error('project-scope destruction was not observed');
+    if (proof.kind !== 'observed')
+      throw new Error('work-package-scope destruction was not observed');
     // Proof: the trigger broadened the real transaction's A-row deletion to B;
     // this failed on `"label": "Now"` becoming `"label": "Critical"`.
     expect(Bun.stripANSI(proof.observedFailure)).toContain('"label": "Now"');
     expect(Bun.stripANSI(proof.observedFailure)).toContain('"label": "Critical"');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
-      focus: [priorityProjectScopeFault.caseId],
+      focus: [priorityWorkPackageScopeFault.caseId],
     });
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
-      { caseId: priorityProjectScopeFault.caseId, status: 'passed' },
+      { caseId: priorityWorkPackageScopeFault.caseId, status: 'passed' },
     ]);
   });
 
-  it('reinjects marker order, project-scope, and literal-date faults', async () => {
-    const faults = [markerOrderFault, markerProjectScopeFault, markerLiteralDateFault];
+  it('reinjects marker order, work-package-scope, and literal-date faults', async () => {
+    const faults = [markerOrderFault, markerWorkPackageScopeFault, markerLiteralDateFault];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
     expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
@@ -7536,7 +7638,7 @@ describe('SQLite existing source conformance', () => {
     });
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
       { caseId: markerOrderFault.caseId, status: 'passed' },
-      { caseId: markerProjectScopeFault.caseId, status: 'passed' },
+      { caseId: markerWorkPackageScopeFault.caseId, status: 'passed' },
     ]);
   });
 
@@ -7611,7 +7713,7 @@ describe('SQLite existing source conformance', () => {
     expect(failures[3]).toContain(`Expected to contain: [
   {
     id: "work-a-one",
-    projectId: "project-a",
+    workPackageId: "work-package-a",
     parentId: null,
     position: 10,
     name: "Work 1",
@@ -7750,7 +7852,7 @@ describe('SQLite existing source conformance', () => {
     // the complete escaped work-a-one/no-such-step/days-13/recordedAt-201 row.
     expect(failures[5]).toContain(`-   "outcome": "unknown_step",
 +   "outcome": "written",
-    "projectA": [
+    "workPackageA": [
 +     {
 +       "days": 13,
 +       "recordedAt": 201,
@@ -7863,10 +7965,10 @@ describe('SQLite existing source conformance', () => {
       "workItemId": "work-a-two",
     },`);
     // Proof: accepting the missing step produced received written and the
-    // complete escaped token_estimate row in project A's settled public read.
+    // complete escaped token_estimate row in work package A's settled public read.
     expect(failures[5]).toContain(`-   "outcome": "unknown_step",
 +   "outcome": "written",
-    "projectA": [
+    "workPackageA": [
 +     {
 +       "metric": "token_estimate",
 +       "recordedAt": 201,
@@ -7958,7 +8060,7 @@ describe('SQLite existing source conformance', () => {
     // complete escaped work-a-one/no-such-step/done@201 public row.
     expect(failures[3]).toContain(`-   "outcome": "unknown_step",
 +   "outcome": "written",
-    "projectA": [
+    "workPackageA": [
 +     {
 +       "state": "done",
 +       "statedAt": 201,
@@ -8003,7 +8105,7 @@ describe('SQLite existing source conformance', () => {
     expect(failures[0]).toContain(`    {
 +     "id": "dependency-idempotent-second-id",
 +     "predecessorId": "work-a-one",
-+     "projectId": "project-a",
++     "workPackageId": "work-package-a",
 +     "successorId": "work-a-two",
 +   },
 +   {`);
@@ -8013,7 +8115,7 @@ describe('SQLite existing source conformance', () => {
 -     "id": "dependency-idempotent-original",
 +     "id": "dependency-idempotent-mutated",
       "predecessorId": "work-a-one",
-      "projectId": "project-a",
+      "workPackageId": "work-package-a",
       "successorId": "work-a-two",
     },`);
     // Proof: omitting the successor predicate removes this complete expected
@@ -8021,25 +8123,25 @@ describe('SQLite existing source conformance', () => {
     expect(failures[2]).toContain(`    {
 -     "id": "dependency-remove-same-predecessor",
 -     "predecessorId": "work-a-one",
--     "projectId": "project-a",
+-     "workPackageId": "work-package-a",
 -     "successorId": "dependency-survivor-one",
 -   },
 -   {`);
     // Proof: removing outgoing edges only leaves this complete incoming edge
-    // in the received project-A list.
+    // in the received work-package-A list.
     expect(failures[3]).toContain(`    {
 +     "id": "dependency-remove-all-incoming",
 +     "predecessorId": "dependency-survivor-one",
-+     "projectId": "project-a",
++     "workPackageId": "work-package-a",
 +     "successorId": "work-a-one",
 +   },
 +   {`);
     // Proof: passing only the first doomed ID leaves this complete outgoing
-    // edge for the second doomed row in the received project-A list.
+    // edge for the second doomed row in the received work-package-A list.
     expect(failures[4]).toContain(`    {
 +     "id": "dependency-remove-all-outgoing",
 +     "predecessorId": "work-a-two",
-+     "projectId": "project-a",
++     "workPackageId": "work-package-a",
 +     "successorId": "dependency-survivor-two",
 +   },
 +   {`);
@@ -8108,7 +8210,7 @@ describe('SQLite existing source conformance', () => {
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: ignoring the strict subset adds this complete project-B row.
+    // Proof: ignoring the strict subset adds this complete work-package-B row.
     expect(failures[0]).toContain(`+     {
 +       "personId": "person-b",
 +       "stepId": "step-b-dev",
@@ -8156,7 +8258,7 @@ describe('SQLite existing source conformance', () => {
     },
 -   "seq": 2,
 +   "seq": 0,
-    "subscription": "project:project-a",
+    "subscription": "work package:work-package-a",
   }`);
 
     const restored = await runCases(existingStoreRegistrations(openers), {
@@ -8273,13 +8375,16 @@ describe('SQLite existing source conformance', () => {
 +           "inputSchemaVersion": 11,
 +           "inputSha256": "a2587844f6a3f32d7fa53ae64c1109cf97b7dfa12912a794afca9d56ad317b70",
 +           "name": "Quota window rival",
-+           "projectId": "project-a",
++           "workPackageId": "work-package-a",
 +           "scheduleAbsentReason": "pending",
 +           "scheduleBytes": null,
 +           "scheduleInputSha256": null,
 +           "scheduleSchemaVersion": null,
 +           "scheduleSha256": null,
 +           "schedulerAlgorithmId": null,
++         },
++         "stepIdentity": {
++           "kind": "pre_catalogue",
 +         },
 +       },`);
     expect(failures[2]).toContain('+           "input": "late-input-🔧",');
@@ -8309,7 +8414,7 @@ describe('SQLite existing source conformance', () => {
                 probe.closeCalls += 1;
                 await closeAfterSavedPlanSnapshot(
                   source,
-                  ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+                  ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-work-package'],
                   (state) => {
                     probe.state = state;
                   },
@@ -8387,7 +8492,7 @@ describe('SQLite existing source conformance', () => {
       attempts: 1,
       closeCalls: 1,
       state: expectedTask62PublicState(
-        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-work-package'],
         sentinels,
       ),
       boundary: {
@@ -8413,8 +8518,8 @@ describe('SQLite existing source conformance', () => {
       attempts: 1,
       closeCalls: 1,
       state: expectedTask62PublicState(
-        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
-        [altered, ...sentinels],
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-work-package'],
+        [{ ...altered, stepIdentity: canonical.stepIdentity }, ...sentinels],
       ),
       boundary: altered,
       observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 30 }],
@@ -8434,7 +8539,7 @@ describe('SQLite existing source conformance', () => {
       attempts: 1,
       closeCalls: 1,
       state: expectedTask62PublicState(
-        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-work-package'],
         [wrongPhase, ...sentinels],
       ),
       boundary: null,
@@ -8471,13 +8576,13 @@ describe('SQLite existing source conformance', () => {
     expect(sqliteMissingInputProbe).toEqual({
       attempts: 1,
       closeCalls: 1,
-      boundary: { ...target, bodies: { input: null, schedule: null } },
+      boundary: { header: target.header, bodies: { input: null, schedule: null } },
       observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 33 }],
       failure: expect.objectContaining({
         message: 'saved-plan schedule boundary lacks complete header and input',
       }),
       state: expectedTask62PublicState(
-        ['late-target', 'late-sentinel', 'saved-other-project'],
+        ['late-target', 'late-sentinel', 'saved-other-work-package'],
         [
           expectedTask62Plan(
             'late-sentinel',
@@ -8523,7 +8628,7 @@ describe('SQLite existing source conformance', () => {
             close: () =>
               closeAfterSavedPlanSnapshot(
                 failing,
-                ['late-target', 'late-sentinel', 'saved-other-project'],
+                ['late-target', 'late-sentinel', 'saved-other-work-package'],
                 () => undefined,
               ),
           },
@@ -8659,7 +8764,7 @@ describe('SQLite existing source conformance', () => {
     let callbackCalls = 0;
     let mutationCalls = 0;
     let operationFailure: unknown;
-    let boundary: StoredSavedPlan | undefined;
+    let boundary: StoredSavedPlanBytes | undefined;
     let finalState: SavedPlanPublicState | undefined;
     const observations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
     const report = await runCases(
@@ -8703,7 +8808,7 @@ describe('SQLite existing source conformance', () => {
                   history: { savedPlans: fixture.readers.savedPlans },
                   close: () => fixture.close(),
                 },
-                ['late-target', 'late-sentinel', 'saved-other-project'],
+                ['late-target', 'late-sentinel', 'saved-other-work-package'],
                 (state) => {
                   finalState = state;
                 },
@@ -8755,7 +8860,7 @@ describe('SQLite existing source conformance', () => {
     });
     expect(finalState).toEqual(
       expectedTask62PublicState(
-        ['late-target', 'late-sentinel', 'saved-other-project'],
+        ['late-target', 'late-sentinel', 'saved-other-work-package'],
         [
           expectedTask62Plan(
             'late-sentinel',
@@ -8782,9 +8887,9 @@ describe('SQLite existing source conformance', () => {
         targetAttempts += 1;
         await base.write(
           {
-            id: 'saved-other-project',
-            projectId: 'project-b',
-            name: 'Other project sentinel',
+            id: 'saved-other-work-package',
+            workPackageId: 'work-package-b',
+            name: 'Other work package sentinel',
             createdBy: 'Quota Writer',
             createdById: 'owner-b',
             createdAt: 500,
@@ -8800,7 +8905,14 @@ describe('SQLite existing source conformance', () => {
       }
       const outcome = await write(plan, check);
       if (plan.id === 'quota-held')
-        expect(await base.deleteOf('saved-other-project')).toBe('touched');
+        expect(
+          await base.deleteOf('saved-other-work-package', {
+            kind: 'legacy',
+            actorId: 'owner-b',
+            source: 'internal',
+            operation: 'delete',
+          }),
+        ).toBe('touched');
       return outcome;
     });
     const report = await runCases(
@@ -8823,7 +8935,7 @@ describe('SQLite existing source conformance', () => {
       { focus: ['savedPlans.write:quota-refusal'] },
     );
     expect(report.cases[0]?.status).toBe('failed');
-    // Proof: real deletion of project B after A setup fails the complete prerequisite
+    // Proof: real deletion of work package B after A setup fails the complete prerequisite
     // before the target wrapper can restore it.
     expect(targetAttempts).toBe(0);
     expect(closeCalls).toBe(1);
@@ -9006,8 +9118,8 @@ describe('SQLite existing source conformance', () => {
         principals: [
           {
             savedPlanId: 'saved-present',
-            projectId: 'project-a',
-            projectOwnerId: 'owner-a',
+            workPackageId: 'work-package-a',
+
             createdById: 'owner-b',
           },
           null,
@@ -9018,21 +9130,107 @@ describe('SQLite existing source conformance', () => {
 });
 
 describe('permanent runtime storage conformance', () => {
-  const open = () => {
+  const open = async () => {
     const directory = mkdtempSync(join(tmpdir(), 'runtime-conformance-'));
-    const dbPath = join(directory, 'plan.db');
-    runMigrations(dbPath, MIGRATIONS);
-    const source = openSqliteSource({
-      dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-      dbPath,
-    });
-    return Promise.resolve({
-      source,
-      async close() {
-        await closeSqliteResources(source, directory);
-      },
-    });
+    const dbPath = join(directory, 'plan.db'),custody={hasUnknownOwner:false};
+    let source:SqliteSource|undefined;
+    try{
+      migrateEmptyCatalogueFixture({path:dbPath,directory,reportedAt:100},custody);
+      try{source=openSqliteSource({dependencyCapability:CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,dbPath});}
+      catch(cause:unknown){custody.hasUnknownOwner=true;throw cause;}
+      const opened=source;
+      return {source:opened,close:()=>closeSqliteResources(opened,directory)};
+    }catch(primary:unknown){
+      if(custody.hasUnknownOwner){
+        if(source!==undefined){
+          try{await source.close();}catch(cleanup:unknown){
+            throw new AggregateError([primary,cleanup],'runtime fixture setup and Source close failed; retained '+directory,{cause:cleanup});
+          }
+        }
+        throw primary;
+      }
+      return await throwAfterCleanup(primary,source,directory);
+    }
   };
   runtimeCommandConformance(open);
   runtimeRecordConformance(open);
 });
+
+describe('sqlite settings source conformance', () => {
+  it('executes all four settings assertions on the actual catalog', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: SETTINGS_CASE_IDS,
+    });
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      SETTINGS_CASE_IDS.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('discards settings and descendant revisions on refusal, then commits the next borrowed write', async () => {
+    const caseId = 'settings.write:refusal-and-clear' as const;
+    const report = await runCases([
+      {
+        family: 'settings',
+        caseId,
+        async openAndRun() {
+          const { source, directory } = await seedSqliteSource(openSqliteSource, async (seeded) =>
+            seedSettingCase(seeded.stores, DETERMINISTIC_SEED),
+            'shared-project',
+          );
+          const fixture = sqliteFixture(source, directory, 'settings', caseId);
+          return {
+            fixtureId: fixture.fixtureId,
+            assert: () => assertSettingSettlement(source.uow, fixture),
+            close: () => fixture.close(),
+          };
+        },
+      },
+    ]);
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId, status: 'passed' },
+    ]);
+  });
+});
+
+// This Source is real; only its selected close dependency rejects before closing.
+it('SQLite fixture close refusal retains the owned current database namespace',async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'sqlite-fixture-close-owner-')),dbPath=join(directory,'source.db');
+  const custody={hasUnknownOwner:false};
+  let opened:SqliteSource|undefined,primary:{cause:unknown}|undefined;
+  try{
+    migrateEmptyCatalogueFixture({path:dbPath,directory,reportedAt:100},custody);
+    try{opened=openSqliteSource({dependencyCapability:CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,dbPath});}
+    catch(cause:unknown){custody.hasUnknownOwner=true;throw cause;}
+    expect(existsSync(dbPath)).toBe(true);
+    const closeFailure=new Error('injected actual Source close refusal');
+    const refused:SqliteSource={...opened,close(){return Promise.reject(closeFailure);}};
+    let settled:{ok:true}|{ok:false;cause:unknown};
+    try{await closeSqliteResources(refused,directory);settled={ok:true};}
+    catch(cause:unknown){settled={ok:false,cause};}
+    expect(settled.ok).toBe(false);if(settled.ok)throw new Error('actual selected close refusal was swallowed');
+    expect(settled.cause).toBe(closeFailure);
+    // Required feature oracle: the writer was never confirmed closed, so its
+    // actual database and namespace must survive for explicit completion.
+    expect(existsSync(dbPath)).toBe(true);
+    expect(existsSync(directory)).toBe(true);
+  }catch(cause:unknown){primary={cause};}
+  if(opened!==undefined){
+    try{await opened.close();}catch(cleanup:unknown){
+      custody.hasUnknownOwner=true;
+      if(primary!==undefined)throw new AggregateError([primary.cause,cleanup],'fixture close owner and real Source cleanup failed; retained '+directory,{cause:cleanup});
+      throw cleanup;
+    }
+  }
+  if(!custody.hasUnknownOwner&&existsSync(directory)){
+    try{rmSync(directory,{recursive:true});}catch(cleanup:unknown){
+      if(primary!==undefined)throw new AggregateError([primary.cause,cleanup],'fixture close owner and directory cleanup failed',{cause:cleanup});
+      throw cleanup;
+    }
+  }
+  if(primary!==undefined)throw primary.cause;
+  if(custody.hasUnknownOwner)throw new Error('fixture close owner has unknown custody; retained '+directory);
+},30000);

@@ -72,7 +72,7 @@ export * from './node-reading';
 export * from './node-resources';
 export * from './not-before';
 export * from './on-time';
-// A person's bookings across projects on one workday axis: overlaps and weekly load.
+// A person's bookings across work packages on one workday axis: overlaps and weekly load.
 export * from './permission-matrix';
 export * from './person-load';
 export * from './place-sibling';
@@ -86,17 +86,17 @@ export * from './progress';
 // full graph) and the smaller schedule input it leaves (ADR 0032).
 export * from './blocked-by-proxy';
 export * from './without-held-subtrees';
-// The one write gate every resource and feature asks: `canEditProject`. Domain
-// code rather than a Project-resource export, because a resource importing a
+// The explicit preactivation edit gate: `canEditLegacyWorkPackage`. Domain
+// code rather than a WorkPackage-resource export, because a resource importing a
 // sibling resource for it is the sideways edge K6 forbids.
 export * from './in-progress-now';
 export * from './organization-access';
-export * from './project-address';
+export * from './work-package-address';
 // The three per-organization caps, their bound and the one limit decision (wbs-organization-limits).
+export * from './legacy-work-package-edit';
 export * from './organization-limits';
-export * from './project-ownership';
-export * from './project-roll-up';
 export * from './public-email-domain';
+export * from './work-package-roll-up';
 // Per-step estimate, actual, measure and progress folds up the tree (task 6.1).
 export * from './roll-up';
 // The value a Saved plan's input body is, and the pure fold that produces it.
@@ -123,7 +123,7 @@ export * from './schedule';
 // The order relation two schedules are compared by (tasks.md 8.7, 8b.1). Here
 // rather than in the plan read that shipped it: with slice 8b the comparison is
 // taken for every ready variant instead of the one on screen, and the relation
-// is a fact about two sets of starts — nothing about a project row, a cache or
+// is a fact about two sets of starts — nothing about a work package row, a cache or
 // a route belongs in it.
 export * from './schedule-order';
 // The real-domain scorer (tasks.md 4.11b, 4.12b), beside `schedule` because it
@@ -159,16 +159,17 @@ export * from './smoke-echo';
 export * from './solver-quantum';
 export * from './solver-quantum-golden-corpus';
 export * from './step';
-// Step codes: the immutable, project-unique names step references spell step
+// Step codes: the immutable, work-package-unique names step references spell step
 // nodes with (ADR 0031). One suggestion rule for creation, import and backfill.
 export * from './step-code';
 // Step nodes and step references: the pair's stable id and its readable,
 // renumbering-sensitive spelling (ADR 0031).
 export * from './step-node';
+export * from './step-fact';
 export * from './step-reference';
 // The stored per-step facts: estimates, actuals, measures and progress (task 6.1, A12).
 export type * from './step-values';
-// The order every reader draws a project in, and the one sibling grouping
+// The order every reader draws a work package in, and the one sibling grouping
 // `deriveNumbers`, `treeOrder` and `arrangeBySchedule` share. Since ADR 0023 a
 // number is a name rather than a place, so the order has to be stated: two
 // groupings would disagree about which work item is second, and the first two
@@ -180,7 +181,7 @@ export * from './claim';
 export * from './claim-lease';
 // The units a claim holds of its leaf's demand (wbs-resources R3, R4).
 export * from './occupancy';
-// Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
+// Resources, their per-work-package capacity and per-work-item demand (wbs-resources R1).
 export * from './connected-step-node';
 export * from './execution-eligibility';
 export * from './resource';
@@ -198,6 +199,13 @@ export type * from './schedule-error';
 // Provider instances and capacity reports beside a declared capacity (compute-providers P2-P7).
 export * from './compute-provider';
 export * from './resource-use';
+export * from './saved-plan/step-identity';
+export { readSavedPlainScheduleBody } from './saved-plan/versioned-plain-schedule';
+export * from './settings/catalogue';
+export * from './settings/resolve-setting';
+export * from './step-catalogue/classify-shared-step-codes';
+export * from './step-catalogue/classify-step-migration';
+export * from './step-catalogue/resolve-steps';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

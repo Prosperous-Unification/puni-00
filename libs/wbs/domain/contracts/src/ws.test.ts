@@ -69,18 +69,18 @@ describe('the frames a builder writes', () => {
     const built = [
       wsPong(),
       wsPresence(['kat', 'sam']),
-      wsResumeAck({ 'project:a': 3 }),
-      wsResumeDenied('project:a', 'out_of_range'),
-      wsResumeDenied('project:a', 'unavailable'),
-      wsResumeDenied('project:a', 'forbidden'),
-      wsError('subscription_revoked', { subscription: 'project:a' }),
+      wsResumeAck({ 'work-package:a': 3 }),
+      wsResumeDenied('work-package:a', 'out_of_range'),
+      wsResumeDenied('work-package:a', 'unavailable'),
+      wsResumeDenied('work-package:a', 'forbidden'),
+      wsError('subscription_revoked', { subscription: 'work-package:a' }),
       wsError('invalid_payload'),
       wsError('unknown_subscription', { subscription: 'nope' }),
       wsError('backend_unavailable', { retry_after: 5 }),
-      wsSubscribe('project:a'),
-      wsUnsubscribe('project:a'),
+      wsSubscribe('work-package:a'),
+      wsUnsubscribe('work-package:a'),
       wsWho(),
-      wsResume({ 'project:a': 7 }),
+      wsResume({ 'work-package:a': 7 }),
     ];
 
     for (const frame of built) parseOrThrow(WsControlFrame, parsed(frame));
@@ -89,23 +89,26 @@ describe('the frames a builder writes', () => {
   });
 
   it('are data frames the parser accepts', () => {
-    const frame = parseOrThrow(WsFrame, parsed(wsData('project:a', 4, { hello: 'world' })));
+    const frame = parseOrThrow(WsFrame, parsed(wsData('work-package:a', 4, { hello: 'world' })));
 
-    expect(frame).toEqual({ subscription: 'project:a', seq: 4, message: { hello: 'world' } });
+    expect(frame).toEqual({ subscription: 'work-package:a', seq: 4, message: { hello: 'world' } });
   });
 
   // `wbs-claim-display` C21: a transient announcement is its own frame, with
   // no sequence; neither frame parses as the other.
   it('are transient frames the parser accepts, and only without a sequence', () => {
-    const built = parsed(wsTransient('project:a', { type: 'claims_changed' }));
+    const built = parsed(wsTransient('work-package:a', { type: 'claims_changed' }));
 
     expect(parseOrThrow(WsTransientFrame, built)).toEqual({
-      subscription: 'project:a',
+      subscription: 'work-package:a',
       message: { type: 'claims_changed' },
     });
     expect(() => parseOrThrow(WsFrame, built)).toThrow();
     expect(() =>
-      parseOrThrow(WsTransientFrame, parsed(wsData('project:a', 4, { type: 'claims_changed' }))),
+      parseOrThrow(
+        WsTransientFrame,
+        parsed(wsData('work-package:a', 4, { type: 'claims_changed' })),
+      ),
     ).toThrow();
   });
 

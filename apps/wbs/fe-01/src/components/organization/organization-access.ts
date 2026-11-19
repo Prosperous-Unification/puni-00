@@ -70,7 +70,7 @@ export function lossCopy(loss: Exclude<AccessLoss, CredentialRefusal>): LossCopy
       return {
         headline: 'Organization administration is not active yet.',
         detail:
-          'This workspace runs without organizations, so there are no members or invitations to manage. Your projects are on the plan.',
+          'This workspace runs without organizations, so there are no members or invitations to manage. Your work packages are on the plan.',
       };
     case 'signed_out':
       return {
@@ -81,7 +81,7 @@ export function lossCopy(loss: Exclude<AccessLoss, CredentialRefusal>): LossCopy
       return {
         headline: 'This session has no organization.',
         detail:
-          'Members, invitations and sharing belong to an organization. This workspace has no organization, so your projects are on the plan.',
+          'Members, invitations and sharing belong to an organization. This workspace has no organization, so your work packages are on the plan.',
       };
     case 'removed':
       return {

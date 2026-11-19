@@ -41,7 +41,7 @@ const count = (howMany: number, thing: string): string =>
  * reader wondering whether it had been asked.
  *
  * It names the **kind** of thing as well as the name — "the step QA" rather
- * than "QA" — because a project's steps are named by whoever made them and one
+ * than "QA" — because a work package's steps are named by whoever made them and one
  * may well be called after a person or a team. `steps-not-phases` made the word
  * the same everywhere it is written; this is the one sentence that has to say
  * it out loud, since it is what somebody agrees to before a removal.
@@ -111,18 +111,18 @@ export interface StepsPanelProps extends SettingsSectionReport {
   setStepAllowance: (stepId: string, allowancePercent: number) => Promise<StepView>;
   removeStep: (stepId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: StepUsage }>;
   /**
-   * How far into a predecessor this project's dependencies reach — be-01's
+   * How far into a predecessor this work package's dependencies reach — be-01's
    * answer, not this dialog's. What is ticked is read straight off it, so a
    * reach somebody else changed redraws here.
    */
   depReach: DependencyReach;
   /**
-   * Writes the project's reach. Every date on the plan may move on it, which is
+   * Writes the work package's reach. Every date on the plan may move on it, which is
    * why the caller re-reads through {@link StepsPanelProps.onChanged}
    * afterwards like every other change made here.
    */
   setDepReach: (reach: DependencyReach) => Promise<void>;
-  /** Re-reads the project, which is what puts the new columns on the table. */
+  /** Re-reads the work package, which is what puts the new columns on the table. */
   onChanged: () => Promise<void>;
   /** Re-reads the tree after changing dependency reach. */
   onReachChanged?: () => Promise<void>;
@@ -158,12 +158,12 @@ interface Confirming {
 }
 
 /**
- * The project's steps, and everything that can be done to them.
+ * The work package's steps, and everything that can be done to them.
  *
- * **A panel and not a dialog since `project-config-modal`** (2026-08-30). This
+ * **A panel and not a dialog since `work-package-config-modal`** (2026-08-30). This
  * was `StepsDialog`, `ModalContent`'s first production caller and the surface
  * that found two of its rules; it is one of three sections of
- * `ProjectSettingsModal` now, which owns the shell, the trigger, the title and
+ * `WorkPackageSettingsModal` now, which owns the shell, the trigger, the title and
  * the close. Both rules still hold and are the modal's to hold: the page's own
  * keyboard is held back while it is open, and a command chord aimed at a field
  * **on** the surface is let through — which is what makes Cmd/Ctrl+Enter
@@ -176,7 +176,7 @@ interface Confirming {
  * sentences rather than be-01's codes; {@link STEP_REFUSALS} is the one table
  * place that translation happens.
  *
- * **Nothing here is optimistic.** Every change re-reads the project through
+ * **Nothing here is optimistic.** Every change re-reads the work package through
  * `onChanged` and the list redraws from what came back — the same rule the table
  * behind it keeps, and for the same reason: a step list kept locally would be a
  * second answer to a question be-01 owns.
@@ -224,7 +224,7 @@ export function StepsPanel({
    * typed and not committed, or a confirmation not yet answered. A change on
    * its way to be-01 counts too and is {@link useSettingsSection}'s to add.
    *
-   * Proof: reported `false` unconditionally, and `project-settings-modal.test.tsx`'s
+   * Proof: reported `false` unconditionally, and `work-package-settings-modal.test.tsx`'s
    * `a clean modal closes from any section` still passed — it is about the clean
    * case — while `refuses to close over a confirmation nobody has answered` let
    * Escape close over an open removal; watched 2026-08-30.

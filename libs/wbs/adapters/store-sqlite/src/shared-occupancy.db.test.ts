@@ -10,11 +10,13 @@ import type {
   Source,
   TransactionalStores,
 } from '@wbs/core';
-import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
+import { clockOf, LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { ScopedUndoOutcome } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import type { Clock } from '@wbs/core/ports/clock';
+import type { WorkPackageWithSteps } from '@wbs/core/ports/work-package-read';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
@@ -28,10 +30,11 @@ import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 /**
- * `wbs-shared-occupancy` slice 3 on both stores: two projects A and B of one
+ * `wbs-shared-occupancy` slice 3 on both stores: two work packages A and B of one
  * organization share a resource's directory capacity, through the command
  * runner and its journal (tasks 3.1, 3.4).
  */
@@ -52,8 +55,11 @@ function staleDetail(outcome: ScopedUndoOutcome): string | null {
 interface Opened {
   readonly source: Source<TransactionalStores>;
   readonly isMemory: boolean;
-  /** Puts both projects and both resources in {@link ORG}, as no port can. */
-  readonly own: (projectIds: readonly string[], resourceIds: readonly string[]) => void;
+  readonly seedParent: () => void;
+  readonly createPackage: (name: string, clock: Clock) => Promise<WorkPackageWithSteps>;
+  readonly removePackageOrganization: (id: string) => void;
+  /** Owns resources beside the work packages already created in {@link ORG}. */
+  readonly own: (workPackageIds: readonly string[], resourceIds: readonly string[]) => void;
   /**
    * SQLite only: makes `accountId` an admin of {@link ORG}, `personIds` its
    * persons, and activates the deployment, so a test can read and claim under
@@ -71,9 +77,34 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       return {
         source: fixture.source,
         isMemory: true,
-        own: (projectIds, resourceIds) => {
+        seedParent: () => {
           fixture.addOrganization(ORG, { legacy: false });
-          for (const id of projectIds) fixture.ownProjectInOrganization(id, ORG);
+          fixture.setPackageCreationMembers(ORG, [F]);
+          fixture.seedPackageParent({
+            spaceId: null,
+            spacePosition: null,
+            id: 'fixture-project',
+            organizationId: ORG,
+            name: 'Fixture project',
+            createdBy: F,
+            revision: 0,
+            createdAt: 1,
+            updatedAt: null,
+          });
+        },
+        createPackage: (name, clock) =>
+          seedOrganizationPackage(
+            fixture.source.stores.workPackages,
+            clock,
+            ORG,
+            'fixture-project',
+            F,
+            name,
+          ),
+        removePackageOrganization: (id) => {
+          fixture.removeWorkPackageOrganization(id);
+        },
+        own: (_workPackageIds, resourceIds) => {
           for (const id of resourceIds) fixture.ownResourceInOrganization(id, ORG);
         },
         dispose: () => undefined,
@@ -87,23 +118,88 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       const dbPath = join(folder, 'plan.db');
       runMigrations(dbPath, MIGRATIONS);
       activateTestStepBlockages(dbPath);
+      const source = openSqliteSource({
+        dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+        dbPath,
+        organizationDefaultLimits: {
+          maxAgentPersons: 1_000,
+          maxConcurrentClaims: 1_000,
+          maxCapacityUnitsPerResource: 1_000,
+        },
+      });
       return {
         // Caps far above the fixture: a scoped claim counts them, never reaches them.
-        source: openSqliteSource({
-          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-          dbPath,
-          organizationDefaultLimits: {
-            maxAgentPersons: 1_000,
-            maxConcurrentClaims: 1_000,
-            maxCapacityUnitsPerResource: 1_000,
-          },
-        }),
+        source,
         isMemory: false,
+        seedParent: () => {
+          const sqlite = openDatabase(dbPath);
+          try {
+            sqlite.run('INSERT INTO organization(id,name,created_at) VALUES(?,?,1)', [ORG, ORG]);
+            sqlite.run(
+              "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES(?,?,'member',1)",
+              [ORG, F],
+            );
+          } finally {
+            sqlite.close();
+          }
+          seedPackageParent(dbPath, ORG, 'fixture-project');
+        },
+        createPackage: (name, clock) =>
+          seedOrganizationPackage(
+            source.stores.workPackages,
+            clock,
+            ORG,
+            'fixture-project',
+            F,
+            name,
+          ),
+        removePackageOrganization: (id) => {
+          const sqlite = openDatabase(dbPath);
+          try {
+            const trigger = sqlite
+              .query<{ sql: string | null }, []>(
+                "SELECT sql FROM sqlite_schema WHERE type='trigger' AND name='work_package_organization_frozen_delete'",
+              )
+              .get();
+            if (trigger === null || typeof trigger.sql !== 'string' || trigger.sql === '')
+              throw new Error('required fixture ownership trigger is absent or malformed');
+            let failed = false;
+            let failure: unknown;
+            try {
+              sqlite.run('DROP TRIGGER work_package_organization_frozen_delete');
+              sqlite.run('DELETE FROM work_package_organization WHERE resource_id=?', [id]);
+            } catch (cause: unknown) {
+              failed = true;
+              failure = cause;
+            }
+            let restorationFailure: { cause: unknown } | undefined;
+            try {
+              sqlite.run(trigger.sql);
+            } catch (cause: unknown) {
+              restorationFailure = { cause };
+            }
+            if (restorationFailure !== undefined)
+              throw new AggregateError(
+                failed ? [failure, restorationFailure.cause] : [restorationFailure.cause],
+                'fixture ownership trigger restoration failed',
+                { cause: failed ? failure : restorationFailure.cause },
+              );
+            if (failed) throw failure;
+            const restored = sqlite
+              .query<{ sql: string | null }, []>(
+                "SELECT sql FROM sqlite_schema WHERE type='trigger' AND name='work_package_organization_frozen_delete'",
+              )
+              .get();
+            expect(restored?.sql).toBe(trigger.sql);
+          } finally {
+            sqlite.close();
+          }
+        },
         activate: (accountId, personIds) => {
           const sqlite = openDatabase(dbPath);
           try {
             sqlite.run(
-              "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, 'admin', 1)",
+              "UPDATE organization_membership SET role='admin' WHERE organization_id=? AND user_id=?",
               [ORG, accountId],
             );
             sqlite.run(
@@ -122,18 +218,9 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
             sqlite.close();
           }
         },
-        own: (projectIds, resourceIds) => {
+        own: (_workPackageIds, resourceIds) => {
           const sqlite = openDatabase(dbPath);
           try {
-            sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [
-              ORG,
-              ORG,
-            ]);
-            for (const id of projectIds)
-              sqlite.run(
-                'INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)',
-                [id, ORG],
-              );
             for (const id of resourceIds)
               sqlite.run(
                 'INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
@@ -152,7 +239,7 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
 ];
 
 /**
- * Projects A and B, each with leaves `L0`…`L3`, agents `a0`…`a3` and `b0`…`b3`
+ * Work packages A and B, each with leaves `L0`…`L3`, agents `a0`…`a3` and `b0`…`b3`
  * bound to account F, `host ram` (GB, divisible) and the exclusive `staging`,
  * all of one organization. Capacities, demands and directory capacities are
  * each case's own. The clock is `now`, moved by the lease case.
@@ -170,7 +257,7 @@ async function seeded(store: (typeof STORES)[number]) {
     },
   });
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -181,20 +268,21 @@ async function seeded(store: (typeof STORES)[number]) {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const projects: string[] = [];
-  const firstStepByProject = new Map<string, string>();
+  opened.seedParent();
+  const workPackages: string[] = [];
+  const firstStepByWorkPackage = new Map<string, string>();
   for (const name of ['A', 'B']) {
-    const created = expectCreated(await graph.projects.create(name, F));
-    projects.push(created.project.id);
+    const created = expectCreated(await opened.createPackage(name, clock));
+    workPackages.push(created.workPackage.id);
     const firstStep = created.steps.at(0);
-    if (firstStep === undefined) throw new Error(`project ${name} has no first workflow step`);
-    firstStepByProject.set(created.project.id, firstStep.id);
+    if (firstStep === undefined) throw new Error(`work package ${name} has no first workflow step`);
+    firstStepByWorkPackage.set(created.workPackage.id, firstStep.id);
     if (isMemory)
       for (const step of created.steps)
         await source.stores.steps.add(
           {
             id: step.id,
-            projectId: created.project.id,
+            workPackageId: created.workPackage.id,
             name: step.name,
             allowancePercent: 0,
             estimateUnit: 'workdays',
@@ -220,7 +308,7 @@ async function seeded(store: (typeof STORES)[number]) {
     const added = await source.stores.directory.addResource(resource, { at: 1, by: F });
     if (!added.ok) throw new Error(`resource ${resource.id} was refused`);
   }
-  opened.own(projects, [RAM, STAGING]);
+  opened.own(workPackages, [RAM, STAGING]);
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     uow: source.uow,
@@ -234,9 +322,9 @@ async function seeded(store: (typeof STORES)[number]) {
       }),
   });
   const leaves: string[][] = [];
-  for (const projectId of projects) {
+  for (const workPackageId of workPackages) {
     const tree = await runner.run(
-      projectId,
+      workPackageId,
       F,
       Array.from({ length: LEAVES }, (_, index): PlanCommand => ({
         kind: 'createWorkItem',
@@ -249,26 +337,28 @@ async function seeded(store: (typeof STORES)[number]) {
     if (!tree.ok) throw new Error(`the tree was refused: ${JSON.stringify(tree)}`);
     leaves.push(tree.results.map(({ id }) => id ?? ''));
   }
-  const [a, b] = projects as [string, string];
-  const firstStepOf = (projectId: string): string => {
-    const stepId = firstStepByProject.get(projectId);
-    if (stepId === undefined) throw new Error(`project ${projectId} has no first workflow step`);
+  const [a, b] = workPackages as [string, string];
+  const firstStepOf = (workPackageId: string): string => {
+    const stepId = firstStepByWorkPackage.get(workPackageId);
+    if (stepId === undefined)
+      throw new Error(`work package ${workPackageId} has no first workflow step`);
     return stepId;
   };
-  const leaf = (project: 0 | 1, index: number): string => {
-    const id = leaves.at(project)?.at(index);
-    if (id === undefined) throw new Error(`no leaf ${String(index)} in project ${String(project)}`);
+  const leaf = (workPackage: 0 | 1, index: number): string => {
+    const id = leaves.at(workPackage)?.at(index);
+    if (id === undefined)
+      throw new Error(`no leaf ${String(index)} in work package ${String(workPackage)}`);
     return id;
   };
   const run = (
-    project: 0 | 1,
+    workPackage: 0 | 1,
     commands: PlanCommand[],
     credential: CredentialPin | null = null,
     claimSteps = true,
   ) => {
-    const projectId = project === 0 ? a : b;
+    const workPackageId = workPackage === 0 ? a : b;
     return runner.runWithin(
-      projectId,
+      workPackageId,
       {
         id: F,
         username: F,
@@ -286,20 +376,20 @@ async function seeded(store: (typeof STORES)[number]) {
       },
       commands.map((command) =>
         command.kind === 'claimWorkItem' && command.steps === undefined && claimSteps
-          ? { ...command, steps: [firstStepOf(projectId)] }
+          ? { ...command, steps: [firstStepOf(workPackageId)] }
           : command,
       ),
       { kind: 'legacy' },
     );
   };
-  const claim = (project: 0 | 1, index: number, personId: string): PlanCommand => ({
+  const claim = (workPackage: 0 | 1, index: number, personId: string): PlanCommand => ({
     kind: 'claimWorkItem',
-    workItemId: leaf(project, index),
+    workItemId: leaf(workPackage, index),
     personId,
   });
-  const release = (project: 0 | 1, index: number, personId: string): PlanCommand => ({
+  const release = (workPackage: 0 | 1, index: number, personId: string): PlanCommand => ({
     kind: 'releaseWorkItem',
-    workItemId: leaf(project, index),
+    workItemId: leaf(workPackage, index),
     personId,
   });
   /** The units of `resourceId` held in the whole organization. */
@@ -325,9 +415,10 @@ async function seeded(store: (typeof STORES)[number]) {
     source,
     graph,
     opened,
+    clock,
     people,
     runner,
-    projects: { a, b },
+    workPackages: { a, b },
     firstStepOf,
     leaf,
     run,
@@ -346,17 +437,17 @@ async function seeded(store: (typeof STORES)[number]) {
 for (const store of STORES) {
   describe(`shared occupancy on the ${store.name} store`, () => {
     // `wbs-shared-occupancy` S6, the fit half of task 5.1.
-    it('agrees with the claim across projects', async () => {
-      const { graph, projects, run, claim, release, leaf, state, close } = await seeded(store);
+    it('agrees with the claim across work packages', async () => {
+      const { graph, workPackages, run, claim, release, leaf, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
-        for (const project of [0, 1] as const)
-          await run(project, [
-            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+        for (const workPackage of [0, 1] as const)
+          await run(workPackage, [
+            { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: RAM, units: 16 },
           ]);
         expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
         const startable = await graph.workItems.startableWithin(
-          projects.b,
+          workPackages.b,
           { kind: 'legacy' },
           null,
         );
@@ -371,7 +462,11 @@ for (const store of STORES) {
         });
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: false });
         await run(0, [release(0, 0, 'a0')]);
-        const freed = await graph.workItems.startableWithin(projects.b, { kind: 'legacy' }, null);
+        const freed = await graph.workItems.startableWithin(
+          workPackages.b,
+          { kind: 'legacy' },
+          null,
+        );
         if (freed === null || 'kind' in freed) throw new Error('the read was refused');
         expect(freed.leaves.map(({ workItemId }) => workItemId)).toContain(leaf(1, 0));
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
@@ -380,10 +475,10 @@ for (const store of STORES) {
       }
     });
 
-    // Review S3-5 (second pass): a holder's project is named only when it is
-    // another project's, as `OccupancyHolder.projectId` says.
-    it('names a holder’s project only when it is another project', async () => {
-      const { run, claim, leaf, projects, state, close } = await seeded(store);
+    // Review S3-5 (second pass): a holder's work package is named only when it is
+    // another work package's, as `OccupancyHolder.workPackageId` says.
+    it('names a holder’s work package only when it is another work package', async () => {
+      const { run, claim, leaf, workPackages, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
         await run(0, [
@@ -398,10 +493,12 @@ for (const store of STORES) {
           throw new Error(`expected resources_exhausted: ${JSON.stringify(refused)}`);
         const { holders } = refused.detail;
         // Ordered by work item: A's leaves were minted before B's.
-        expect(holders.map(({ personId, projectId }) => ({ personId, projectId }))).toEqual([
-          { personId: 'a0', projectId: undefined },
-          { personId: 'b0', projectId: projects.b },
-        ]);
+        expect(holders.map(({ personId, workPackageId }) => ({ personId, workPackageId }))).toEqual(
+          [
+            { personId: 'a0', workPackageId: undefined },
+            { personId: 'b0', workPackageId: workPackages.b },
+          ],
+        );
       } finally {
         await close();
       }
@@ -410,15 +507,25 @@ for (const store of STORES) {
     // Proof: with `findStartableWork` given empty organization inputs, this
     // failed beside its legacy twin (26 pass, 3 fail); watched 2026-10-25.
     if (store.name === 'sqlite')
-      it('agrees with the claim across projects under scoped access', async () => {
-        const { opened, graph, runner, people, projects, run, firstStepOf, leaf, state, close } =
-          await seeded(store);
+      it('agrees with the claim across work packages under scoped access', async () => {
+        const {
+          opened,
+          graph,
+          runner,
+          people,
+          workPackages,
+          run,
+          firstStepOf,
+          leaf,
+          state,
+          close,
+        } = await seeded(store);
         try {
           if (opened.activate === undefined) throw new Error('only SQLite activates');
           await state(RAM, 16);
-          for (const project of [0, 1] as const)
-            await run(project, [
-              { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+          for (const workPackage of [0, 1] as const)
+            await run(workPackage, [
+              { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: RAM, units: 16 },
             ]);
           opened.activate(F, people);
           const admin = {
@@ -426,20 +533,27 @@ for (const store of STORES) {
             kind: 'scoped',
             scope: { cap: null, organizationId: ORG, userId: F, role: 'admin' },
           } as const;
-          const claimIn = (projectId: string, workItemId: string, personId: string) =>
+          const claimIn = (workPackageId: string, workItemId: string, personId: string) =>
             runner.runWithin(
-              projectId,
+              workPackageId,
               { id: F, username: F, scopes: ['write'] },
-              [{ kind: 'claimWorkItem', workItemId, personId, steps: [firstStepOf(projectId)] }],
+              [
+                {
+                  kind: 'claimWorkItem',
+                  workItemId,
+                  personId,
+                  steps: [firstStepOf(workPackageId)],
+                },
+              ],
               admin,
             );
-          expect(await claimIn(projects.a, leaf(0, 0), 'a0')).toMatchObject({ ok: true });
-          const startable = await graph.workItems.startableWithin(projects.b, admin, null);
+          expect(await claimIn(workPackages.a, leaf(0, 0), 'a0')).toMatchObject({ ok: true });
+          const startable = await graph.workItems.startableWithin(workPackages.b, admin, null);
           if (startable === null || 'kind' in startable) throw new Error('the read was refused');
           expect(startable.leaves.map(({ workItemId }) => workItemId)).not.toContain(leaf(1, 0));
           const unfit = startable.doesNotFit.find((each) => each.workItemId === leaf(1, 0));
           expect(unfit?.exhausted).toMatchObject({ free: 0, scope: 'organization' });
-          expect(await claimIn(projects.b, leaf(1, 0), 'b0')).toMatchObject({
+          expect(await claimIn(workPackages.b, leaf(1, 0), 'b0')).toMatchObject({
             ok: false,
             reason: 'resources_exhausted',
           });
@@ -448,27 +562,27 @@ for (const store of STORES) {
         }
       });
 
-    // Review S3-8: after activation every project has its organization row,
-    // so an owned resource held in a project of none is corrupt, not skipped.
-    it('throws on a holder in a project of no organization', async () => {
-      const { source, graph, runner, state, close } = await seeded(store);
+    // Review S3-8: after activation every work package has its organization row,
+    // so an owned resource held in a work package of none is corrupt, not skipped.
+    it('throws on a holder in a work package of no organization', async () => {
+      const { source, opened, clock, runner, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
-        const { project, steps } = expectCreated(await graph.projects.create('Orphan', F));
+        const { workPackage, steps } = expectCreated(await opened.createPackage('Orphan', clock));
         const step = steps.at(0);
-        if (step === undefined) throw new Error('the orphan project has no step');
+        if (step === undefined) throw new Error('the orphan work package has no step');
         if (store.name === 'memory')
           await source.stores.steps.add(
             {
               id: step.id,
-              projectId: project.id,
+              workPackageId: workPackage.id,
               name: step.name,
               allowancePercent: 0,
               estimateUnit: 'workdays',
             },
             { at: 1, by: F },
           );
-        const created = await runner.run(project.id, F, [
+        const created = await runner.run(workPackage.id, F, [
           { kind: 'createWorkItem', name: 'Leaf', parentId: null, afterId: null },
         ]);
         const workItemId = created.ok ? created.results.at(0)?.id : undefined;
@@ -490,32 +604,37 @@ for (const store of STORES) {
           [{ claimId: 'orphan-claim', resourceId: RAM, units: 4 }],
         );
         expect(written).toBe('written');
+        opened.removePackageOrganization(workPackage.id);
+        if (store.name === 'memory')
+          expect(() => {
+            opened.removePackageOrganization(workPackage.id);
+          }).toThrow('memory package organization mapping is absent');
         expect(
           await source.stores.claims.organizationUnitsOf([RAM]).then(
             () => 'answered',
             (error: unknown) => String(error),
           ),
-        ).toContain('held in a project of no organization');
+        ).toContain('held in a work package of no organization');
         // The holder read refuses alike: a refusal never names a corrupt row.
         expect(
           await source.stores.claims.organizationOccupancyOf([RAM]).then(
             () => 'answered',
             (error: unknown) => String(error),
           ),
-        ).toContain('held in a project of no organization');
+        ).toContain('held in a work package of no organization');
       } finally {
         await close();
       }
     });
 
     it('refuses B’s 16 GB while A holds the directory’s 16, naming the organization', async () => {
-      const { run, claim, leaf, held, state, projects, close } = await seeded(store);
+      const { run, claim, leaf, held, state, workPackages, close } = await seeded(store);
       try {
         await state(RAM, 16);
-        for (const project of [0, 1] as const)
-          await run(project, [
+        for (const workPackage of [0, 1] as const)
+          await run(workPackage, [
             { kind: 'setResourceCapacity', resourceId: RAM, units: 16 },
-            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+            { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: RAM, units: 16 },
           ]);
         expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
         const refused = await run(1, [claim(1, 0, 'b0')]);
@@ -527,8 +646,8 @@ for (const store of STORES) {
             asked: 16,
             free: 0,
             scope: 'organization',
-            // Another project's holder names its project (S5).
-            holders: [{ personId: 'a0', workItemId: leaf(0, 0), projectId: projects.a }],
+            // Another work package's holder names its work package (S5).
+            holders: [{ personId: 'a0', workItemId: leaf(0, 0), workPackageId: workPackages.a }],
           },
         });
         expect(await held(RAM)).toBe(16);
@@ -537,13 +656,13 @@ for (const store of STORES) {
       }
     });
 
-    it('holds one staging across projects, and B claims it once A releases it', async () => {
+    it('holds one staging across work packages, and B claims it once A releases it', async () => {
       const { run, claim, release, leaf, state, close } = await seeded(store);
       try {
         await state(STAGING, 1);
-        for (const project of [0, 1] as const)
-          await run(project, [
-            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: STAGING, units: 1 },
+        for (const workPackage of [0, 1] as const)
+          await run(workPackage, [
+            { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: STAGING, units: 1 },
           ]);
         expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({
@@ -558,7 +677,7 @@ for (const store of STORES) {
       }
     });
 
-    it('keeps the project ceiling binding while the organization has units free', async () => {
+    it('keeps the work package ceiling binding while the organization has units free', async () => {
       const { run, claim, leaf, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
@@ -570,7 +689,7 @@ for (const store of STORES) {
         expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
         expect(await run(0, [claim(0, 1, 'a1')])).toMatchObject({
           ok: false,
-          detail: { free: 0, scope: 'project' },
+          detail: { free: 0, scope: 'work_package' },
         });
       } finally {
         await close();
@@ -578,7 +697,7 @@ for (const store of STORES) {
     });
 
     it('refuses the second of two leaves one batch claims past the directory capacity, writing nothing', async () => {
-      const { source, projects, run, claim, leaf, held, state, close } = await seeded(store);
+      const { source, workPackages, run, claim, leaf, held, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
         await run(0, [
@@ -591,7 +710,7 @@ for (const store of STORES) {
           reason: 'resources_exhausted',
           detail: { asked: 10, free: 6, scope: 'organization' },
         });
-        expect(await source.stores.claims.listByProject(projects.a)).toEqual([]);
+        expect(await source.stores.claims.listByWorkPackage(workPackages.a)).toEqual([]);
         expect(await held(RAM)).toBe(0);
       } finally {
         await close();
@@ -601,13 +720,13 @@ for (const store of STORES) {
     it('decides as before when no directory capacity is stated', async () => {
       const { run, claim, leaf, held, close } = await seeded(store);
       try {
-        for (const project of [0, 1] as const)
-          await run(project, [
+        for (const workPackage of [0, 1] as const)
+          await run(workPackage, [
             { kind: 'setResourceCapacity', resourceId: RAM, units: 16 },
-            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+            { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: RAM, units: 16 },
           ]);
         expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
-        // Per project only, as `wbs-resources` R3 counted it: 32 of an unstated directory.
+        // Per work package only, as `wbs-resources` R3 counted it: 32 of an unstated directory.
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
         expect(await held(RAM)).toBe(32);
       } finally {
@@ -616,18 +735,18 @@ for (const store of STORES) {
     });
 
     it('refuses an undo of a release in A once B took the directory’s 16', async () => {
-      const { runner, projects, run, claim, release, leaf, held, state, close } =
+      const { runner, workPackages, run, claim, release, leaf, held, state, close } =
         await seeded(store);
       try {
         await state(RAM, 16);
-        for (const project of [0, 1] as const)
-          await run(project, [
-            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+        for (const workPackage of [0, 1] as const)
+          await run(workPackage, [
+            { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: RAM, units: 16 },
           ]);
         await run(0, [claim(0, 0, 'a0')]);
         await run(0, [release(0, 0, 'a0')]);
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
-        const undone = await runner.undo(projects.a, F);
+        const undone = await runner.undo(workPackages.a, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(staleDetail(undone)).toBe(
           'resources_exhausted: that needs 16 GB of “host ram” and 0 are free now across the organization.',
@@ -639,17 +758,17 @@ for (const store of STORES) {
     });
 
     it('refuses a redo of a claim in A once B took the units', async () => {
-      const { runner, projects, run, claim, leaf, held, state, close } = await seeded(store);
+      const { runner, workPackages, run, claim, leaf, held, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
-        for (const project of [0, 1] as const)
-          await run(project, [
-            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 12 },
+        for (const workPackage of [0, 1] as const)
+          await run(workPackage, [
+            { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: RAM, units: 12 },
           ]);
         await run(0, [claim(0, 0, 'a0')]);
-        expect(await runner.undo(projects.a, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackages.a, F)).toMatchObject({ ok: true });
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
-        const redone = await runner.redo(projects.a, F);
+        const redone = await runner.redo(workPackages.a, F);
         expect(redone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(staleDetail(redone)).toStartWith('resources_exhausted:');
         expect(await held(RAM)).toBe(12);
@@ -664,7 +783,7 @@ for (const store of STORES) {
       [8, 'applied'],
     ] as const)
       it(`undoes a delete restoring A’s 8 GB while B holds ${String(taken)} of 16: ${expected}`, async () => {
-        const { source, runner, projects, run, claim, leaf, held, state, close } =
+        const { source, runner, workPackages, run, claim, leaf, held, state, close } =
           await seeded(store);
         try {
           await state(RAM, 16);
@@ -677,15 +796,15 @@ for (const store of STORES) {
             ok: true,
           });
           expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
-          const undone = await runner.undo(projects.a, F);
+          const undone = await runner.undo(workPackages.a, F);
           if (expected === 'refused') {
             expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
             expect(staleDetail(undone)).toStartWith('resources_exhausted:');
-            expect(await source.stores.claims.listByProject(projects.a)).toEqual([]);
+            expect(await source.stores.claims.listByWorkPackage(workPackages.a)).toEqual([]);
             expect(await held(RAM)).toBe(taken);
           } else {
             expect(undone).toMatchObject({ ok: true });
-            expect(await source.stores.claims.listByProject(projects.a)).not.toEqual([]);
+            expect(await source.stores.claims.listByWorkPackage(workPackages.a)).not.toEqual([]);
             expect(await held(RAM)).toBe(16);
           }
         } finally {
@@ -693,8 +812,8 @@ for (const store of STORES) {
         }
       });
 
-    it('refuses an undo of a cascading release leaf by leaf across projects', async () => {
-      const { source, runner, projects, run, claim, leaf, held, state, close } =
+    it('refuses an undo of a cascading release leaf by leaf across work packages', async () => {
+      const { source, runner, workPackages, run, claim, leaf, held, state, close } =
         await seeded(store);
       try {
         await state(RAM, 16);
@@ -746,10 +865,10 @@ for (const store of STORES) {
         ).toMatchObject({ ok: true });
         // B takes 10 of 16: the first 4 GB leaf would fit again, the second not.
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
-        const undone = await runner.undo(projects.a, F);
+        const undone = await runner.undo(workPackages.a, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(staleDetail(undone)).toStartWith('resources_exhausted:');
-        expect(await source.stores.claims.listByProject(projects.a)).toEqual([]);
+        expect(await source.stores.claims.listByWorkPackage(workPackages.a)).toEqual([]);
         expect(await held(RAM)).toBe(10);
       } finally {
         await close();
@@ -761,9 +880,9 @@ for (const store of STORES) {
         await seeded(store);
       try {
         await state(RAM, 16);
-        for (const project of [0, 1] as const)
-          await run(project, [
-            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+        for (const workPackage of [0, 1] as const)
+          await run(workPackage, [
+            { kind: 'setDemand', workItemId: leaf(workPackage, 0), resourceId: RAM, units: 16 },
           ]);
         // An agent's claim for itself is leased (`wbs-claim-leases` L1).
         expect(await run(0, [claim(0, 0, 'a0')], { personId: 'a0' })).toMatchObject({ ok: true });
@@ -772,8 +891,8 @@ for (const store of STORES) {
         const ticks: (() => void)[] = [];
         const sweep = new ClaimLeaseSweep({
           runner,
-          projectsWithExpiredLeases: (at, limit) =>
-            source.stores.claims.projectsWithExpiredLeases(at, limit),
+          workPackagesWithExpiredLeases: (at, limit) =>
+            source.stores.claims.workPackagesWithExpiredLeases(at, limit),
           now,
           intervals: {
             every: (_ms, callback) => {
@@ -782,7 +901,7 @@ for (const store of STORES) {
             },
           },
           intervalMs: 30_000,
-          projectsPerTick: 50,
+          workPackagesPerTick: 50,
           onError: (error) => {
             throw error;
           },

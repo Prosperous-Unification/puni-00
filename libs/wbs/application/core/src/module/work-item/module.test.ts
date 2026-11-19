@@ -1,10 +1,12 @@
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
@@ -13,16 +15,30 @@ import { installWorkItem } from './check';
 import { WORK_ITEM_LABEL } from './contract';
 import { workItemModule } from './module';
 
-const PROJECT = 'project-1';
+const WORK_PACKAGE = 'work-package-1';
 const OWNER = 'owner';
 
-/** One memory source holding one project, and the fifteen requirements a work item write needs. */
+/** One memory source holding one work package, and the fifteen requirements a work item write needs. */
 async function seeded() {
-  const source = openMemorySource();
-  await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-    at: 1,
-    by: OWNER,
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
+  await source.stores.users.create(
+    { id: OWNER, username: OWNER, passwordHash: null, createdAt: 1 },
+    { at: 1, by: OWNER },
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: OWNER,
   });
+  await source.stores.workPackages.create(
+    workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
+    [],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   const { stores } = source;
   let next = 0;
   const broadcast = recordingBroadcaster();
@@ -33,7 +49,7 @@ async function seeded() {
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       workItems: stores.workItems,
       stepParallels: stores.stepParallels,
-      projects: stores.projects,
+      workPackages: stores.workPackages,
       estimates: stores.estimates,
       actuals: stores.actuals,
       measures: stores.measures,
@@ -54,7 +70,7 @@ async function seeded() {
       subtrees: stores.subtrees,
       journal: stores.journal,
       broadcast,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: clockOf({ now: () => 2, newId: () => `item-${String(++next)}` }),
     },
@@ -75,7 +91,9 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
-    projectStore: DiBag.createProvider(() => stores.projects, { factoryReturnKind: 'sync-value' }),
+    workPackageStore: DiBag.createProvider(() => stores.workPackages, {
+      factoryReturnKind: 'sync-value',
+    }),
     estimateStore: DiBag.createProvider(() => stores.estimates, {
       factoryReturnKind: 'sync-value',
     }),
@@ -123,7 +141,7 @@ const hostRequirements = () => {
     dependencyContext: DiBag.createProvider(() => createLocalDependencyContext(stores), {
       factoryReturnKind: 'sync-value',
     }),
-    editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
+    editAdmission: DiBag.createProvider(() => LEGACY_EDIT_ADMISSION, {
       factoryReturnKind: 'sync-value',
     }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
@@ -156,20 +174,20 @@ describe('the Work item module', () => {
   it('refuses an SF write at the application boundary', async () => {
     const { requirements } = await seeded();
     const { workItems } = installWorkItem(requirements);
-    const first = await workItems.create(PROJECT, OWNER, {
+    const first = await workItems.create(WORK_PACKAGE, OWNER, {
       parentId: null,
       afterId: null,
       name: 'A',
     });
-    const second = await workItems.create(PROJECT, OWNER, {
+    const second = await workItems.create(WORK_PACKAGE, OWNER, {
       parentId: null,
       afterId: null,
       name: 'B',
     });
     if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
-    const proposed = await workItems.addTypedDependency(PROJECT, OWNER, {
-      predecessor: { projectId: PROJECT, scope: 'whole', workItemId: first.value.id },
-      successor: { projectId: PROJECT, scope: 'whole', workItemId: second.value.id },
+    const proposed = await workItems.addTypedDependency(WORK_PACKAGE, OWNER, {
+      predecessor: { workPackageId: WORK_PACKAGE, scope: 'whole', workItemId: first.value.id },
+      successor: { workPackageId: WORK_PACKAGE, scope: 'whole', workItemId: second.value.id },
       type: 'SF',
     });
     expect(proposed).toEqual({ ok: false, reason: 'unsupported_relationship_type' });
@@ -178,33 +196,33 @@ describe('the Work item module', () => {
   it('refuses a direct legacy write that closes a typed SS cycle', async () => {
     const { requirements } = await seeded();
     const { workItems } = installWorkItem(requirements);
-    const first = await workItems.create(PROJECT, OWNER, {
+    const first = await workItems.create(WORK_PACKAGE, OWNER, {
       parentId: null,
       afterId: null,
       name: 'A',
     });
-    const second = await workItems.create(PROJECT, OWNER, {
+    const second = await workItems.create(WORK_PACKAGE, OWNER, {
       parentId: null,
       afterId: null,
       name: 'B',
     });
     if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
-    const typed = await workItems.addTypedDependency(PROJECT, OWNER, {
-      predecessor: { projectId: PROJECT, scope: 'whole', workItemId: first.value.id },
-      successor: { projectId: PROJECT, scope: 'whole', workItemId: second.value.id },
+    const typed = await workItems.addTypedDependency(WORK_PACKAGE, OWNER, {
+      predecessor: { workPackageId: WORK_PACKAGE, scope: 'whole', workItemId: first.value.id },
+      successor: { workPackageId: WORK_PACKAGE, scope: 'whole', workItemId: second.value.id },
       type: 'SS',
     });
     expect(typed.ok).toBe(true);
     const legacy = await workItems.addDependency(first.value.id, OWNER, second.value.id);
     expect(legacy).toEqual({ ok: false, reason: 'cycle' });
-    expect(await requirements.dependencies.listByProject(PROJECT)).toEqual([]);
+    expect(await requirements.dependencies.listByWorkPackage(WORK_PACKAGE)).toEqual([]);
   });
 
   it('announces a created work item through the broadcaster installWorkItem wires', async () => {
     const { broadcast, requirements } = await seeded();
     const { workItems } = installWorkItem(requirements);
 
-    const created = await workItems.create(PROJECT, OWNER, {
+    const created = await workItems.create(WORK_PACKAGE, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Scope',
@@ -225,7 +243,7 @@ describe('the Work item module', () => {
     const { broadcast, requirements } = await seeded();
     const { workItems } = installWorkItem({ ...requirements, admission: { admits: () => false } });
 
-    const created = await workItems.create(PROJECT, OWNER, {
+    const created = await workItems.create(WORK_PACKAGE, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Scope',

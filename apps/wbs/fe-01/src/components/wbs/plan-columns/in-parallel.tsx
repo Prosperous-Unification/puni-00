@@ -67,7 +67,7 @@ export function createInParallelColumn({ live }: { live: PlanLive }) {
        * right answer for a leaf with one step, or with several steps and
        * one assumed assignee — but it is `null` the moment a *second*
        * step gets its own explicit name, because `assumedAssignee`
-       * requires exactly one named assignment project-wide on the row.
+       * requires exactly one named assignment work-package-wide on the row.
        * Two steps on two different people each still collapse their own
        * slice to width 1; the row-level reading just stopped being able
        * to say so.

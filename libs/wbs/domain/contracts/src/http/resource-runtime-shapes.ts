@@ -7,7 +7,7 @@ import { requestSchema, responseSchema } from './schema-shape';
 
 const label = '0 < string <= 2048';
 export const resourceRuntimeUse = type({
-  projectId: label,
+  workPackageId: label,
   resourceId: label,
   workItemId: label,
   'stepId?': label,
@@ -22,7 +22,7 @@ export const resourceRuntimeUse = type({
 });
 /**
  * A host job (`dash-host-jobs` J10), the use variant of `resourceRuntimeUse` v2: admitted by
- * Dash's host pool alone and published afterwards, so its project, work item and person links
+ * Dash's host pool alone and published afterwards, so its work package, work item and person links
  * are optional and its owner is the authority the event arrives through (and that authority's
  * organization), never a planning row. `reservations` holds one entry per dimension the
  * envelope names (`cpuCores`, `memoryGib`, `tmpDiskGib`, one per exclusive id). `launcherSha` is
@@ -30,12 +30,12 @@ export const resourceRuntimeUse = type({
  * tested SHA is in its argv), null while the launcher records none. A v1 use (`resourceRuntimeUse`)
  * is unchanged byte for byte.
  */
-// Proof: with `projectId` required, a gate without a link failed to register in
-// `projects two gates with no planning link` (host-job-use.controller.db.test.ts) and Dash's
+// Proof: with `workPackageId` required, a gate without a link failed to register in
+// `workPackages two gates with no planning link` (host-job-use.controller.db.test.ts) and Dash's
 // outbox move refused it in host-job-publication.test.ts; watched 2026-11-01.
 export const resourceRuntimeHostJobUse = type({
   kind: "'host_job'",
-  'projectId?': label,
+  'workPackageId?': label,
   'workItemId?': label,
   'responsiblePersonId?': label,
   type: label,

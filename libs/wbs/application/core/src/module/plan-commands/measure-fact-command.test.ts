@@ -2,7 +2,7 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import type { PlanCommand } from '../../service/command-normalizers';
@@ -19,7 +19,7 @@ const ORG = 'org-a';
 const MINUTE = 60_000;
 
 /**
- * A project owned by the legacy organization `org-a`, which defines
+ * A work package owned by the legacy organization `org-a`, which defines
  * `gpu_minutes` beside the five seeds, holding parent `P` over leaves `A` and
  * `B` (`wbs-measure-budgets` task 1.3).
  */
@@ -29,7 +29,7 @@ async function seeded() {
   fixture.addOrganization(ORG, { legacy: true });
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -39,12 +39,29 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Measures', F));
-  const projectId = created.project.id;
-  fixture.ownProjectInOrganization(projectId, ORG);
+  fixture.seedPackageParent({
+    spaceId: null,
+    spacePosition: null,
+    id: 'fixture-project',
+    organizationId: ORG,
+    name: 'Fixture project',
+    createdBy: F,
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
+  });
+  const created = expectCreated(await graph.workPackages.create('Measures', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+  fixture.ownWorkPackageInOrganization(workPackageId, ORG);
   for (const step of created.steps) {
     await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+      {
+        id: step.id,
+        workPackageId,
+        name: step.name,
+        allowancePercent: 0,
+        estimateUnit: 'workdays',
+      },
       { at: 1, by: F },
     );
   }
@@ -72,7 +89,7 @@ async function seeded() {
     },
   ]);
   if (!defined.ok) throw new Error(`gpu_minutes was refused: ${JSON.stringify(defined)}`);
-  const built = await runner.run(projectId, F, [
+  const built = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: null, parentRef: 'P', afterId: null },
     {
@@ -92,9 +109,9 @@ async function seeded() {
       throw new Error(`no work item ${ref}`);
     return found.id;
   };
-  const run = (commands: readonly PlanCommand[]) => runner.run(projectId, F, commands);
+  const run = (commands: readonly PlanCommand[]) => runner.run(workPackageId, F, commands);
   const facts = async () =>
-    (await source.stores.measures.listByProject(projectId)).map(
+    (await source.stores.measures.listByWorkPackage(workPackageId)).map(
       ({ workItemId, metric, value }) => ({ workItemId, metric, value }),
     );
   const gpuId = async () => {
@@ -104,16 +121,16 @@ async function seeded() {
     return found.id;
   };
   const tree = async (): Promise<PlanTree> => {
-    const read = await graph.workItems.tree(projectId);
+    const read = await graph.workItems.tree(workPackageId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
     return read;
   };
-  return { source, runner, projectId, dev, idOf, run, facts, gpuId, tree };
+  return { source, runner, workPackageId, dev, idOf, run, facts, gpuId, tree };
 }
 
 describe('facts keyed by measure definition', () => {
   it('records a fact in a defined measure and under either name of tokens and hours, undoably', async () => {
-    const { source, runner, projectId, dev, idOf, run, facts } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, facts } = await seeded();
     try {
       const A = idOf('A');
       expect(
@@ -132,10 +149,10 @@ describe('facts keyed by measure definition', () => {
         await run([{ kind: 'setMeasure', workItemId: A, stepId: dev, metric: 'hours', value: 2 }]),
       ).toMatchObject({ ok: true });
       expect(await facts()).toContainEqual({ workItemId: A, metric: 'hours_actual', value: 2 });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await facts()).toEqual([]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await facts()).toEqual([
         { workItemId: A, metric: 'gpu_minutes', value: 3 },
         { workItemId: A, metric: 'hours_actual', value: 1.5 },
@@ -202,7 +219,7 @@ describe('facts keyed by measure definition', () => {
   });
 
   it('refuses an undo that would put a fact back in a measure deleted since', async () => {
-    const { source, runner, projectId, dev, idOf, run, facts, gpuId } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, facts, gpuId } = await seeded();
     try {
       const A = idOf('A');
       await run([
@@ -213,7 +230,7 @@ describe('facts keyed by measure definition', () => {
         { kind: 'deleteMeasure', measureId: await gpuId() },
       ]);
       expect(deleted).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await facts()).toEqual([]);
     } finally {
       await source.close();
@@ -221,7 +238,7 @@ describe('facts keyed by measure definition', () => {
   });
 
   it('refuses an undo of a delete whose fact is in a measure deleted since', async () => {
-    const { source, runner, projectId, dev, idOf, run, facts, gpuId } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, facts, gpuId } = await seeded();
     try {
       const A = idOf('A');
       await run([
@@ -231,7 +248,7 @@ describe('facts keyed by measure definition', () => {
       expect(
         await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await gpuId() }]),
       ).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await facts()).toEqual([]);
     } finally {
       await source.close();
@@ -241,7 +258,7 @@ describe('facts keyed by measure definition', () => {
 
 describe('replays across a deleted definition', () => {
   it('refuses an undo of a first-child create whose handed-down fact is in a measure deleted since', async () => {
-    const { source, runner, projectId, dev, idOf, run, gpuId } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, gpuId } = await seeded();
     try {
       const A = idOf('A');
       await run([
@@ -263,8 +280,8 @@ describe('replays across a deleted definition', () => {
         await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await gpuId() }]),
       ).toMatchObject({ ok: true });
       // The clear's undo refuses first (set_measure guard), then the create's.
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
     } finally {
       await source.close();
     }

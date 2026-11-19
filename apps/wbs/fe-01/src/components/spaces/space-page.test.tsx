@@ -7,7 +7,15 @@ import {
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@/testing/organization-render';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/testing/organization-render';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { ROLL_UP_CHUNK, SpacePage } from './space-page';
@@ -27,11 +35,11 @@ function routed(ui: ReactNode) {
   render(<RouterProvider router={router} />);
 }
 
-const project = (id: string, name = id) => ({
+const workPackage = (id: string, name = id) => ({
   id,
   name,
   abbreviation: `P${id.toUpperCase()}`,
-  ownerId: 'u',
+  projectId: `project-${id}`,
   restricted: false,
   estimateMethod: 'pert',
   depReach: 'whole-item',
@@ -44,7 +52,7 @@ const project = (id: string, name = id) => ({
   optimizationEnabled: false,
   scheduleEngine: 'fast',
   scheduleObjective: 'pri',
-  ownerName: 'ada',
+  createdByName: 'ada',
   lastOpenedAt: null,
 });
 
@@ -53,13 +61,40 @@ const read = (ids: readonly string[], writable: boolean) => ({
     id: 's',
     name: 'Q3',
     virtual: false,
-    projectCount: ids.length,
+    workPackageCount: ids.length,
     revision: 1,
     createdById: 'u',
     createdAt: 1,
   },
   writable,
-  rows: ids.map((id, index) => ({ project: project(id), position: (index + 1) * 10 })),
+  rows: ids.map((id, index) => ({ workPackage: workPackage(id), position: (index + 1) * 10 })),
+});
+
+/** Each default fixture row belongs to its explicitly named distinct project. */
+const readAt = (placements: readonly (readonly [string, number])[], writable: boolean) => ({
+  ...read(
+    placements.map(([id]) => id),
+    writable,
+  ),
+  rows: placements.map(([id, position]) => ({ workPackage: workPackage(id), position })),
+});
+
+const project = (
+  id: string,
+  name: string,
+  spaceId: string | null,
+  spacePosition: number | null,
+) => ({
+  id,
+  organizationId: 'org-a',
+  spaceId,
+  spacePosition,
+  name,
+  revision: 0,
+  createdAt: 1,
+  updatedAt: null,
+  createdBy: null,
+  workPackageCount: 1,
 });
 
 const rolledUp = (finalTotal: number) => ({
@@ -85,12 +120,12 @@ const rolledUp = (finalTotal: number) => ({
   waitingForPerson: 0,
   waitingForCapacity: 0,
   displayed: 'fast',
-  projectRevision: 0,
+  workPackageRevision: 0,
   seq: 1,
 });
 
 describe('a space', () => {
-  it('lists its projects, then fills each row as its roll-up arrives', async () => {
+  it('lists its work packages, then fills each row as its roll-up arrives', async () => {
     const sent = stubServer({
       'GET /api/spaces/s': [() => answer(200, read(['p1', 'p2'], false))],
       'GET /api/spaces/s/in-progress': [
@@ -101,7 +136,7 @@ describe('a space', () => {
       ],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
-    const table = await screen.findByRole('table', { name: 'Projects' });
+    const table = await screen.findByRole('table', { name: 'Work packages' });
     const firstRow = await within(table).findByRole('row', { name: /p1/ });
     await waitFor(() => {
       expect(firstRow.textContent).toContain('In progress');
@@ -112,10 +147,10 @@ describe('a space', () => {
       'Schedule unavailable',
     );
     expect(within(firstRow).getByRole('link', { name: 'p1' }).getAttribute('href')).toBe(
-      '/?project=p1',
+      '/?workPackage=p1',
     );
     expect(sent.filter(({ route }) => route.endsWith('/roll-ups'))).toHaveLength(1);
-    const timeline = screen.getByRole('list', { name: 'Project timeline' });
+    const timeline = screen.getByRole('list', { name: 'Work package timeline' });
     expect(
       within(timeline).getByRole('img', { name: 'p1: 2026-10-01 to 2026-10-20' }),
     ).toBeDefined();
@@ -150,42 +185,124 @@ describe('a space', () => {
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
-    await screen.findByRole('table', { name: 'Projects' });
-    expect(screen.queryByRole('button', { name: 'Remove p1 from this space' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Move p2 up' })).toBeNull();
+    await screen.findByRole('table', { name: 'Work packages' });
+    expect(
+      screen.queryByRole('button', { name: 'Remove the project containing p1 from this space' }),
+    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Move the project containing p2 up' })).toBeNull();
     expect(screen.queryByLabelText('Add a project')).toBeNull();
   });
 
   it('moves, removes and adds for a member, re-reading after each', async () => {
     const sent = stubServer({
-      'GET /api/spaces/s': [() => answer(200, read(['p1', 'p2', 'p3'], true))],
+      'GET /api/spaces/s': [
+        () =>
+          answer(
+            200,
+            readAt(
+              [
+                ['p1', 10],
+                ['p2', 20],
+                ['p3', 30],
+              ],
+              true,
+            ),
+          ),
+        () =>
+          answer(
+            200,
+            readAt(
+              [
+                ['p1', 10],
+                ['p3', 15],
+                ['p2', 20],
+              ],
+              true,
+            ),
+          ),
+        () =>
+          answer(
+            200,
+            readAt(
+              [
+                ['p1', 10],
+                ['p3', 15],
+              ],
+              true,
+            ),
+          ),
+        () =>
+          answer(
+            200,
+            readAt(
+              [
+                ['p1', 10],
+                ['p3', 15],
+                ['p4', 40],
+              ],
+              true,
+            ),
+          ),
+      ],
       'GET /api/spaces/s/in-progress': [
         () => answer(200, { items: [], truncated: false, unavailable: [] }),
       ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       'GET /api/projects': [
-        () => answer(200, { projects: [project('p1'), project('p4', 'Fourth')] }),
+        () => answer(200, { projects: [project('project-p4', 'Fourth', null, null)] }),
+        () => answer(200, { projects: [project('project-p4', 'Fourth', null, null)] }),
+        () => answer(200, { projects: [project('project-p4', 'Fourth', null, null)] }),
+        () => answer(200, { projects: [project('project-p4', 'Fourth', 's', 40)] }),
       ],
-      'POST /api/spaces/s/projects/p3/move': [() => answer(200, { position: 15 })],
-      'DELETE /api/spaces/s/projects/p2': [() => answerEmpty(204)],
+      'POST /api/spaces/s/projects/project-p3/move': [() => answer(200, { position: 15 })],
+      'DELETE /api/spaces/s/projects/project-p2': [() => answerEmpty(204)],
       'POST /api/spaces/s/projects': [() => answer(201, { position: 40 })],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Move p3 up' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Move the project containing p3 up' }),
+    );
     expect(await screen.findByText('Moved p3 up.')).toBeDefined();
-    expect(sent.find(({ route }) => route.endsWith('/p3/move'))?.body).toEqual({
-      afterProjectId: 'p1',
+    expect(sent.find(({ route }) => route.endsWith('/project-p3/move'))?.body).toEqual({
+      afterProjectId: 'project-p1',
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Remove p2 from this space' }));
+    await waitFor(() => {
+      const table = screen.getByRole('table', { name: 'Work packages' });
+      expect(
+        within(table)
+          .getAllByRole('link')
+          .map((link) => link.textContent),
+      ).toEqual(['p1', 'p3', 'p2']);
+      expect(
+        screen
+          .getByRole('button', { name: 'Remove the project containing p2 from this space' })
+          .getAttribute('disabled'),
+      ).toBeNull();
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove the project containing p2 from this space' }),
+    );
     expect(
-      await screen.findByText('Removed p2 from this space. The project is unchanged.'),
+      await screen.findByText(
+        'Removed the project containing p2 from this space. Its work packages are unchanged.',
+      ),
     ).toBeDefined();
-    fireEvent.change(screen.getByLabelText('Add a project'), { target: { value: 'p4' } });
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: 'p2' })).toBeNull();
+    });
+    fireEvent.change(screen.getByLabelText('Add a project'), { target: { value: 'project-p4' } });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add' }).getAttribute('disabled')).toBeNull();
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(await screen.findByText('Added Fourth.')).toBeDefined();
     expect(sent.find(({ route }) => route === 'POST /api/spaces/s/projects')?.body).toEqual({
-      projectId: 'p4',
-      afterProjectId: 'p3',
+      projectId: 'project-p4',
+      afterProjectId: 'project-p3',
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'p4' })).toBeDefined();
+      expect(sent.filter(({ route }) => route === 'GET /api/spaces/s')).toHaveLength(4);
     });
   });
 
@@ -198,7 +315,7 @@ describe('a space', () => {
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
-    expect(await screen.findByText('No projects in this space yet.')).toBeDefined();
+    expect(await screen.findByText('No work packages in this space yet.')).toBeDefined();
     cleanup();
     stubServer({
       'GET /api/spaces/s': [() => answer(409, { error: 'organization_required' })],
@@ -237,10 +354,12 @@ describe('a space', () => {
         'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       });
       routed(<SpacePage spaceId="s" nav={null} account={null} />);
-      await screen.findByRole('table', { name: 'Projects' });
+      await screen.findByRole('table', { name: 'Work packages' });
       const reads = () => sent.filter(({ route }) => route === 'GET /api/spaces/s').length;
       expect(reads()).toBe(1);
-      await vi.advanceTimersByTimeAsync(60_000);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
       await waitFor(() => {
         expect(reads()).toBe(2);
       });
@@ -259,7 +378,7 @@ describe('a space', () => {
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
     const row = async () =>
-      within(await screen.findByRole('table', { name: 'Projects' })).getByRole('row', {
+      within(await screen.findByRole('table', { name: 'Work packages' })).getByRole('row', {
         name: /p1/,
       });
     await waitFor(async () => {
@@ -295,8 +414,8 @@ describe('a space', () => {
 
   it('refreshes in progress now after a remove', async () => {
     const paint = {
-      projectId: 'p2',
-      projectName: 'p2',
+      workPackageId: 'p2',
+      workPackageName: 'p2',
       position: 20,
       workItemId: 'w1',
       number: '1',
@@ -317,13 +436,15 @@ describe('a space', () => {
       ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       'GET /api/projects': [() => answer(200, { projects: [] })],
-      'DELETE /api/spaces/s/projects/p2': [() => answerEmpty(204)],
+      'DELETE /api/spaces/s/projects/project-p2': [() => answerEmpty(204)],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
     expect((await screen.findByRole('list', { name: 'Work in progress' })).textContent).toBe(
       'p2 1 Paint',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Remove p2 from this space' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove the project containing p2 from this space' }),
+    );
     expect(await screen.findByText('Nothing is in progress in this space.')).toBeDefined();
     expect(screen.queryByRole('list', { name: 'Work in progress' })).toBeNull();
   });
@@ -345,31 +466,81 @@ describe('a space', () => {
   });
 
   it('keeps the keyboard on the moved row, and on the heading after a remove', async () => {
-    stubServer({
+    const sent = stubServer({
       'GET /api/spaces/s': [
-        () => answer(200, read(['p1', 'p2', 'p3'], true)),
-        () => answer(200, read(['p1', 'p3', 'p2'], true)),
-        () => answer(200, read(['p1', 'p3'], true)),
+        () =>
+          answer(
+            200,
+            readAt(
+              [
+                ['p1', 10],
+                ['p2', 20],
+                ['p3', 30],
+              ],
+              true,
+            ),
+          ),
+        () =>
+          answer(
+            200,
+            readAt(
+              [
+                ['p1', 10],
+                ['p3', 15],
+                ['p2', 20],
+              ],
+              true,
+            ),
+          ),
+        () =>
+          answer(
+            200,
+            readAt(
+              [
+                ['p1', 10],
+                ['p3', 15],
+              ],
+              true,
+            ),
+          ),
       ],
       'GET /api/spaces/s/in-progress': [
         () => answer(200, { items: [], truncated: false, unavailable: [] }),
       ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       'GET /api/projects': [() => answer(200, { projects: [] })],
-      'POST /api/spaces/s/projects/p3/move': [() => answer(200, { position: 15 })],
-      'DELETE /api/spaces/s/projects/p2': [() => answerEmpty(204)],
+      'POST /api/spaces/s/projects/project-p3/move': [() => answer(200, { position: 15 })],
+      'DELETE /api/spaces/s/projects/project-p2': [() => answerEmpty(204)],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
-    const up = await screen.findByRole('button', { name: 'Move p3 up' });
+    const up = await screen.findByRole('button', { name: 'Move the project containing p3 up' });
     up.focus();
     fireEvent.click(up);
     await waitFor(() => {
-      expect(document.activeElement?.getAttribute('aria-label')).toBe('Move p3 up');
+      const table = screen.getByRole('table', { name: 'Work packages' });
+      expect(
+        within(table)
+          .getAllByRole('link')
+          .map((link) => link.textContent),
+      ).toEqual(['p1', 'p3', 'p2']);
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(
+        'Move the project containing p3 up',
+      );
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Remove p2 from this space' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove the project containing p2 from this space' }),
+    );
     await waitFor(() => {
       expect(document.activeElement?.tagName).toBe('H1');
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Q3' }));
+      expect(screen.queryByRole('link', { name: 'p2' })).toBeNull();
     });
+    expect(sent.find(({ route }) => route.endsWith('/project-p3/move'))?.body).toEqual({
+      afterProjectId: 'project-p1',
+    });
+    expect(
+      sent.filter(({ route }) => route === 'DELETE /api/spaces/s/projects/project-p2'),
+    ).toHaveLength(1);
   });
 });
 
@@ -381,7 +552,9 @@ describe('a space, drawn', () => {
         () => answer(200, { items: [], truncated: false, unavailable: [] }),
       ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: { p1: rolledUp(11) } })],
-      'GET /api/projects': [() => answer(200, { projects: [project('p4', 'Fourth')] })],
+      'GET /api/projects': [
+        () => answer(200, { projects: [project('project-p4', 'Fourth', null, null)] }),
+      ],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
     await screen.findByLabelText('Add a project');
@@ -390,10 +563,10 @@ describe('a space, drawn', () => {
     const unstyled = controls
       .filter((control) => !control.classList.contains('rounded-md'))
       .map((control) => control.getAttribute('aria-label') ?? control.textContent);
-    // Proof: 2026-10-12, restoring `ProjectRow`'s bare `<button>`s failed this
+    // Proof: 2026-10-12, restoring `WorkPackageRow`'s bare `<button>`s failed this
     // listing `Move p1 up`, `Move p1 down`, `Remove p1 from this space` and p2's.
     expect(unstyled).toEqual([]);
-    const table = screen.getByRole('table', { name: 'Projects' });
+    const table = screen.getByRole('table', { name: 'Work packages' });
     expect(table.closest('.rounded-lg.border')).not.toBeNull();
     for (const name of ['Timeline', 'In progress now']) {
       expect(
@@ -401,4 +574,99 @@ describe('a space, drawn', () => {
       ).not.toBeNull();
     }
   });
+});
+
+it('keeps the space visible and explains a project already assigned elsewhere', async () => {
+  const sent = stubServer({
+    'GET /api/spaces/s': [() => answer(200, read([], true))],
+    'GET /api/projects': [
+      () =>
+        answer(200, {
+          projects: [
+            {
+              id: 'candidate-project',
+              organizationId: 'org-a',
+              spaceId: null,
+              spacePosition: null,
+              name: 'Candidate project',
+              revision: 0,
+              createdAt: 1,
+              updatedAt: null,
+              createdBy: null,
+              workPackageCount: 0,
+            },
+          ],
+        }),
+    ],
+    'GET /api/spaces/s/in-progress': [
+      () => answer(200, { items: [], truncated: false, unavailable: [] }),
+    ],
+    'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
+    'POST /api/spaces/s/projects': [
+      () =>
+        answer(409, {
+          error: 'project_in_other_space',
+          spaceId: 'private-other-space',
+        }),
+    ],
+  });
+  routed(<SpacePage spaceId="s" nav={null} account={null} />);
+  const projects = await screen.findByRole('combobox', { name: 'Add a project' });
+  fireEvent.change(projects, { target: { value: 'candidate-project' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  expect(
+    await screen.findByText(
+      'That project already belongs to another space. Remove it there before adding it here.',
+    ),
+  ).toBeDefined();
+  expect(screen.getByRole('heading', { name: 'Q3' })).toBeDefined();
+  expect(screen.getByRole('combobox', { name: 'Add a project' })).toBeDefined();
+  expect(screen.queryByText('private-other-space')).toBeNull();
+  expect(sent.find(({ route }) => route === 'POST /api/spaces/s/projects')?.body).toEqual({
+    projectId: 'candidate-project',
+    afterProjectId: null,
+  });
+});
+
+it('offers one placement control set for a project with two package rows', async () => {
+  const held = read(['p1', 'p1-child', 'p2'], true);
+  const grouped = {
+    ...held,
+    rows: held.rows.map((row) =>
+      row.workPackage.id === 'p1-child'
+        ? { workPackage: { ...row.workPackage, projectId: 'project-p1' }, position: 10 }
+        : row,
+    ),
+  };
+  stubServer({
+    'GET /api/spaces/s': [() => answer(200, grouped)],
+    'GET /api/projects': [() => answer(200, { projects: [] })],
+    'GET /api/spaces/s/in-progress': [
+      () => answer(200, { items: [], truncated: false, unavailable: [] }),
+    ],
+    'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
+  });
+  routed(<SpacePage spaceId="s" nav={null} account={null} />);
+  const table = await screen.findByRole('table', { name: 'Work packages' });
+  expect(
+    within(table)
+      .getAllByRole('link')
+      .map((link) => link.textContent),
+  ).toEqual(['p1', 'p1-child', 'p2']);
+  expect(screen.getAllByRole('button', { name: /^Remove the project containing/ })).toHaveLength(2);
+  expect(
+    screen.queryByRole('button', {
+      name: 'Remove the project containing p1-child from this space',
+    }),
+  ).toBeNull();
+  expect(
+    screen
+      .getByRole('button', { name: 'Move the project containing p1 up' })
+      .getAttribute('disabled'),
+  ).not.toBeNull();
+  expect(
+    screen
+      .getByRole('button', { name: 'Move the project containing p2 down' })
+      .getAttribute('disabled'),
+  ).not.toBeNull();
 });

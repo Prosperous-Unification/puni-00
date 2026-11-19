@@ -3,7 +3,7 @@ import type { OrganizationScope } from '@wbs/domain';
 
 import type { ScopedPrincipal } from './access-decisions';
 import type { CredentialRuleRefusal } from './credential-rules';
-import type { Project, ProjectStore } from './project-store';
+import type { WorkPackage, WorkPackageStore } from './work-package-store';
 
 /**
  * How a protected request may reach organization-owned resources.
@@ -79,18 +79,18 @@ export type OrganizationPrincipal = Pick<
 export const LEGACY_ACCESS: ResourceAccess = { kind: 'legacy' };
 
 /**
- * Finds a project through the caller's access: under scoped access a foreign
- * project is null exactly like an absent one, so every caller answers one 404.
+ * Finds a work package through the caller's access: under scoped access a foreign
+ * work package is null exactly like an absent one, so every caller answers one 404.
  *
- * Proof: retired-helper-mayEditProjectWithin; reintroduced the retired callable.
- * 'does not expose the retired server role helper mayEditProjectWithin' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-helper-mayEditWorkPackageWithin; reintroduced the retired callable.
+ * 'does not expose the retired server role helper mayEditWorkPackageWithin' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
-export function findProjectWithin(
-  projects: Pick<ProjectStore, 'findById' | 'findInOrganization'>,
+export function findWorkPackageWithin(
+  workPackages: Pick<WorkPackageStore, 'findById' | 'findInOrganization'>,
   id: string,
   access: ResourceAccess,
-): Promise<Project | null> {
+): Promise<WorkPackage | null> {
   return access.kind === 'scoped'
-    ? projects.findInOrganization(id, access.scope.organizationId)
-    : projects.findById(id);
+    ? workPackages.findInOrganization(id, access.scope.organizationId)
+    : workPackages.findById(id);
 }

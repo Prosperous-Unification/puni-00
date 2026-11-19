@@ -33,7 +33,7 @@ import {
   createSessionOwner,
   sessionFor,
   type SessionOwner,
-  type SessionProjects,
+  type SessionWorkPackages,
 } from '@/runtime/session-runtime';
 
 /** The signed-in region's session could not be given back when the region went. */
@@ -575,7 +575,7 @@ export interface SignedInAppProps {
  * already opened — the same account arriving with another credential — changes
  * nothing, so the router below keeps its instance, its address and whatever a
  * mounted route holds. Another user withdraws the previous runtime, and its
- * project with it, before anything else happens. The owner holds nothing until
+ * work package with it, before anything else happens. The owner holds nothing until
  * it is asked to open, so Strict Mode's discarded initializer leaks nothing, and
  * the region going gives the session back.
  *
@@ -615,8 +615,8 @@ export function SignedInApp({
     // session’s directory from the credential the login answered`: expected [ '' ] to deeply
     // equal [ 'tok' ].
     // Proof: on 2026-09-25, opening only once per mount (a `useRef` flag, n1) failed `leaves
-    // the session Strict Mode first opened, and opens the project in the one it opens again`:
-    // `Unable to find a label with the text of: Project` — the region stayed loading.
+    // the session Strict Mode first opened, and opens the work package in the one it opens again`:
+    // `Unable to find a label with the text of: WorkPackage` — the region stayed loading.
     void sessionOwner.open({ userId: session.user.id, credential: credentialOf(session.token) });
   }, [sessionOwner, session]);
   useEffect(
@@ -700,7 +700,7 @@ export function SessionView({
          * in continues to the page that was asked for: nothing rewrote it.
          * ADR 0004 has the alternatives.
          */}
-        <ProjectRetirementGate projects={services.projects}>
+        <WorkPackageRetirementGate workPackages={services.workPackages}>
           <AppRouter
             session={services}
             presence={
@@ -713,8 +713,8 @@ export function SessionView({
               (roster) => <PresencePanel me={session.user.username} {...roster} />
             }
             // Proof: on 2026-09-24, handing the menu onSignedOut itself (a1) failed `signs out once
-            // the project and then the session have let go, and sends nothing`: expected
-            // [ 'signed out' ] to deeply equal [ 'project given back', …(2) ].
+            // the work package and then the session have let go, and sends nothing`: expected
+            // [ 'signed out' ] to deeply equal [ 'work package given back', …(2) ].
             account={
               <>
                 {switcher}
@@ -722,40 +722,40 @@ export function SessionView({
               </>
             }
           />
-        </ProjectRetirementGate>
+        </WorkPackageRetirementGate>
       </div>
     </OrganizationResourcesProvider>
   );
 }
 
 /**
- * The router of one live session, until the session's project could not be
+ * The router of one live session, until the session's work package could not be
  * given back — and from then on the sanitized fatal state in its place.
  *
- * A project page draws its own project's fatal state while it is mounted. This
- * is for the retirements nobody is left to draw: the project page going — a
- * route change, Strict Mode's cleanup — gives the project back from its own
+ * A work package page draws its own work package's fatal state while it is mounted. This
+ * is for the retirements nobody is left to draw: the work package page going — a
+ * route change, Strict Mode's cleanup — gives the work package back from its own
  * effect cleanup, after the page is gone, and a socket that refuses or outruns
  * the budget there would otherwise leave the owner terminally `fatal` with
  * nothing on screen saying so. Only a **terminal** fault is drawn here: a
- * project whose construction failed holds nothing, and the page that asked for
+ * work package whose construction failed holds nothing, and the page that asked for
  * it is still there to say so.
  */
-function ProjectRetirementGate({
-  projects,
+function WorkPackageRetirementGate({
+  workPackages,
   children,
 }: {
-  projects: SessionProjects;
+  workPackages: SessionWorkPackages;
   children: ReactNode;
 }): ReactNode {
-  const projectState = useSyncExternalStore(projects.subscribe, projects.snapshot);
-  // Proof: on 2026-09-24, never drawing a terminal project fault (p1) failed `draws the fatal
-  // state in the region’s place when its project cannot be given back outside a log out` with
+  const workPackageState = useSyncExternalStore(workPackages.subscribe, workPackages.snapshot);
+  // Proof: on 2026-09-24, never drawing a terminal work package fault (p1) failed `draws the fatal
+  // state in the region’s place when its work package cannot be given back outside a log out` with
   // `Error: no fatal state yet`: the directory stayed on screen.
   // Proof: on 2026-09-25, the same removal (g1) failed `draws the fatal state in the region’s
-  // place when a route change cannot give the project back` with `Error: no fatal state yet`.
-  if (projectState.status === 'fatal' && projectState.terminal)
-    return <LifetimeFault fault={projectState.fault} />;
+  // place when a route change cannot give the work package back` with `Error: no fatal state yet`.
+  if (workPackageState.status === 'fatal' && workPackageState.terminal)
+    return <LifetimeFault fault={workPackageState.fault} />;
   return children;
 }
 

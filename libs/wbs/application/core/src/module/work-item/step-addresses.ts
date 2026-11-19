@@ -20,7 +20,7 @@ export interface StepNodeAddress {
 }
 
 /**
- * Projects the tree's effective numbers and leafhood into the address space.
+ * Work packages the tree's effective numbers and leafhood into the address space.
  * A row is a leaf exactly when no row names it as parent; step order is retained.
  */
 export function buildAddressSpace(
@@ -36,11 +36,11 @@ export function buildAddressSpace(
 
 /** Hashes the canonical address description for both reads and resolution. */
 export async function digestAddressSpace(
-  projectId: string,
+  workPackageId: string,
   space: AddressSpace,
   digest: Digest,
 ): Promise<string> {
-  return `ar1:${await digest.sha256(describeAddressSpace(projectId, space))}`;
+  return `ar1:${await digest.sha256(describeAddressSpace(workPackageId, space))}`;
 }
 
 /**
@@ -51,7 +51,7 @@ export async function digestAddressSpace(
  * The digest port must return lowercase SHA-256 hex for the described bytes.
  */
 export async function readStepAddresses(
-  projectId: string,
+  workPackageId: string,
   tree: {
     workItems: readonly { id: string; parentId: string | null; number: string }[];
     steps: readonly { id: string; code: string | null; position: number }[];
@@ -74,14 +74,14 @@ export async function readStepAddresses(
     }));
   });
   return {
-    addressRevision: await digestAddressSpace(projectId, space, digest),
+    addressRevision: await digestAddressSpace(workPackageId, space, digest),
     stepNodes,
   };
 }
 
 /** Resolves one input against the same digest and effective addresses as the tree read. */
 export async function resolveAddressedStep(
-  projectId: string,
+  workPackageId: string,
   input: { reference: string; revision: string },
   addresses: {
     workItems: readonly { id: string; parentId: string | null; number: string }[];
@@ -100,7 +100,7 @@ export async function resolveAddressedStep(
   if (parseStepReference(input.reference) === null)
     return { kind: 'unresolvable', reason: 'malformed' };
   const space = buildAddressSpace(addresses.workItems, addresses.steps);
-  const addressRevision = await digestAddressSpace(projectId, space, digest);
+  const addressRevision = await digestAddressSpace(workPackageId, space, digest);
   // Proof: skipping this comparison made the mounted stale-reference test fail
   // on `Expected: 409 / Received: 200`; watched 2026-09-27.
   if (input.revision !== addressRevision) return { kind: 'stale', addressRevision };

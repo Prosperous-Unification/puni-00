@@ -1,13 +1,14 @@
 import type { ActualStore, StepWriteOutcome, StoredActual, WriteStamp } from '@wbs/core';
-import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { actual, step, workItem } from './schema';
-import { writingStep } from './step-reference';
+import { actual, workItem } from './schema';
+import { readSqliteStepWriteIn } from './step-write';
+import { readSqliteActualsIn } from './point-reads';
 
 /**
  * An actual is a **satellite** of the work item it is for, exactly as an
@@ -27,93 +28,19 @@ export class ActualRepository implements ActualStore {
     private readonly gate: Gate,
   ) {}
 
-  /**
-   * Every actual in the project, **in step order** within each work item.
-   *
-   * Ordered for `EstimateRepository.listByProject`'s reason and for one weaker
-   * one. The strong half does not apply here — a work item's actuals are summed
-   * in the roll-up, and floating-point addition is not associative, so the order
-   * decides the last bit of a parent's total exactly as it does for estimates.
-   * The weak half is that two reads of an unchanged plan must not disagree about
-   * the order of a row's steps on screen.
-   *
-   * Ordered by the step's **position**, so the order this hands back is the
-   * order the work runs in — the same order the estimates come back in, which is
-   * what lets a reader put the two lists side by side.
-   */
-  async listByProject(projectId: string): Promise<StoredActual[]> {
-    await Promise.resolve();
-    return (
-      this.db
-        .select({
-          workItemId: actual.workItemId,
-          stepId: actual.stepId,
-          days: actual.days,
-          recordedAt: actual.recordedAt,
-        })
-        .from(actual)
-        // Inner rather than left: `actual.step_id` is a foreign key, so an
-        // actual whose step is gone cannot exist — `StepRepository.remove`
-        // deletes them in the same transaction as the step.
-        .innerJoin(step, eq(actual.stepId, step.id))
-        // And the work item, so the project is asked for in the statement that
-        // reads the rows. This was two queries until 2026-09-02 — every work item
-        // id, then `IN (…)` over the lot — which put one bound parameter per row
-        // into the read, four times over per plan read. Inner again, and for the
-        // same reason: `workItemId` is a foreign key.
-        .innerJoin(workItem, eq(actual.workItemId, workItem.id))
-        .where(eq(workItem.projectId, projectId))
-        .orderBy(actual.workItemId, step.position, actual.stepId)
-    );
+  /** Current leaf-resolved SC18 order keeps rendering and floating-point roll-up operands stable on one captured metadata snapshot. */
+  async listByWorkPackage(workPackageId:string):Promise<StoredActual[]>{
+    return this.db.transaction(snapshot=>readSqliteActualsIn(snapshot,workPackageId,null));
   }
 
-  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredActual[]> {
-    if (ids.length === 0) return [];
-    await Promise.resolve();
-    const rows = await this.db
-      .select({
-        workItemId: actual.workItemId,
-        stepId: actual.stepId,
-        days: actual.days,
-        recordedAt: actual.recordedAt,
-        workItemProjectId: workItem.projectId,
-        stepProjectId: step.projectId,
-        stepPosition: step.position,
-      })
-      .from(actual)
-      .leftJoin(step, eq(actual.stepId, step.id))
-      .leftJoin(workItem, eq(actual.workItemId, workItem.id))
-      .where(
-        and(
-          inArray(actual.workItemId, [...ids]),
-          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
-        ),
-      )
-      .orderBy(actual.workItemId, step.position, actual.stepId);
-    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
-      throw new Error('targeted actual has an invalid work-item reference');
-    }
-    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
-    for (const row of admitted) {
-      if (row.stepProjectId !== projectId || row.stepPosition === null) {
-        throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid step reference`);
-      }
-      if (typeof row.days !== 'number' || !Number.isFinite(row.days) || row.days < 0) {
-        throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid day value`);
-      }
-      if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
-        throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid recorded time`);
-      }
-    }
-    return admitted.map(({ workItemId, stepId, days, recordedAt }) => ({
-      workItemId,
-      stepId,
-      days,
-      recordedAt,
-    }));
+  /** Targeted selection excludes other packages, validates retained references, and preserves current leaf order. */
+  async listByWorkItems(workPackageId:string,ids:readonly string[]):Promise<StoredActual[]>{
+    const retained=[...ids];
+    return this.db.transaction(snapshot=>readSqliteActualsIn(snapshot,workPackageId,retained));
   }
 
-  async listPlacements(projectId: string, ids: readonly string[]) {
+  /** Identity-only persisted group placement retains its existing indexed query and unrequested predecessor. */
+  async listPlacements(workPackageId: string, ids: readonly string[]) {
     if (ids.length === 0) return [];
     const afterId = sql<string | null>`(
       SELECT predecessor.work_item_id FROM actual AS predecessor
@@ -121,7 +48,7 @@ export class ActualRepository implements ActualStore {
         AND EXISTS (
           SELECT 1 FROM work_item AS predecessor_owner
           WHERE predecessor_owner.id = predecessor.work_item_id
-            AND predecessor_owner.project_id = ${projectId}
+            AND predecessor_owner.work_package_id = ${workPackageId}
         )
       ORDER BY predecessor.work_item_id DESC LIMIT 1
     )`;
@@ -129,7 +56,7 @@ export class ActualRepository implements ActualStore {
       .selectDistinct({ id: actual.workItemId, afterId })
       .from(actual)
       .innerJoin(workItem, eq(actual.workItemId, workItem.id))
-      .where(and(eq(workItem.projectId, projectId), inArray(actual.workItemId, [...ids])))
+      .where(and(eq(workItem.workPackageId, workPackageId), inArray(actual.workItemId, [...ids])))
       .orderBy(asc(actual.workItemId));
   }
 
@@ -141,21 +68,25 @@ export class ActualRepository implements ActualStore {
    * and a corrected figure was typed today.
    */
   async set(toSet: StoredActual, stamp: WriteStamp): Promise<StepWriteOutcome> {
-    return await writingStep(this.db, toSet.stepId, async () => {
-      await this.gate.enter(async () => {
-        await Promise.resolve();
-        this.db.transaction((tx) => {
+    const kept=structuredClone(toSet),act={...stamp};
+    return await this.gate.enter(()=>Promise.resolve(
+      this.db.transaction((tx):StepWriteOutcome=>{
+        const decision=readSqliteStepWriteIn(tx,kept.workItemId,kept.stepId);
+        // Proof: removing this refusal made sqlite stepCatalogue.pointWrite:actual-untyped
+        // return written for an unresolved step after its healthy typed write/read/remove.
+        // Restoring the guard returned the same isolated owner to passing.
+        if(decision.kind!=='resolved')return decision.kind;
           tx.insert(actual)
-            .values({ ...toSet, ...auditOnCreate(stamp) })
+            .values({ ...kept, ...auditOnCreate(act) })
             .onConflictDoUpdate({
               target: [actual.workItemId, actual.stepId],
-              set: { days: toSet.days, recordedAt: toSet.recordedAt, ...auditOnUpdate(stamp) },
+              set: { days: kept.days, recordedAt: kept.recordedAt, ...auditOnUpdate(act) },
             })
             .run();
-          bumpWorkItems(tx, [toSet.workItemId], stamp);
-        });
-      });
-    });
+          bumpWorkItems(tx, [kept.workItemId], act);
+        return 'written';
+      }),
+    ));
   }
 
   async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {

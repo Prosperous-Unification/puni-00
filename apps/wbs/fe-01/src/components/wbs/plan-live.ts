@@ -29,7 +29,7 @@ import { type TreeRow } from './wbs-rows';
  * would bypass the cell memo's explicit input contract.
  */
 export interface PlanLiveValues {
-  projectId: string;
+  workPackageId: string;
   dependencyLookup: DependencyLookup;
   pushToast: (toast: Toast) => void;
   focusIntent: React.RefObject<FocusIntent>;

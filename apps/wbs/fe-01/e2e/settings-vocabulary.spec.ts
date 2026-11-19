@@ -1,9 +1,9 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 import { openSeededPlan, seedPlan } from './plan-fixture';
 
 /**
- * The project settings modal in the app's one control vocabulary, measured by a
+ * The work package settings modal in the app's one control vocabulary, measured by a
  * browser (ui-review round 5b, F-117 to F-123): tabs drawn like every other
  * chrome control, a locked unit that says why and still shows which, the
  * priority ladder's columns named on screen, and a scrolling section that ends
@@ -38,10 +38,10 @@ async function openSettings(page: Page, title: string, workerIndex: number): Pro
   const addWorkItem = page.getByRole('button', { name: 'Add work item' });
   await expect(sheet.or(addWorkItem)).toBeVisible();
   if (await sheet.isVisible()) await sheet.click();
-  const control = page.getByRole('button', { name: 'Project settings' });
+  const control = page.getByRole('button', { name: 'Work package settings' });
   await expect(control).toBeEnabled();
   await control.click();
-  const dialog = page.getByRole('dialog', { name: 'Project settings' });
+  const dialog = page.getByRole('dialog', { name: 'Work package settings' });
   await expect(dialog).toBeVisible();
   return dialog;
 }

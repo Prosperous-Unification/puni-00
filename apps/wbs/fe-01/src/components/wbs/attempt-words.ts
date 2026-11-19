@@ -32,7 +32,7 @@ function formatterFor(zone: string): Intl.DateTimeFormat {
 }
 
 /**
- * The day and minute `epochMs` falls on **in the project's zone**, never the
+ * The day and minute `epochMs` falls on **in the work package's zone**, never the
  * reader's (`step-node-attempts` D3): two readers in different zones read one
  * attempt as one day.
  *
@@ -58,7 +58,7 @@ export function zonedMoment(epochMs: number, zone: string): ZonedMoment {
 }
 
 /**
- * When an attempt ran, in the project's zone: `12 Oct 14:02–14:41` within one
+ * When an attempt ran, in the work package's zone: `12 Oct 14:02–14:41` within one
  * day, `11 Oct 16:30 – 12 Oct 02:10` across midnight, `12 Oct 14:02 – now`
  * while it runs.
  */

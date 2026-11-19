@@ -10,8 +10,8 @@ import { sql } from 'drizzle-orm';
 
 import { DirectoryRepository } from './directory';
 import { DrizzleEventLogStore } from './event-log';
-import { ProjectRepository } from './project';
-import { ProjectRankRepository } from './project-rank';
+import { WorkPackageRepository } from './work-package';
+import { WorkPackageRankRepository } from './work-package-rank';
 import { openSqliteSource, type SqliteSource } from './source';
 import { StepBlockageRepository } from './step-blockage';
 import { StepNodeAttemptRepository } from './step-node-attempt';
@@ -99,21 +99,21 @@ async function crossesSettlement(
   });
 }
 for (const outcome of ['success', 'refusal', 'throw'] as const) {
-  test(`live project first response refuses before SQL after ${outcome}`, async () => {
+  test(`live work package first response refuses before SQL after ${outcome}`, async () => {
     const reached = hold();
     const released = hold();
     let pause = true;
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    const original = ProjectRepository.prototype.findById;
-    const reading = spyOn(ProjectRepository.prototype, 'findById').mockImplementation(
-      async function (this: ProjectRepository, id) {
-        const project = await original.call(this, id);
+    const original = WorkPackageRepository.prototype.findById;
+    const reading = spyOn(WorkPackageRepository.prototype, 'findById').mockImplementation(
+      async function (this: WorkPackageRepository, id) {
+        const workPackage = await original.call(this, id);
         if (pause) {
           pause = false;
           reached.release();
           await released.promise;
         }
-        return project;
+        return workPackage;
       },
     );
     try {
@@ -121,7 +121,7 @@ for (const outcome of ['success', 'refusal', 'throw'] as const) {
         outcome,
         (scope) => {
           if (scope.stores.livePlans === undefined) throw new Error('missing live plans');
-          return scope.stores.livePlans.readProject('a1');
+          return scope.stores.livePlans.readWorkPackage('a1');
         },
         reached,
         released,
@@ -130,24 +130,25 @@ for (const outcome of ['success', 'refusal', 'throw'] as const) {
       reading.mockRestore();
     }
   });
-  for (const method of ['authorizeProjectUpdate', 'authorizeStepRemoval'] as const) {
+  for (const method of ['authorizeWorkPackageUpdate', 'authorizeStepRemoval'] as const) {
     test(`fanout ${method} refuses before membership SQL after ${outcome}`, async () => {
       const reached = hold();
       const released = hold();
       let pause = true;
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      const original = ProjectRepository.prototype.findInOrganization;
-      const reading = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-        async function (this: ProjectRepository, id, organizationId) {
-          const project = await original.call(this, id, organizationId);
-          if (pause) {
-            pause = false;
-            reached.release();
-            await released.promise;
-          }
-          return project;
-        },
-      );
+      const original = WorkPackageRepository.prototype.findInOrganization;
+      const reading = spyOn(
+        WorkPackageRepository.prototype,
+        'findInOrganization',
+      ).mockImplementation(async function (this: WorkPackageRepository, id, organizationId) {
+        const workPackage = await original.call(this, id, organizationId);
+        if (pause) {
+          pause = false;
+          reached.release();
+          await released.promise;
+        }
+        return workPackage;
+      });
       try {
         await crossesSettlement(
           outcome,
@@ -180,7 +181,7 @@ async function pauseResponse<Value>(
   return value;
 }
 
-for (const mode of ['project', 'aggregate', 'export'] as const) {
+for (const mode of ['work_package', 'aggregate', 'export'] as const) {
   for (const boundary of [
     'owned',
     'rank',
@@ -201,9 +202,9 @@ for (const mode of ['project', 'aggregate', 'export'] as const) {
         const reading = (() => {
           if (boundary === 'owned') {
             // eslint-disable-next-line @typescript-eslint/unbound-method
-            const original = ProjectRepository.prototype.findInOrganization;
-            return spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-              function (this: ProjectRepository, id, organizationId) {
+            const original = WorkPackageRepository.prototype.findInOrganization;
+            return spyOn(WorkPackageRepository.prototype, 'findInOrganization').mockImplementation(
+              function (this: WorkPackageRepository, id, organizationId) {
                 return pauseResponse(
                   original.call(this, id, organizationId),
                   ++calls,
@@ -215,25 +216,29 @@ for (const mode of ['project', 'aggregate', 'export'] as const) {
           }
           if (boundary === 'rank') {
             // eslint-disable-next-line @typescript-eslint/unbound-method
-            const original = ProjectRankRepository.prototype.orderIn;
-            return spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(function (
-              this: ProjectRankRepository,
-              organizationId,
-            ) {
-              return pauseResponse(original.call(this, organizationId), ++calls, reached, released);
-            });
+            const original = WorkPackageRankRepository.prototype.orderIn;
+            return spyOn(WorkPackageRankRepository.prototype, 'orderIn').mockImplementation(
+              function (this: WorkPackageRankRepository, organizationId) {
+                return pauseResponse(
+                  original.call(this, organizationId),
+                  ++calls,
+                  reached,
+                  released,
+                );
+              },
+            );
           }
           if (boundary === 'chain') {
             const original = core.readChain;
-            return spyOn(core, 'readChain').mockImplementation((snapshot, projectId) =>
-              pauseResponse(original(snapshot, projectId), ++calls, reached, released),
+            return spyOn(core, 'readChain').mockImplementation((snapshot, workPackageId) =>
+              pauseResponse(original(snapshot, workPackageId), ++calls, reached, released),
             );
           }
           if (boundary === 'steps') {
             // eslint-disable-next-line @typescript-eslint/unbound-method
-            const original = ProjectRepository.prototype.stepsOf;
-            return spyOn(ProjectRepository.prototype, 'stepsOf').mockImplementation(function (
-              this: ProjectRepository,
+            const original = WorkPackageRepository.prototype.stepsOf;
+            return spyOn(WorkPackageRepository.prototype, 'stepsOf').mockImplementation(function (
+              this: WorkPackageRepository,
               id,
             ) {
               return pauseResponse(original.call(this, id), ++calls - 1, reached, released);
@@ -241,8 +246,8 @@ for (const mode of ['project', 'aggregate', 'export'] as const) {
           }
           if (boundary === 'work-items') {
             // eslint-disable-next-line @typescript-eslint/unbound-method
-            const original = WorkItemRepository.prototype.listByProject;
-            return spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
+            const original = WorkItemRepository.prototype.listByWorkPackage;
+            return spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
               function (this: WorkItemRepository, id) {
                 return pauseResponse(original.call(this, id), ++calls - 1, reached, released);
               },
@@ -250,17 +255,18 @@ for (const mode of ['project', 'aggregate', 'export'] as const) {
           }
           if (boundary === 'attempts') {
             // eslint-disable-next-line @typescript-eslint/unbound-method
-            const original = StepNodeAttemptRepository.prototype.listByProject;
-            return spyOn(StepNodeAttemptRepository.prototype, 'listByProject').mockImplementation(
-              function (this: StepNodeAttemptRepository, id) {
-                return pauseResponse(original.call(this, id), ++calls, reached, released);
-              },
-            );
+            const original = StepNodeAttemptRepository.prototype.listByWorkPackage;
+            return spyOn(
+              StepNodeAttemptRepository.prototype,
+              'listByWorkPackage',
+            ).mockImplementation(function (this: StepNodeAttemptRepository, id) {
+              return pauseResponse(original.call(this, id), ++calls, reached, released);
+            });
           }
           if (boundary === 'blockages') {
             // eslint-disable-next-line @typescript-eslint/unbound-method
-            const original = StepBlockageRepository.prototype.listByProject;
-            return spyOn(StepBlockageRepository.prototype, 'listByProject').mockImplementation(
+            const original = StepBlockageRepository.prototype.listByWorkPackage;
+            return spyOn(StepBlockageRepository.prototype, 'listByWorkPackage').mockImplementation(
               function (this: StepBlockageRepository, id) {
                 return pauseResponse(original.call(this, id), ++calls - 1, reached, released);
               },
@@ -285,7 +291,7 @@ for (const mode of ['project', 'aggregate', 'export'] as const) {
                 ? plans.readAggregate('ada', access)
                 : mode === 'export'
                   ? plans.readExport('a1', access)
-                  : plans.readProject('a1');
+                  : plans.readWorkPackage('a1');
             },
             reached,
             released,
@@ -300,17 +306,17 @@ for (const mode of ['project', 'aggregate', 'export'] as const) {
 
 test('aggregate cached schedule cannot escape a resumed expired chain', async () => {
   sqlite.db.run(sql`UPDATE organization SET shared_people = 1 WHERE id = 'org-a'`);
-  sqlite.db.run(sql`UPDATE project SET start_date = '2026-10-05' WHERE id IN ('a1','a2')`);
+  sqlite.db.run(sql`UPDATE work_package SET start_date = '2026-10-05' WHERE id IN ('a1','a2')`);
   sqlite.db.run(sql`INSERT INTO person (id,name) VALUES ('p','p')`);
   sqlite.db.run(
     sql`INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','p')`,
   );
   for (const id of ['a1', 'a2']) {
     sqlite.db.run(
-      sql`INSERT INTO work_item (id,project_id,position,name) VALUES (${id},${id},10,${id})`,
+      sql`INSERT INTO work_item (id,work_package_id,position,name) VALUES (${id},${id},10,${id})`,
     );
     sqlite.db.run(
-      sql`INSERT INTO step (id,project_id,position,name) VALUES (${id + '-s'},${id},10,'step')`,
+      sql`INSERT INTO step (id,work_package_id,position,name) VALUES (${id + '-s'},${id},10,'step')`,
     );
     sqlite.db.run(
       sql`INSERT INTO assignment (work_item_id,step_id,person_id) VALUES (${id},${id + '-s'},'p')`,
@@ -321,8 +327,8 @@ test('aggregate cached schedule cannot escape a resumed expired chain', async ()
   let escaped = 0;
   let resumed = false;
   const original = core.readChain;
-  const reading = spyOn(core, 'readChain').mockImplementation((snapshot, projectId) => {
-    if (projectId !== 'a2') return original(snapshot, projectId);
+  const reading = spyOn(core, 'readChain').mockImplementation((snapshot, workPackageId) => {
+    if (workPackageId !== 'a2') return original(snapshot, workPackageId);
     return original(
       {
         ...snapshot,
@@ -344,7 +350,7 @@ test('aggregate cached schedule cannot escape a resumed expired chain', async ()
           },
         },
       },
-      projectId,
+      workPackageId,
     );
   });
   try {
@@ -370,7 +376,7 @@ for (const outcome of ['success', 'refusal', 'throw'] as const) {
       sql`INSERT INTO tag_organization (resource_id,organization_id,name) VALUES ('t','org-a','tag')`,
     );
     sqlite.db.run(
-      sql`INSERT INTO work_item (id,project_id,position,name) VALUES ('foreign','b1',10,'foreign')`,
+      sql`INSERT INTO work_item (id,work_package_id,position,name) VALUES ('foreign','b1',10,'foreign')`,
     );
     sqlite.db.run(sql`INSERT INTO work_item_tag (work_item_id,tag_id) VALUES ('foreign','t')`);
     const reached = hold();

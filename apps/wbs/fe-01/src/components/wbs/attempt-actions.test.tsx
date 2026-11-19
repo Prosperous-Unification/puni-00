@@ -2,9 +2,9 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AttemptView, WorkItemView } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi, QA } from '@/testing/fake-project-api';
+import { DEV, fakeWorkPackageApi, QA } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { refusalSentence } from './plan-refusal';
@@ -33,7 +33,7 @@ async function planWithAttempts(
   attempts: AttemptView[],
   options: { olderRead?: boolean; phone?: boolean } = {},
 ) {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const made = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
   const row = api.rows.find((each) => each.id === made.id);
   if (row === undefined) throw new Error('the fake made no row');
@@ -41,8 +41,8 @@ async function planWithAttempts(
   leaf.attempts = { [DEV.id]: [...attempts] };
   leaf.nodeReadings = { [DEV.id]: 'in_progress', [QA.id]: 'unknown' };
   const readTree = api.tree.bind(api);
-  api.tree = async (projectId) => ({
-    ...(await readTree(projectId)),
+  api.tree = async (workPackageId) => ({
+    ...(await readTree(workPackageId)),
     ...(options.olderRead ? {} : { timezone: 'Europe/Kyiv' }),
     stepNodes: [
       { id: 'sn.dev', workItemId: leaf.id, stepId: DEV.id, reference: '010.dev' },
@@ -95,7 +95,9 @@ async function planWithAttempts(
   api.endAttempt = end;
   api.removeAttempt = remove;
   if (options.phone) window.innerWidth = 390;
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   const estimate = await screen.findByLabelText('Dev estimate for 010');
   fireEvent.focus(estimate);
   return { api, leaf, start, end, remove };

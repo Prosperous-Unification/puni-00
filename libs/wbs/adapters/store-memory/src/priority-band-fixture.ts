@@ -6,19 +6,19 @@ import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
  * that do not need SQLite.
  *
  * It keeps the two guarantees the real store has, because a fixture laxer than
- * production lets a test pass against behaviour that does not exist: a project
+ * production lets a test pass against behaviour that does not exist: a work package
  * holding nothing reads as {@link DEFAULT_PRIORITY_BANDS} rather than as an empty
  * list, and a `replace` **replaces** rather than merging.
  *
- * What it deliberately does not keep is the existence check on the project id.
+ * What it deliberately does not keep is the existence check on the work package id.
  * `PriorityBandRepository.replace` reads it inside its own transaction and
- * answers `not_found`; this Map holds no projects, so a fixture answering
+ * answers `not_found`; this Map holds no work packages, so a fixture answering
  * anything about an unknown id would be answering a question it cannot know —
  * `inMemoryCapacity`'s own shape. That refusal is asserted against real SQLite in
  * `repository/priority-band.test.ts`.
  */
 export function inMemoryPriorityBands(
-  /** What the store starts holding, as `projectId -> its five bands`. */
+  /** What the store starts holding, as `workPackageId -> its five bands`. */
   seed: Readonly<Record<string, readonly PriorityBand[]>> = {},
   table: MemoryPriorityBandTable = memoryPriorityBandTable(seed),
 ): PriorityBandStore {
@@ -28,16 +28,16 @@ export function inMemoryPriorityBands(
    * assert who wrote and when without a database to read audit columns from.
    */
   return {
-    listFor(projectId) {
-      const own = held.get(projectId);
+    listFor(workPackageId) {
+      const own = held.get(workPackageId);
       // A copy either way: a caller that mutated what it was handed would be
       // editing the store from the read side, and mutating the exported default
-      // would edit every project at once.
+      // would edit every work package at once.
       return Promise.resolve((own ?? DEFAULT_PRIORITY_BANDS).map((band) => ({ ...band })));
     },
-    replace(projectId, bands, _stamp) {
+    replace(workPackageId, bands, _stamp) {
       held.set(
-        projectId,
+        workPackageId,
         bands.map((band) => ({ ...band, label: band.label.trim() })),
       );
       const written: PriorityBandsWritten = { ok: true };
@@ -54,7 +54,10 @@ export function memoryPriorityBandTable(
 ): MemoryPriorityBandTable {
   return {
     held: new Map(
-      Object.entries(seed).map(([projectId, bands]) => [projectId, structuredClone([...bands])]),
+      Object.entries(seed).map(([workPackageId, bands]) => [
+        workPackageId,
+        structuredClone([...bands]),
+      ]),
     ),
   };
 }

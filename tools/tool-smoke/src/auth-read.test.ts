@@ -7,7 +7,9 @@ const KEY = 'k'.repeat(32);
 const ACCOUNT: ReadIdentity = { kind: 'account', id: 'u-smoke', username: 'smoke', key: KEY };
 
 /** A be-01 double: anonymous reads refused, sessions verified with {@link KEY}. */
-function fakeBe(overrides: { anonymousProjects?: number; meUser?: unknown } = {}): typeof fetch {
+function fakeBe(
+  overrides: { anonymousWorkPackages?: number; meUser?: unknown } = {},
+): typeof fetch {
   return (async (input: string, init?: RequestInit) => {
     const url = input;
     const cookie = new Headers(init?.headers).get('cookie');
@@ -21,14 +23,14 @@ function fakeBe(overrides: { anonymousProjects?: number; meUser?: unknown } = {}
       if (subject === null) return Response.json({ user: null });
       return Response.json({ user: overrides.meUser ?? { id: subject, username: 'smoke' } });
     }
-    if (url.endsWith('/api/projects')) {
+    if (url.endsWith('/api/work-packages')) {
       if (subject === null) {
-        const status = overrides.anonymousProjects ?? 401;
-        return Response.json(status === 401 ? { error: 'unauthorized' } : { projects: [] }, {
+        const status = overrides.anonymousWorkPackages ?? 401;
+        return Response.json(status === 401 ? { error: 'unauthorized' } : { workPackages: [] }, {
           status,
         });
       }
-      return Response.json({ projects: [] });
+      return Response.json({ workPackages: [] });
     }
     return new Response('not found', { status: 404 });
   }) as typeof fetch;
@@ -39,15 +41,19 @@ describe('runReadChecks', () => {
     const checks = await runReadChecks('http://be', ACCOUNT, fakeBe());
     expect(checks.map((check) => [check.name, check.kind])).toEqual([
       ['signed-out /api/auth/me', 'ok'],
-      ['anonymous /api/projects refused', 'ok'],
+      ['anonymous /api/work-packages refused', 'ok'],
       ['signed-in /api/auth/me', 'ok'],
-      ['signed-in /api/projects', 'ok'],
+      ['signed-in /api/work-packages', 'ok'],
     ]);
   });
 
-  it('fails when projects are readable anonymously', async () => {
-    const checks = await runReadChecks('http://be', ACCOUNT, fakeBe({ anonymousProjects: 200 }));
-    expect(checks[1]).toMatchObject({ name: 'anonymous /api/projects refused', kind: 'fail' });
+  it('fails when work packages are readable anonymously', async () => {
+    const checks = await runReadChecks(
+      'http://be',
+      ACCOUNT,
+      fakeBe({ anonymousWorkPackages: 200 }),
+    );
+    expect(checks[1]).toMatchObject({ name: 'anonymous /api/work-packages refused', kind: 'fail' });
   });
 
   it('fails when the session resolves to a different account', async () => {
@@ -80,7 +86,7 @@ describe('runReadChecks', () => {
     );
     expect(checks.slice(2)).toEqual([
       { name: 'signed-in /api/auth/me', kind: 'skipped', reason: 'unset' },
-      { name: 'signed-in /api/projects', kind: 'skipped', reason: 'unset' },
+      { name: 'signed-in /api/work-packages', kind: 'skipped', reason: 'unset' },
     ]);
   });
 

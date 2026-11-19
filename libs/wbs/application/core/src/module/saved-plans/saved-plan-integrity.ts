@@ -1,6 +1,7 @@
 import {
   type PlanInputNormaliseFailure,
   readSavedConnectedScheduleBody,
+  readSavedPlainScheduleBody,
   readSavedPlanInput,
   SavedHistoryError,
   validateSavedConnectedHistory,
@@ -181,8 +182,10 @@ export function verifyScheduleLink(
 // budget, a basis and the factor` (measure-export.controller.db.test.ts) answer
 // 501 unsupported_body_version; watched 2026-10-23.
 // Proof: omitting input10 made the mounted connected save/read return unsupported_body_version (2026-10-24).
-export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1, 2];
+export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+];
+export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4];
 
 /**
  * A stored body written under a schema version this build does not know.
@@ -243,7 +246,7 @@ export interface SavedPlanBodyInvalid {
  */
 export function verifySavedPlanBodies(
   savedPlanId: string,
-  projectId: string,
+  workPackageId: string,
   input: { readonly version: number; readonly bytes: string },
   schedule:
     | {
@@ -262,18 +265,38 @@ export function verifySavedPlanBodies(
       schedule.version,
       SUPPORTED_SCHEDULE_BODY_VERSIONS,
     );
-  if (input.version < 10 && (!schedule.present || schedule.version === 1)) return null;
   let body: SavedPlanBodyKind = 'input';
   try {
     const parsed = readSavedPlanInput(JSON.parse(input.bytes), input.version);
-    if (parsed.project.id !== projectId) throw new SavedHistoryError('target', '$.project.id');
+    if (parsed.workPackage.id !== workPackageId)
+      throw new SavedHistoryError('target', '$.workPackage.id');
     body = 'schedule';
-    if (parsed.dependencyHistory.kind === 'connected' && schedule.present && schedule.version !== 2)
+    if (
+      parsed.dependencyHistory.kind === 'connected' &&
+      schedule.present &&
+      schedule.version !== 2 &&
+      schedule.version !== 4
+    )
       throw new SavedHistoryError('connected_schedule_version', '$.version');
+    const rawSchedule: unknown = schedule.present ? JSON.parse(schedule.bytes) : null;
+    if (
+      schedule.present &&
+      (typeof rawSchedule !== 'object' ||
+        rawSchedule === null ||
+        !('version' in rawSchedule) ||
+        rawSchedule.version !== schedule.version)
+    )
+      throw new SavedHistoryError('version', '$.version');
     const connected =
-      schedule.present && schedule.version === 2
-        ? readSavedConnectedScheduleBody(JSON.parse(schedule.bytes))
+      schedule.present && (schedule.version === 2 || schedule.version === 4)
+        ? readSavedConnectedScheduleBody(rawSchedule)
         : null;
+    const plain =
+      schedule.present && (schedule.version === 1 || schedule.version === 3)
+        ? readSavedPlainScheduleBody(rawSchedule, schedule.version)
+        : null;
+    if (plain !== null && schedule.present && plain.algorithmId !== schedule.algorithmId)
+      throw new SavedHistoryError('algorithm_identity', '$.algorithmId');
     // Proof: omitting algorithm equality returned 200 for a mismatched retired header in mounted read/compare (2026-10-22).
     if (connected !== null && schedule.present && connected.algorithmId !== schedule.algorithmId)
       throw new SavedHistoryError('algorithm_identity', '$.algorithmId');
@@ -293,7 +316,11 @@ export function verifySavedPlanBodies(
     // Proof: bypassing target validation returned 200 for missing target membership and
     // altered target placement in the mounted DB suite (omit-target-validation.log.txt).
     if (connected !== null && parsed.dependencyHistory.kind === 'connected')
-      validateSavedConnectedTarget(parsed.dependencyHistory, connected, parsed.project.startDate);
+      validateSavedConnectedTarget(
+        parsed.dependencyHistory,
+        connected,
+        parsed.workPackage.startDate,
+      );
     return null;
   } catch (cause) {
     if (cause instanceof SavedHistoryError)

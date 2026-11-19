@@ -5,7 +5,7 @@ import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
  * `GET /api/timezones` over be-01's production composition (`step-node-attempts`
- * D3): the zones the project PATCH validates against, so Settings offers only
+ * D3): the zones the work package PATCH validates against, so Settings offers only
  * zones this server accepts.
  */
 let h: OrganizationHarness;

@@ -405,7 +405,7 @@ describe('a claim occupies its leaf’s demand vector', () => {
   });
 
   // Scenario: Unstated capacity never refuses.
-  it('never refuses a resource whose capacity the project has not stated', () => {
+  it('never refuses a resource whose capacity the work package has not stated', () => {
     const occupancy: OccupancyRow[] = [
       {
         claimId: 'x',

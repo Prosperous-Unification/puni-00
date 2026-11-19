@@ -21,15 +21,15 @@ const refusals = [
   organizationRefusal,
   organizationContextRefusal,
 ] as const;
-const namedProject = type({ projectId: 'string', name: 'string' });
-const unavailableProject = namedProject.and({
+const namedWorkPackage = type({ workPackageId: 'string', name: 'string' });
+const unavailableWorkPackage = namedWorkPackage.and({
   reason: "'engine_unavailable' | 'dependency_calendar_missing' | 'cycle' | 'calendar_range'",
 });
-const bookingRef = type({ projectId: 'string', workItemId: 'string', stepId: 'string | null' });
+const bookingRef = type({ workPackageId: 'string', workItemId: 'string', stepId: 'string | null' });
 
 /**
- * One person's bookings across every project the caller can open, and where
- * they overlap. Projects the caller cannot open are omitted entirely.
+ * One person's bookings across every work package the caller can open, and where
+ * they overlap. Work packages the caller cannot open are omitted entirely.
  */
 export const readPersonLoad = defineEndpointShape({
   method: 'GET',
@@ -45,7 +45,7 @@ export const readPersonLoad = defineEndpointShape({
       schema: responseSchema(
         type({
           person: type({ id: 'string', name: 'string' }),
-          projects: namedProject
+          workPackages: namedWorkPackage
             .and({
               rank: 'number',
               engine: "'fast' | 'optimized'",
@@ -65,8 +65,8 @@ export const readPersonLoad = defineEndpointShape({
             endsOn: 'string',
             bookings: bookingRef.array(),
           }).array(),
-          undated: namedProject.array(),
-          unavailable: unavailableProject.array(),
+          undated: namedWorkPackage.array(),
+          unavailable: unavailableWorkPackage.array(),
         }),
       ),
     },
@@ -74,11 +74,11 @@ export const readPersonLoad = defineEndpointShape({
   refusals: [...refusals, { status: 404, schema: responseSchema(type({ error: "'not_found'" })) }],
   document: {
     summary:
-      'Read one person’s bookings across every readable project between two dates, with overlaps.',
+      'Read one person’s bookings across every readable work package between two dates, with overlaps.',
   },
 });
 
-/** Every person's booked and overlapping workdays per week, across readable projects. */
+/** Every person's booked and overlapping workdays per week, across readable work packages. */
 export const readOrganizationLoad = defineEndpointShape({
   method: 'GET',
   path: '/api/people/load',
@@ -96,8 +96,8 @@ export const readOrganizationLoad = defineEndpointShape({
             name: 'string',
             weeks: type({ weekOf: 'string', booked: 'number', overlapping: 'number' }).array(),
           }).array(),
-          undated: namedProject.array(),
-          unavailable: unavailableProject.array(),
+          undated: namedWorkPackage.array(),
+          unavailable: unavailableWorkPackage.array(),
         }),
       ),
     },

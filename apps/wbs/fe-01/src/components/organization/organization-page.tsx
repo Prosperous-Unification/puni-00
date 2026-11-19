@@ -22,6 +22,7 @@ import { ProvisioningTokensPanel } from './provisioning-tokens-panel';
 import { SessionPolicyPanel } from './session-policy-panel';
 import { SharingPanel } from './sharing-panel';
 import { SsoConnectionsPanel } from './sso-connections-panel';
+import { StepsPanel } from './steps-panel';
 
 /**
  * Administration of the session's active organization, at `/organization`.
@@ -72,6 +73,7 @@ export function OrganizationPage({
            */}
           {loss === null ? (
             <>
+              <StepsPanel onAccessLost={setLoss} />
               <MembersPanel onAccessLost={setLoss} />
               <InvitationsPanel onAccessLost={setLoss} />
               <JoinRequestsPanel onAccessLost={setLoss} />

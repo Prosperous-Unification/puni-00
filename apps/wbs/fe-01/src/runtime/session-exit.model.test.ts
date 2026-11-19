@@ -5,15 +5,19 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DirectoryApi, PersonView } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import type { DeliveredPlan } from '@/modules/plan-feed/delivered-plan-store';
-import { projectServicesOver } from '@/modules/project/composition';
-import type { ProjectRuntime, ProjectServices, ProjectSource } from '@/modules/project/contract';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { workPackageServicesOver } from '@/modules/work-package/composition';
+import type {
+  WorkPackageRuntime,
+  WorkPackageServices,
+  WorkPackageSource,
+} from '@/modules/work-package/contract';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 
 import { credentialOf } from './credential';
 import { PartialAcquisitionError } from './lifetime-slot';
-import { installProjectRuntime } from './project-runtime';
+import { installWorkPackageRuntime } from './work-package-runtime';
 import {
   createSessionOwner,
   installSessionRuntime,
@@ -25,14 +29,14 @@ import {
 /** The retirement budget the model's owner is built with, on the fake clock. */
 const BUDGET_MS = 1_000;
 
-/** How a project's close ends: it lets go, its socket refuses, or its socket never closes. */
+/** How a work package's close ends: it lets go, its socket refuses, or its socket never closes. */
 type CloseMode = 'settles' | 'rejects' | 'hangs';
 
-/** One project runtime a session built, and how its retirement went. */
-interface ProjectRecord {
+/** One work package runtime a session built, and how its retirement went. */
+interface WorkPackageRecord {
   readonly name: string;
   readonly mode: CloseMode;
-  runtime: ProjectRuntime | null;
+  runtime: WorkPackageRuntime | null;
   /** What its delivered plan held when it was built. */
   initial: DeliveredPlan | null;
   /** What it held at the instant its session was withdrawn, or `null` while it has not been. */
@@ -60,7 +64,7 @@ interface SessionRecord {
   failed: boolean;
   /** Whether a request the model made has withdrawn it: another user, a log out, a leave. */
   withdrawn: boolean;
-  readonly projects: ProjectRecord[];
+  readonly workPackages: WorkPackageRecord[];
   readonly broken: boolean;
 }
 
@@ -91,23 +95,23 @@ const COMMAND_KINDS: readonly string[] = [
   'logOut',
   'reenterLogOut',
   'leave',
-  'openProject',
+  'openWorkPackage',
   'read',
   'answer',
   'drain',
   'elapse',
 ];
 const reached = {
-  loggedOutWithProjectOpen: 0,
+  loggedOutWithWorkPackageOpen: 0,
   loggedOutWhileRetiring: 0,
   loggedOutDuringSignIn: 0,
   secondLogOut: 0,
   signInDuringLogOut: 0,
-  lateProjectAnswer: 0,
+  lateWorkPackageAnswer: 0,
   readAfterWithdrawal: 0,
   logOutFatal: 0,
-  projectTimedOut: 0,
-  projectRejected: 0,
+  workPackageTimedOut: 0,
+  workPackageRejected: 0,
   reenteredLogOut: 0,
   logOutOvertaken: 0,
   logOutSignedOut: 0,
@@ -124,7 +128,7 @@ interface ExitWorld {
   readonly scheduler: fc.Scheduler;
   readonly sessions: SessionRecord[];
   readonly byClient: Map<DirectoryApi, SessionRecord>;
-  readonly bySource: Map<ProjectServices, ProjectRecord>;
+  readonly bySource: Map<WorkPackageServices, WorkPackageRecord>;
   readonly exits: ExitRecord[];
   /** Every open, leave and read still out, as flags: a hung one must not hang the teardown. */
   readonly tracked: { readonly what: string; settled: boolean }[];
@@ -133,7 +137,7 @@ interface ExitWorld {
   /** Every close that failed and every installation that was broken. */
   failures: number;
   next: number;
-  /** How the next project opened should close: set by the command that opens it. */
+  /** How the next work package opened should close: set by the command that opens it. */
   nextMode: CloseMode;
 }
 
@@ -187,7 +191,7 @@ function clientFor(world: ExitWorld, credential: string): DirectoryApi {
     closed: false,
     failed: false,
     withdrawn: false,
-    projects: [],
+    workPackages: [],
     broken: credential === BROKEN,
   };
   const gate = <T>(route: string, answer: () => Promise<T>): Promise<T> => {
@@ -210,16 +214,16 @@ function clientFor(world: ExitWorld, credential: string): DirectoryApi {
   return client;
 }
 
-/** A project source over a fresh client whose plan read answers when the scheduler says. */
-function projectSource(
+/** A work package source over a fresh client whose plan read answers when the scheduler says. */
+function workPackageSource(
   world: ExitWorld,
   session: SessionRecord,
-  projectId: string,
+  workPackageId: string,
   mode: CloseMode,
-): ProjectSource {
-  const base = fakeProjectApi();
-  const record: ProjectRecord = {
-    name: `${session.name}.${projectId}.${mode}`,
+): WorkPackageSource {
+  const base = fakeWorkPackageApi();
+  const record: WorkPackageRecord = {
+    name: `${session.name}.${workPackageId}.${mode}`,
     mode,
     runtime: null,
     initial: null,
@@ -231,29 +235,29 @@ function projectSource(
   };
   const gate = <T>(route: string, answer: () => Promise<T>): Promise<T> =>
     world.scheduler.schedule(answer(), `${record.name} ${route}`).then((value) => {
-      if (session.withdrawn) reached.lateProjectAnswer += 1;
+      if (session.withdrawn) reached.lateWorkPackageAnswer += 1;
       return value;
     });
   // Only the plan's own read waits for the scheduler: it is the answer that
-  // delivers a plan, and one late answer is what a withdrawn project must drop.
+  // delivers a plan, and one late answer is what a withdrawn work package must drop.
   const client: typeof base = { ...base, tree: (id) => gate('tree', () => base.tree(id)) };
-  const services = projectServicesOver(client, NO_SAVED_PLANS, createRefusingAddressApi());
+  const services = workPackageServicesOver(client, NO_SAVED_PLANS, createRefusingAddressApi());
   world.bySource.set(services, record);
   return { services, subscribe: undefined };
 }
 
 /**
  * Marks every session built so far withdrawn, as the request about to be made
- * will, and records what each of their projects held at this instant.
+ * will, and records what each of their work packages held at this instant.
  */
 function withdrawAll(world: ExitWorld): void {
   for (const session of world.sessions) {
     if (session.runtime === null || session.withdrawn) continue;
     session.withdrawn = true;
-    for (const project of session.projects) {
-      if (project.runtime === null) continue;
-      if (project.runtime.isCurrent()) reached.loggedOutWithProjectOpen += 1;
-      project.frozen = project.runtime.plan.snapshot();
+    for (const workPackage of session.workPackages) {
+      if (workPackage.runtime === null) continue;
+      if (workPackage.runtime.isCurrent()) reached.loggedOutWithWorkPackageOpen += 1;
+      workPackage.frozen = workPackage.runtime.plan.snapshot();
     }
   }
 }
@@ -267,11 +271,11 @@ function callsSoFar(world: ExitWorld): number {
 function assertExit(world: ExitWorld, what: string): void {
   for (const session of world.sessions) {
     if (!session.withdrawn) continue;
-    for (const project of session.projects) {
-      if (project.runtime === null) continue;
+    for (const workPackage of session.workPackages) {
+      if (workPackage.runtime === null) continue;
       expect(
-        project.runtime.plan.snapshot() === (project.frozen ?? project.initial),
-        `${what}: ${project.name}'s plan changed after its session ${session.name} was withdrawn`,
+        workPackage.runtime.plan.snapshot() === (workPackage.frozen ?? workPackage.initial),
+        `${what}: ${workPackage.name}'s plan changed after its session ${session.name} was withdrawn`,
       ).toBe(true);
     }
   }
@@ -281,7 +285,7 @@ function assertExit(world: ExitWorld, what: string): void {
 /** Judges one log out at the moment it settled. */
 function judge(world: ExitWorld, exit: ExitRecord): void {
   const failedBefore = exit.before.some(
-    (session) => session.failed || session.projects.some((project) => project.failed),
+    (session) => session.failed || session.workPackages.some((workPackage) => workPackage.failed),
   );
   if (exit.outcome === 'signed-out') {
     reached.logOutSignedOut += 1;
@@ -290,11 +294,11 @@ function judge(world: ExitWorld, exit: ExitRecord): void {
         session.closed,
         `${exit.name} settled signed-out before ${session.name} was given back`,
       ).toBe(true);
-      for (const project of session.projects) {
-        if (project.runtime === null) continue;
+      for (const workPackage of session.workPackages) {
+        if (workPackage.runtime === null) continue;
         expect(
-          project.given,
-          `${exit.name} settled signed-out before ${project.name} was given back`,
+          workPackage.given,
+          `${exit.name} settled signed-out before ${workPackage.name} was given back`,
         ).toBe(true);
       }
     }
@@ -476,29 +480,29 @@ function pick(world: ExitWorld, index: number): SessionRecord | null {
   return candidates[index % candidates.length] ?? null;
 }
 
-/** A project page that kept a session's project owner, and opens a project through it now. */
-class OpenProject implements ExitCommand {
+/** A work package page that kept a session's work package owner, and opens a work package through it now. */
+class OpenWorkPackage implements ExitCommand {
   constructor(
     readonly index: number,
-    readonly projectId: string,
+    readonly workPackageId: string,
     readonly mode: CloseMode,
   ) {}
   check(): boolean {
     return true;
   }
   async run(_model: ExitModel, world: ExitWorld): Promise<void> {
-    note('openProject');
+    note('openWorkPackage');
     const session = pick(world, this.index);
     const runtime = session?.runtime ?? null;
     if (session === null || runtime === null) return;
-    // The session asks its source for this project synchronously inside `open`.
+    // The session asks its source for this work package synchronously inside `open`.
     world.nextMode = this.mode;
-    track(world, `project(${session.name})`, runtime.projects.open(this.projectId));
+    track(world, `workPackage(${session.name})`, runtime.workPackages.open(this.workPackageId));
     assertExit(world, this.toString());
     await Promise.resolve();
   }
   toString(): string {
-    return `openProject(${String(this.index)}, ${this.projectId}, ${this.mode})`;
+    return `openWorkPackage(${String(this.index)}, ${this.workPackageId}, ${this.mode})`;
   }
 }
 
@@ -564,7 +568,7 @@ class Drain implements ExitCommand {
 
 /**
  * Lets every step run and the clock pass the retirement budget, more than
- * once: a session's wait and its project's inside it. Nothing may still be
+ * once: a session's wait and its work package's inside it. Nothing may still be
  * retiring for a log out after that.
  */
 async function letBudgetsPass(world: ExitWorld): Promise<void> {
@@ -610,7 +614,7 @@ const commandsArb = fc.commands<ExitModel, ExitWorld, false>(
         fc.constantFrom('p1', 'p2'),
         fc.constantFrom<CloseMode>('settles', 'settles', 'rejects', 'hangs'),
       )
-      .map(([index, projectId, mode]) => new OpenProject(index, projectId, mode)),
+      .map(([index, workPackageId, mode]) => new OpenWorkPackage(index, workPackageId, mode)),
     fc.nat(4).map((index) => new Read(index)),
     fc.constant(new Answer()),
     fc.constant(new Answer()),
@@ -627,7 +631,7 @@ const commandsArb = fc.commands<ExitModel, ExitWorld, false>(
  * `docs/superpowers/plans/2026-09-21-batch-6/050-7-k-log-out.md`.
  */
 describe('log out, against a reference model', () => {
-  it('retires the project and then the session, sends nothing, and settles within the budget — signed out only when both let go', async () => {
+  it('retires the work package and then the session, sends nothing, and settles within the budget — signed out only when both let go', async () => {
     expect(fc.__version, 'the pinned counterexamples were recorded under 4.9.0').toBe('4.9.0');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
     try {
@@ -639,49 +643,49 @@ describe('log out, against a reference model', () => {
             owner: createSessionOwner({
               budgetMs: BUDGET_MS,
               clientFor: (credential) => clientFor(world, credential),
-              projectClientFor: () => fakeProjectApi(),
+              workPackageClientFor: () => fakeWorkPackageApi(),
               install: (dependencies) => {
                 const record = world.byClient.get(dependencies.directoryApi);
                 if (record === undefined) throw new Error('a session was installed from no client');
                 record.userId = dependencies.userId;
                 const installed = installSessionRuntime({
                   ...dependencies,
-                  // Every project gets a source of its own, so each is recorded apart.
-                  projectSourceFor: (projectId) =>
-                    projectSource(world, record, projectId, world.nextMode),
-                  // The session's own wiring wraps this, so the project runtimes are
+                  // Every work package gets a source of its own, so each is recorded apart.
+                  workPackageSourceFor: (workPackageId) =>
+                    workPackageSource(world, record, workPackageId, world.nextMode),
+                  // The session's own wiring wraps this, so the work package runtimes are
                   // the real ones, reached through the session's own guards.
-                  installProject: (projectDependencies) => {
-                    const project = world.bySource.get(projectDependencies.services);
-                    if (project === undefined)
-                      throw new Error('a project was installed from no source');
-                    const built = installProjectRuntime(projectDependencies);
-                    project.runtime = built.services;
-                    project.initial = built.services.plan.snapshot();
-                    record.projects.push(project);
+                  installWorkPackage: (workPackageDependencies) => {
+                    const workPackage = world.bySource.get(workPackageDependencies.services);
+                    if (workPackage === undefined)
+                      throw new Error('a work package was installed from no source');
+                    const built = installWorkPackageRuntime(workPackageDependencies);
+                    workPackage.runtime = built.services;
+                    workPackage.initial = built.services.plan.snapshot();
+                    record.workPackages.push(workPackage);
                     return {
                       services: built.services,
                       close: async (options) => {
-                        project.closes += 1;
-                        await scheduler.schedule(Promise.resolve(), `${project.name} retires`);
+                        workPackage.closes += 1;
+                        await scheduler.schedule(Promise.resolve(), `${workPackage.name} retires`);
                         try {
                           await built.close(options);
-                          if (project.mode === 'rejects') {
-                            reached.projectRejected += 1;
-                            throw new Error(`${project.name}'s socket would not close`);
+                          if (workPackage.mode === 'rejects') {
+                            reached.workPackageRejected += 1;
+                            throw new Error(`${workPackage.name}'s socket would not close`);
                           }
-                          if (project.mode === 'hangs')
+                          if (workPackage.mode === 'hangs')
                             await socketThatNeverCloses().close({
                               waitTimeoutMs: options.timeoutMs,
                             });
                         } catch (refusal: unknown) {
                           if (refusal instanceof DiBagCloseCancelledError)
-                            reached.projectTimedOut += 1;
-                          project.failed = true;
+                            reached.workPackageTimedOut += 1;
+                          workPackage.failed = true;
                           world.failures += 1;
                           throw refusal;
                         }
-                        project.given = true;
+                        workPackage.given = true;
                       },
                     };
                   },
@@ -706,11 +710,11 @@ describe('log out, against a reference model', () => {
                       world.failures += 1;
                       throw refusal;
                     }
-                    for (const project of record.projects) {
-                      if (!project.given) {
+                    for (const workPackage of record.workPackages) {
+                      if (!workPackage.given) {
                         fault(
                           world,
-                          `${record.name} was given back before its project ${project.name}`,
+                          `${record.name} was given back before its work package ${workPackage.name}`,
                         );
                       }
                     }

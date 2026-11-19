@@ -170,7 +170,7 @@ function baseLayerSelectors(css: string): string[] {
     let list = '';
     while (depth > 0) {
       // The end of the string rather than an `undefined` from the index: with
-      // this project's TypeScript settings `css[at]` is typed `string`, so the
+      // this work package's TypeScript settings `css[at]` is typed `string`, so the
       // nullish check the walk actually wants is one the compiler calls dead
       // code — and a lint rule says so.
       if (at >= css.length) {

@@ -1,42 +1,49 @@
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   DependencyStore,
   EstimateStore,
-  Project,
-  ProjectStore,
   WorkItemStore,
+  WorkPackage,
+  WorkPackageStore,
 } from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let workItems: WorkItemStore;
 let dependencies: DependencyStore;
 let estimates: EstimateStore;
 let service: WorkItemService;
 let broadcast: RecordingBroadcaster;
-let projectId: string;
+let workPackageId: string;
 
 /** The one step every leaf here is estimated on. */
 const DEV = 'step-dev';
 
 beforeEach(async () => {
   broadcast = recordingBroadcaster();
-  const harness = inMemoryServices({ broadcast });
-  ({ projects, workItems, dependencies, estimates } = harness.stores);
+  const harness = createTestServices((await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID)).source, {
+broadcast,
+  });
+  ({ workPackages, workItems, dependencies, estimates } = harness.stores);
   service = harness.service;
-  const project: Project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
-  await projects.create(
-    project,
+  const workPackage: WorkPackage = workPackageRow({
+    id: crypto.randomUUID(),
+    projectId: PROJECT_ID,
+  });
+  await workPackages.create(
+    workPackage,
     [
       {
         id: DEV,
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -49,7 +56,7 @@ beforeEach(async () => {
       by: OWNER,
     },
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
 });
 
 /**
@@ -65,7 +72,7 @@ async function estimate(workItemId: string): Promise<void> {
 }
 
 async function add(name: string, afterId: string | null = null): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId: null, afterId, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   await estimate(outcome.value.id);
   return outcome.value.id;
@@ -73,13 +80,17 @@ async function add(name: string, afterId: string | null = null): Promise<string>
 
 /** A parent row, which holds no estimate of its own. */
 async function addGroup(name: string): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId: null, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, {
+    parentId: null,
+    afterId: null,
+    name,
+  });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
 
 async function addUnder(parentId: string, name: string): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   await estimate(outcome.value.id);
   return outcome.value.id;
@@ -91,16 +102,16 @@ async function waitOn(successorId: string, predecessorId: string): Promise<void>
   if (!outcome.ok) throw new Error(`dependency refused: ${outcome.reason}`);
 }
 
-/** Name and number in the order the project reads. */
+/** Name and number in the order the work package reads. */
 async function inOrder(): Promise<[string, string][]> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   if ('kind' in tree) throw new Error('the engine was unavailable');
   return tree.workItems.map((row) => [row.name, row.number]);
 }
 
 async function positions(): Promise<Record<string, number>> {
-  const rows = await workItems.listByProject(projectId);
+  const rows = await workItems.listByWorkPackage(workPackageId);
   return Object.fromEntries(rows.map((row) => [row.name, row.position]));
 }
 
@@ -110,7 +121,7 @@ describe('arrangeBySchedule', () => {
     const second = await add('Second', first);
     await waitOn(first, second);
 
-    const outcome = await service.arrangeBySchedule(projectId, OWNER);
+    const outcome = await service.arrangeBySchedule(workPackageId, OWNER);
 
     expect(outcome.ok).toBe(true);
     expect(await inOrder()).toEqual([
@@ -125,9 +136,9 @@ describe('arrangeBySchedule', () => {
     const first = await add('First');
     const second = await add('Second', first);
     await waitOn(first, second);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
-    const outcome = await service.arrangeBySchedule(projectId, OWNER);
+    const outcome = await service.arrangeBySchedule(workPackageId, OWNER);
 
     expect(outcome.ok).toBe(true);
     expect(await inOrder()).toEqual([
@@ -144,7 +155,7 @@ describe('arrangeBySchedule', () => {
     // Written late-first so the group starts out of order.
     await service.move(early, OWNER, { parentId: branch, afterId: late }, { kind: 'legacy' });
 
-    await service.arrangeBySchedule(projectId, OWNER);
+    await service.arrangeBySchedule(workPackageId, OWNER);
 
     expect(await inOrder()).toEqual([
       ['Branch', '010'],
@@ -158,7 +169,7 @@ describe('arrangeBySchedule', () => {
     await add('Second', first);
     const published = broadcast.published.length;
 
-    const outcome = await service.arrangeBySchedule(projectId, OWNER);
+    const outcome = await service.arrangeBySchedule(workPackageId, OWNER);
 
     expect(outcome).toEqual({ ok: true, value: null });
     expect(await positions()).toEqual({ First: 10, Second: 20 });
@@ -180,15 +191,15 @@ describe('arrangeBySchedule', () => {
     // exists for, so the command has to answer it rather than throw.
     const stamp = { at: 2, by: OWNER };
     await dependencies.add(
-      { id: 'a->b', projectId, predecessorId: first, successorId: second },
+      { id: 'a->b', workPackageId, predecessorId: first, successorId: second },
       stamp,
     );
     await dependencies.add(
-      { id: 'b->a', projectId, predecessorId: second, successorId: first },
+      { id: 'b->a', workPackageId, predecessorId: second, successorId: first },
       stamp,
     );
 
-    expect(await service.arrangeBySchedule(projectId, OWNER)).toEqual({
+    expect(await service.arrangeBySchedule(workPackageId, OWNER)).toEqual({
       ok: false,
       reason: 'cycle',
     });
@@ -200,7 +211,7 @@ describe('arrangeBySchedule', () => {
     await waitOn(first, second);
     const before = broadcast.published.length;
 
-    await service.arrangeBySchedule(projectId, OWNER);
+    await service.arrangeBySchedule(workPackageId, OWNER);
 
     expect(broadcast.published.length).toBe(before + 1);
   });
@@ -216,7 +227,7 @@ describe('arrangeBySchedule', () => {
     const third = await add('Third', second);
     await waitOn(second, third);
 
-    await service.arrangeBySchedule(projectId, OWNER);
+    await service.arrangeBySchedule(workPackageId, OWNER);
 
     // `First` and `Third` both start on day zero and keep the order they read
     // in; `Second` waits for `Third` and falls to the bottom. So `First` holds
@@ -230,8 +241,8 @@ describe('arrangeBySchedule', () => {
     await waitOn(first, second);
     const was = await positions();
 
-    await service.arrangeBySchedule(projectId, OWNER);
-    const undone = await service.undo(projectId, OWNER);
+    await service.arrangeBySchedule(workPackageId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
     // The sentence the undo toast shows, which is the entry's own label: a
@@ -249,9 +260,9 @@ describe('arrangeBySchedule', () => {
     const second = await add('Second', first);
     await waitOn(first, second);
 
-    await service.arrangeBySchedule(projectId, OWNER);
-    await service.undo(projectId, OWNER);
-    const redone = await service.redo(projectId, OWNER);
+    await service.arrangeBySchedule(workPackageId, OWNER);
+    await service.undo(workPackageId, OWNER);
+    const redone = await service.redo(workPackageId, OWNER);
 
     expect(redone.ok).toBe(true);
     expect(await inOrder()).toEqual([
@@ -268,24 +279,24 @@ describe('arrangeBySchedule', () => {
     const second = await add('Second', first);
     await waitOn(first, second);
 
-    await service.arrangeBySchedule(projectId, OWNER);
-    await service.freeze(projectId, OWNER);
-    const undone = await service.undo(projectId, OWNER);
+    await service.arrangeBySchedule(workPackageId, OWNER);
+    await service.freeze(workPackageId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
   });
 
-  it('refuses to arrange for somebody who cannot edit a restricted project', async () => {
+  it('refuses to arrange for somebody who cannot edit a restricted work package', async () => {
     await add('First');
-    await projects.update(projectId, { restricted: true }, { at: 3, by: OWNER });
+    await workPackages.update(workPackageId, { restricted: true }, { at: 3, by: OWNER });
 
-    expect(await service.arrangeBySchedule(projectId, 'someone-else')).toEqual({
+    expect(await service.arrangeBySchedule(workPackageId, 'someone-else')).toEqual({
       ok: false,
       reason: 'forbidden',
     });
   });
 
-  it('refuses a project that is not there', async () => {
+  it('refuses a work package that is not there', async () => {
     expect(await service.arrangeBySchedule(crypto.randomUUID(), OWNER)).toEqual({
       ok: false,
       reason: 'not_found',

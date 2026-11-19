@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,9 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import * as database from './db';
 import { type Connection, type Drizzle, openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
-import * as rankBackup from './project-rank-rollback';
 import { organization } from './schema';
 import { SharedPeopleRestoreApprovalRepository } from './shared-people-restore-approval';
 import {
@@ -17,7 +16,9 @@ import {
   restoreSharedPeople,
   saveSharedPeople,
 } from './shared-people-rollback';
+import { readRecoveryState } from './testing/recovery-state';
 import { MIGRATIONS_FOLDER, openSpaceDatabase } from './testing/space-database';
+import * as rankBackup from './work-package-rank-rollback';
 
 let directory: string;
 let path: string;
@@ -27,7 +28,7 @@ beforeEach(async () => {
   path = await openSpaceDatabase(directory);
   connection = openConnection(path);
   execute(
-    "INSERT INTO project_rank (project_id, organization_id, position, created_at, updated_at, created_by) VALUES ('a1','org-a',3,1,2,'ada'),('b1','org-b',7,4,NULL,'ada')",
+    "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, updated_at, created_by) VALUES ('a1','org-a',3,1,2,'ada'),('b1','org-b',7,4,NULL,'ada')",
   );
 });
 afterEach(() => {
@@ -44,7 +45,7 @@ function execute(statement: string) {
 }
 const save = () => saveSharedPeople(path);
 const organizationRows = () => execute('SELECT * FROM organization ORDER BY id');
-const ranks = () => execute('SELECT * FROM project_rank ORDER BY project_id');
+const ranks = () => execute('SELECT * FROM work_package_rank ORDER BY work_package_id');
 
 describe('combined shared people recovery', () => {
   it('saves every organization mode including isolated, and every rank column, deterministically', () => {
@@ -52,14 +53,14 @@ describe('combined shared people recovery', () => {
     const saved = save();
     expect(saved).toEqual({
       format: 'shared-people-save',
-      version: 1,
+      version: 2,
       organizations: [
         { organizationId: 'org-a', mode: 'shared' },
         { organizationId: 'org-b', mode: 'isolated' },
       ],
       ranks: [
         {
-          projectId: 'a1',
+          workPackageId: 'a1',
           organizationId: 'org-a',
           position: 3,
           createdAt: 1,
@@ -67,7 +68,7 @@ describe('combined shared people recovery', () => {
           createdBy: 'ada',
         },
         {
-          projectId: 'b1',
+          workPackageId: 'b1',
           organizationId: 'org-b',
           position: 7,
           createdAt: 4,
@@ -80,8 +81,8 @@ describe('combined shared people recovery', () => {
   });
 
   it('refuses an injected write on the dedicated save connection', () => {
-    const readRanks = rankBackup.saveProjectRanks;
-    const intercepted = spyOn(rankBackup, 'saveProjectRanks').mockImplementation((db) => {
+    const readRanks = rankBackup.saveWorkPackageRanks;
+    const intercepted = spyOn(rankBackup, 'saveWorkPackageRanks').mockImplementation((db) => {
       // Deliberately violate the reader capability to prove the physical connection is read-only.
       (db as Drizzle).update(organization).set({ name: 'unsafe' }).run();
       return readRanks(db);
@@ -107,7 +108,7 @@ describe('combined shared people recovery', () => {
         },
       };
     });
-    const reader = spyOn(rankBackup, 'saveProjectRanks').mockImplementation(() => {
+    const reader = spyOn(rankBackup, 'saveWorkPackageRanks').mockImplementation(() => {
       throw new Error('injected rank read');
     });
     try {
@@ -120,12 +121,12 @@ describe('combined shared people recovery', () => {
   });
 
   it('captures mode and rank from one snapshot during a concurrent combined edit', () => {
-    const readRanks = rankBackup.saveProjectRanks;
-    const intercepted = spyOn(rankBackup, 'saveProjectRanks').mockImplementation((db) => {
+    const readRanks = rankBackup.saveWorkPackageRanks;
+    const intercepted = spyOn(rankBackup, 'saveWorkPackageRanks').mockImplementation((db) => {
       const writer = openDatabase(path);
       try {
         writer.run(
-          "BEGIN IMMEDIATE; UPDATE organization SET shared_people=1 WHERE id='org-a'; UPDATE project_rank SET position=99 WHERE project_id='a1'; COMMIT;",
+          "BEGIN IMMEDIATE; UPDATE organization SET shared_people=1 WHERE id='org-a'; UPDATE work_package_rank SET position=99 WHERE work_package_id='a1'; COMMIT;",
         );
       } finally {
         writer.close();
@@ -145,7 +146,7 @@ describe('combined shared people recovery', () => {
 
   for (const [label, changed] of [
     ['mode', "UPDATE organization SET shared_people=1 WHERE id='org-a'"],
-    ['rank', "UPDATE project_rank SET position=99 WHERE project_id='a1'"],
+    ['rank', "UPDATE work_package_rank SET position=99 WHERE work_package_id='a1'"],
     ['organization identity', "INSERT INTO organization(id,name,created_at) VALUES('org-c','C',1)"],
   ]) {
     it(`refuses a stale ${label} change without mutation`, () => {
@@ -159,9 +160,9 @@ describe('combined shared people recovery', () => {
 
   for (const issued of [false, true])
     it(`refuses removal before mutating recovery state with issued approval=${String(issued)}`, async () => {
-      execute('DELETE FROM project_rank');
+      execute('DELETE FROM work_package_rank');
       execute(
-        "INSERT INTO project_rank (project_id, organization_id, position, created_at, updated_at, created_by) VALUES ('a1', 'org-a', 3, 1, 2, 'ada')",
+        "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, updated_at, created_by) VALUES ('a1', 'org-a', 3, 1, 2, 'ada')",
       );
       if (issued) {
         execute(
@@ -189,9 +190,8 @@ describe('combined shared people recovery', () => {
         );
       }
       expect(execute('SELECT * FROM shared_people_audit')).toEqual([]);
-      // Revoke the fixture's runtime grant after issuance so the receipt migration guard is the tested rollback boundary.
+      // Keep recovery evidence on current111; historical down availability is tested on a native prefix.
       execute("DELETE FROM access_grant WHERE id='approval-security'");
-      rollbackTo(path, MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts');
       const saved = save();
       const recoveryState = () => ({
         ranks: ranks(),
@@ -211,77 +211,44 @@ describe('combined shared people recovery', () => {
       expect(recoveryState()).toEqual(before);
       expect(refusal).toBeInstanceOf(Error);
       expect(String(refusal)).toContain('shared people restore evidence is recorded');
-      expect(() =>
-        rollbackTo(path, MIGRATIONS_FOLDER, '20261012130000_add_step_estimate_unit'),
-      ).toThrow('shared people restore evidence is recorded');
+      // Exact immutable down artifact isolation, not rollbackTo across111.
+      const whole = readRecoveryState(path),
+        sqlite = openDatabase(path);
+      try {
+        const temp = sqlite.query('SELECT * FROM sqlite_temp_master ORDER BY name').all();
+        const down = readFileSync(
+          join(MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts', 'down.sql'),
+          'utf8',
+        );
+        expect(() => {
+          sqlite.transaction(() => {
+            for (const statement of down.split('--> statement-breakpoint'))
+              if (statement.trim() !== '') sqlite.run(statement.trim());
+          })();
+        }).toThrow('shared people restore evidence is recorded');
+        expect(sqlite.query('SELECT * FROM sqlite_temp_master ORDER BY name').all()).toEqual(temp);
+      } finally {
+        sqlite.close();
+      }
+      expect(readRecoveryState(path)).toEqual(whole);
       expect(recoveryState()).toEqual(before);
     });
 
-  it('removes modes and ranks together then permits guarded downgrade', () => {
+  it('removes current modes and ranks without reopening current111 downgrade or legacy shared restore', () => {
     execute("UPDATE organization SET shared_people=1 WHERE id='org-a'");
     const saved = save();
     expect(removeSharedPeople(connection.db, saved, 101)).toEqual({ organizations: 2, ranks: 2 });
     expect(save().organizations.every((each) => each.mode === 'isolated')).toBe(true);
     expect(ranks()).toEqual([]);
-    // Proof: omitting sparse parallelism from production rollback selection failed this exact ordered list (2026-10-17).
-    expect(
+    const empty = readRecoveryState(path);
+    expect(() =>
       rollbackTo(path, MIGRATIONS_FOLDER, '20261001010000_add_browser_credential_revocations'),
-    ).toEqual([
-      '20261103110000_add_initial_access_offers',
-      '20261102130000_widen_organization_audit_access',
-      '20261102120000_add_access_grants',
-      '20261101120000_add_host_job_projection',
-      '20261101100100_add_resource_directory_capacity',
-      '20261101100000_widen_organization_audit_directory_capacity',
-      '20261028100100_widen_organization_audit_agent_pools',
-      '20261028100000_add_agent_pool',
-      '20261026130000_widen_organization_audit_machine_tokens',
-      '20261026120000_add_command_journal_person',
-      '20261025130000_add_resource_runtime',
-      '20261025120000_add_resource_use',
-      '20261023170000_add_work_item_budget',
-      '20261023160000_add_measure_estimate',
-      '20261023150000_key_step_measure',
-      '20261023140000_add_measure',
-      '20261023100000_add_claim_lease',
-      '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
-      '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
-      '20261022140100_widen_organization_audit_compute_providers',
-      '20261022140000_add_resource_provider',
-      '20261022130100_widen_organization_audit_organization_limits',
-      '20261022130000_add_organization_limits',
-      '20261022121000_add_runtime_commands',
-      '20261022120000_scope_trusted_issuer_audience',
-      '20261022110100_check_machine_credential_id',
-      '20261022110000_widen_organization_audit_machine_credentials',
-      '20261022100000_add_machine_credential',
-      '20261020130000_add_claim_occupancy',
-      '20261020120000_add_resources',
-      '20261019130100_add_external_identity_person',
-      '20261019130000_add_person_account',
-      '20261019120000_add_claim',
-      '20261015110000_add_step_node_parallelism',
-      '20261015100000_add_step_blockage_activation_receipt',
-      '20261014140000_add_step_blockage_activation',
-      '20261014130000_add_shared_people_restore_receipts',
-      '20261014120000_add_shared_people_restore_approvals',
-      '20261013140000_add_step_node_blockages',
-      '20261012130000_add_step_estimate_unit',
-      '20261012120000_add_step_node_attempts',
-      '20261012090200_widen_organization_audit',
-      '20261012090100_add_browser_auth_times',
-      '20261012090000_add_enterprise_sso_records',
-      '20261011200000_add_shared_people_audit',
-      '20261011120000_add_browser_auth_lifecycle',
-      '20261005110000_add_shared_people',
-    ]);
-    runMigrations(path, MIGRATIONS_FOLDER);
+    ).toThrow('verified window snapshot');
+    expect(readRecoveryState(path)).toEqual(empty);
     expect(() => restoreSharedPeople(connection.db, saved, 202)).toThrow(
       'unsupported capacity mode shared',
     );
-    expect(ranks()).toEqual([]);
+    expect(readRecoveryState(path)).toEqual(empty);
   });
 
   it('rolls back a late remove failure including already deleted ranks and cleared modes', () => {
@@ -385,7 +352,7 @@ describe('combined shared people recovery', () => {
     );
     execute("UPDATE organization SET shared_people=0 WHERE id='org-a'");
     execute(
-      "INSERT INTO project_rank(project_id,organization_id,position,created_at,created_by) VALUES('a2','org-a',1,1,'ada')",
+      "INSERT INTO work_package_rank(work_package_id,organization_id,position,created_at,created_by) VALUES('a2','org-a',1,1,'ada')",
     );
     expect(() => restoreSharedPeople(connection.db, saved, 202)).toThrow(
       'isolated modes and no ranks',
@@ -397,7 +364,7 @@ describe('combined shared people recovery', () => {
     const saved = save();
     removeSharedPeople(connection.db, saved, 101);
     execute(
-      "CREATE TRIGGER refuse_rank BEFORE INSERT ON project_rank WHEN NEW.project_id='b1' BEGIN SELECT RAISE(ABORT,'injected rank write'); END;",
+      "CREATE TRIGGER refuse_rank BEFORE INSERT ON work_package_rank WHEN NEW.work_package_id='b1' BEGIN SELECT RAISE(ABORT,'injected rank write'); END;",
     );
     const beforeOrganizations = organizationRows();
     expect(() => restoreSharedPeople(connection.db, saved, 202)).toThrow('Failed query');
@@ -410,18 +377,20 @@ describe('combined shared people recovery', () => {
     const saved = save();
     removeSharedPeople(connection.db, saved, 101);
     const before = save();
-    const restoreRanks = rankBackup.restoreProjectRanks;
-    const intercepted = spyOn(rankBackup, 'restoreProjectRanks').mockImplementation((db, ranks) => {
-      const writer = openDatabase(path);
-      try {
-        writer.run(
-          "PRAGMA busy_timeout=0; UPDATE organization SET shared_people=1 WHERE id='org-a'",
-        );
-        return restoreRanks(db, ranks);
-      } finally {
-        writer.close();
-      }
-    });
+    const restoreRanks = rankBackup.restoreWorkPackageRanks;
+    const intercepted = spyOn(rankBackup, 'restoreWorkPackageRanks').mockImplementation(
+      (db, ranks) => {
+        const writer = openDatabase(path);
+        try {
+          writer.run(
+            "PRAGMA busy_timeout=0; UPDATE organization SET shared_people=1 WHERE id='org-a'",
+          );
+          return restoreRanks(db, ranks);
+        } finally {
+          writer.close();
+        }
+      },
+    );
     try {
       expect(() => restoreSharedPeople(connection.db, saved, 202)).toThrow('database is locked');
       expect(save()).toEqual(before);
@@ -449,7 +418,7 @@ describe('combined shared people recovery', () => {
   it('refuses malformed and duplicate complete-state backups before any mutation', () => {
     const saved = save();
     const malformed: unknown[] = [
-      { ...saved, version: 2 },
+      { ...saved, version: 3 },
       { ...saved, extra: true },
       { ...saved, organizations: [...saved.organizations, saved.organizations[0]] },
       { ...saved, organizations: [{ organizationId: 'org-a', mode: 'unsupported' }] },
@@ -501,7 +470,7 @@ describe('combined recovery CLI', () => {
     expect((await invoke(['save', file])).exit).toBe(0);
     const first = await Bun.file(file).text();
     expect(statSync(file).mode & 0o777).toBe(0o600);
-    execute("UPDATE project_rank SET position=99 WHERE project_id='a1'");
+    execute("UPDATE work_package_rank SET position=99 WHERE work_package_id='a1'");
     const repeated = await invoke(['save', file]);
     expect(repeated.exit).not.toBe(0);
     expect(repeated.stderr).toContain('EEXIST');
@@ -539,4 +508,67 @@ describe('combined recovery CLI', () => {
       expect(save()).toEqual(before);
     }
   });
+});
+
+it('new combined recovery saves emit only shared-save2 while preserving every current rank fact', () => {
+  const saved = save();
+  expect(saved.version).toBe(2);
+  expect(saved.format).toBe('shared-people-save');
+  expect(saved.ranks).toHaveLength(2);
+  expect(saved.ranks[0]).toEqual({
+    workPackageId: 'a1',
+    organizationId: 'org-a',
+    position: 3,
+    createdAt: 1,
+    updatedAt: 2,
+    createdBy: 'ada',
+  });
+  expect(saved.ranks[1]).toEqual({
+    workPackageId: 'b1',
+    organizationId: 'org-b',
+    position: 7,
+    createdAt: 4,
+    updatedAt: null,
+    createdBy: 'ada',
+  });
+  expect(saved.organizations).toEqual([
+    { organizationId: 'org-a', mode: 'isolated' },
+    { organizationId: 'org-b', mode: 'isolated' },
+  ]);
+});
+
+it('removes and restores a validated legacy shared-save1 using complete current facts', () => {
+  const before = ranks();
+  const legacy = {
+    format: 'shared-people-save',
+    version: 1,
+    organizations: [
+      { organizationId: 'org-a', mode: 'isolated' },
+      { organizationId: 'org-b', mode: 'isolated' },
+    ],
+    ranks: [
+      {
+        projectId: 'a1',
+        organizationId: 'org-a',
+        position: 3,
+        createdAt: 1,
+        updatedAt: 2,
+        createdBy: 'ada',
+      },
+      {
+        projectId: 'b1',
+        organizationId: 'org-b',
+        position: 7,
+        createdAt: 4,
+        updatedAt: null,
+        createdBy: 'ada',
+      },
+    ],
+  };
+  expect(removeSharedPeople(connection.db, legacy, 100)).toEqual({ organizations: 2, ranks: 2 });
+  expect(ranks()).toEqual([]);
+  expect(restoreSharedPeople(connection.db, legacy, 101)).toEqual({ organizations: 2, ranks: 2 });
+  expect(ranks()).toEqual(before);
+  expect(legacy.ranks[0]).toHaveProperty('projectId', 'a1');
+  expect(legacy.ranks[0]).not.toHaveProperty('workPackageId');
 });

@@ -12,7 +12,6 @@ import { rollbackTo } from './migrate-down';
 import { SpaceRepository } from './space';
 import { MIGRATIONS_FOLDER as FOLDER, openSpaceDatabase } from './testing/space-database';
 
-const SPACES = '20260929100000_add_spaces';
 const BEFORE_SPACES = '20260928200000_add_work_item_status_facts';
 const wrote: WriteStamp = { at: 1, by: 'ada' };
 
@@ -28,6 +27,16 @@ describe('spaces', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-space-'));
     path = await openSpaceDatabase(dir);
+    raw((sqlite) => {
+      for (const id of ['a1', 'a2', 'a3', 'a4', 'b1']) {
+        const organizationId = id === 'b1' ? 'org-b' : 'org-a';
+        sqlite.run(
+          "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,?,?,1,'ada')",
+          [id, organizationId, id],
+        );
+        sqlite.run('UPDATE work_package SET project_id=? WHERE id=?', [id, id]);
+      }
+    });
   });
 
   afterEach(() => {
@@ -50,37 +59,37 @@ describe('spaces', () => {
         [id, organizationId, name],
       ),
     );
-  const insertMember = (
-    spaceId: string,
-    projectId: string,
-    organizationId: string,
-    position = 10,
-  ) =>
-    raw((db) =>
-      db.run(
-        "INSERT INTO space_project (space_id, project_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, ?, 1, 'ada')",
-        [spaceId, projectId, organizationId, position],
-      ),
+  const insertMember = (spaceId: string, projectId: string, position = 10) =>
+    raw((sqlite) =>
+      sqlite.run('UPDATE project SET space_id=?,space_position=? WHERE id=?', [
+        spaceId,
+        position,
+        projectId,
+      ]),
     );
   const members = () =>
-    raw((db) =>
-      db
-        .query('SELECT space_id, project_id FROM space_project ORDER BY space_id, project_id')
+    raw((sqlite) =>
+      sqlite
+        .query(
+          'SELECT space_id,id AS project_id FROM project WHERE space_id IS NOT NULL ORDER BY space_id,id',
+        )
         .all(),
     );
-  const count = (table: 'space' | 'space_project' | 'project') =>
-    raw((db) => db.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n);
+  const count = (table: 'space' | 'project' | 'work_package') =>
+    raw((sqlite) => sqlite.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n);
 
   describe('the tables', () => {
-    it('refuses a membership joining a space and a project of different organizations', () => {
+    it('refuses a membership joining a space and a work package of different organizations', () => {
       insertSpace('s-a', 'org-a');
-      // Proof, observed 2026-09-29: with the project reference dropped from
+      // Historical package-pair evidence; current assertions address the actual project/space guard.
+      // Proof, observed 2026-09-29: with the work package reference dropped from
       // the migration, the insert naming org-a stored `(s-a, b1)`; with the
       // space reference dropped, the insert naming org-b stored it.
-      expect(() => insertMember('s-a', 'b1', 'org-a')).toThrow();
-      expect(() => insertMember('s-a', 'b1', 'org-b')).toThrow();
+      expect(() => insertMember('s-a', 'b1')).toThrow();
+      insertSpace('s-b', 'org-b');
+      expect(() => insertMember('s-b', 'a1')).toThrow();
       expect(members()).toEqual([]);
-      expect(() => insertMember('s-a', 'a1', 'org-a')).not.toThrow();
+      expect(() => insertMember('s-a', 'a1')).not.toThrow();
     });
 
     it('refuses an empty name, and a name twice in one organization only', () => {
@@ -90,119 +99,67 @@ describe('spaces', () => {
       expect(() => insertSpace('s-3', 'org-b', 'Q3')).not.toThrow();
     });
 
-    it('removes a deleted project from every space, past the ownership freeze', () => {
+    it('keeps project membership when a package is deleted', () => {
       insertSpace('s-1', 'org-a');
       insertSpace('s-2', 'org-a');
-      insertMember('s-1', 'a1', 'org-a');
-      insertMember('s-2', 'a1', 'org-a');
-      insertMember('s-2', 'a2', 'org-a');
+      insertMember('s-1', 'a1');
+      insertMember('s-2', 'a2');
+      // Historical package-pair cascade below is superseded: current membership belongs to the retained project.
       // Proof, observed 2026-09-29: with `ON DELETE CASCADE` dropped from the
-      // project reference, this delete failed `FOREIGN KEY constraint failed`.
-      raw((db) => db.run("DELETE FROM project WHERE id = 'a1'"));
-      expect(members()).toEqual([{ space_id: 's-2', project_id: 'a2' }]);
+      // work package reference, this delete failed `FOREIGN KEY constraint failed`.
+      raw((db) => db.run("DELETE FROM work_package WHERE id = 'a1'"));
+      expect(members()).toEqual([
+        { space_id: 's-1', project_id: 'a1' },
+        { space_id: 's-2', project_id: 'a2' },
+      ]);
     });
 
-    it('deletes a space with its membership and no project', () => {
+    it('deletes a space with its membership and no work package', () => {
       insertSpace('s-1', 'org-a');
-      insertMember('s-1', 'a1', 'org-a');
+      insertMember('s-1', 'a1');
       raw((db) => db.run("DELETE FROM space WHERE id = 's-1'"));
       expect(members()).toEqual([]);
-      expect(count('project')).toBe(5);
+      expect(count('work_package')).toBe(5);
     });
 
-    it('orders a tie in position by project id', async () => {
+    it('orders a tie in position by work package id', async () => {
       insertSpace('s-1', 'org-a');
-      insertMember('s-1', 'a3', 'org-a', 10);
-      insertMember('s-1', 'a1', 'org-a', 10);
-      insertMember('s-1', 'a2', 'org-a', 5);
+      insertMember('s-1', 'a3', 10);
+      insertMember('s-1', 'a1', 10);
+      insertMember('s-1', 'a2', 5);
       const read = () => new SpaceRepository(openDrizzle(path), OPEN).membersOf('org-a', 's-1');
       expect((await read())?.map(({ projectId }) => projectId)).toEqual(['a2', 'a1', 'a3']);
     });
   });
 
-  describe('the rollback', () => {
-    it('rolls back while no space exists', () => {
-      expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
-        '20261103110000_add_initial_access_offers',
-        '20261102130000_widen_organization_audit_access',
-        '20261102120000_add_access_grants',
-        '20261101120000_add_host_job_projection',
-        '20261101100100_add_resource_directory_capacity',
-        '20261101100000_widen_organization_audit_directory_capacity',
-        '20261028100100_widen_organization_audit_agent_pools',
-        '20261028100000_add_agent_pool',
-        '20261026130000_widen_organization_audit_machine_tokens',
-        '20261026120000_add_command_journal_person',
-        '20261025130000_add_resource_runtime',
-        '20261025120000_add_resource_use',
-        '20261023170000_add_work_item_budget',
-        '20261023160000_add_measure_estimate',
-        '20261023150000_key_step_measure',
-        '20261023140000_add_measure',
-        '20261023100000_add_claim_lease',
-        '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_project_dependency_activation',
-        '20261022211000_add_external_dependencies',
-        '20261022210000_add_project_abbreviations',
-        '20261022140100_widen_organization_audit_compute_providers',
-        '20261022140000_add_resource_provider',
-        '20261022130100_widen_organization_audit_organization_limits',
-        '20261022130000_add_organization_limits',
-        '20261022121000_add_runtime_commands',
-        '20261022120000_scope_trusted_issuer_audience',
-        '20261022110100_check_machine_credential_id',
-        '20261022110000_widen_organization_audit_machine_credentials',
-        '20261022100000_add_machine_credential',
-        '20261020130000_add_claim_occupancy',
-        '20261020120000_add_resources',
-        '20261019130100_add_external_identity_person',
-        '20261019130000_add_person_account',
-        '20261019120000_add_claim',
-        '20261015110000_add_step_node_parallelism',
-        '20261015100000_add_step_blockage_activation_receipt',
-        '20261014140000_add_step_blockage_activation',
-        '20261014130000_add_shared_people_restore_receipts',
-        '20261014120000_add_shared_people_restore_approvals',
-        '20261013140000_add_step_node_blockages',
-        '20261012130000_add_step_estimate_unit',
-        '20261012120000_add_step_node_attempts',
-        '20261012090200_widen_organization_audit',
-        '20261012090100_add_browser_auth_times',
-        '20261012090000_add_enterprise_sso_records',
-        '20261011200000_add_shared_people_audit',
-        '20261011120000_add_browser_auth_lifecycle',
-        '20261005110000_add_shared_people',
-        '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_project_rank',
-        SPACES,
-      ]);
+  describe('the guarded current rollback', () => {
+    it('refuses the project-space transition without changing schema or assignments when empty', () => {
+      const before = raw((sqlite) => ({
+        schema: sqlite
+          .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
+          .all(),
+        ledger: sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY created_at').all(),
+      }));
+      expect(() => rollbackTo(path, FOLDER, BEFORE_SPACES)).toThrow();
       expect(
-        raw((db) => db.query("SELECT name FROM sqlite_master WHERE name LIKE 'space%'").all()),
-      ).toEqual([]);
+        raw((sqlite) => ({
+          schema: sqlite
+            .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
+            .all(),
+          ledger: sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY created_at').all(),
+        })),
+      ).toEqual(before);
     });
-
-    it('refuses while a space exists, keeping both tables and the ledger', () => {
+    it('refuses while a space exists and retains its current project assignment', () => {
       insertSpace('s-1', 'org-a');
-      insertMember('s-1', 'a1', 'org-a');
+      insertMember('s-1', 'a1');
+      const before = members();
+      // Historical package-pair down proof, preserved without current transition credit.
       // Proof, observed 2026-09-29: with the guard's INSERT removed from
       // `down.sql`, this rollback answered `[SPACES]` and dropped both tables.
       expect(() => rollbackTo(path, FOLDER, BEFORE_SPACES)).toThrow();
       expect(count('space')).toBe(1);
-      expect(count('space_project')).toBe(1);
-      expect(
-        raw((db) =>
-          db
-            .query<{ name: string }, []>(
-              'SELECT name FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1',
-            )
-            .get(),
-        )?.name,
-      ).toBe(SPACES);
-    });
-
-    it('names the rollback CLI in the refusal', () => {
-      insertSpace('s-1', 'org-a');
-      expect(() => rollbackTo(path, FOLDER, BEFORE_SPACES)).toThrow(/space-rollback-cli/);
+      expect(members()).toEqual(before);
     });
   });
 
@@ -222,10 +179,14 @@ describe('spaces', () => {
       );
     });
 
-    it('answers a foreign project the organization does not own as not_found at the store', async () => {
+    it('answers a foreign work package the organization does not own as not_found at the store', async () => {
       const store = new SpaceRepository(openDrizzle(path), OPEN);
       await store.create({ id: 's-1', organizationId: 'org-a', name: 'Q3' }, wrote);
-      raw((db) => db.run("DELETE FROM project WHERE id = 'a2'"));
+      raw((db) => {
+        db.run("DELETE FROM work_package WHERE id = 'a2'");
+        db.run("DELETE FROM access_grant WHERE scope_kind='project' AND scope_id='a2'");
+        db.run("DELETE FROM project WHERE id = 'a2'");
+      });
       expect(await store.addProject('org-a', 's-1', 'a2', null, wrote)).toEqual({
         ok: false,
         reason: 'not_found',

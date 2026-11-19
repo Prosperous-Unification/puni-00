@@ -1765,11 +1765,11 @@ Pure source frontend HTTP inspectors SHALL require status 200, the observed role
 
 ### Requirement: Original source restart inputs retain one supported frontend profile
 
-Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using sixteen fixed common public file size/hash tuples plus one complete reviewed package.json/bun.lock pair (before-ctt, ctt-0.12.0, fresh-main-20261104, fresh-main-20261105-ctt-0.13.0 or registry-s3-20261108), for eighteen selected files. Independent per-file alternatives SHALL NOT admit a mixed epoch. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
+Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using fourteen fixed common public file size/hash tuples, one complete reviewed Vite-configuration/frontend-project size/hash pair (original or current), and one complete reviewed package.json/bun.lock pair (before-ctt, ctt-0.12.0, fresh-main-20261104, fresh-main-20261105-ctt-0.13.0 or registry-s3-20261108), for eighteen selected files. Independent per-file alternatives SHALL NOT admit a mixed configuration pair or package/lock epoch. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
 
 #### Scenario: Fourth current frontend input epoch preserves historical coupling
 
-- **WHEN** the original canonical manifest contains the complete reviewed fourth package/lock pair and unchanged sixteen common tuples
+- **WHEN** the original canonical manifest contains the complete reviewed fourth package/lock pair, fourteen fixed shared tuples and one complete reviewed configuration pair
 - **THEN** the selector, materializer and producer admit that same original pair without replacing it with historical bytes
 - **AND** every old complete pair remains supported, while cross-epoch pairs in either direction, unknown tuples and missing required inputs refuse
 - **AND** historical reconstruction verifies the complete current identity, uniquely reverses the exact0.13 package/lock hunks, and verifies the20261104 and ctt0.12 intermediate identities before producing before-ctt bytes
@@ -1778,12 +1778,22 @@ Source restart-input capture SHALL select the frontend response profile only fro
 
 #### Scenario: Fifth registry dependency epoch retains original input authority
 
-- **WHEN** the original canonical input contains package5030 bytes/SHA256 `275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf` and lock543082 bytes/SHA256 `983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6` with all sixteen unchanged common tuples
+- **WHEN** the original canonical input contains package5030 bytes/SHA256 `275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf` and lock543082 bytes/SHA256 `983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6` with fourteen fixed shared tuples and one complete reviewed configuration pair
 - **THEN** the independent selector, fixed-root materializer and producer admit only that complete fifth pair alongside all four old pairs
 - **AND** fifth/fourth mixed pairs in both directions, unknown or missing tuples refuse before copying or producer consumption
 - **AND** owned test-only reconstruction first verifies the complete fifth input, uniquely removes only its exact S3 package line and four lock hunks, verifies the complete fourth intermediate, then preserves every existing historical reversal and intermediate check
 - **AND** malformed, missing, duplicate or altered reversal inputs refuse at their intended checks
 - **AND** the actual clean committed producer captures genuine fifth inputs and reaches both unchanged complete-response inspectors with original child/pipe/server/watcher settlement before current-response qualification; no historical substitution, response repinning or readiness/adoption authority follows
+
+#### Scenario: Current frontend configuration retains original exact support
+
+- **WHEN** the canonical original manifest contains the fourteen fixed shared tuples, either complete reviewed configuration pair and one entire reviewed package/lock pair
+- **THEN** the independent selector, fixed-root materializer and producer admit those same eighteen original selected inputs without substituting historical or current bytes
+- **AND** the original configuration pair remains Vite19302 bytes/SHA256 `0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b` with frontend project8117 bytes/SHA256 `9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e`
+- **AND** the current configuration pair is Vite19552 bytes/SHA256 `d45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6` with frontend project8132 bytes/SHA256 `a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762`
+- **AND** mixed Vite/project pairs in either direction, mixed size/hash identities and unknown, missing or non-file inputs refuse before copying or producer consumption
+- **AND** initial live, captured Git source, snapshot and closing selected inputs retain all eighteen exact observed tuples; changing between supported configurations refuses even when package/lock is unchanged
+- **AND** these ten possible complete configuration/package combinations are selection support only; current response qualification still requires the genuine committed producer, an independent canonical capture and both unchanged complete-response inspectors without new readiness or startup authority
 
 #### Scenario: Supported inputs belong to another source commit
 
@@ -1810,7 +1820,7 @@ Source restart-input capture SHALL select the frontend response profile only fro
 
 #### Scenario: Two supported epochs retain one qualified response identity
 
-- **WHEN** a canonical original manifest has sixteen common tuples and either entire reviewed manifest pair
+- **WHEN** a canonical original manifest has fourteen fixed shared tuples, one complete reviewed configuration pair and one entire reviewed package/lock pair
 - **THEN** selection retains wire-v1 under unchanged namespace/link and authority limits
 - **AND** current inputs qualify only after actual current complete document/entry responses pass unchanged inspectors
 

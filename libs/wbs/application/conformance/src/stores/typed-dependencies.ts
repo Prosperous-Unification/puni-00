@@ -25,44 +25,49 @@ export function typedDependencyRegistrations(
       open,
       async ({ port, seed }) => {
         const [firstId, secondId] = seed.workItemIds[0];
-        const projectId = seed.projectIds[0];
+        const workPackageId = seed.workPackageIds[0];
         const row: StoredTypedDependency = {
           id: 'typed-one',
-          projectId,
-          predecessor: { projectId, scope: 'whole', workItemId: firstId },
-          successor: { projectId, scope: 'whole', workItemId: secondId },
+          workPackageId,
+          predecessor: { workPackageId, scope: 'whole', workItemId: firstId },
+          successor: { workPackageId, scope: 'whole', workItemId: secondId },
           type: 'FS',
         };
         const changed: StoredTypedDependency = {
           ...row,
-          successor: { projectId, scope: 'node', workItemId: secondId, stepId: seed.stepIds[0][0] },
+          successor: {
+            workPackageId,
+            scope: 'node',
+            workItemId: secondId,
+            stepId: seed.stepIds[0][0],
+          },
         };
-        expect(await port.listByProject(projectId)).toEqual([]);
+        expect(await port.listByWorkPackage(workPackageId)).toEqual([]);
         await port.add(row, seed.stamps[0]);
         expect(await refusesCall(() => port.add(row, seed.stamps[0]))).toBe(true);
         expect(await refusesCall(() => port.add({ ...row, id: 'typed-two' }, seed.stamps[0]))).toBe(
           true,
         );
         await port.update(changed, seed.stamps[1]);
-        expect(await port.listByProject(projectId)).toEqual([changed]);
+        expect(await port.listByWorkPackage(workPackageId)).toEqual([changed]);
         expect(await port.removeAllFor([firstId], seed.stamps[1])).toEqual([changed]);
-        expect(await port.listByProject(projectId)).toEqual([]);
-        const remoteProjectId = seed.projectIds[1];
+        expect(await port.listByWorkPackage(workPackageId)).toEqual([]);
+        const remoteWorkPackageId = seed.workPackageIds[1];
         const external: StoredTypedDependency = {
           ...row,
           predecessor: {
-            projectId: remoteProjectId,
+            workPackageId: remoteWorkPackageId,
             scope: 'whole',
             workItemId: seed.workItemIds[1][0],
           },
         };
         await port.add(row, seed.stamps[0]);
         await port.update(external, seed.stamps[1]);
-        expect(await port.listByProject(remoteProjectId)).toEqual([]);
-        expect(await port.listByProject(projectId)).toEqual([external]);
-        expect(await port.listIncident([remoteProjectId, projectId, remoteProjectId])).toEqual([
-          external,
-        ]);
+        expect(await port.listByWorkPackage(remoteWorkPackageId)).toEqual([]);
+        expect(await port.listByWorkPackage(workPackageId)).toEqual([external]);
+        expect(
+          await port.listIncident([remoteWorkPackageId, workPackageId, remoteWorkPackageId]),
+        ).toEqual([external]);
         expect(await port.listIncident([])).toEqual([]);
         expect(
           await refusesCall(() =>
@@ -70,10 +75,10 @@ export function typedDependencyRegistrations(
           ),
         ).toBe(true);
         await port.update(row, seed.stamps[1]);
-        expect(await port.listIncident([remoteProjectId])).toEqual([]);
-        expect(await port.listByProject(projectId)).toEqual([row]);
+        expect(await port.listIncident([remoteWorkPackageId])).toEqual([]);
+        expect(await port.listByWorkPackage(workPackageId)).toEqual([row]);
         await port.remove(row.id, seed.stamps[1]);
-        expect(await port.listByProject(projectId)).toEqual([]);
+        expect(await port.listByWorkPackage(workPackageId)).toEqual([]);
       },
     ),
   ];

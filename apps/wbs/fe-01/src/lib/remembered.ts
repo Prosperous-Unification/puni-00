@@ -52,14 +52,14 @@ export interface RuntimeRemembered<T> {
  * {@link RuntimeRemembered} for when that runtime is resolved.
  *
  * Kept as a free function at this path because the layout module builds a store
- * per project id and imports it here, and an extraction that renamed every call
+ * per work package id and imports it here, and an extraction that renamed every call
  * site would be a diff nobody can review against "no behaviour changed". The
  * knowledge moved; the spelling did not.
  *
  * It reads the runtime's `preferences` resource — the generic factory, which is
  * the one reason that resource is a public export of the preferences module and
  * of `ApplicationServices` (recorded K2 debt: see `PreferencesExports`). That is
- * also why this is not a React hook: the per-project layout stores are called
+ * also why this is not a React hook: the per-work-package layout stores are called
  * from effects, handlers and lazy initialisers alike, and the resource is never
  * published into a React context.
  *

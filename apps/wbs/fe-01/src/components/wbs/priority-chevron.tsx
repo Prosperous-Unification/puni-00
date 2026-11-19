@@ -37,7 +37,7 @@ export const PRIORITY_GLYPH_ROOM_PX = PRIORITY_GLYPH_PX;
  * Named for the **shape**, not the rung: a rung is renameable (`Critical` may be
  * `Blocker`) and `priority-band-style.ts` already refuses to key anything on the
  * word for that reason. What this says is "two chevrons, pointing up", which is
- * a fact about the drawing and stays true whatever the project calls rank 0.
+ * a fact about the drawing and stays true whatever the work package calls rank 0.
  */
 export type PriorityGlyphShape = 'up-double' | 'up' | 'level' | 'down' | 'down-double';
 
@@ -106,7 +106,7 @@ export interface PriorityChevronProps {
  * diverges around rank 2 by *chroma* at one lightness band, on purpose, so the
  * three cool rungs differ in saturation and in almost nothing else — the shape
  * colour vision deficiency reads worst. And a number is not a rung: `30` is High
- * only if you know this project's ladder, and two projects may cut it
+ * only if you know this work package's ladder, and two work packages may cut it
  * differently.
  *
  * **Absolutely positioned, and that is a layout decision with a reason.** The

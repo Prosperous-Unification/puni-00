@@ -41,33 +41,34 @@ export function definitionKeyOf(metric: string): string | null {
 }
 
 /**
- * The definitions a project owned by no organization answers facts against:
+ * The definitions a work package owned by no organization answers facts against:
  * the seeded `tokens` and `hours`, the two facts that existed before
  * definitions did, the derived `agent_minutes`, which its row read shows all
  * the same, and the scheduling measure `time`, whose days it records with
- * `setActual` (design D19). Such a project holds no `measure` rows, so any
+ * `setActual` (design D19). Such a work package holds no `measure` rows, so any
  * other key is unknown there.
  */
-const UNOWNED_PROJECT_DEFINITIONS: readonly MeasureDefinition[] = SEEDED_MEASURE_DEFINITIONS.filter(
-  (each) => ['time', 'tokens', 'hours', 'agent_minutes'].includes(each.key),
-).map((each) => ({ ...each, id: `unowned:${each.key}` }));
+const UNOWNED_WORK_PACKAGE_DEFINITIONS: readonly MeasureDefinition[] =
+  SEEDED_MEASURE_DEFINITIONS.filter((each) =>
+    ['time', 'tokens', 'hours', 'agent_minutes'].includes(each.key),
+  ).map((each) => ({ ...each, id: `unowned:${each.key}` }));
 
 /**
- * The definitions a figure in a project is decided against: its organization's
- * `definitions`, or, when no organization owns the project (null), the seeded
- * four an unowned project answers (design D19).
+ * The definitions a figure in a work package is decided against: its organization's
+ * `definitions`, or, when no organization owns the work package (null), the seeded
+ * four an unowned work package answers (design D19).
  */
 export function definitionsOrUnowned(
   definitions: readonly MeasureDefinition[] | null,
 ): readonly MeasureDefinition[] {
-  return definitions ?? UNOWNED_PROJECT_DEFINITIONS;
+  return definitions ?? UNOWNED_WORK_PACKAGE_DEFINITIONS;
 }
 
 /**
  * Why a fact cannot be written or cleared in a measure (`wbs-measure-budgets`
  * D4, spec "Estimates and facts exist per measure"):
  *
- * - `unknown_measure` (404): the key names no definition of the project's
+ * - `unknown_measure` (404): the key names no definition of the work package's
  *   organization;
  * - `derived_measure` (409): the definition is computed on read
  *   (`agent_minutes`), so nobody types it;
@@ -85,8 +86,8 @@ export type MeasureFactDecision =
 
 /**
  * Whether a fact in `requested` may be written with `value`, or cleared when
- * `value` is null, on a project whose organization holds `definitions` (null
- * when no organization owns the project). Checked in the order unknown,
+ * `value` is null, on a work package whose organization holds `definitions` (null
+ * when no organization owns the work package). Checked in the order unknown,
  * derived, scheduling, scale, so one request answers one reason.
  *
  * `requested` may be a definition key or a legacy name: `token_actual` and

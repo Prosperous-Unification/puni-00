@@ -46,7 +46,7 @@ export interface EstimatedSlice {
 /**
  * The half of a `Slice` the graph names a node by: its reach reading, and the
  * step it is an occurrence of — `null` for the one stepless slice a leaf gets in
- * a project with no steps, which is that leaf's work-item boundary.
+ * a work package with no steps, which is that leaf's work-item boundary.
  */
 export interface GraphSlice extends EstimatedSlice {
   readonly stepId: string | null;
@@ -54,7 +54,7 @@ export interface GraphSlice extends EstimatedSlice {
 
 /**
  * One node of the step-node graph, at the position its slice holds in its
- * leaf's group: a step node (ADR 0031) or, in a project with no steps, the
+ * leaf's group: a step node (ADR 0031) or, in a work package with no steps, the
  * leaf's zero-time work-item boundary. Never both for one leaf.
  */
 export type StepNodeGraphNode =
@@ -75,7 +75,7 @@ export interface SliceEdgeEnd {
  * may hand two slices of one leaf the same `stepId`: `groupByWorkItem` accepts
  * that and the placement distinguishes them by index, so an edge list keyed by
  * `sliceKey` would silently merge them. The wire builder refuses that duplicate
- * before it projects anything, and converts these positions to keys afterwards;
+ * before it builds the request, and converts these positions to keys afterwards;
  * `schedule()` converts them to its own node indices. Neither conversion is
  * this module's business, and doing it here would pick one of them.
  */
@@ -109,7 +109,7 @@ export interface AuthoredDependencies {
  * Which of one leaf's slices a dependency on it waits for — the index, in step
  * order, of the slice whose finish releases the successor.
  *
- * The one place the project's {@link DependencyReach} is read. Everything
+ * The one place the work package's {@link DependencyReach} is read. Everything
  * downstream — parent expansion to leaves, successor-side attachment to the
  * first slice plain, floors, cycle detection and the item-anchored arithmetic —
  * takes the answer and does not know which arm produced it.
@@ -117,13 +117,13 @@ export interface AuthoredDependencies {
  * - `whole-item`: the **last** slice, so a dependency waits for the whole work
  *   item. Dany's call on 2026-08-29, having seen the August rule drawn.
  * - `anchor-slice`: the first slice somebody **estimated** — his words on
- *   2026-08-11, "first in list of project roles, then first that is estimated"
+ *   2026-08-11, "first in list of work package roles, then first that is estimated"
  *   — and the last slice when nobody estimated any of them. `days !== null`
  *   rather than `days > 0`, which is what `Scheduled.estimated` means
  *   everywhere else here: an explicit zero is somebody saying this step takes
  *   no time, and the walk honours the statement. Nobody having said anything is
  *   the different fact, and it is the one this walk steps over — a `Design`
- *   step a project lists and this plan left blank must not stand in front of
+ *   step a work package lists and this plan left blank must not stand in front of
  *   the `Dev` the wait is really about, or every edge in such a plan decides
  *   nothing.
  *
@@ -140,7 +140,7 @@ export interface AuthoredDependencies {
  * went into it, and the leaf it made none for is what `slicesOf` refuses. So
  * `length - 1` is a real index rather than `-1`.
  *
- * See `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+ * See `docs/adr/0010-a-dependencys-reach-is-a-work-packages-choice.md`.
  */
 export function reachedSliceOf(reach: DependencyReach, slices: readonly EstimatedSlice[]): number {
   if (reach === 'whole-item') return slices.length - 1;
@@ -157,7 +157,7 @@ export interface LeafEdge {
 /**
  * Resolve every FS edge of the step-node graph: each leaf's own step chain first, in
  * `leafIds` order, then the external edges in the order they were given.
- * Chain edges have `workflow` provenance; project-reach joins have `legacy`
+ * Chain edges have `workflow` provenance; work-package-reach joins have `legacy`
  * provenance. `nodes` lists every position in the same `leafIds` order: a step
  * node when its slice has a `stepId`, the work-item boundary when that slice
  * is stepless. Edges name their ends by the same leaf and position. ADR 0031.
@@ -248,7 +248,7 @@ export function resolveStepNodeGraph(
   //
   // Proof: `reachedNodeOf` replaced by `firstNodeOf` — the first slice plain,
   // the rule before August — and four failed: `a chain does not collapse
-  // because a project lists a role nobody estimated` on `c2` `earliestStart`
+  // because a work package lists a role nobody estimated` on `c2` `earliestStart`
   // `Expected: 4, Received: 0`, `walks past an unestimated role to the first
   // one somebody estimated` on `Expected: 4, Received: 0`, `a branch anchors
   // each leaf on its own first estimate` on `Expected: 5, Received: 0`, and
@@ -283,7 +283,7 @@ export function resolveStepNodeGraph(
   return { nodes, edges };
 }
 
-/** One endpoint's own project lookups; missing required facts must throw. */
+/** One endpoint's own work package lookups; missing required facts must throw. */
 export interface AuthoredEndpointContext {
   readonly slicesOf: (leafId: string) => readonly GraphSlice[];
   readonly leavesUnder: (workItemId: string) => readonly string[];
@@ -291,7 +291,7 @@ export interface AuthoredEndpointContext {
 
 /**
  * Expands one authored relationship to every endpoint pair using each side's
- * own project. Local and connected graphs share all FS/SS/FF boundary rules.
+ * own work package. Local and connected graphs share all FS/SS/FF boundary rules.
  * Throws for invalid selectors through the same endpoint resolver.
  */
 export function resolveAuthoredEdges(
@@ -333,7 +333,7 @@ export interface StepNodeGraph {
  * The step nodes one end of a typed dependency resolves to.
  *
  * A `whole` predecessor leaves each leaf at its last node and a `whole`
- * successor enters each at its first, which in a stepless project is the lone
+ * successor enters each at its first, which in a stepless work package is the lone
  * boundary node either way. `node` is itself, and `descendant-step` is that
  * step's node in every leaf beneath the parent.
  *

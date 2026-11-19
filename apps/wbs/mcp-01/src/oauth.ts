@@ -775,7 +775,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     if (family === null)
       throw new UpstreamRejected('MCP OAuth session is missing, expired, or revoked');
     // Proof: forwarding the upstream token for a bound family too (dropping the
-    // organization delegation) made `a session bound at consent lists projects
+    // organization delegation) made `a session bound at consent lists workPackages
     // and runs a command batch` in `organization-delegation.boot.test.ts` answer
     // be-01's 403 no_active_organization; watched 2026-10-21.
     if (family.binding === undefined) return upstreamToken;

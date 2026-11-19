@@ -18,13 +18,13 @@ import type {
   ConnectedOptimizedRead,
 } from '../ports/scheduler';
 
-/** Prepared common-axis component, before restoring project-local capacity identities or dates. */
+/** Prepared common-axis component, before restoring work-package-local capacity identities or dates. */
 export interface PreparedConnectedOptimization {
   readonly mode: ConnectedOptimizationStage['mode'];
   readonly originOrdinal: number | null;
   readonly input: ConnectedOptimizationStage['input'];
   readonly relationships: ConnectedOptimizationStage['relationships'];
-  readonly projects: readonly (ConnectedOptimizationStage['projects'][number] & {
+  readonly workPackages: readonly (ConnectedOptimizationStage['workPackages'][number] & {
     readonly engine: ScheduleEngine;
     readonly objective: SolverObjectiveName;
     readonly enabled: boolean;
@@ -48,15 +48,17 @@ function validatePreparedPlacement(
   const order = prepared.input.order;
   if (order.kind !== 'connected')
     throw new Error('connected optimization requires connected order');
-  const projectIds = new Set(prepared.projects.map((project) => project.projectId));
-  // Proof: removing this check admitted duplicate projects and missing/nonfinite ranks in the empty membership cases.
+  const workPackageIds = new Set(
+    prepared.workPackages.map((workPackage) => workPackage.workPackageId),
+  );
+  // Proof: removing this check admitted duplicate work packages and missing/nonfinite ranks in the empty membership cases.
   if (
-    projectIds.size !== prepared.projects.length ||
-    order.rankByProject.size !== projectIds.size ||
-    prepared.projects.some(
-      (project) =>
-        !Number.isFinite(project.rank) ||
-        order.rankByProject.get(project.projectId) !== project.rank,
+    workPackageIds.size !== prepared.workPackages.length ||
+    order.rankByWorkPackage.size !== workPackageIds.size ||
+    prepared.workPackages.some(
+      (workPackage) =>
+        !Number.isFinite(workPackage.rank) ||
+        order.rankByWorkPackage.get(workPackage.workPackageId) !== workPackage.rank,
     )
   )
     throw new Error('connected optimization membership');
@@ -64,14 +66,14 @@ function validatePreparedPlacement(
   // diagnostic. Removing it with canonical/replay and the owner narrowing guard admitted both
   // missing/unknown owners in `unmapped active ownership...`.
   if (
-    order.projectIdByWorkItem.size !== prepared.input.rows.length ||
+    order.workPackageIdByWorkItem.size !== prepared.input.rows.length ||
     prepared.input.rows.some((row) => {
-      const owner = order.projectIdByWorkItem.get(row.id);
-      return owner === undefined || !projectIds.has(owner);
+      const owner = order.workPackageIdByWorkItem.get(row.id);
+      return owner === undefined || !workPackageIds.has(owner);
     }) ||
     prepared.input.slices.some((slice) => {
-      const owner = order.projectIdByWorkItem.get(slice.workItemId);
-      return owner === undefined || !projectIds.has(owner);
+      const owner = order.workPackageIdByWorkItem.get(slice.workItemId);
+      return owner === undefined || !workPackageIds.has(owner);
     })
   )
     throw new Error('connected optimization ownership');
@@ -94,36 +96,36 @@ function validatePreparedPlacement(
 /**
  * Detach the exact current placement and replay its hard constraints. Fast deadlines
  * remain wanted dates; only optimized candidates must satisfy their own deadlines.
- * Empty local projects have no solver question. Invalid trusted evidence throws.
+ * Empty local work packages have no solver question. Invalid trusted evidence throws.
  */
 export function buildConnectedOptimizationStage(
   prepared: PreparedConnectedOptimization,
   placement: Schedule,
-  projectId: string,
-): ConnectedOptimizationStage | { readonly kind: 'idle'; readonly projectId: string } {
+  workPackageId: string,
+): ConnectedOptimizationStage | { readonly kind: 'idle'; readonly workPackageId: string } {
   validatePreparedPlacement(prepared, placement);
   const order = prepared.input.order;
   // Invariant diagnostic: prepared components use the connected resolver.
   if (order.kind !== 'connected')
     throw new Error('connected optimization requires connected order');
   // Proof: removing membership returned idle in `unknown stage ownership...`.
-  if (!prepared.projects.some((project) => project.projectId === projectId))
-    throw new Error(`uncaptured optimization project ${projectId}`);
+  if (!prepared.workPackages.some((workPackage) => workPackage.workPackageId === workPackageId))
+    throw new Error(`uncaptured optimization work package ${workPackageId}`);
   const hasLocalSlices = prepared.input.slices.some(
-    (slice) => order.projectIdByWorkItem.get(slice.workItemId) === projectId,
+    (slice) => order.workPackageIdByWorkItem.get(slice.workItemId) === workPackageId,
   );
   const firstSlice = prepared.input.slices.at(0);
   if (firstSlice === undefined) {
     // Proof: removing this replay admitted invented nodes in `empty components validate their resolved graph...`.
     // Empty components have no stage origin; the actual engine validates their graph without one.
     scheduleResolved(prepared.input);
-    return { kind: 'idle', projectId };
+    return { kind: 'idle', workPackageId };
   }
   // An idle member must validate the real foreign placement too. Use an actual active owner
   // solely for canonical/replay evidence; no optimization question is returned for the idle member.
   const stageOwner = hasLocalSlices
-    ? projectId
-    : order.projectIdByWorkItem.get(firstSlice.workItemId);
+    ? workPackageId
+    : order.workPackageIdByWorkItem.get(firstSlice.workItemId);
   // Invariant diagnostic: pre-idle ownership validation guarantees this actual active owner.
   if (stageOwner === undefined) throw new Error('connected optimization ownership');
   // Proof (diagnostic): removing this guard changed `an active stage refuses...` to the downstream finite-origin diagnostic.
@@ -132,11 +134,11 @@ export function buildConnectedOptimizationStage(
   // Proof: bypassing detachment failed `stage detaches input maps...`: source floor appeared in the stage.
   const stage: ConnectedOptimizationStage = structuredClone({
     kind: 'connected-stage',
-    projectId: stageOwner,
+    workPackageId: stageOwner,
     mode: prepared.mode,
     originOrdinal: prepared.originOrdinal,
-    projects: prepared.projects.map(({ projectId: id, rank, anchorOrdinal }) => ({
-      projectId: id,
+    workPackages: prepared.workPackages.map(({ workPackageId: id, rank, anchorOrdinal }) => ({
+      workPackageId: id,
       rank,
       anchorOrdinal,
     })),
@@ -149,7 +151,7 @@ export function buildConnectedOptimizationStage(
   canonicalConnectedStageInput(stage);
   // Proof: removing replay failed `stage detaches input maps...`: forged finish 100 was accepted.
   replayConnectedStage(stage);
-  return hasLocalSlices ? stage : { kind: 'idle', projectId };
+  return hasLocalSlices ? stage : { kind: 'idle', workPackageId };
 }
 
 function matchesQuestion(
@@ -161,7 +163,7 @@ function matchesQuestion(
   // Proof: independently dropping each identity term failed its mismatched-field case;
   // dropping canonical bytes admitted the stale stage. Hash construction belongs to the adapter.
   return (
-    question.projectId === stage.projectId &&
+    question.workPackageId === stage.workPackageId &&
     question.objective === objective &&
     question.stageBytes === canonicalConnectedStageInput(stage) &&
     question.inputHash === observation.inputHash &&
@@ -188,7 +190,9 @@ function validateObservation(
     throw new Error('connected optimization requires connected order');
   const localKeys = new Set(
     stage.input.slices
-      .filter((slice) => order.projectIdByWorkItem.get(slice.workItemId) === stage.projectId)
+      .filter(
+        (slice) => order.workPackageIdByWorkItem.get(slice.workItemId) === stage.workPackageId,
+      )
       .map((slice) => sliceKey(slice.workItemId, slice.stepId)),
   );
   for (const objective of ['pri', 'time'] as const) {
@@ -237,7 +241,7 @@ function validateObservation(
 }
 
 /**
- * Visit each project once in captured rank/bytewise-ID order. Both objective
+ * Visit each work package once in captured rank/bytewise-ID order. Both objective
  * alternatives see one stage and use their question's quantized movement origin
  * against the real baseline; only the configured objective can replace it.
  * Reads are synchronous and non-admitting under the caller's snapshot lifetime.
@@ -250,40 +254,43 @@ export function selectConnectedOptimizations(
 ) {
   validatePreparedPlacement(prepared, baseline);
   // Proof: bypassing sorting failed `visits rank then...`: observed C,B,A instead of A,B,C.
-  const members = [...prepared.projects].sort(
+  const members = [...prepared.workPackages].sort(
     (a, b) =>
-      a.rank - b.rank || (a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0),
+      a.rank - b.rank ||
+      (a.workPackageId < b.workPackageId ? -1 : a.workPackageId > b.workPackageId ? 1 : 0),
   );
   const order = prepared.input.order;
   // Invariant diagnostic: prepared components use the connected resolver.
   if (order.kind !== 'connected')
     throw new Error('connected optimization requires connected order');
-  const activeProjects = new Set(
-    prepared.input.slices.map((slice) => order.projectIdByWorkItem.get(slice.workItemId)),
+  const activeWorkPackages = new Set(
+    prepared.input.slices.map((slice) => order.workPackageIdByWorkItem.get(slice.workItemId)),
   );
   // Proof: without active filtering `an entirely empty component...` returned engine_unavailable.
   const required = members.filter(
-    (project) =>
-      project.enabled && project.engine === 'optimized' && activeProjects.has(project.projectId),
+    (workPackage) =>
+      workPackage.enabled &&
+      workPackage.engine === 'optimized' &&
+      activeWorkPackages.has(workPackage.workPackageId),
   );
   // Proof: bypassing refusal returned selected in `missing connected capability...`.
   if (optimizer === null && required.length > 0)
     return {
       kind: 'engine_unavailable' as const,
       engine: 'optimized' as const,
-      projects: required.map((project) => project.projectId),
+      workPackages: required.map((workPackage) => workPackage.workPackageId),
     };
   let placement = baseline;
   const stages: ConnectedOptimizationSelection[] = [];
-  const idleProjects: string[] = [];
+  const idleWorkPackages: string[] = [];
   for (const member of members) {
     // Proof: using baseline here failed `visits rank then...`: later A boundary remained 3 instead of 0.
-    const stage = buildConnectedOptimizationStage(prepared, placement, member.projectId);
+    const stage = buildConnectedOptimizationStage(prepared, placement, member.workPackageId);
     if (stage.kind === 'idle') {
-      idleProjects.push(member.projectId);
+      idleWorkPackages.push(member.workPackageId);
       continue;
     }
-    // Proof: ignoring enablement added disabled C to the observed projects in `Fast and disabled...`.
+    // Proof: ignoring enablement added disabled C to the observed work packages in `Fast and disabled...`.
     const observed =
       member.enabled && optimizer !== null
         ? validateObservation(
@@ -292,7 +299,7 @@ export function selectConnectedOptimizations(
           )
         : null;
     // Proof: removing engine selection moved Fast in `Fast and disabled...`; selecting Time unconditionally
-    // moved the PRI-selected project in `a ready nonselected objective...`.
+    // moved the PRI-selected work package in `a ready nonselected objective...`.
     const chosen =
       member.engine === 'optimized' && observed !== null
         ? observed.decisions[member.objective]
@@ -307,5 +314,5 @@ export function selectConnectedOptimizations(
       chosen,
     });
   }
-  return { kind: 'selected' as const, baseline, placement, stages, idleProjects };
+  return { kind: 'selected' as const, baseline, placement, stages, idleWorkPackages };
 }

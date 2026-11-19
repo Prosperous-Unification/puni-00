@@ -30,7 +30,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /** The step code column `address-step-nodes` adds, reversed first. */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -49,18 +49,18 @@ const ORGANIZATION_TABLES = [
   'organization_activation',
   'external_system_organization',
   'person_organization',
-  'project_organization',
+  'work_package_organization',
   'saved_plan_organization',
   'organization_sso_connection',
   'organization_scim_token',
   'organization_scim_user',
   'organization_session_policy',
   'organization_audit',
-  'project_solution',
+  'work_package_solution',
   'delegation_use',
   'space',
-  'space_project',
-  'project_rank',
+  'space_work_package',
+  'work_package_rank',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -843,9 +843,9 @@ describe('20260927120000_add_organization_records', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -875,13 +875,13 @@ describe('20260927120000_add_organization_records', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -897,11 +897,11 @@ describe('20260927120000_add_organization_records', () => {
       withTables.filter(
         (name) =>
           name !== 'optimization_boundary_certificate' &&
-          name !== 'cross_project_dependency_activation' &&
-          name !== 'cross_project_dependency_activation_receipt' &&
+          name !== 'cross_work_package_dependency_activation' &&
+          name !== 'cross_work_package_dependency_activation_receipt' &&
           name !== 'external_dependency' &&
-          name !== 'project_abbreviation' &&
-          name !== 'project_abbreviation_counter' &&
+          name !== 'work_package_abbreviation' &&
+          name !== 'work_package_abbreviation_counter' &&
           name !== 'browser_auth_association' &&
           name !== 'browser_auth_lifecycle' &&
           name !== 'shared_people_audit' &&
@@ -912,7 +912,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'claim' &&
           name !== 'resource' &&
           name !== 'resource_organization' &&
-          name !== 'project_resource_capacity' &&
+          name !== 'work_package_resource_capacity' &&
           name !== 'work_item_resource_demand' &&
           name !== 'claim_occupancy' &&
           name !== 'organization_trusted_issuer' &&

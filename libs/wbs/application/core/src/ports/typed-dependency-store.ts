@@ -27,12 +27,12 @@ export interface IncidentDependencyStore {
 export interface TypedDependencyStore {
   readonly incidents: IncidentDependencyStore;
   /** Reads both endpoint lifecycle markers within the current writer observation.
-   * Missing or unreadable projects throw; deletion is an expected command conflict. */
+   * Missing or unreadable work packages throw; deletion is an expected command conflict. */
   hasDeletingEndpoint(row: StoredTypedDependency): Promise<boolean>;
-  /** Relationships owned by this successor project, including local and external rows. */
-  listByProject(projectId: string): Promise<StoredTypedDependency[]>;
-  /** Each relationship touching any requested project once, ordered by relationship ID. */
-  listIncident(projectIds: readonly string[]): Promise<StoredTypedDependency[]>;
+  /** Relationships owned by this successor work package, including local and external rows. */
+  listByWorkPackage(workPackageId: string): Promise<StoredTypedDependency[]>;
+  /** Each relationship touching any requested work package once, ordered by relationship ID. */
+  listIncident(workPackageIds: readonly string[]): Promise<StoredTypedDependency[]>;
   add(row: StoredTypedDependency, stamp: WriteStamp): Promise<void>;
   update(row: StoredTypedDependency, stamp: WriteStamp): Promise<void>;
   remove(id: string, stamp: WriteStamp): Promise<void>;

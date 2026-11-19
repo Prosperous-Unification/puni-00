@@ -365,7 +365,7 @@ export function parseFactStart(body: CommandInput<'setStatus'>): IsoDate | undef
  * A calendar day, `null` to clear the constraint, or absent to leave it.
  *
  * Validated here rather than trusted: the column is text, and a date the
- * scheduler cannot parse would throw on every later read of the project — a
+ * scheduler cannot parse would throw on every later read of the work package — a
  * 422 on one request beats a plan nobody can open.
  */
 function asOptionalDate(value: unknown, field: string): IsoDate | null | undefined {
@@ -448,7 +448,7 @@ export function asOptionalPriority(value: unknown, field: string): number | null
  * that and the column.
  *
  * The ceiling is {@link MOST_PEOPLE_AT_ONCE}, and it moved into `libs/wbs/domain/domain` in
- * `capacity-per-project`: three boundaries state it now, this file's copy and
+ * `capacity-per-work-package`: three boundaries state it now, this file's copy and
  * `directory.routes.ts`'s agreed by luck, and the third would have been where
  * they drifted. The argument for the number is on the constant.
  *
@@ -677,9 +677,9 @@ function endpointText(raw: object, field: string): string | undefined {
 }
 
 /**
- * Parses one typed endpoint before batch reference binding. Explicit project forms
+ * Parses one typed endpoint before batch reference binding. Explicit work package forms
  * require nonempty stable identities without surrounding whitespace; omitted
- * projects preserve exact local IDs and batch aliases. Never trims an identity.
+ * work packages preserve exact local IDs and batch aliases. Never trims an identity.
  */
 export function normalizeTypedEndpoint(raw: unknown) {
   // Proof: this object check deleted made the mounted `refuses a missing or
@@ -692,23 +692,23 @@ export function normalizeTypedEndpoint(raw: unknown) {
   if (!isDependencyEndpointScope(scope)) {
     throw new CommandNormalizationError('invalid_typed_endpoint');
   }
-  const projectId = endpointText(raw, 'projectId');
+  const workPackageId = endpointText(raw, 'workPackageId');
   const workItemId = endpointText(raw, 'workItemId');
   const workItemRef = endpointText(raw, 'workItemRef');
-  // Proof: before this guard, scoped aliases and blank project IDs normalized in
-  // `refuses malformed project addresses and explicitly scoped batch aliases`.
+  // Proof: before this guard, scoped aliases and blank work package IDs normalized in
+  // `refuses malformed workPackage addresses and explicitly scoped batch aliases`.
   // Proof: scoped-alias-admission bypass failed `mounted scoped-alias`'s selected assertion
   // (actual SQLite boundary; watched 2026-10-22).
-  if (projectId !== undefined && workItemRef !== undefined)
+  if (workPackageId !== undefined && workItemRef !== undefined)
     throw new CommandNormalizationError('invalid_typed_endpoint');
   const stepId = endpointText(raw, 'stepId');
   const stepNodeId = endpointText(raw, 'stepNodeId');
   // Proof: without this explicit-ID guard, the booted HTTP/MCP explicit-ID
   // regression received 404 not_found instead of indexed 400 invalid_typed_endpoint
-  // for a padded project identity (2026-10-22). Local identities stay unchanged.
+  // for a padded work package identity (2026-10-22). Local identities stay unchanged.
   if (
-    projectId !== undefined &&
-    [projectId, workItemId, stepId].some(
+    workPackageId !== undefined &&
+    [workPackageId, workItemId, stepId].some(
       (identity) =>
         identity !== undefined && (identity.length === 0 || identity !== identity.trim()),
     )
@@ -722,7 +722,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
       stepNodeId !== undefined
     )
       throw new CommandNormalizationError('invalid_typed_endpoint');
-    return present({ scope, projectId, workItemId, workItemRef });
+    return present({ scope, workPackageId, workItemId, workItemRef });
   }
   if (scope === 'node' && stepNodeId !== undefined) {
     if (workItemId !== undefined || workItemRef !== undefined || stepId !== undefined)
@@ -734,7 +734,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
           ? 'unknown_step_node_encoding'
           : 'invalid_step_node_id',
       );
-    return present({ scope, projectId, ...parsed.ref });
+    return present({ scope, workPackageId, ...parsed.ref });
   }
   if (
     (workItemId === undefined) === (workItemRef === undefined) ||
@@ -742,7 +742,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
     stepNodeId !== undefined
   )
     throw new CommandNormalizationError('invalid_typed_endpoint');
-  return present({ scope, projectId, workItemId, workItemRef, stepId });
+  return present({ scope, workPackageId, workItemId, workItemRef, stepId });
 }
 
 export function normalizedRef(value: unknown) {

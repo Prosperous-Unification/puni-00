@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { defineConfig, devices } from '@playwright/test';
 
+import { ordinaryContextPaths } from './ordinary-context-paths';
 import { ordinaryServerDescriptors, parseOrdinaryPortShift } from './playwright.ordinary-servers';
 
 /**
@@ -32,9 +33,9 @@ const isCi = process.env['CI'] !== undefined;
  *
  * Zero in CI and by default, where the ports are free and the URLs in every
  * runbook are the real ones. Non-zero is how a developer runs the gate while
- * `bun run dev` holds 3100/3200/4200: `reuseExistingServer` is true off CI, so
- * an unshifted local run does not start a stack at all — it measures whatever
- * already answers, which on 2026-08-09 was another checkout entirely
+ * `bun run dev` holds 3100/3200/4200. The former local profile reused an
+ * unshifted server and measured whatever already answered, which on
+ * 2026-08-09 was another checkout entirely
  * (`LLM_README.md`'s landmine). Shifting is the honest alternative to killing
  * somebody's dev server.
  *
@@ -83,11 +84,13 @@ const runDatabase =
   process.env['E2E_TEST_DATABASE'] ?? join(repoRoot, 'tmp', `e2e-${String(Date.now())}.db`);
 // Workers re-read this config; retain the runner's fresh test database identity.
 process.env['E2E_TEST_DATABASE'] = runDatabase;
+const contextPaths = ordinaryContextPaths(runDatabase);
 mkdirSync(join(repoRoot, 'tmp'), { recursive: true });
 const servers = ordinaryServerDescriptors(repoRoot, portShift, isCi, runDatabase);
 
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './ordinary-global-setup.ts',
   testMatch: /.*\.(?:spec|e2e)\.ts/,
   // Named explicitly because CI uploads this exact path as the run's artifact,
   // and the screenshot the widths are judged from is written into it.
@@ -106,7 +109,7 @@ export default defineConfig({
    *
    * Raised with `expect.timeout` below and for the same measured reason, after
    * raising that one alone moved the failure rather than fixing it: run
-   * 33377448974 lost `the successor bar moves when the project changes its
+   * 33377448974 lost `the successor bar moves when the workPackage changes its
    * reach` at exactly **1.0m** — the old cap, reached because a case that makes
    * several cross-process waits can now spend 30s on any one of them.
    *
@@ -155,6 +158,7 @@ export default defineConfig({
         ['junit', { outputFile: join(repoRoot, 'tmp', 'junit', 'wbs-fe-01.browser.ordinary.xml') }],
       ],
   use: {
+    storageState: contextPaths.storageStatePath,
     baseURL: `http://localhost:${String(fePort)}`,
     // The browser's region, pinned, because two checks in `keyboard.spec.ts`
     // type a date into a native `<input type="date">` digit by digit and the
@@ -201,24 +205,25 @@ export default defineConfig({
     {
       name: 'chromium',
       // `chromium-regular` owns `lifetime-bfcache.spec.ts`: it needs the
-      // regular Chromium channel this default project's own
+      // regular Chromium channel this default work package's own
       // `chromium-headless-shell` build cannot restore a page from
       // back/forward cache under (050-7-e's own plan document, section 4.7).
-      // Excluded here rather than left to collide with that project's own
+      // Excluded here rather than left to collide with that work package's own
       // `testMatch`, which would otherwise also pick it up and fail it under
       // the wrong browser.
       // Proof: removing the activated-fixture arm failed `runs activated organization acceptance only under its dedicated browser config`; the ordinary Playwright list collected its incompatible case.
-      // Proof: without the cross-project arm, the dedicated-fixture routing test failed
+      // Proof: without the cross-work-package arm, the dedicated-fixture routing test failed
       // expected false to be true, and ordinary --list collected its incompatible localhost case.
       testIgnore: [
+        /(?:^|\/)quiet-load\.spec\.ts$/,
         /lifetime-bfcache\.spec\.ts/,
         /organization-context\.real\.spec\.ts/,
         // Proof: omitting root failed the dedicated-routing case and ordinary --list collected all three localhost-only root cases (2026-10-26).
-        /(?:^|\/)cross-project-(?:refresh|root)\.real\.spec\.ts$/,
+        /(?:^|\/)cross-work-package-(?:refresh|root)\.real\.spec\.ts$/,
       ],
       use: {
         ...devices['Desktop Chrome'],
-        // After the spread, not in the top-level `use`: a project's options
+        // After the spread, not in the top-level `use`: a work package's options
         // win over the file's, and `Desktop Chrome` carries a 1280x720
         // viewport of its own that would silently replace this one.
         //
@@ -230,14 +235,14 @@ export default defineConfig({
         viewport: { width: 1400, height: 900 },
       },
     },
-    // `chromium-regular` (`lifetime-bfcache.spec.ts`) is added to `projects`
+    // `chromium-regular` (`lifetime-bfcache.spec.ts`) is added to `workPackages`
     // only when a planner opts in with `PLAYWRIGHT_CHROMIUM_REGULAR=1` —
     // never unconditionally. CI already installs regular Chromium alongside
     // `chromium-headless-shell` (`.github/workflows/ci.yml`'s own `bunx
     // playwright install --with-deps chromium` installs both), so this is a
     // verification-policy choice, not an availability one: this file's own
     // `webServer`/`e2e` target run unconditionally in CI, and an
-    // always-present project here would run this one narrow bfcache
+    // always-present work package here would run this one narrow bfcache
     // regression on every ordinary `bunx playwright test` invocation — a
     // scope decision this packet does not make unilaterally. See this
     // packet's own plan document, section 4.7, for the exact command.

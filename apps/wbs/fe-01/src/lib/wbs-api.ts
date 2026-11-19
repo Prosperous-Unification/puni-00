@@ -1,6 +1,6 @@
 import {
   discoverAddressCandidates,
-  discoverAddressProjects,
+  discoverAddressWorkPackages,
   resolveAddressReference,
 } from '@wbs/contracts';
 // The one exception to this file's "declare, do not import" rule, and it earns
@@ -14,7 +14,7 @@ import {
 import {
   addStep as addStepShape,
   applyDirectoryCommands,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   type Client,
   type ClientBoundaryFailure,
   type ClientFailure,
@@ -22,9 +22,10 @@ import {
   type ClientReply,
   createCalendarMarker as createCalendarMarkerShape,
   createProject as createProjectShape,
-  exportProject as exportProjectShape,
+  createWorkPackage as createWorkPackageShape,
+  exportWorkPackage as exportWorkPackageShape,
   getWorkItems,
-  importProject as importProjectShape,
+  importWorkPackage as importWorkPackageShape,
   type LimitRefusalDetail,
   listCalendarMarkers as listCalendarMarkersShape,
   listExternalSystems as listExternalSystemsShape,
@@ -35,26 +36,29 @@ import {
   listTags as listTagsShape,
   listTeams as listTeamsShape,
   listWorkItemTypes as listWorkItemTypesShape,
-  patchProject as patchProjectShape,
+  listWorkPackages as listWorkPackagesShape,
+  patchWorkPackage as patchWorkPackageShape,
+  patchWorkPackageStepValues as patchWorkPackageStepValuesShape,
   type PlanDocument,
   type PlanDocumentRequest,
+  planDocumentRequest,
   readClaimHistory as readClaimHistoryShape,
-  readProject as readProjectShape,
-  readProjectClaims as readProjectClaimsShape,
-  readProjectResources as readProjectResourcesShape,
   readTimezones as readTimezonesShape,
-  recordProjectOpen,
-  redoProject as redoProjectShape,
+  readWorkPackage as readWorkPackageShape,
+  readWorkPackageClaims as readWorkPackageClaimsShape,
+  readWorkPackageResources as readWorkPackageResourcesShape,
+  recordWorkPackageOpen,
+  redoWorkPackage as redoWorkPackageShape,
   removeCalendarMarker as removeCalendarMarkerShape,
   removeStep as removeStepShape,
   renameStep as renameStepShape,
-  retryProjectOptimization as retryProjectOptimizationShape,
-  undoProject as undoProjectShape,
+  retryWorkPackageOptimization as retryWorkPackageOptimizationShape,
+  undoWorkPackage as undoWorkPackageShape,
   updateCalendarMarker as updateCalendarMarkerShape,
   validateSchema,
 } from '@wbs/contracts';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
-import type { ChargedEstimate, EstimateUnit } from '@wbs/domain/estimate';
+import { allowanceHundredthsOf, type ChargedEstimate, type EstimateUnit } from '@wbs/domain/estimate';
 import type { PriorityBand } from '@wbs/domain/priority-band';
 // The second exception, and the cheaper one: `IsoDate` is `export type IsoDate =
 // string` in a module with no imports of its own, so this erases entirely at
@@ -76,7 +80,7 @@ import { agentPersonLimitSentence } from './organization-limit-words';
 import { type RefusalWords, sentenceForRefusal } from './refusal';
 
 /**
- * How a project turns its three-point estimates into the one number it plans
+ * How a work package turns its three-point estimates into the one number it plans
  * with. Mirrors `EstimateMethod` in `libs/wbs/domain/domain`.
  *
  * Declared here rather than imported, like every other wire type in this file:
@@ -93,7 +97,7 @@ export function isEstimateMethod(value: string): value is EstimateMethod {
 }
 
 /**
- * The coefficients a project's PERT figure weighs its three points by, and whose
+ * The coefficients a work package's PERT figure weighs its three points by, and whose
  * **sum** is the divisor — 1/4/1 is the textbook `/6`, 1/1/1 a plain average.
  *
  * Declared here for {@link EstimateMethod}'s reason. be-01 refuses a triple
@@ -110,13 +114,13 @@ export interface PertWeightsView {
  * How one step's combined figure is charged as days: `floor`, `round`, `ceil`,
  * or `exact` for the fraction the method produced.
  *
- * `ceil` unless the project says otherwise, and applied **per step** before any
+ * `ceil` unless the work package says otherwise, and applied **per step** before any
  * sum is taken — a work item's total is the sum of its steps' charged days, and
  * a parent's is the sum of its descendants'. Mirrors `EstimateRounding` in
  * `libs/wbs/domain/domain`.
  */
 /**
- * The coefficients a project has unless it says otherwise: `(1×o + 4×r + 1×p)`
+ * The coefficients a work package has unless it says otherwise: `(1×o + 4×r + 1×p)`
  * over their sum, which is the textbook PERT triple.
  *
  * Mirrored here rather than imported from `libs/wbs/domain/domain`'s
@@ -148,7 +152,7 @@ export interface Days {
 }
 
 /**
- * When a work item can happen, in whole days from the project's day zero.
+ * When a work item can happen, in whole days from the work package's day zero.
  *
  * No dates: a calendar brings weekends, holidays and timezones, and none of them
  * are needed to answer what is waiting on what. `estimated` is what stops a
@@ -168,7 +172,7 @@ export interface ScheduleView {
 /**
  * What decided a slice's start: the latest of its floors, named.
  *
- * `projectStart` means nothing did. `predecessor` is a dependency onto another
+ * `workPackageStart` means nothing did. `predecessor` is a dependency onto another
  * work item, `stepOrder` the work item's own earlier step, `notBefore` a
  * manual date, `person` the assignee finishing something else, and `capacity`
  * the work item's **team** having no slot free. A tie is never `person` and
@@ -187,7 +191,7 @@ export interface ScheduleView {
  * between them.
  */
 export type ScheduleFloorView =
-  | 'projectStart'
+  | 'workPackageStart'
   | 'predecessor'
   | 'stepOrder'
   | 'notBefore'
@@ -216,7 +220,7 @@ export type ScheduleFloorView =
 export interface SliceView {
   id: string;
   workItemId: string;
-  /** Null only in a project holding no steps at all, which is reachable. */
+  /** Null only in a work package holding no steps at all, which is reachable. */
   stepId: string | null;
   personId: string | null;
   duration: number;
@@ -281,20 +285,20 @@ export interface SliceView {
    */
   lateBy: number | null;
   /**
-   * The booking in another project this slice waited for: present exactly
+   * The booking in another work package this slice waited for: present exactly
    * when `boundBy` is `'elsewhere'`, and named by one of the read's
    * {@link ElsewhereHolderView}s.
    */
-  elsewhereHolder?: { projectId: string; workItemId: string };
+  elsewhereHolder?: { workPackageId: string; workItemId: string };
 }
 
 /**
- * A work item in another project that holds a booking this plan was scheduled
- * around, named as its own plan names it (`share-people-across-projects`).
+ * A work item in another work package that holds a booking this plan was scheduled
+ * around, named as its own plan names it (`share-people-across-work-packages`).
  */
 export interface ElsewhereHolderView {
-  projectId: string;
-  projectName: string;
+  workPackageId: string;
+  workPackageName: string;
   workItemId: string;
   number: string;
   name: string;
@@ -408,7 +412,7 @@ export interface WorkItemView {
   dependsOn: string[];
   /**
    * The one number this row is planned with, per step, and their sum — the
-   * project's estimate method applied to the trio above.
+   * work package's estimate method applied to the trio above.
    *
    * be-01 computes both, from the same call the schedule's durations come
    * from. Working them out here instead would be a second implementation of
@@ -418,11 +422,11 @@ export interface WorkItemView {
   finalDays: Record<string, number>;
   finalTotal: number;
   /**
-   * When this happens on a calendar, or null while the project has no start
+   * When this happens on a calendar, or null while the work package has no start
    * date or the schedule could not be computed.
    *
    * Working days only, and `endsOn` is the last day the work is still on
-   * rather than the day after. Computed by be-01 with the project's start
+   * rather than the day after. Computed by be-01 with the work package's start
    * date; the client renders it and counts nothing.
    */
   dates: { startsOn: string; endsOn: string } | null;
@@ -451,7 +455,7 @@ export interface WorkItemView {
    * clearing this is the one field and never a pair.
    *
    * Nothing here is computed from it: be-01 resolves the stored date against
-   * the project's start into the offsets the scheduler is given, and answers
+   * the work package's start into the offsets the scheduler is given, and answers
    * with {@link SliceView.lateBy}. A miss counted in this client would be a
    * second implementation of the lateness one column away from the number the
    * plan was actually built with.
@@ -462,7 +466,7 @@ export interface WorkItemView {
    * from its steps' progress, hold, readiness and predecessors and, for a
    * parent, from its children. Never stored and never computed here: the
    * Status cell shows it, and setting it goes through
-   * {@link ProjectApi.setStatus}.
+   * {@link WorkPackageApi.setStatus}.
    */
   status: WorkItemStatus;
   /**
@@ -488,7 +492,7 @@ export interface WorkItemView {
   factStart: IsoDate | null;
   /**
    * The day work on this item actually finished, or null where nobody has said.
-   * Filled with the reader's day by {@link ProjectApi.setStatus} when a row is
+   * Filled with the reader's day by {@link WorkPackageApi.setStatus} when a row is
    * marked done holding none; where a done row's bar stops, whatever the
    * estimate says.
    */
@@ -743,16 +747,34 @@ export interface StepView {
 
 export type TypedDependencyType = 'FS' | 'SS' | 'FF';
 
-/** A scope chosen for one end of a relationship; explicit project coordinates retain stable remote IDs. */
+/** A scope chosen for one end of a relationship; explicit work package coordinates retain stable remote IDs. */
 export type TypedDependencyEndpoint =
-  | { scope: 'whole'; workItemId: string; projectId?: string; stepId?: never; stepNodeId?: never }
-  | { scope: 'node'; stepNodeId: string; projectId?: string; workItemId?: never; stepId?: never }
-  | { scope: 'node'; workItemId: string; stepId: string; projectId?: string; stepNodeId?: never }
+  | {
+      scope: 'whole';
+      workItemId: string;
+      workPackageId?: string;
+      stepId?: never;
+      stepNodeId?: never;
+    }
+  | {
+      scope: 'node';
+      stepNodeId: string;
+      workPackageId?: string;
+      workItemId?: never;
+      stepId?: never;
+    }
+  | {
+      scope: 'node';
+      workItemId: string;
+      stepId: string;
+      workPackageId?: string;
+      stepNodeId?: never;
+    }
   | {
       scope: 'descendant-step';
       workItemId: string;
       stepId: string;
-      projectId?: string;
+      workPackageId?: string;
       stepNodeId?: never;
     };
 
@@ -761,12 +783,12 @@ export type ConnectedDependencyEndpoint = NonNullable<
   PlanReadWire['connectedDependencies']
 >[number]['predecessor'];
 
-/** The explicit relationship returned by a project tree read. */
+/** The explicit relationship returned by a work package tree read. */
 export interface TypedDependencyView {
   id: string;
   predecessor: {
     captured?: ConnectedDependencyEndpoint;
-    projectId?: string;
+    workPackageId?: string;
     scope: 'whole' | 'node' | 'descendant-step';
     workItemId: string;
     stepId?: string;
@@ -774,7 +796,7 @@ export interface TypedDependencyView {
   };
   successor: {
     captured?: ConnectedDependencyEndpoint;
-    projectId?: string;
+    workPackageId?: string;
     scope: 'whole' | 'node' | 'descendant-step';
     workItemId: string;
     stepId?: string;
@@ -872,7 +894,7 @@ export type StepRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: S
  * A service or team, global to this deployment. A name and nothing else.
  *
  * **No `size`, and its absence is the change.** A team used to carry one global
- * number for every plan on the deployment; since `capacity-per-project` the
+ * number for every plan on the deployment; since `capacity-per-work-package` the
  * number is the plan's, and be-01 does not send the retired column at all —
  * `/api/teams` answers `{ id, name }` and a be-01 test pins that shape. So a
  * fallback to a team's global size cannot be written here: it does not compile.
@@ -916,7 +938,7 @@ export interface TeamView {
  * bigger than {@link TeamView}'s.
  *
  * A team has no `size` **any more**; a tag has never had one and has no
- * per-project table beside it either, so there is no `TagCapacityView` under
+ * per-work-package table beside it either, so there is no `TagCapacityView` under
  * this and nothing to write one from. A reader who notices that the directory
  * page renders tags with no capacity column has learned the model rule.
  */
@@ -1038,7 +1060,7 @@ export interface ServiceView {
 }
 
 /**
- * How many of one team may be at work at once **on one project's plan**.
+ * How many of one team may be at work at once **on one work package's plan**.
  *
  * A team the plan has stated nothing about is **absent** from the list, not
  * present with a `null`: unstated constrains that team's work on that plan not at
@@ -1054,7 +1076,7 @@ export interface TeamCapacityView {
 }
 
 /**
- * One rung of what this project calls its priority numbers.
+ * One rung of what this work package calls its priority numbers.
  *
  * Structurally {@link PriorityBand} from `libs/wbs/domain/domain`, and named apart for the
  * reason every other `…View` in this file is: this is the shape on the wire, and
@@ -1185,7 +1207,7 @@ export interface UsedWorkItem {
   effects: DirectoryEffect[];
 }
 
-export interface UsedProject {
+export interface UsedWorkPackage {
   id: string;
   name: string;
   workItems: UsedWorkItem[];
@@ -1201,7 +1223,7 @@ export interface UsedProject {
  * endpoint response schema refuses a body missing either.
  */
 export interface DirectoryUsage {
-  projects: UsedProject[];
+  workPackages: UsedWorkPackage[];
   members: { id: string; name: string }[];
   /**
    * Unrevoked machine credentials of the person, which a confirmed removal
@@ -1292,8 +1314,8 @@ export interface TeamPatch {
 /**
  * The deployment's directory, and everything the directory page does to it.
  *
- * Separate from {@link ProjectApi} because it belongs to no project: these four
- * reads are the same on every page, and `httpProjectApi`'s own directory
+ * Separate from {@link WorkPackageApi} because it belongs to no work package: these four
+ * reads are the same on every page, and `httpWorkPackageApi`'s own directory
  * methods delegate here so each call has exactly one spelling.
  */
 export interface DirectoryApi {
@@ -1414,31 +1436,34 @@ export type UndoResult =
     };
 
 /**
- * One project as the picker offers it — what fe-01 **reads** of a list entry.
+ * One work package as the picker offers it — what fe-01 **reads** of a list entry.
  *
- * A subset, deliberately: `GET /api/projects` sends the whole project row plus
- * the owner's name, and the owner id, estimate method and revision are all on
- * the wire and none of them are on this screen. Naming only what is read is
- * the honest version, and it is not a description of the wire —
+ * A subset, deliberately: `GET /api/work-packages` sends the whole work package row plus
+ * the creator's name. Its required parent id joins actual project metadata for
+ * grouped navigation; estimate method and revision stay off this screen. Naming
+ * only what is read is the honest version, and it is not a description of the wire —
  * nobody should later read this as be-01's contract and delete a field from
  * the query to make the two match. `startDate` is the one wire field this now
  * reads beyond the entry's own meta: the hover card prints it, and it is the
- * only project field cheap enough to be worth it — everything else the card
+ * only work package field cheap enough to be worth it — everything else the card
  * might show (step counts, last *modified*) is not on this wire at all.
  *
- * Separate from {@link CreatedProject} because the two routes answer different
- * things: one type standing for both is how `createProject` came to declare a
+ * Separate from {@link CreatedWorkPackage} because the two routes answer different
+ * things: one type standing for both is how `createWorkPackage` came to declare a
  * `lastOpenedAt` the create route has never sent.
  */
-export interface ProjectListEntry {
+export interface WorkPackageListEntry {
+  projectId: string;
+  /** Resolved project-managed value; absent in older backend replies. */
+  budgetFactor?: number;
   abbreviation: string;
   id: string;
   name: string;
   restricted: boolean;
   /** When this account last opened it, or null if it never has. */
   lastOpenedAt: number | null;
-  /** The username of the account that owns it — the first half of the entry meta. */
-  ownerName: string;
+  /** The creator's username, displayed after the creation date. */
+  createdByName: string;
   /**
    * The calendar day the plan begins, or null while it is not on a calendar.
    *
@@ -1447,7 +1472,7 @@ export interface ProjectListEntry {
    */
   startDate: string | null;
   /**
-   * When the project was made, as an **epoch millisecond**.
+   * When the work package was made, as an **epoch millisecond**.
    *
    * An instant rather than a calendar day, which is what decides the formatter:
    * `shortInstant` prints it in the reader's own zone, and `shortIsoDate` — the
@@ -1458,14 +1483,15 @@ export interface ProjectListEntry {
 }
 
 /**
- * A project as the create route answers with it — again, what fe-01 reads.
+ * A work package as the create route answers with it — again, what fe-01 reads.
  *
- * No `lastOpenedAt`: create writes the project and answers with it, and an
+ * No `lastOpenedAt`: create writes the work package and answers with it, and an
  * account's navigation history is not part of a row that has just come into
  * being. The page selects the id and reloads the list, which is where the
  * fuller entry comes from.
  */
-export interface CreatedProject {
+export interface CreatedWorkPackage {
+  projectId: string;
   abbreviation: string;
   id: string;
   name: string;
@@ -1475,7 +1501,7 @@ export interface CreatedProject {
 export type ScheduleEngineView = 'fast' | 'optimized';
 export type ScheduleObjectiveView = 'pri' | 'time';
 
-export interface ProjectOptimizationPatch {
+export interface WorkPackageOptimizationPatch {
   readonly optimizationEnabled?: boolean;
   readonly scheduleEngine?: ScheduleEngineView;
   readonly scheduleObjective?: ScheduleObjectiveView;
@@ -1523,7 +1549,7 @@ export interface LocalPlanOptimizationView {
   readonly displayed: 'fast' | ScheduleObjectiveView;
   readonly variants: Readonly<Record<ScheduleObjectiveView, OptimizationVariantView>>;
   /**
-   * The project finish each computed schedule reaches, in workdays from day
+   * The work package finish each computed schedule reaches, in workdays from day
    * zero. `fast` always; a variant's only while be-01 holds a schedule for it.
    *
    * Absolute figures rather than one delta, because the cue reads all three
@@ -1556,7 +1582,7 @@ export type ConnectedPlanOptimizationView = Extract<
 export type PlanOptimizationView = LocalPlanOptimizationView | ConnectedPlanOptimizationView;
 
 /**
- * The project's work items, and the event sequence they were read at.
+ * The work package's work items, and the event sequence they were read at.
  *
  * The sequence is what a socket resumes from, so it belongs to the read that
  * produced the rows: taken separately it would describe a different moment
@@ -1567,15 +1593,15 @@ export type PlanOptimizationView = LocalPlanOptimizationView | ConnectedPlanOpti
  */
 type PlanReadWire = Extract<ClientReply<typeof getWorkItems>, { kind: 'success' }>['body'];
 
-/** The created project and file-local names reported after one archival restore. */
+/** The created work package and file-local names reported after one archival restore. */
 export type PlanImportSummary = Extract<
-  ClientReply<typeof importProjectShape>,
+  ClientReply<typeof importWorkPackageShape>,
   { kind: 'success' }
 >['body'];
 
 /** A generated-client-validated refusal from the archival import route. */
 export type PlanImportRefusal = Extract<
-  ClientReply<typeof importProjectShape>,
+  ClientReply<typeof importWorkPackageShape>,
   { kind: 'refusal' }
 >['body'];
 
@@ -1631,7 +1657,8 @@ function isPlanExportHeader(untrusted: unknown): boolean {
 }
 
 /**
- * Parses and generated-client-validates one untrusted archival JSON file.
+ * Parses one archival JSON file with the public writable-document schema.
+ * The destination project belongs to the separate import request envelope.
  *
  * @throws {PlanDocumentSchemaError} at `document` when the JSON is not a
  * `wbs-plan` export at all, else at the first schema issue's path.
@@ -1642,7 +1669,7 @@ export async function planDocumentRequestFromJson(json: string): Promise<PlanDoc
     untrustedDocument = JSON.parse(json);
   } catch (cause) {
     // Proof: letting the native SyntaxError escape made `reports invalid JSON
-    // without submitting or changing project` expose engine-specific parser
+    // without submitting or changing work package` expose engine-specific parser
     // wording instead of the modeled `invalid_json`. Observed 2026-09-14.
     if (cause instanceof SyntaxError) throw new Error('invalid_json', { cause });
     throw cause;
@@ -1653,7 +1680,7 @@ export async function planDocumentRequestFromJson(json: string): Promise<PlanDoc
   if (!isPlanExportHeader(untrustedDocument)) {
     throw new PlanDocumentSchemaError('document', 'is not a wbs-plan export');
   }
-  const validation = await validateSchema(importProjectShape.body, untrustedDocument);
+  const validation = await validateSchema(planDocumentRequest, untrustedDocument);
   if (validation.issues !== undefined) {
     const issue = validation.issues[0];
     // Proof: replacing this structured issue with `Error('invalid_request')`
@@ -1680,7 +1707,7 @@ export interface PlanRead extends Omit<
   /**
    * The steps the slices above were placed under, in the engine's own order.
    *
-   * The same list {@link ProjectApi.steps} answers with, carried here so that
+   * The same list {@link WorkPackageApi.steps} answers with, carried here so that
    * a chart drawn from this read never has to pair it with another one. Both
    * are needed and they are not the same fact: this one describes **these**
    * slices, and the separate read is what the column headers and the steps
@@ -1692,7 +1719,7 @@ export interface PlanRead extends Omit<
 /** Combines legacy local relationships with captured incident relationships by stable relationship ID. */
 export function dependencyViewsOf(
   plan: Pick<PlanRead, 'typedDependencies' | 'connectedDependencies'>,
-  projectId: string,
+  workPackageId: string,
 ): TypedDependencyView[] {
   const relationships = new Map(
     (plan.typedDependencies ?? []).map((relationship) => [relationship.id, relationship]),
@@ -1703,7 +1730,7 @@ export function dependencyViewsOf(
     ): TypedDependencyView['predecessor'] => ({
       ...captured.endpoint,
       // Proof: classifying every endpoint as local made both mounted remote-label cases throw on remote-row (2026-10-22).
-      ...(captured.endpoint.projectId === projectId ? {} : { captured }),
+      ...(captured.endpoint.workPackageId === workPackageId ? {} : { captured }),
     });
     relationships.set(relationship.id, {
       id: relationship.id,
@@ -1741,7 +1768,7 @@ export interface CalendarMarkerView {
 }
 
 /**
- * One **Claim** held in a project, as `GET /api/projects/:id/claims` answers it
+ * One **Claim** held in a work package, as `GET /api/work-packages/:id/claims` answers it
  * (`wbs-claim-display` C1, C2). `stepId` is null for a subtree claim;
  * `leaseExpiresAt` is null for a claim no agent renews, and `leaseRevokedAt`
  * names the instant the holder's last credential was revoked.
@@ -1762,7 +1789,7 @@ export interface ClaimView {
 }
 
 /**
- * Every claim in one project with the server's clock at the read (`readAt`,
+ * Every claim in one work package with the server's clock at the read (`readAt`,
  * epoch milliseconds): a lease's time left is counted from `readAt`, never from
  * this browser's wall clock (C6).
  */
@@ -1817,7 +1844,7 @@ export interface ClaimHistoryClaimView {
 }
 
 /**
- * One claim or release as `GET /api/projects/:id/claim-history` answers it,
+ * One claim or release as `GET /api/work-packages/:id/claim-history` answers it,
  * newest first (C13): the acts of one batch share `eventId` and differ by
  * `act`. `reason` says why a release happened: a release command, or the lease
  * sweep's `lease_expired` or `credential_revoked`.
@@ -1836,7 +1863,7 @@ export interface ClaimHistoryEventView {
  * exists.
  *
  * `markerId` and not `id`, because that is the name the route reads: the path
- * `/api/projects/:id/calendar-markers` already spends `id` on the project, so
+ * `/api/work-packages/:id/calendar-markers` already spends `id` on the work package, so
  * `calendar-marker.routes.ts` takes the marker's own id under `markerId`
  * and maps it back to the domain's `id` in the one line of the `POST` handler.
  * Optional, because be-01 mints one when the client does not name it.
@@ -1848,47 +1875,67 @@ export interface NewCalendarMarkerView {
   color?: string | null;
 }
 
+/** Full project metadata or an actual id/name-only shell from the scoped list endpoint. */
+export type ProjectSummaryView = Extract<
+  ClientReply<typeof listProjectsShape>,
+  { kind: 'success' }
+>['body']['projects'][number];
+
+/** The complete child-bearing arm of the atomic project-create success declaration. */
+export type CreatedProjectWithWorkPackage = Extract<
+  Extract<ClientReply<typeof createProjectShape>, { kind: 'success' }>['body'],
+  { workPackage: unknown; steps: unknown }
+>;
+
 /**
- * Everything the table does to a project.
+ * Everything the table does to a work package.
  *
  * An interface rather than bare functions so the table can be driven by a fake
  * in tests: the keyboard behaviour is the part worth proving, and asserting it
  * through a real fetch would test the network instead.
  */
-export interface ProjectApi {
+export interface WorkPackageApi {
+  /** Current visible projects and parent shells; metadata never grants mutation authority. */
+  listProjects(): Promise<ProjectSummaryView[]>;
+  /** Creates one project and its named first package; ambiguous outcomes never replay the POST. */
+  createProjectWithWorkPackage(
+    projectName: string,
+    workPackageName: string,
+  ): Promise<CreatedProjectWithWorkPackage>;
   /**
-   * Every project, in this account's own order: opened first by recency, then
-   * never-opened by creation date. The order is be-01's and is used as given —
-   * sorting again on the client would be a second implementation of the rule,
-   * and the two would eventually disagree.
+   * Every work package, in this account's own order: opened first by recency, then
+   * never-opened by creation date. Grouped navigation keeps that relative order
+   * within each project and orders groups by their first matching package, with
+   * unavailable metadata last; global interleaving deliberately changes. It does
+   * not re-sort package names or infer a creation destination.
    */
-  listProjects(): Promise<ProjectListEntry[]>;
-  createProject(name: string): Promise<CreatedProject>;
-  /** Records this account as having opened the project, which is what sorts the picker. */
-  openProject(id: string): Promise<void>;
-  /** Renames the project. be-01 answers `forbidden` on a restricted one. */
-  renameProject(id: string, name: string): Promise<void>;
-  /** Changes the project address prefix and returns its stored canonical spelling. */
+  listWorkPackages(): Promise<WorkPackageListEntry[]>;
+  createWorkPackage(projectId: string, name: string): Promise<CreatedWorkPackage>;
+  /** Records this account as having opened the work package, which is what sorts the picker. */
+  openWorkPackage(id: string): Promise<void>;
+  /** Renames the work package. be-01 answers `forbidden` on a restricted one. */
+  renameWorkPackage(id: string, name: string): Promise<void>;
+  /** Changes the work package address prefix and returns its stored canonical spelling. */
   setAbbreviation(id: string, abbreviation: string): Promise<string>;
   /** One read of the plan — see {@link PlanRead}, which be-01 answers whole. */
-  tree(projectId: string): Promise<PlanRead>;
+  tree(workPackageId: string): Promise<PlanRead>;
   /** Downloads the complete versioned archival document, independently of table visibility. */
-  exportPlan(projectId: string): Promise<PlanDocument>;
-  /** Restores one archival document as a new project. */
-  importPlan(document: PlanDocumentRequest): Promise<PlanImportSummary>;
+  exportPlan(workPackageId: string): Promise<PlanDocument>;
+  /** Restores one archival document as a new work package. */
+  importPlan(projectId: string, document: PlanDocumentRequest): Promise<PlanImportSummary>;
   /**
-   * Reverses this account's last change to the project, **if nothing it
+   * Reverses this account's last change to the work package, **if nothing it
    * touched has been written to since**.
    *
    * be-01 owns the condition and the wording of what it did; this is a
    * description of what comes back. A refused step also discards the entry it
    * refused, so the caller reads the tree again afterwards either way.
    */
-  undo(projectId: string): Promise<UndoResult>;
-  /** Puts back what {@link ProjectApi.undo} took away, under the same condition. */
-  redo(projectId: string): Promise<UndoResult>;
-  /** Changes how the project turns its three-point estimates into one number. */
-  setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
+  undo(workPackageId: string): Promise<UndoResult>;
+  /** Puts back what {@link WorkPackageApi.undo} took away, under the same condition. */
+  redo(workPackageId: string): Promise<UndoResult>;
+  /** Changes how the work package turns its three-point estimates into one number. */
+  setEstimateMethod(workPackageId: string, method: EstimateMethod): Promise<void>;
   /**
    * Changes the PERT weights, the rounding, or both.
    *
@@ -1902,19 +1949,22 @@ export interface ProjectApi {
    * reads the tree again — `setDepReach`'s rule exactly.
    */
   setEstimateArithmetic(
-    projectId: string,
+    workPackageId: string,
     arithmetic: { pertWeights?: PertWeightsView; estimateRounding?: EstimateRoundingView },
   ): Promise<void>;
   /**
-   * Changes how far into a predecessor this project's dependencies reach.
+   * Changes how far into a predecessor this work package's dependencies reach.
    *
-   * A `PATCH` on the project like the estimate method, and for the same reason:
+   * A `PATCH` on the work package like the estimate method, and for the same reason:
    * it is a stored choice about the plan, not a parameter of a read. Every date
    * in the plan may move on it, so the caller reads the tree again.
    */
-  setDepReach(projectId: string, reach: DependencyReach): Promise<void>;
-  /** Changes the project-wide optimizer flag or the schedule every collaborator sees. */
-  setOptimizationSettings(projectId: string, patch: ProjectOptimizationPatch): Promise<void>;
+  setDepReach(workPackageId: string, reach: DependencyReach): Promise<void>;
+  /** Changes the work-package-wide optimizer flag or the schedule every collaborator sees. */
+  setOptimizationSettings(
+    workPackageId: string,
+    patch: WorkPackageOptimizationPatch,
+  ): Promise<void>;
   /**
    * Asks for one more solve of a variant that failed or came back corrupt.
    *
@@ -1923,44 +1973,44 @@ export interface ProjectApi {
    * rather than silently re-solving a plan that has since changed.
    */
   retryOptimization(
-    projectId: string,
+    workPackageId: string,
     objective: ScheduleObjectiveView,
     inputHash: string,
   ): Promise<void>;
   /** Puts the plan on a calendar, or `null` to take it off again. */
-  setStartDate(projectId: string, startDate: string | null): Promise<void>;
+  setStartDate(workPackageId: string, startDate: string | null): Promise<void>;
   /**
    * Sets the IANA zone every day derived from an instant is read in
    * (`step-node-attempts` D3). Throws `invalid_timezone` for a zone this be-01
    * does not accept — which {@link listTimezones} never offers.
    */
-  setTimezone(projectId: string, timezone: string): Promise<void>;
-  /** The zones this be-01 accepts as a project timezone, `UTC` included, in its order. */
+  setTimezone(workPackageId: string, timezone: string): Promise<void>;
+  /** The zones this be-01 accepts as a work package timezone, `UTC` included, in its order. */
   listTimezones(): Promise<string[]>;
   /**
-   * The calendar markers on this project, in be-01's order.
+   * The calendar markers on this work package, in be-01's order.
    *
    * Its own read and not a member of {@link PlanRead}: a marker moves nothing
    * in the schedule (task 4 axis-1), so folding it into the tree would make
    * every marker write a full plan reread and every plan reread carry markers
    * the table never looks at.
    */
-  listCalendarMarkers(projectId: string): Promise<CalendarMarkerView[]>;
+  listCalendarMarkers(workPackageId: string): Promise<CalendarMarkerView[]>;
   /**
-   * Every claim held in the project, its own read and not a member of
+   * Every claim held in the work package, its own read and not a member of
    * {@link PlanRead}: a heartbeat moves a lease and nothing in the schedule, so
    * folding claims into the tree would make every heartbeat a full plan read.
    */
-  readClaims(projectId: string): Promise<ClaimsRead>;
+  readClaims(workPackageId: string): Promise<ClaimsRead>;
   /**
-   * The project's newest claims and releases, newest first, at be-01's default
+   * The work package's newest claims and releases, newest first, at be-01's default
    * bound (the `readClaimHistory` shape in `@wbs/contracts` names it). Read by the Claims sheet alone, while it is open; not a plan
    * resource, so no announcement rereads it (C13).
    */
-  readClaimHistory(projectId: string): Promise<ClaimHistoryEventView[]>;
+  readClaimHistory(workPackageId: string): Promise<ClaimHistoryEventView[]>;
   /** Puts a marker on an absolute date, answering the one be-01 stored. */
   createCalendarMarker(
-    projectId: string,
+    workPackageId: string,
     marker: NewCalendarMarkerView,
   ): Promise<CalendarMarkerView>;
   /**
@@ -1971,17 +2021,17 @@ export interface ProjectApi {
    * be a surface whose two-field call can only ever be refused.
    */
   renameCalendarMarker(
-    projectId: string,
+    workPackageId: string,
     markerId: string,
     name: string,
   ): Promise<CalendarMarkerView>;
   /** Sets the fill, or `null` to hand the marker back to the automatic colour. */
   recolorCalendarMarker(
-    projectId: string,
+    workPackageId: string,
     markerId: string,
     color: string | null,
   ): Promise<CalendarMarkerView>;
-  deleteCalendarMarker(projectId: string, markerId: string): Promise<void>;
+  deleteCalendarMarker(workPackageId: string, markerId: string): Promise<void>;
   /**
    * States how many of one team may be at work at once on this plan, or clears it
    * to unstated on `null`.
@@ -1989,16 +2039,16 @@ export interface ProjectApi {
    * `PUT`, because the body carries the whole of the fact and the same request
    * twice is the same state — be-01's shape, and the reason is on its route.
    *
-   * The number is **not** validated here. `capacity-per-project` owns what it may
+   * The number is **not** validated here. `capacity-per-work-package` owns what it may
    * be, at be-01's boundary, and a second copy of that rule in this client is a
    * rule free to disagree with it — so `0`, `-1`, `1.5` and `1001` are all sent
    * and answered on. The two things the caller decides, because be-01 cannot see
    * them, are what an *empty box* means and that a non-finite draft is not sent;
    * both are argued in `teams-panel.tsx` and were C3's D6 before that.
    */
-  setTeamCapacity(projectId: string, teamId: string, size: number | null): Promise<void>;
+  setTeamCapacity(workPackageId: string, teamId: string, size: number | null): Promise<void>;
   /**
-   * Replaces what this project calls its priority numbers — the whole ladder, in
+   * Replaces what this work package calls its priority numbers — the whole ladder, in
    * one request.
    *
    * **All five rungs, never one.** Contiguity is a fact about the five together,
@@ -2010,13 +2060,22 @@ export interface ProjectApi {
    * default outside its own band or a cut below the one beneath it is sent and
    * answered on — the bargain `setTeamCapacity` makes one fact along.
    */
-  setPriorityBands(projectId: string, bands: readonly PriorityBandView[]): Promise<void>;
-  steps(projectId: string): Promise<StepView[]>;
-  /** Adds a step to the project. Throws `taken` when the name is already one. */
-  addStep(projectId: string, name: string, estimateUnit?: EstimateUnit): Promise<StepView>;
-  setStepUnit(projectId: string, stepId: string, estimateUnit: EstimateUnit): Promise<StepView>;
-  renameStep(projectId: string, stepId: string, name: string): Promise<StepView>;
-  setStepAllowance(projectId: string, stepId: string, allowancePercent: number): Promise<StepView>;
+  setPriorityBands(workPackageId: string, bands: readonly PriorityBandView[]): Promise<void>;
+  steps(workPackageId: string): Promise<StepView[]>;
+  /** Adds a step to the work package. Throws `taken` when the name is already one. */
+  addStep(workPackageId: string, name: string, estimateUnit?: EstimateUnit): Promise<StepView>;
+  setStepUnit(workPackageId: string, stepId: string, estimateUnit: EstimateUnit): Promise<StepView>;
+  renameStep(workPackageId: string, stepId: string, name: string): Promise<StepView>;
+  /**
+   * Set this package's allowance using exact integer hundredths on the wire.
+   * @throws RangeError with invalid_allowance for a non-finite, out-of-range or
+   * fractional-hundredth percentage; invalid input is never rounded or sent.
+   */
+  setStepAllowance(
+    workPackageId: string,
+    stepId: string,
+    allowancePercent: number,
+  ): Promise<StepView>;
   /**
    * Removes a step, or answers what it would take.
    *
@@ -2024,9 +2083,9 @@ export interface ProjectApi {
    * at outright and refuses one that is used, with its counts. `cascade` is the
    * caller saying it has shown those counts to somebody and been told to go on.
    */
-  removeStep(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoval>;
+  removeStep(workPackageId: string, stepId: string, cascade: boolean): Promise<StepRemoval>;
   createWorkItem(
-    projectId: string,
+    workPackageId: string,
     /**
      * `afterId` absent is be-01's own "null or absent puts it first in its
      * group" (`plan-command-schema.ts`), which is why it is optional here: the
@@ -2050,7 +2109,7 @@ export interface ProjectApi {
    * entry, one undo (`step-node-attempts` D2).
    */
   startAttempt(id: string, stepId: string, executorPersonId?: string): Promise<void>;
-  /** Sets the direct fact through the admitted project command; typed 409 is normal write feedback. */
+  /** Sets the direct fact through the admitted work package command; typed 409 is normal write feedback. */
   setStepBlocked(id: string, stepId: string, isBlocked: boolean): Promise<void>;
   /**
    * Ends the node's running attempt now with `outcome`, and `reference` when
@@ -2092,12 +2151,12 @@ export interface ProjectApi {
        * reason column, so a request naming `startNoEarlierThanReason` beside
        * this one would be sending a key about a different constraint.
        *
-       * Refused with a 422 (`deadline_before_project_start`) for a day that
-       * falls before the project's first working day — the one
+       * Refused with a 422 (`deadline_before_work_package_start`) for a day that
+       * falls before the work package's first working day — the one
        * deadline-specific refusal, and be-01's, because only it holds the
-       * project to compare against. **Both ends roll, and neither of them is
-       * the stored start date:** day zero is `nextWorkday(projectStart)` and
-       * the deadline is read at `previousWorkday(deadline)`, so a project
+       * work package to compare against. **Both ends roll, and neither of them is
+       * the stored start date:** day zero is `nextWorkday(workPackageStart)` and
+       * the deadline is read at `previousWorkday(deadline)`, so a work package
        * starting on a Saturday refuses the Sunday after it. The words are
        * `DEADLINE_UNREACHABLE_CELL`'s, and the code is `deadlineOffsetOf`'s.
        *
@@ -2303,14 +2362,14 @@ export interface ProjectApi {
   /**
    * Puts every sibling group in the order its bars start.
    *
-   * No arguments beyond the project: the order is the server's, taken from the
+   * No arguments beyond the work package: the order is the server's, taken from the
    * schedule the chart is drawing, inside the write lock. A client that sent
    * its own ordering would be sending one computed from a read that may already
    * be stale (ADR 0023).
    */
-  arrangeBySchedule(projectId: string): Promise<void>;
-  freezeProject(projectId: string): Promise<void>;
-  unfreezeProject(projectId: string): Promise<void>;
+  arrangeBySchedule(workPackageId: string): Promise<void>;
+  freezeWorkPackage(workPackageId: string): Promise<void>;
+  unfreezeWorkPackage(workPackageId: string): Promise<void>;
   unfreezeWorkItem(id: string): Promise<void>;
   /**
    * Claims a work item for a person (`wbs-claim-display` 11.2): every step not
@@ -2330,38 +2389,38 @@ export interface ProjectApi {
   addDependency(id: string, predecessorId: string): Promise<void>;
   removeDependency(id: string, predecessorId: string): Promise<void>;
   addTypedDependency(
-    projectId: string,
+    workPackageId: string,
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
     type: TypedDependencyType,
   ): Promise<void>;
   updateTypedDependency(
-    projectId: string,
+    workPackageId: string,
     dependencyId: string,
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
     type: TypedDependencyType,
   ): Promise<void>;
-  removeTypedDependency(projectId: string, dependencyId: string): Promise<void>;
+  removeTypedDependency(workPackageId: string, dependencyId: string): Promise<void>;
   /**
-   * The resources the caller's directory holds, this project's stated
+   * The resources the caller's directory holds, this work package's stated
    * capacities and every demand on its work items (`wbs-resources`): what a
    * row's Resources panel offers and states against. Every refusal throws its
    * code.
    */
-  readResources(projectId: string): Promise<ProjectResourcesView>;
+  readResources(workPackageId: string): Promise<WorkPackageResourcesView>;
   /**
    * States or clears (`units: null`) one work item's demand on each named
    * resource, all as **one** batch: one journal entry, so the plan's Undo takes
    * the whole edit back at once. Units are not validated here; be-01 answers
    * `units_must_be_a_whole_number_from_1` and `exclusive_demand_is_one`.
    */
-  setDemands(projectId: string, statements: readonly DemandStatement[]): Promise<void>;
+  setDemands(workPackageId: string, statements: readonly DemandStatement[]): Promise<void>;
 }
 
-/** What {@link ProjectApi.readResources} answers. */
-export type ProjectResourcesView = Extract<
-  ClientReply<typeof readProjectResourcesShape>,
+/** What {@link WorkPackageApi.readResources} answers. */
+export type WorkPackageResourcesView = Extract<
+  ClientReply<typeof readWorkPackageResourcesShape>,
   { kind: 'success' }
 >['body'];
 
@@ -2375,41 +2434,44 @@ export interface DemandStatement {
 const WBS_SHAPES = [
   addStepShape,
   applyDirectoryCommands,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   createCalendarMarkerShape,
   createProjectShape,
+  createWorkPackageShape,
   getWorkItems,
   listCalendarMarkersShape,
   listExternalSystemsShape,
   listMeasuresShape,
   listPeopleShape,
   listProjectsShape,
+  listWorkPackagesShape,
   listServicesShape,
   listTagsShape,
   listTeamsShape,
   listWorkItemTypesShape,
-  patchProjectShape,
-  readProjectShape,
+  patchWorkPackageShape,
+  patchWorkPackageStepValuesShape,
+  readWorkPackageShape,
   readClaimHistoryShape,
-  readProjectClaimsShape,
-  readProjectResourcesShape,
+  readWorkPackageClaimsShape,
+  readWorkPackageResourcesShape,
   readTimezonesShape,
-  recordProjectOpen,
-  redoProjectShape,
+  recordWorkPackageOpen,
+  redoWorkPackageShape,
   removeCalendarMarkerShape,
   removeStepShape,
   renameStepShape,
-  retryProjectOptimizationShape,
-  undoProjectShape,
+  retryWorkPackageOptimizationShape,
+  undoWorkPackageShape,
   updateCalendarMarkerShape,
 ] as const;
 
-const PROJECT_TRANSFER_SHAPES = [exportProjectShape, importProjectShape] as const;
-const PROJECT_SHAPES = [...WBS_SHAPES, ...PROJECT_TRANSFER_SHAPES] as const;
+const WORK_PACKAGE_TRANSFER_SHAPES = [exportWorkPackageShape, importWorkPackageShape] as const;
+const WORK_PACKAGE_SHAPES = [...WBS_SHAPES, ...WORK_PACKAGE_TRANSFER_SHAPES] as const;
 
 type WbsShape = (typeof WBS_SHAPES)[number];
 export type WbsOperationId =
-  WbsShape['operationId'] | (typeof PROJECT_TRANSFER_SHAPES)[number]['operationId'];
+  WbsShape['operationId'] | (typeof WORK_PACKAGE_TRANSFER_SHAPES)[number]['operationId'];
 type RefusalFor<S extends WbsShape> = Extract<ClientReply<S>, { kind: 'refusal' }>['body'];
 type WbsRefusalProblemFor<S extends WbsShape> = S extends WbsShape
   ? { kind: 'refusal'; operation: S['operationId']; refusal: RefusalFor<S> }
@@ -2421,7 +2483,7 @@ type WbsRefusalProblemFor<S extends WbsShape> = S extends WbsShape
  * Only a refusal's body depends on its operation, so the failure arm is one
  * member, not one per operation: TypeScript relates an object to a union by its
  * discriminant only up to 25 members, and a per-operation failure arm stopped
- * `throwReply` typechecking at the 26th shape (`readProjectClaims`).
+ * `throwReply` typechecking at the 26th shape (`readWorkPackageClaims`).
  */
 export type WbsProblem =
   | WbsRefusalProblemFor<WbsShape>
@@ -2513,7 +2575,7 @@ function emptyBody<S extends WbsShape>(
   throwReply(shape, reply as RejectedReply<S>);
 }
 
-type ProjectCommand = ClientInput<typeof applyProjectCommands>['body']['commands'][number];
+type WorkPackageCommand = ClientInput<typeof applyWorkPackageCommands>['body']['commands'][number];
 type DirectoryCommand = ClientInput<typeof applyDirectoryCommands>['body']['commands'][number];
 type WbsClient = Client<typeof WBS_SHAPES>;
 
@@ -2524,7 +2586,7 @@ type WbsClient = Client<typeof WBS_SHAPES>;
  * `forbidden` reach a toast as themselves — and steps are the exception on
  * purpose: these are refusals aimed at somebody typing a name into a box, not at
  * somebody reading a plan, and `taken` in the corner of the screen is a word
- * about HTTP rather than about their project.
+ * about HTTP rather than about their work package.
  *
  * `Partial` would make every read a `string | undefined` with a fallback
  * invented at each call site, which is how two spellings of one refusal happen;
@@ -2602,7 +2664,7 @@ const SERVER_REFUSAL = 'The server could not save that. Try again.';
  * What a refused **capacity** change says out loud.
  *
  * Its own function rather than an arm of {@link directoryRefusalSentence}, and
- * that is the whole of `capacity-per-project`'s move on this tier: the two size
+ * that is the whole of `capacity-per-work-package`'s move on this tier: the two size
  * arms used to live there, because the box lived on the directory page and the
  * number was the team's. It is the plan's number now, and every sentence here
  * says "on this plan" — which the directory's own refusals must not, because the
@@ -2754,7 +2816,7 @@ export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
 /**
  * The deployment's directory over HTTP.
  *
- * The one spelling of these calls. `httpProjectApi`'s four directory
+ * The one spelling of these calls. `httpWorkPackageApi`'s four directory
  * methods delegate here rather than repeating the paths, because two copies of
  * `/api/people` is how a page and a picker come to disagree about what a person
  * is.
@@ -2792,13 +2854,13 @@ interface BatchAnswer {
 async function postBatch(
   client: WbsClient,
   token: string,
-  projectId: string,
-  commands: ProjectCommand[],
+  workPackageId: string,
+  commands: WorkPackageCommand[],
 ): Promise<BatchAnswer> {
   return jsonBody(
-    applyProjectCommands,
-    await client.postApiProjectsByIdCommands({
-      params: { id: projectId },
+    applyWorkPackageCommands,
+    await client.postApiWorkPackagesByIdCommands({
+      params: { id: workPackageId },
       body: { commands },
       headers: auth(token),
     }),
@@ -3033,53 +3095,53 @@ export function httpDirectoryApi(token: string, scope?: ResourceScope): Director
   };
 }
 
-export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi {
-  const client = browserClient(PROJECT_SHAPES, scope);
+export function httpWorkPackageApi(token: string, scope?: ResourceScope): WorkPackageApi {
+  const client = browserClient(WORK_PACKAGE_SHAPES, scope);
   /**
    * The directory client, spread into the answer below rather than delegated
-   * method by method: the thirteen vocabulary members {@link ProjectApi} shares
+   * method by method: the thirteen vocabulary members {@link WorkPackageApi} shares
    * with {@link DirectoryApi} were thirteen one-line forwards until 2026-09-02,
    * and each of them was a chance to forward the wrong argument. Spread, they
    * are the same functions the directory page calls.
    *
    * `DirectoryApi`'s other eight members (the renames and removals the
-   * directory page owns) come along at runtime and are not on `ProjectApi`, so
+   * directory page owns) come along at runtime and are not on `WorkPackageApi`, so
    * nothing typed can reach them from a plan. Segregating them would mean a
    * third interface for no caller.
    */
   const directory = httpDirectoryApi(token, scope);
   /**
-   * Which project each work item this client has seen belongs to — learned
+   * Which work package each work item this client has seen belongs to — learned
    * from every tree it reads and every row it creates, because the batch route
-   * is the project's and the write methods are given a work item id. A write on
-   * a row no tree has shown is refused rather than sent to a guessed project.
+   * is the work package's and the write methods are given a work item id. A write on
+   * a row no tree has shown is refused rather than sent to a guessed work package.
    */
-  const projectOf = new Map<string, string>();
-  const projectFor = (workItemId: string): string => {
-    const found = projectOf.get(workItemId);
+  const workPackageOf = new Map<string, string>();
+  const workPackageFor = (workItemId: string): string => {
+    const found = workPackageOf.get(workItemId);
     if (found === undefined) throw new Error('unknown_work_item');
     return found;
   };
-  /** One plan command on `projectId`, as a batch of one. */
-  const command = (projectId: string, step: ProjectCommand): Promise<BatchAnswer> =>
-    postBatch(client, token, projectId, [step]);
-  /** One command aimed at a work item, on the project that row belongs to. */
-  const onRow = (workItemId: string, step: ProjectCommand): Promise<BatchAnswer> =>
-    command(projectFor(workItemId), step);
+  /** One plan command on `workPackageId`, as a batch of one. */
+  const command = (workPackageId: string, step: WorkPackageCommand): Promise<BatchAnswer> =>
+    postBatch(client, token, workPackageId, [step]);
+  /** One command aimed at a work item, on the work package that row belongs to. */
+  const onRow = (workItemId: string, step: WorkPackageCommand): Promise<BatchAnswer> =>
+    command(workPackageFor(workItemId), step);
 
   /**
    * The `PATCH` both edits go through, taking exactly the one field its caller
    * named — and only ever one, which is what the route accepts.
    */
   const editMarker = async (
-    projectId: string,
+    workPackageId: string,
     markerId: string,
     change: { name: string } | { color: string | null },
   ): Promise<CalendarMarkerView> => {
     const body = jsonBody(
       updateCalendarMarkerShape,
-      await client['patchApiProjectsByIdCalendar-markersByMarkerId']({
-        params: { id: projectId, markerId },
+      await client['patchApiWorkPackagesByIdCalendar-markersByMarkerId']({
+        params: { id: workPackageId, markerId },
         body: change,
         headers: auth(token),
       }),
@@ -3093,23 +3155,61 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       return jsonBody(listProjectsShape, await client.getApiProjects({ headers: auth(token) }))
         .projects;
     },
-    async createProject(name) {
+    async createProjectWithWorkPackage(projectName, workPackageName) {
+      const reply = await client.postApiProjects({
+        body: { name: projectName, workPackage: { name: workPackageName } },
+        headers: auth(token),
+      });
+      if (reply.kind !== 'success') return throwReply(createProjectShape, reply);
+      const creation = reply.body;
+      const workPackage = creation.workPackage;
+      const steps = creation.steps;
+      // The endpoint also creates empty projects. This named-pair facade requires
+      // both committed child fields and their actual parent correspondence.
+      if (
+        workPackage === undefined ||
+        steps === undefined ||
+        workPackage.projectId !== creation.project.id
+      )
+        throw new WbsRequestError({
+          kind: 'failure',
+          operation: createProjectShape.operationId,
+          failure: {
+            code: 'invalid_response',
+            reason: 'schema',
+            status: reply.status,
+            headers: reply.headers,
+          },
+        });
+      return {
+        project: creation.project,
+        workPackage,
+        steps,
+      };
+    },
+    async listWorkPackages() {
+      return jsonBody(
+        listWorkPackagesShape,
+        await client.getApiWorkPackages({ headers: auth(token) }),
+      ).workPackages;
+    },
+    async createWorkPackage(projectId, name) {
       const body = jsonBody(
-        createProjectShape,
-        await client.postApiProjects({ body: { name }, headers: auth(token) }),
+        createWorkPackageShape,
+        await client.postApiWorkPackages({ body: { projectId, name }, headers: auth(token) }),
       );
-      return body.project;
+      return body.workPackage;
     },
-    async openProject(id) {
+    async openWorkPackage(id) {
       emptyBody(
-        recordProjectOpen,
-        await client.postApiProjectsByIdOpened({ params: { id }, headers: auth(token) }),
+        recordWorkPackageOpen,
+        await client.postApiWorkPackagesByIdOpened({ params: { id }, headers: auth(token) }),
       );
     },
-    async renameProject(id, name) {
+    async renameWorkPackage(id, name) {
       jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
           params: { id },
           body: { name },
           headers: auth(token),
@@ -3121,34 +3221,34 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       // failed `rejects a successful response missing its trusted abbreviation`:
       // the promise resolved instead of rejecting. Watched 2026-10-22.
       return jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
           params: { id },
           body: { abbreviation },
           headers: auth(token),
         }),
-      ).project.abbreviation;
+      ).workPackage.abbreviation;
     },
-    async tree(projectId) {
+    async tree(workPackageId) {
       const tree = jsonBody(
         getWorkItems,
-        await client['getApiProjectsByIdWork-items']({
-          params: { id: projectId },
+        await client['getApiWorkPackagesByIdWork-items']({
+          params: { id: workPackageId },
           headers: auth(token),
         }),
       );
       const { optimization, ...read } = tree;
-      // Proof: bypassing URL binding resolves foreign-project connected packets;
-      // the producer-to-HTTP project mismatch cases fail (2026-10-22).
-      if (optimization?.scope !== undefined && optimization.scope.projectId !== projectId)
-        throw new Error('connected_optimization_project_mismatch');
+      // Proof: bypassing URL binding resolves foreign-work-package connected packets;
+      // the producer-to-HTTP work package mismatch cases fail (2026-10-22).
+      if (optimization?.scope !== undefined && optimization.scope.workPackageId !== workPackageId)
+        throw new Error('connected_optimization_work_package_mismatch');
       const plan: PlanRead = {
         ...read,
         // Proof: dropping scope after decode rendered both editable rows and Time
         // through the plain HTTP adapter, then failed the mounted table/card
         // accessible retention assertion (b3-scope-plain-fault-final, 2026-10-22).
         ...(optimization === undefined ? {} : { optimization }),
-        typedDependencies: dependencyViewsOf(tree, projectId),
+        typedDependencies: dependencyViewsOf(tree, workPackageId),
         steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({
           ...row,
@@ -3159,12 +3259,12 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           externalRefs: row.externalRefs.map((ref) => ({ ...ref })),
         })),
       };
-      for (const row of plan.workItems) projectOf.set(row.id, projectId);
+      for (const row of plan.workItems) workPackageOf.set(row.id, workPackageId);
       return plan;
     },
-    async exportPlan(projectId) {
-      const reply = await client.getApiProjectsByIdExport({
-        params: { id: projectId },
+    async exportPlan(workPackageId) {
+      const reply = await client.getApiWorkPackagesByIdExport({
+        params: { id: workPackageId },
         query: { format: 'json' },
         headers: auth(token),
       });
@@ -3173,9 +3273,9 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       if (reply.kind === 'failure') throw new Error(wbsFailureCode(reply.failure));
       throw new Error(reply.body.error);
     },
-    async importPlan(document) {
-      const reply = await client.postApiProjectsImport({
-        body: document,
+    async importPlan(projectId, document) {
+      const reply = await client.postApiWorkPackagesImport({
+        body: { projectId, document },
         headers: auth(token),
       });
       if (reply.kind === 'success') return reply.body;
@@ -3185,48 +3285,48 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       // `workItems[12].dependsOn[0]` and its exact detail. Observed 2026-09-14.
       throw new PlanImportRefusalError(reply.body);
     },
-    async undo(projectId) {
-      const reply = await client.postApiProjectsByIdUndo({
-        params: { id: projectId },
+    async undo(workPackageId) {
+      const reply = await client.postApiWorkPackagesByIdUndo({
+        params: { id: workPackageId },
         headers: auth(token),
       });
-      if (reply.kind === 'failure') return throwReply(undoProjectShape, reply);
+      if (reply.kind === 'failure') return throwReply(undoWorkPackageShape, reply);
       if (reply.kind === 'success')
         return { ok: true, done: reply.body.done, detail: reply.body.detail };
       if (reply.body.error === 'nothing_to_undo' || reply.body.error === 'stale_undo')
         return { ok: false, reason: reply.body.error, detail: reply.body.detail };
-      return throwReply(undoProjectShape, reply);
+      return throwReply(undoWorkPackageShape, reply);
     },
-    async redo(projectId) {
-      const reply = await client.postApiProjectsByIdRedo({
-        params: { id: projectId },
+    async redo(workPackageId) {
+      const reply = await client.postApiWorkPackagesByIdRedo({
+        params: { id: workPackageId },
         headers: auth(token),
       });
-      if (reply.kind === 'failure') return throwReply(redoProjectShape, reply);
+      if (reply.kind === 'failure') return throwReply(redoWorkPackageShape, reply);
       if (reply.kind === 'success')
         return { ok: true, done: reply.body.done, detail: reply.body.detail };
       if (reply.body.error === 'nothing_to_undo' || reply.body.error === 'stale_undo')
         return { ok: false, reason: reply.body.error, detail: reply.body.detail };
-      return throwReply(redoProjectShape, reply);
+      return throwReply(redoWorkPackageShape, reply);
     },
     async assignPerson(workItemId, stepId, personId) {
       await onRow(workItemId, { kind: 'setAssignee', workItemId, stepId, personId });
     },
-    async setStartDate(projectId, startDate) {
+    async setStartDate(workPackageId, startDate) {
       jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
-          params: { id: projectId },
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
+          params: { id: workPackageId },
           body: { startDate },
           headers: auth(token),
         }),
       );
     },
-    async setTimezone(projectId, timezone) {
+    async setTimezone(workPackageId, timezone) {
       jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
-          params: { id: projectId },
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
+          params: { id: workPackageId },
           body: { timezone },
           headers: auth(token),
         }),
@@ -3236,80 +3336,80 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       return jsonBody(readTimezonesShape, await client.getApiTimezones({ headers: auth(token) }))
         .timezones;
     },
-    async listCalendarMarkers(projectId) {
+    async listCalendarMarkers(workPackageId) {
       return jsonBody(
         listCalendarMarkersShape,
-        await client['getApiProjectsByIdCalendar-markers']({
-          params: { id: projectId },
+        await client['getApiWorkPackagesByIdCalendar-markers']({
+          params: { id: workPackageId },
           headers: auth(token),
         }),
       ).markers;
     },
-    async readClaims(projectId) {
+    async readClaims(workPackageId) {
       return checkClaimsRead(
         jsonBody(
-          readProjectClaimsShape,
-          await client.getApiProjectsByIdClaims({
-            params: { id: projectId },
+          readWorkPackageClaimsShape,
+          await client.getApiWorkPackagesByIdClaims({
+            params: { id: workPackageId },
             headers: auth(token),
           }),
         ),
       );
     },
-    async readClaimHistory(projectId) {
+    async readClaimHistory(workPackageId) {
       return jsonBody(
         readClaimHistoryShape,
-        await client['getApiProjectsByIdClaim-history']({
-          params: { id: projectId },
+        await client['getApiWorkPackagesByIdClaim-history']({
+          params: { id: workPackageId },
           query: {},
           headers: auth(token),
         }),
       ).events;
     },
-    async createCalendarMarker(projectId, marker) {
+    async createCalendarMarker(workPackageId, marker) {
       const body = jsonBody(
         createCalendarMarkerShape,
-        await client['postApiProjectsByIdCalendar-markers']({
-          params: { id: projectId },
+        await client['postApiWorkPackagesByIdCalendar-markers']({
+          params: { id: workPackageId },
           body: marker,
           headers: auth(token),
         }),
       );
       return body.marker;
     },
-    async renameCalendarMarker(projectId, markerId, name) {
-      return editMarker(projectId, markerId, { name });
+    async renameCalendarMarker(workPackageId, markerId, name) {
+      return editMarker(workPackageId, markerId, { name });
     },
-    async recolorCalendarMarker(projectId, markerId, color) {
+    async recolorCalendarMarker(workPackageId, markerId, color) {
       // `{ color }` and never `{ name, color }`: the route takes exactly one of
       // the two and refuses a body naming both, so a shared "edit" spelling
       // that carried the marker's unchanged name along would be refused every
       // time. `color: null` is a stated choice and stays on the wire.
-      return editMarker(projectId, markerId, { color });
+      return editMarker(workPackageId, markerId, { color });
     },
-    async deleteCalendarMarker(projectId, markerId) {
+    async deleteCalendarMarker(workPackageId, markerId) {
       emptyBody(
         removeCalendarMarkerShape,
-        await client['deleteApiProjectsByIdCalendar-markersByMarkerId']({
-          params: { id: projectId, markerId },
+        await client['deleteApiWorkPackagesByIdCalendar-markersByMarkerId']({
+          params: { id: workPackageId, markerId },
           headers: auth(token),
         }),
       );
     },
-    async readResources(projectId) {
+    async readResources(workPackageId) {
       return jsonBody(
-        readProjectResourcesShape,
-        await client.getApiProjectsByIdResources({
-          params: { id: projectId },
+        readWorkPackageResourcesShape,
+        await client.getApiWorkPackagesByIdResources({
+          params: { id: workPackageId },
           headers: auth(token),
         }),
       );
     },
-    async setDemands(projectId, statements) {
+    async setDemands(workPackageId, statements) {
       await postBatch(
         client,
         token,
-        projectId,
+        workPackageId,
         statements.map(({ workItemId, resourceId, units }) => ({
           kind: 'setDemand',
           workItemId,
@@ -3318,115 +3418,120 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         })),
       );
     },
-    async setTeamCapacity(projectId, teamId, size) {
-      await command(projectId, { kind: 'setCapacity', teamId, size });
+    async setTeamCapacity(workPackageId, teamId, size) {
+      await command(workPackageId, { kind: 'setCapacity', teamId, size });
     },
-    async setPriorityBands(projectId, bands) {
-      await command(projectId, { kind: 'setPriorityBands', bands: [...bands] });
+    async setPriorityBands(workPackageId, bands) {
+      await command(workPackageId, { kind: 'setPriorityBands', bands: [...bands] });
     },
-    async setEstimateMethod(projectId, method) {
+    async setEstimateMethod(workPackageId, method) {
       jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
-          params: { id: projectId },
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
+          params: { id: workPackageId },
           body: { estimateMethod: method },
           headers: auth(token),
         }),
       );
     },
-    async setEstimateArithmetic(projectId, arithmetic) {
+    async setEstimateArithmetic(workPackageId, arithmetic) {
       jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
-          params: { id: projectId },
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
+          params: { id: workPackageId },
           body: arithmetic,
           headers: auth(token),
         }),
       );
     },
-    async setDepReach(projectId, reach) {
+    async setDepReach(workPackageId, reach) {
       jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
-          params: { id: projectId },
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
+          params: { id: workPackageId },
           body: { depReach: reach },
           headers: auth(token),
         }),
       );
     },
-    async retryOptimization(projectId, objective, inputHash) {
+    async retryOptimization(workPackageId, objective, inputHash) {
       jsonBody(
-        retryProjectOptimizationShape,
-        await client.postApiProjectsByIdOptimizationRetry({
-          params: { id: projectId },
+        retryWorkPackageOptimizationShape,
+        await client.postApiWorkPackagesByIdOptimizationRetry({
+          params: { id: workPackageId },
           body: { objective, inputHash },
           headers: auth(token),
         }),
       );
     },
-    async setOptimizationSettings(projectId, patch) {
+    async setOptimizationSettings(workPackageId, patch) {
       jsonBody(
-        patchProjectShape,
-        await client.patchApiProjectsById({
-          params: { id: projectId },
+        patchWorkPackageShape,
+        await client.patchApiWorkPackagesById({
+          params: { id: workPackageId },
           body: patch,
           headers: auth(token),
         }),
       );
     },
-    async steps(projectId) {
+    async steps(workPackageId) {
       return jsonBody(
-        readProjectShape,
-        await client.getApiProjectsById({ params: { id: projectId }, headers: auth(token) }),
+        readWorkPackageShape,
+        await client.getApiWorkPackagesById({
+          params: { id: workPackageId },
+          headers: auth(token),
+        }),
       ).steps.map(stepViewOf);
     },
-    async addStep(projectId, name, estimateUnit = 'workdays') {
+    async addStep(workPackageId, name, estimateUnit = 'workdays') {
       const { step } = jsonBody(
         addStepShape,
-        await client.postApiProjectsByIdSteps({
-          params: { id: projectId },
+        await client.postApiWorkPackagesByIdSteps({
+          params: { id: workPackageId },
           body: { name, estimateUnit },
           headers: auth(token),
         }),
       );
       return stepViewOf(step);
     },
-    async setStepUnit(projectId, stepId, estimateUnit) {
+    async setStepUnit(workPackageId, stepId, estimateUnit) {
       const { step } = jsonBody(
-        renameStepShape,
-        await client.patchApiProjectsByIdStepsByStepId({
-          params: { id: projectId, stepId },
+        patchWorkPackageStepValuesShape,
+        await client.patchWorkPackageStepValues({
+          params: { id: workPackageId, stepId },
           body: { estimateUnit },
           headers: auth(token),
         }),
       );
       return stepViewOf(step);
     },
-    async renameStep(projectId, stepId, name) {
+    async renameStep(workPackageId, stepId, name) {
       const { step } = jsonBody(
         renameStepShape,
-        await client.patchApiProjectsByIdStepsByStepId({
-          params: { id: projectId, stepId },
+        await client.patchApiWorkPackagesByIdStepsByStepId({
+          params: { id: workPackageId, stepId },
           body: { name },
           headers: auth(token),
         }),
       );
       return stepViewOf(step);
     },
-    async setStepAllowance(projectId, stepId, allowancePercent) {
+    async setStepAllowance(workPackageId, stepId, allowancePercent) {
+      const allowanceBps = allowanceHundredthsOf(allowancePercent);
+      if (allowanceBps === null) throw new RangeError('invalid_allowance');
       const { step } = jsonBody(
-        renameStepShape,
-        await client.patchApiProjectsByIdStepsByStepId({
-          params: { id: projectId, stepId },
-          body: { allowancePercent },
+        patchWorkPackageStepValuesShape,
+        await client.patchWorkPackageStepValues({
+          params: { id: workPackageId, stepId },
+          body: { allowanceBps },
           headers: auth(token),
         }),
       );
       return stepViewOf(step);
     },
-    async removeStep(projectId, stepId, cascade) {
-      const reply = await client.deleteApiProjectsByIdStepsByStepId({
-        params: { id: projectId, stepId },
+    async removeStep(workPackageId, stepId, cascade) {
+      const reply = await client.deleteApiWorkPackagesByIdStepsByStepId({
+        params: { id: workPackageId, stepId },
         ...(cascade ? { query: { cascade: 'true' } } : {}),
         headers: auth(token),
       });
@@ -3436,10 +3541,10 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         return { ok: false, reason: 'in_use', inUse: reply.body.inUse };
       return throwReply(removeStepShape, reply);
     },
-    async createWorkItem(projectId, input) {
-      const made = onlyResult(await command(projectId, { kind: 'createWorkItem', ...input }));
+    async createWorkItem(workPackageId, input) {
+      const made = onlyResult(await command(workPackageId, { kind: 'createWorkItem', ...input }));
       if (made.id === undefined) throw new Error('unexpected_response');
-      projectOf.set(made.id, projectId);
+      workPackageOf.set(made.id, workPackageId);
       return { id: made.id };
     },
     async patchWorkItem(id, patch) {
@@ -3495,12 +3600,12 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       await onRow(id, { kind: 'moveWorkItem', workItemId: id, parentId, afterId });
     },
     async duplicateWorkItem(id) {
-      const projectId = projectFor(id);
+      const workPackageId = workPackageFor(id);
       const copy = onlyResult(
-        await command(projectId, { kind: 'duplicateWorkItem', workItemId: id }),
+        await command(workPackageId, { kind: 'duplicateWorkItem', workItemId: id }),
       );
       if (copy.id === undefined) throw new Error('unexpected_response');
-      projectOf.set(copy.id, projectId);
+      workPackageOf.set(copy.id, workPackageId);
       return { id: copy.id };
     },
     async removeWorkItem(id, options) {
@@ -3565,14 +3670,14 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
     async clearBudget(id, measure) {
       await onRow(id, { kind: 'clearBudget', workItemId: id, measure });
     },
-    async arrangeBySchedule(projectId) {
-      await command(projectId, { kind: 'arrangeBySchedule' });
+    async arrangeBySchedule(workPackageId) {
+      await command(workPackageId, { kind: 'arrangeBySchedule' });
     },
-    async freezeProject(projectId) {
-      await command(projectId, { kind: 'freezeProject' });
+    async freezeWorkPackage(workPackageId) {
+      await command(workPackageId, { kind: 'freezeWorkPackage' });
     },
-    async unfreezeProject(projectId) {
-      await command(projectId, { kind: 'unfreezeProject' });
+    async unfreezeWorkPackage(workPackageId) {
+      await command(workPackageId, { kind: 'unfreezeWorkPackage' });
     },
     async unfreezeWorkItem(id) {
       await onRow(id, { kind: 'unfreezeWorkItem', workItemId: id });
@@ -3589,11 +3694,11 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
     async removeDependency(id, predecessorId) {
       await onRow(id, { kind: 'removeDependency', workItemId: id, predecessorId });
     },
-    async addTypedDependency(projectId, predecessor, successor, type) {
-      await command(projectId, { kind: 'addTypedDependency', predecessor, successor, type });
+    async addTypedDependency(workPackageId, predecessor, successor, type) {
+      await command(workPackageId, { kind: 'addTypedDependency', predecessor, successor, type });
     },
-    async updateTypedDependency(projectId, dependencyId, predecessor, successor, type) {
-      await command(projectId, {
+    async updateTypedDependency(workPackageId, dependencyId, predecessor, successor, type) {
+      await command(workPackageId, {
         kind: 'updateTypedDependency',
         dependencyId,
         predecessor,
@@ -3602,8 +3707,8 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         type,
       });
     },
-    async removeTypedDependency(projectId, dependencyId) {
-      await command(projectId, { kind: 'removeTypedDependency', dependencyId });
+    async removeTypedDependency(workPackageId, dependencyId) {
+      await command(workPackageId, { kind: 'removeTypedDependency', dependencyId });
     },
   };
 }
@@ -3613,42 +3718,45 @@ export function depthOf(workItem: WorkItemView): number {
 }
 
 /** Read observations with typed refusals and cancellation; stable-ID writers reauthorize selections. */
-export interface ProjectAddressApi {
-  projects: (
+export interface WorkPackageAddressApi {
+  workPackages: (
     query: { q?: string; limit?: string; cursor?: string },
     signal?: AbortSignal,
-  ) => Promise<ClientReply<typeof discoverAddressProjects>>;
+  ) => Promise<ClientReply<typeof discoverAddressWorkPackages>>;
   candidates: (
-    projectId: string,
+    workPackageId: string,
     query: { q?: string; limit?: string; cursor?: string },
     signal?: AbortSignal,
   ) => Promise<ClientReply<typeof discoverAddressCandidates>>;
   resolve: (
-    projectId: string,
+    workPackageId: string,
     reference: string,
     revision: string,
     signal?: AbortSignal,
   ) => Promise<ClientReply<typeof resolveAddressReference>>;
 }
 /** Uses the shared shape client, including its refusal schemas and AbortSignal contract. */
-export function httpProjectAddressApi(token: string, scope?: ResourceScope): ProjectAddressApi {
+export function httpWorkPackageAddressApi(
+  token: string,
+  scope?: ResourceScope,
+): WorkPackageAddressApi {
   const client = browserClient(
-    [discoverAddressProjects, discoverAddressCandidates, resolveAddressReference] as const,
+    [discoverAddressWorkPackages, discoverAddressCandidates, resolveAddressReference] as const,
     scope,
   );
   return {
-    projects: (query, signal) =>
-      client.getApiProjectAddressesProjects({ query, signal, headers: auth(token) }),
-    candidates: (projectId, query, signal) =>
-      client.getApiProjectsByIdAddressCandidates({
-        params: { id: projectId },
+    workPackages: (query, signal) =>
+      client.getApiWorkPackageAddressesWorkPackages({ query, signal, headers: auth(token) }),
+    candidates: (workPackageId, query, signal) =>
+      client.getApiWorkPackagesByIdAddressCandidates({
+        params: { id: workPackageId },
         query,
         signal,
         headers: auth(token),
       }),
-    resolve: (projectId, reference, revision, signal) =>
-      client.getApiProjectsByIdAddressReferences({
-        params: { id: projectId },
+    resolve: (workPackageId, reference, revision, signal) =>
+      client.getApiWorkPackagesByIdAddressReferences({
+        params: { id: workPackageId },
         query: { reference, revision },
         signal,
         headers: auth(token),

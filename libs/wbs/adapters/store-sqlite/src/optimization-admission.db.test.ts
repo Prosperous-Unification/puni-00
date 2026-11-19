@@ -31,7 +31,7 @@ function prepared() {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
@@ -48,7 +48,7 @@ describe('reserveSolverSlot', () => {
     const { db, generation } = prepared();
     expect(
       reserveSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -59,7 +59,7 @@ describe('reserveSolverSlot', () => {
       }),
     ).toMatchObject({ kind: 'reserved' });
     const common = {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri' as const,
@@ -81,7 +81,7 @@ describe('reserveSolverSlot', () => {
   it('heartbeats exactly its running attempt and reports the live generation', () => {
     const { db, generation } = prepared();
     const admission = reserveSolverSlot(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri',
@@ -92,7 +92,7 @@ describe('reserveSolverSlot', () => {
     });
     if (admission.kind !== 'reserved') throw new Error('expected a reservation');
     const slot = {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri' as const,
@@ -109,7 +109,7 @@ describe('reserveSolverSlot', () => {
   it('returns the durable cancellation marker while refreshing the owned row', () => {
     const { path, db, generation } = prepared();
     const admission = reserveSolverSlot(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri',
@@ -121,7 +121,7 @@ describe('reserveSolverSlot', () => {
     if (admission.kind !== 'reserved') throw new Error('expected a reservation');
     expect(
       bindSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -132,14 +132,14 @@ describe('reserveSolverSlot', () => {
     ).toBe(true);
     const raw = openDatabase(path);
     try {
-      raw.run(`UPDATE solver_slot SET cancel_requested_at = 500 WHERE project_id = 'p-1'`);
+      raw.run(`UPDATE solver_slot SET cancel_requested_at = 500 WHERE work_package_id = 'p-1'`);
     } finally {
       raw.close();
     }
 
     expect(
       heartbeatSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -155,7 +155,7 @@ describe('reserveSolverSlot', () => {
   it('observes a moved cancel epoch even when no slot marker was written', () => {
     const { path, db, generation } = prepared();
     const admission = reserveSolverSlot(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri',
@@ -167,7 +167,7 @@ describe('reserveSolverSlot', () => {
     if (admission.kind !== 'reserved') throw new Error('expected a reservation');
     expect(
       bindSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -180,7 +180,7 @@ describe('reserveSolverSlot', () => {
     try {
       raw.run(
         `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1
-         WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+         WHERE work_package_id = 'p-1' AND contract_version = '${CONTRACT}'`,
       );
     } finally {
       raw.close();
@@ -188,7 +188,7 @@ describe('reserveSolverSlot', () => {
 
     expect(
       heartbeatSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -206,7 +206,7 @@ describe('reserveSolverSlot', () => {
   it('does not let an old token refresh the replacement attempt', () => {
     const { path, db, generation } = prepared();
     const admission = reserveSolverSlot(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri',
@@ -221,7 +221,7 @@ describe('reserveSolverSlot', () => {
       raw.run(
         `UPDATE solver_slot
          SET attempt_token = 'replacement-token', heartbeat_at = 20, lifecycle = 'running', pid = 43
-         WHERE project_id = 'p-1'`,
+         WHERE work_package_id = 'p-1'`,
       );
     } finally {
       raw.close();
@@ -229,7 +229,7 @@ describe('reserveSolverSlot', () => {
 
     expect(
       heartbeatSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -253,7 +253,7 @@ describe('reserveSolverSlot', () => {
   it('coalesces two coordinators on one full slot key', () => {
     const { db, generation } = prepared();
     const common = {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri' as const,
@@ -286,7 +286,7 @@ describe('reserveSolverSlot', () => {
     expect(blue?.pid).toBeNull();
 
     // Proof: deleting the existing-key check makes the second result
-    // `project-full` once four seats exist, rather than coalescing by identity.
+    // `work-package-full` once four seats exist, rather than coalescing by identity.
   });
 
   it('refuses admission after the generation is closed', () => {
@@ -294,7 +294,7 @@ describe('reserveSolverSlot', () => {
     const raw = openDatabase(path);
     try {
       raw.run(
-        `UPDATE optimization_generation SET admission_state = 'draining' WHERE project_id = 'p-1'`,
+        `UPDATE optimization_generation SET admission_state = 'draining' WHERE work_package_id = 'p-1'`,
       );
     } finally {
       raw.close();
@@ -302,7 +302,7 @@ describe('reserveSolverSlot', () => {
 
     expect(
       reserveSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -315,12 +315,12 @@ describe('reserveSolverSlot', () => {
     expect(db.select().from(solverSlot).all()).toEqual([]);
   });
 
-  it('counts every unreleased budget against the four-seat project ceiling', () => {
+  it('counts every unreleased budget against the four-seat work package ceiling', () => {
     const { db, generation } = prepared();
     for (const [index, objective] of ['pri', 'time', 'pri', 'time'].entries()) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: objective as 'pri' | 'time',
@@ -334,7 +334,7 @@ describe('reserveSolverSlot', () => {
 
     expect(
       reserveSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -343,7 +343,7 @@ describe('reserveSolverSlot', () => {
         attemptToken: 'fifth-token',
         now: 10,
       }),
-    ).toEqual({ kind: 'project-full' });
+    ).toEqual({ kind: 'work-package-full' });
     expect(db.select().from(solverSlot).all()).toHaveLength(4);
 
     // Proof: counting only one budget or only `running` rows fails here with a
@@ -353,7 +353,7 @@ describe('reserveSolverSlot', () => {
   it('reclaims only slots past their stored deadlines before counting capacity', () => {
     const { db, generation } = prepared();
     const common = {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri' as const,
@@ -387,7 +387,7 @@ describe('reserveSolverSlot', () => {
         .sort((left, right) => left - right),
     ).toEqual([100_000, 200_000]);
 
-    // Proof: omitting the reclaim returns `project-full`; recomputing a common
+    // Proof: omitting the reclaim returns `work-package-full`; recomputing a common
     // deadline incorrectly removes the 100_000 ms child as well.
   });
 
@@ -395,7 +395,7 @@ describe('reserveSolverSlot', () => {
     const { path, db, generation } = prepared();
     expect(
       reserveSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -408,7 +408,7 @@ describe('reserveSolverSlot', () => {
     const raw = openDatabase(path);
     try {
       raw.run(
-        `UPDATE optimization_generation SET admission_state = 'draining' WHERE project_id = 'p-1'`,
+        `UPDATE optimization_generation SET admission_state = 'draining' WHERE work_package_id = 'p-1'`,
       );
     } finally {
       raw.close();
@@ -416,7 +416,7 @@ describe('reserveSolverSlot', () => {
 
     expect(
       reserveSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'time',

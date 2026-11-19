@@ -1,7 +1,7 @@
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
-import type { Broadcaster } from '../../ports/project-event';
+import type { Broadcaster } from '../../ports/work-package-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
@@ -60,10 +60,10 @@ function stagedSource() {
   let turn = Promise.resolve();
 
   const makeScope = (plan: PlanState): Scope => {
-    const projectStoreIdentity = {};
+    const workPackageStoreIdentity = {};
     const stores = {
       typedDependencies: inMemoryTypedDependencies(),
-      projects: projectStoreIdentity,
+      workPackages: workPackageStoreIdentity,
       journal: {
         discard: async (entryId: string) => {
           if (plan === publicPlan) {
@@ -76,7 +76,7 @@ function stagedSource() {
         },
       },
     } as unknown as PlanTransactionalStores;
-    plans.set(projectStoreIdentity, plan);
+    plans.set(workPackageStoreIdentity, plan);
     return { stores };
   };
 
@@ -142,7 +142,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
         },
         recordCollected: () => Promise.resolve(),
         create(
-          _projectId: string,
+          _work_packageId: string,
           _actorId: string,
           draft: { name?: string },
         ): Promise<{ ok: true; value: { id: string } }> {
@@ -155,7 +155,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
           return Promise.resolve({ ok: true, value: { id: name } });
         },
         patch: () => Promise.resolve({ ok: false as const, reason: 'not_found' as const }),
-        hasWorkItemInProject: () => Promise.resolve(false),
+        hasWorkItemInWorkPackage: () => Promise.resolve(false),
         // `createWorkItem` is graph-changing, so the runner asks after it; this
         // staged plan holds no dependencies, so the graph has no cycle.
         findDependencyCycle: () => Promise.resolve(null),
@@ -228,7 +228,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
       commandAccess: localCommandAccess,
       batchServices: (scope, _broadcast) => {
         source.scopedStores.push(scope.stores);
-        const plan = source.plans.get(scope.stores.projects);
+        const plan = source.plans.get(scope.stores.workPackages);
         if (plan === undefined) throw new Error('unit-of-work scope has no staged plan');
         return servicesFor(plan, false);
       },
@@ -237,32 +237,32 @@ describe('the command runner builds services from each unit-of-work scope', () =
       announcements: silentBroadcaster(),
     });
 
-    const refused = await runner.run('project', 'actor', [
+    const refused = await runner.run('work_package', 'actor', [
       { kind: 'createWorkItem', parentId: null, afterId: null, name: 'rolled back' },
       { kind: 'patchWorkItem', workItemId: 'missing', patch: { name: 'still missing' } },
     ]);
     expect(refused.ok).toBe(false);
     expect(source.publicPlan.names).toEqual([]);
 
-    const kept = await runner.run('project', 'actor', [
+    const kept = await runner.run('work_package', 'actor', [
       { kind: 'createWorkItem', parentId: null, afterId: null, name: 'kept' },
     ]);
     expect(kept.ok).toBe(true);
     expect(source.publicPlan.names).toEqual(['kept']);
 
-    expect((await runner.undo('project', 'actor')).ok).toBe(true);
+    expect((await runner.undo('work_package', 'actor')).ok).toBe(true);
     expect(source.publicPlan.names).toEqual([]);
-    expect((await runner.redo('project', 'actor')).ok).toBe(true);
+    expect((await runner.redo('work_package', 'actor')).ok).toBe(true);
     expect(source.publicPlan.names).toEqual(['kept']);
 
     source.publicPlan.stale = true;
-    const staleUndo = runner.undo('project', 'actor');
+    const staleUndo = runner.undo('work_package', 'actor');
     await source.rollbackReached.promise;
     expect(source.repairStarted()).toBe(true);
     await source.repairReached.promise;
     let secondSettled = false;
     const second = runner
-      .run('project', 'actor', [
+      .run('work_package', 'actor', [
         { kind: 'createWorkItem', parentId: null, afterId: null, name: 'later' },
       ])
       .then((outcome) => {

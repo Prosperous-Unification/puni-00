@@ -1,60 +1,44 @@
 import type { Days } from '@wbs/domain';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore } from '../index';
-import type { ProjectEvent } from '../ports/project-event';
+import type { WorkPackage, WorkPackageStore } from '../index';
+import type { WorkPackageEvent } from '../ports/work-package-event';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import type { RecordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
+import {createBoundFixturePackage} from '../testing/bound-package-fixture';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 const DEV = 'step-dev';
 const QA = 'step-qa';
 
 // Only the two this suite reads. It declared and wired five more it never
 // touched — the cost of every file re-deriving the service graph by hand.
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects } = harness.stores);
+  const harness = createTestServices((await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID)).source, {
+});
+  ({ workPackages } = harness.stores);
   broadcast = harness.broadcast;
   service = harness.service;
-  const project: Project = projectRow({
+  const workPackage: WorkPackage = workPackageRow({
     id: crypto.randomUUID(),
-    ownerId: OWNER,
+    projectId: PROJECT_ID,
   });
-  // The two steps these cases estimate against. A project that held neither
+  // The two steps these cases estimate against. A work package that held neither
   // would refuse every write here, as production's foreign key does.
-  await projects.create(
-    project,
-    [
-      {
-        id: DEV,
-        projectId: project.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-      {
-        id: QA,
-        projectId: project.id,
-        name: 'QA',
-        position: 20,
-        code: 'qa',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    { at: 1, by: OWNER },
-  );
-  projectId = project.id;
+  await createBoundFixturePackage(harness.source,'caller-legacy',workPackage,[
+    {definition:{id:DEV,code:'dev',name:'Dev',position:10,defaultEstimateUnit:'workdays',defaultAllowancePercent:0},binding:{bindingId:'estimate-dev-binding',scopeKind:'project',scopeId:PROJECT_ID,workItemTypeId:null,position:10}},
+    {definition:{id:QA,code:'qa',name:'QA',position:20,defaultEstimateUnit:'workdays',defaultAllowancePercent:0},binding:{bindingId:'estimate-qa-binding',scopeKind:'project',scopeId:PROJECT_ID,workItemTypeId:null,position:20}},
+  ],{at:1,by:OWNER});
+  workPackageId = workPackage.id;
 });
 
 const days = (optimistic: number, realistic: number, pessimistic: number): Days => ({
@@ -64,7 +48,7 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
 });
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -75,19 +59,19 @@ async function add(name: string, parentId: string | null = null): Promise<string
  * difference between a step that is absent and one that is zero.
  */
 async function shown(): Promise<Map<string, Record<string, Days>>> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.estimates]));
 }
 
 /**
  * The names an event carries, or a loud failure when it carries none.
  *
- * `ProjectEvent` also covers the step events, which carry a step rather than
+ * `WorkPackageEvent` also covers the step events, which carry a step rather than
  * work items, so reading `workItems` off the union needs a narrowing — and a
  * test that quietly read nothing would assert against an empty list.
  */
-function namesIn(event: ProjectEvent | undefined): string[] {
+function namesIn(event: WorkPackageEvent | undefined): string[] {
   if (event === undefined) throw new Error('nothing was published');
   if (event.type !== 'tree_replaced') {
     throw new Error(`a ${event.type} event carries no work items`);
@@ -120,7 +104,7 @@ describe('setting estimates', () => {
     const strip = await add('Strip');
     await add('Sockets', strip);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     const byName = new Map(tree?.workItems.map((w) => [w.name, w.rolledUp]));
     expect(byName.get('Strip')).toBe(true);
     expect(byName.get('Sockets')).toBe(false);
@@ -208,10 +192,10 @@ describe('clearing estimates', () => {
     expect(await service.clearEstimate(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
   });
 
-  it('refuses a stranger on a restricted project, and clears nothing', async () => {
+  it('refuses a stranger on a restricted work package, and clears nothing', async () => {
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
-    await projects.update(projectId, { restricted: true }, { at: 1, by: OWNER });
+    await workPackages.update(workPackageId, { restricted: true }, { at: 1, by: OWNER });
 
     const outcome = await service.clearEstimate(strip, 'not-the-owner', DEV);
 
@@ -226,7 +210,7 @@ describe('clearing estimates', () => {
     });
   });
 
-  it('tells the project’s subscribers, with the ancestors whose totals moved', async () => {
+  it('tells the work package’s subscribers, with the ancestors whose totals moved', async () => {
     // The same announce `setEstimate` sends. Without it a peer's table keeps
     // showing a figure be-01 no longer holds until something else happens to
     // refresh it. The ancestors ride along because the event is the whole plan.
@@ -238,7 +222,7 @@ describe('clearing estimates', () => {
     await service.clearEstimate(sockets, OWNER, DEV);
 
     const last = broadcast.published.at(-1);
-    expect(last?.projectId).toBe(projectId);
+    expect(last?.workPackageId).toBe(workPackageId);
     expect(last?.event.type).toBe('tree_replaced');
     expect(namesIn(last?.event)).toEqual(['Strip', 'Sockets']);
   });

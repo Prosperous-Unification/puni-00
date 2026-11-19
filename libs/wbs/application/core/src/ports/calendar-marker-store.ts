@@ -1,11 +1,11 @@
 import type { IsoDate } from '@wbs/domain';
 
 /**
- * One dated, named overlay on a project's Gantt axis.
+ * One dated, named overlay on a work package's Gantt axis.
  *
  * **Not a work item and not an SVG marker**, which is the confusion the ADR
  * (`docs/adr/0017-refuse-a-calendar-marker-on-an-undated-plan.md`) exists to
- * refuse: it holds an absolute project date, it schedules nothing, and no
+ * refuse: it holds an absolute work package date, it schedules nothing, and no
  * scheduler input reads it.
  *
  * `color` is `null` for **automatic**, meaning `automaticColor(id)` decides the
@@ -16,7 +16,7 @@ import type { IsoDate } from '@wbs/domain';
 export interface CalendarMarker {
   /** A v4 UUID the composer issues, not the server — design.md §6.1. */
   id: string;
-  projectId: string;
+  workPackageId: string;
   /** An `IsoDate`. No instant, ever — see {@link CalendarMarkerStore.create}. */
   date: IsoDate;
   name: string;
@@ -28,8 +28,8 @@ export interface CalendarMarker {
 /**
  * What a marker write decided.
  *
- * `not_found` covers **both** "no such project" and "no such marker of this
- * project", and the merge is the spec's: a marker of another project answers
+ * `not_found` covers **both** "no such work package" and "no such marker of this
+ * work package", and the merge is the spec's: a marker of another work package answers
  * `not_found` rather than `forbidden`, because the caller may not learn it
  * exists (spec.md, the refusal table).
  *
@@ -42,10 +42,10 @@ export type CalendarMarkerWritten =
   { ok: true; marker: CalendarMarker } | { ok: false; reason: 'not_found' | 'taken' };
 
 /**
- * A project's calendar markers.
+ * A work package's resolved additive markers; mutators address only its own rows.
  *
  * A store of its own for {@link PriorityBandStore}'s reason: this is a
- * project's own list, gated by the project's write permission, and it bumps no
+ * work package's own list, gated by the work package's write permission, and it bumps no
  * work-item revision because it changes no work item.
  *
  * **Nothing in here validates a marker.** The shape rules — `IsoDate`, UUID v4,
@@ -56,13 +56,14 @@ export type CalendarMarkerWritten =
  */
 export interface CalendarMarkerStore {
   /**
-   * This project's markers, totally ordered by `(date, createdAt, id)`.
+   * Resolves actual ancestor and own markers in `(date, createdAt, id)` order.
+   * The reply's workPackageId is the addressed projection, never the ancestor's write address.
    *
    * The third key is not decoration: `(date, createdAt)` ties for two markers
    * created inside the same millisecond, and a tie leaves the order free to
    * change between two reads of unchanged data (spec.md).
    */
-  listFor(projectId: string): Promise<CalendarMarker[]>;
+  listFor(workPackageId: string): Promise<CalendarMarker[]>;
   /**
    * Stores one marker, or refuses.
    *
@@ -75,10 +76,10 @@ export interface CalendarMarkerStore {
    * day can turn into its UTC neighbour.
    */
   create(marker: CalendarMarker): Promise<CalendarMarkerWritten>;
-  /** Renames one marker of this project, leaving its date and colour alone. */
-  rename(projectId: string, id: string, name: string): Promise<CalendarMarkerWritten>;
+  /** Renames one marker of this work package, leaving its date and colour alone. */
+  rename(workPackageId: string, id: string, name: string): Promise<CalendarMarkerWritten>;
   /** Sets one marker's fill, or clears it back to automatic on `null`. */
-  recolor(projectId: string, id: string, color: string | null): Promise<CalendarMarkerWritten>;
-  /** Removes one marker of this project. */
-  remove(projectId: string, id: string): Promise<CalendarMarkerWritten>;
+  recolor(workPackageId: string, id: string, color: string | null): Promise<CalendarMarkerWritten>;
+  /** Removes one marker of this work package. */
+  remove(workPackageId: string, id: string): Promise<CalendarMarkerWritten>;
 }

@@ -32,12 +32,12 @@ describe('a batch collects its own announcements', () => {
 
     await collector.send();
     expect(inner.published).toEqual([
-      { projectId: 'p-1', event: { type: 'directory_changed' } },
-      { projectId: 'p-2', event: { type: 'saved_plans_changed' } },
+      { workPackageId: 'p-1', event: { type: 'directory_changed' } },
+      { workPackageId: 'p-2', event: { type: 'saved_plans_changed' } },
     ]);
   });
 
-  it('keeps one content-free event per project, and every event that carries something', async () => {
+  it('keeps one content-free event per work package, and every event that carries something', async () => {
     const inner = recordingBroadcaster();
     const collector = new AnnouncementCollector(inner);
 
@@ -48,13 +48,13 @@ describe('a batch collects its own announcements', () => {
     await collector.publish('p-1', { type: 'step_removed', stepId: 'b' });
     await collector.send();
 
-    // A tag rename across forty projects is forty `directory_changed` and one
-    // per project is all any of them says; two `step_removed` are two facts.
+    // A tag rename across forty work packages is forty `directory_changed` and one
+    // per work package is all any of them says; two `step_removed` are two facts.
     expect(inner.published).toEqual([
-      { projectId: 'p-1', event: { type: 'directory_changed' } },
-      { projectId: 'p-2', event: { type: 'directory_changed' } },
-      { projectId: 'p-1', event: { type: 'step_removed', stepId: 'a' } },
-      { projectId: 'p-1', event: { type: 'step_removed', stepId: 'b' } },
+      { workPackageId: 'p-1', event: { type: 'directory_changed' } },
+      { workPackageId: 'p-2', event: { type: 'directory_changed' } },
+      { workPackageId: 'p-1', event: { type: 'step_removed', stepId: 'a' } },
+      { workPackageId: 'p-1', event: { type: 'step_removed', stepId: 'b' } },
     ]);
   });
 });

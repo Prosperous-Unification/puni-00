@@ -1,11 +1,11 @@
-import type { Permission } from '@wbs/domain';
+import type { Permission, StepIdentityRead } from '@wbs/domain';
 
 import type { ScopedPrincipal } from './access-decisions';
 
 /** The saved-plan header exactly as a source returns it. */
 export interface SavedPlanRow {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly name: string;
   readonly createdBy: string;
   readonly createdById: string | null;
@@ -41,7 +41,7 @@ export type SavedPlanScheduleWrite =
 /** One immutable saved-plan write. */
 export interface SavedPlanWrite {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly name: string;
   readonly createdBy: string;
   readonly createdById: string | null;
@@ -66,7 +66,7 @@ export type SavedPlanWriteOutcome<Refusal> =
   | { readonly outcome: 'forbidden' | 'not_found'; readonly permission?: Permission };
 
 /** A stored header and its independently stored bodies. */
-export interface StoredSavedPlan {
+export interface StoredSavedPlanBytes {
   readonly header: SavedPlanRow;
   readonly bodies: {
     readonly input: string | null;
@@ -74,7 +74,12 @@ export interface StoredSavedPlan {
   };
 }
 
-/** What a project holds at the instant a write checks its quota. */
+/** Required current identity evidence joins the immutable bytes only when a source reads them. */
+export interface StoredSavedPlan extends StoredSavedPlanBytes {
+  readonly stepIdentity: StepIdentityRead;
+}
+
+/** What a work package holds at the instant a write checks its quota. */
 export interface SavedPlanHoldingRow {
   readonly plans: number;
   readonly bytes: number;
@@ -85,12 +90,13 @@ export type SavedPlanTouchOutcome =
   | 'no_such_plan'
   | 'snapshot_busy'
   | 'forbidden'
+  | 'no_active_organization'
+  | 'organization_context_changed'
   | { readonly outcome: 'forbidden'; readonly permission: Permission };
 
 /** The identities used to authorize a rename or deletion. */
 export interface SavedPlanPrincipals {
   readonly savedPlanId: string;
-  readonly projectId: string;
-  readonly projectOwnerId: string;
+  readonly workPackageId: string;
   readonly createdById: string | null;
 }

@@ -81,7 +81,7 @@ describe('unknownMessage', () => {
 });
 
 describe('current dependency token', () => {
-  it('keeps mixed earlier tokens byte for byte when selecting a project or endpoint', () => {
+  it('keeps mixed earlier tokens byte for byte when selecting a work package or endpoint', () => {
     const typed = '010,  020.3 030.s1-dev, puni';
     expect(currentDependencyToken(typed)).toEqual({
       prefix: '010,  020.3 030.s1-dev, ',

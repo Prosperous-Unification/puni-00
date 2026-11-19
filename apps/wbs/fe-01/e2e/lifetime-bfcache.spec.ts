@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 import { buildBrowserProbeBundle } from './browser-probe-bundle';
 // A type-only import: Playwright loads a spec in Node, so a value imported from
@@ -6,7 +6,7 @@ import { buildBrowserProbeBundle } from './browser-probe-bundle';
 import type { LifetimeBfcacheProbe } from './lifetime-bfcache-probe';
 
 /**
- * Regular Chromium, not `chromium-headless-shell` — the default project's own
+ * Regular Chromium, not `chromium-headless-shell` — the default work package's own
  * channel — and Playwright's own bfcache-disabling launch switch removed.
  *
  * `chromium-headless-shell` refuses every back/forward-cache restoration as an
@@ -22,7 +22,7 @@ import type { LifetimeBfcacheProbe } from './lifetime-bfcache-probe';
  * CI already installs regular Chromium alongside `chromium-headless-shell`
  * (`.github/workflows/ci.yml`'s own `bunx playwright install --with-deps
  * chromium` installs both — Playwright's own `browsers.json` marks both
- * `installByDefault` for that one argument); this spec's own project stays
+ * `installByDefault` for that one argument); this spec's own work package stays
  * opt-in as a verification-policy choice (`playwright.config.ts`'s own
  * comment), not because the channel is unavailable.
  */

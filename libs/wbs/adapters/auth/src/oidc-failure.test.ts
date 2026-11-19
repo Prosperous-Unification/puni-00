@@ -324,7 +324,7 @@ describe('classifyOidcFailure', () => {
       // plus two extra prefixes for alert 40 because the rule is written against
       // the alert and not against the OpenSSL family.
       for (const code of [
-        // The spelling a provoked handshake failure on this project's runtime
+        // The spelling a provoked handshake failure on this work package's runtime
         // (Node 24.18.1, OpenSSL 3.5.7) really rejects with, slash and all.
         'ERR_SSL_SSL/TLS_ALERT_HANDSHAKE_FAILURE',
         'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE',
@@ -439,7 +439,7 @@ describe('classifyOidcFailure', () => {
       // Walking `cause` first read this ordinary `invalid_grant` refusal as a
       // TLS failure and answered `indeterminate`: a provider steering our own
       // classification, which is worse than a misfiled row. The envelope is a
-      // string the library set and this project trusts, so it decides first.
+      // string the library set and this work package trusts, so it decides first.
       const failure = classifyOidcFailure({
         code: 'OAUTH_RESPONSE_BODY_ERROR',
         error: 'invalid_grant',
@@ -642,7 +642,7 @@ describe('classifyOidcFailure', () => {
 
     it('does not let a provider string reach the reason slug', () => {
       // Finding 4: the doc comment promises an app-owned slug, so no input may
-      // produce one this project did not write.
+      // produce one this work package did not write.
       const owned = new Set([
         'grant_refused',
         'claims_refused',

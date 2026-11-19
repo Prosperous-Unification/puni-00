@@ -1,3 +1,4 @@
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +11,7 @@ import {
   type TransactionalStores,
   type UnitOfWork,
 } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -52,6 +53,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
   const dir = mkdtempSync(join(tmpdir(), 'wbs-import-measurement-'));
   const path = join(dir, 'source.db');
   runMigrations(path, MIGRATIONS);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const statements: string[] = [];
   let nativeTransactions = 0;
   const connection = openConnection(
@@ -130,7 +132,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
       announcements,
       batchServices: (scope, broadcast) =>
         servicesOver(scope.stores, {
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock,
           broadcast,
           scheduler: fastScheduler,
@@ -138,13 +140,17 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
         }),
     });
 
-    const outcome = await imports.import(document, { kind: 'legacy', actorId: ACTOR });
+    const outcome = await imports.import(
+      document,
+      { kind: 'legacy', actorId: ACTOR },
+      'fixture-project',
+    );
     if (queuedWrite === undefined) throw new Error('ordinary write was not queued during import');
     const queuedTag = await queuedWrite;
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) throw new Error(`measurement import refused at ${JSON.stringify(outcome)}`);
     expect(outcome.rows).toBe(ROWS);
-    expect(await stores.workItems.listByProject(outcome.projectId)).toHaveLength(ROWS);
+    expect(await stores.workItems.listByWorkPackage(outcome.workPackageId)).toHaveLength(ROWS);
     expect(queuedTag.name).toBe('Queued ordinary write');
     expect(queuedCompleted).toBeGreaterThanOrEqual(admittedStarted + admittedMs);
 
@@ -160,7 +166,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     expect(commitAt).toBeGreaterThan(beginAt);
     expect(queuedAt).toBeGreaterThan(commitAt);
     const drizzleStatements = commitAt - beginAt + 1;
-    // One project, bands, capacity, marker, team patch, person insert and subtree
+    // One work package, bands, capacity, marker, team patch, person insert and subtree
     // transaction, 500 label patches, and the response tree's unified typed read:
     // 8 + 500 wrappers. Stack/boundary diagnostics observed the last read before COMMIT.
     // Proof: omitting the native transaction observer reported 0 instead of 508,

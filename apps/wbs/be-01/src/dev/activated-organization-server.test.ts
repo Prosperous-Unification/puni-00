@@ -178,7 +178,7 @@ async function asOwner(
  * `docs/local-dev.md` ("An activated organization"): an agent's key reaches the dev server
  * the way agents do, through a local mcp-01. The owner makes an agent person and its key
  * over HTTP, `twilight-dash mcp token` prints the header Claude Code's `headersHelper` reads,
- * and a tool call with it lists the organization's projects.
+ * and a tool call with it lists the organization's work packages.
  */
 it("issues an agent's key a token at the local mcp-01 and answers its tool call", async () => {
   const temp = childTmpdir();
@@ -207,7 +207,7 @@ it("issues an agent's key a token at the local mcp-01 and answers its tool call"
     const owner = (method: string, path: string, body?: unknown) =>
       asOwner(origin, cookies, method, path, body);
 
-    expect(await owner('POST', '/api/projects', { name: 'Local plan' })).toMatchObject({
+    expect(await owner('POST', '/api/work-packages', { name: 'Local plan' })).toMatchObject({
       status: 200,
     });
     const made = await owner('POST', '/api/directory/commands', {
@@ -275,7 +275,7 @@ it("issues an agent's key a token at the local mcp-01 and answers its tool call"
       new StreamableHTTPClientTransport(new URL(mcpUrl), { requestInit: { headers } }),
     );
     try {
-      const listed = (await client.callTool({ name: 'getApiProjects', arguments: {} })) as {
+      const listed = (await client.callTool({ name: 'getApiWorkPackages', arguments: {} })) as {
         isError?: boolean;
         content: { text: string }[];
       };

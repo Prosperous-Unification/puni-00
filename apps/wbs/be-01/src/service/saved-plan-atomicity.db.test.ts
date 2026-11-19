@@ -13,14 +13,15 @@ import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
-import { projectRow } from '../testing/project-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -125,7 +126,7 @@ describe('SavedPlanService.save is atomic', () => {
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -149,24 +150,25 @@ describe('SavedPlanService.save is atomic', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-atomicity-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
-        ownerId: 'owner',
+        projectId: 'saved-plan-parent',
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -208,7 +210,7 @@ describe('SavedPlanService.save is atomic', () => {
    */
   const livePlanBytes = async (): Promise<string> => {
     const reads = await capture().readPlanInput('p1');
-    if (reads === null) throw new Error('expected the project to still exist');
+    if (reads === null) throw new Error('expected the work package to still exist');
     return serialiseCanonicalPlanInput(canonicalisePlanInput(planInputRowsOf(reads)));
   };
 
@@ -242,7 +244,7 @@ describe('SavedPlanService.save is atomic', () => {
       let refused: unknown = null;
       try {
         await service.save({
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'lost',
           createdBy: 'Ada',
           createdById: null,

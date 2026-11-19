@@ -91,7 +91,7 @@ function readSchedule(
   }
 
   const optimizationAsk: OptimizedScheduleAsk = {
-    projectId: ask.projectId,
+    workPackageId: ask.workPackageId,
     objective: ask.objective,
     input: ask.input,
     enabled: ask.enabled,

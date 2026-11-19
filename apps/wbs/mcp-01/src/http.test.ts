@@ -296,11 +296,11 @@ describe('mcpFetchHandler', () => {
         createServer({
           tools: [
             {
-              name: 'readProject',
-              description: 'Read a project',
+              name: 'readWorkPackage',
+              description: 'Read a work package',
               inputSchema: { type: 'object', properties: {}, additionalProperties: false },
               method: 'get',
-              path: '/api/projects/{id}',
+              path: '/api/work-packages/{id}',
               locations: { id: 'path' },
             },
           ],
@@ -322,7 +322,7 @@ describe('mcpFetchHandler', () => {
       rpc({
         id: 1,
         method: 'tools/call',
-        params: { name: 'readProject', arguments: { id: 'p1' } },
+        params: { name: 'readWorkPackage', arguments: { id: 'p1' } },
       }),
     );
     expect(rejected.status).toBe(200);
@@ -348,11 +348,11 @@ describe('mcpFetchHandler', () => {
         createServer({
           tools: [
             {
-              name: 'readProject',
-              description: 'Read a project',
+              name: 'readWorkPackage',
+              description: 'Read a work package',
               inputSchema: { type: 'object', properties: {}, additionalProperties: false },
               method: 'get',
-              path: '/api/projects/{id}',
+              path: '/api/work-packages/{id}',
               locations: { id: 'path' },
             },
           ],
@@ -378,7 +378,7 @@ describe('mcpFetchHandler', () => {
       rpc({
         id: 1,
         method: 'tools/call',
-        params: { name: 'readProject', arguments: { id: 'p1' } },
+        params: { name: 'readWorkPackage', arguments: { id: 'p1' } },
       }),
     );
     expect(rejected.status).toBe(200);

@@ -117,11 +117,6 @@ export const EXCLUDED_PATHS: readonly ExcludedPath[] = [
  */
 export const PROTECTED_LINES: readonly ProtectedLine[] = [
   {
-    pattern: /\[PROJECT-ASSIGNMENT-READS-\d{3}\]/,
-    sense: 'new',
-    reason: 'scenario ids tests cite by id (WP-8)',
-  },
-  {
     pattern: /\bclient projects?\b/,
     sense: 'new',
     reason: 'a client project is the engagement: the new sense',

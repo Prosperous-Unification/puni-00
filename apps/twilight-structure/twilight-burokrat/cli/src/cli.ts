@@ -41,7 +41,7 @@ import {
   readInvocationJournal,
   validateReviewProvenance,
 } from './review/invocation-journal';
-import { runWorkflowBindingCommand } from './workflow-binding';
+import { validateWorkflowBinding } from './workflow-binding';
 
 interface JsonDocument {
   bytes: Uint8Array;
@@ -323,12 +323,9 @@ export const validatorHandlers: Handlers = {
   },
   'validate-record': validateRecord,
   validate: validateRecord,
-  'validate workflow-binding': ({ argv }) => {
-    const digest = runWorkflowBindingCommand(
-      ['validate', 'workflow-binding', ...argv],
-      process.cwd(),
-    );
-    process.stdout.write(`${digest}\n`);
+  'validate workflow-binding': (request) => {
+    const digest = validateWorkflowBinding(request, process.cwd());
+    process.stdout.write(digest + '\n');
   },
   'read-candidate': readSelectedCandidate,
   'candidate-identity': async ({ kind, repository, revision }) => {

@@ -165,7 +165,7 @@ describe('persist-release publishes the desired revision', () => {
       namespaces: { app: 'wbs', backend: 'wbs-solver' },
       stateDir: repo.root,
       overlay: repo.root,
-      anonymousProjectsStatus: 401,
+      anonymousWorkPackagesStatus: 401,
       rolloutTimeoutSeconds: 5,
       jobTimeoutSeconds: 5,
       drainTimeoutMs: 1000,

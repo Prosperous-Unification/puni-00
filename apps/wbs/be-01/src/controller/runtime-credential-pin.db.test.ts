@@ -13,7 +13,7 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
 for (const kind of ['machine', 'consent'] as const) {
   describe(`verified ${kind} runtime person pin`, () => {
     let harness: OrganizationHarness;
-    let projectId: string;
+    let workPackageId: string;
     let pinnedPersonId: string;
     let restorePrincipal: (() => void) | undefined;
 
@@ -25,28 +25,28 @@ for (const kind of ['machine', 'consent'] as const) {
       harness.member('org-a', 'ada', 'admin', ['org-admin']);
       harness.bind('ada', 'org-a');
       harness.activate();
-      const created = await harness.call('ada', 'POST', '/api/projects', {
+      const created = await harness.call('ada', 'POST', '/api/work-packages', {
         name: 'Runtime pins',
       });
       expect(created.status).toBe(200);
-      projectId = (created.body as { project: { id: string } }).project.id;
+      workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
       for (const personId of ['agent-a', 'agent-b'])
         addAgentPerson(harness.sqlite, personId, 'org-a', harness.userId('ada'));
-      // Pin/cap/receipt fixtures require an unstarted first step before the project's default Dev/QA.
+      // Pin/cap/receipt fixtures require an unstarted first step before the work package's default Dev/QA.
       const first = harness.sqlite
         .query<{ position: number }, [string]>(
-          'SELECT position FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+          'SELECT position FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
         )
-        .get(projectId);
+        .get(workPackageId);
       if (first === null) throw new Error('fixture default workflow steps missing');
       expect(first.position).toBeGreaterThan(0);
       harness.sqlite.run(
-        "INSERT INTO step (id, project_id, name, position, code) VALUES ('dev', ?, 'Develop', 0, 'pin-dev')",
-        [projectId],
+        "INSERT INTO step (id, work_package_id, name, position, code) VALUES ('dev', ?, 'Develop', 0, 'pin-dev')",
+        [workPackageId],
       );
       harness.sqlite.run(
-        "INSERT INTO work_item (id, project_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
-        [projectId],
+        "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
+        [workPackageId],
       );
       grantCredential(
         harness.sqlite,
@@ -107,7 +107,7 @@ for (const kind of ['machine', 'consent'] as const) {
       return harness.callWith(
         'verified-runtime-principal',
         method,
-        `/api/projects/${projectId}/${suffix}`,
+        `/api/work-packages/${workPackageId}/${suffix}`,
         body,
       );
     }

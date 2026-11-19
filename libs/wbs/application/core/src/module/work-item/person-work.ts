@@ -24,7 +24,7 @@ export interface HeldClaim extends WorkItemAddress {
   readonly leaseExpiresAt: number | null;
 }
 
-/** What one person holds in one project: assignments and claims, apart (D1). */
+/** What one person holds in one work package: assignments and claims, apart (D1). */
 export interface PersonWork {
   readonly person: NamedPerson;
   readonly assignments: AssignedStep[];
@@ -35,18 +35,18 @@ export interface PersonWork {
 export interface PersonWorkReads {
   readonly person: NamedPerson;
   readonly rows: readonly LabelledWorkItem[];
-  /** The project's steps in project order. */
+  /** The work package's steps in work package order. */
   readonly stepIds: readonly string[];
-  /** The project's assignments; other people's are left out here. */
+  /** The work package's assignments; other people's are left out here. */
   readonly assignments: readonly Assignment[];
-  /** The project's claims; other people's are left out here. */
+  /** The work package's claims; other people's are left out here. */
   readonly claims: readonly StampedClaim[];
 }
 
 /**
- * One person's assignments and claims in one project
+ * One person's assignments and claims in one work package
  * (`wbs-resources` spec `assignee-management`), each in tree order and then
- * project step order, a subtree claim before its item's step claims. A claim
+ * work package step order, a subtree claim before its item's step claims. A claim
  * is listed whether or not the person is also assigned there, and the other
  * way round: the two are separate records.
  *
@@ -73,7 +73,7 @@ export function findPersonWork(reads: PersonWorkReads): PersonWork {
     if (place === undefined) throw new Error(`work item ${workItemId} is not a row of this read`);
     if (stepId === null) return [place, -1];
     const step = stepPlace.get(stepId);
-    if (step === undefined) throw new Error(`step ${stepId} is not a step of this project`);
+    if (step === undefined) throw new Error(`step ${stepId} is not a step of this work package`);
     return [place, step];
   };
   const inOrder = <Row extends { workItemId: string; stepId: string | null }>(

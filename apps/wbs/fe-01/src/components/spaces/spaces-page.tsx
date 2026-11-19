@@ -48,7 +48,7 @@ type View =
   | { kind: 'ready'; spaces: readonly Space[]; writable: boolean };
 
 /**
- * The organization's spaces, at `/spaces`: All projects first, then every
+ * The organization's spaces, at `/spaces`: All work packages first, then every
  * named space. Creating, renaming and deleting are offered only when the
  * server says the caller may (`writable`), so a viewer sees no control a
  * write would refuse.
@@ -168,7 +168,7 @@ export function SpacesPage({
                   params={{ spaceId: 'all' }}
                   className={cn(buttonVariants(), 'no-underline')}
                 >
-                  Open All projects
+                  Open All workPackages
                 </Link>
               }
             />
@@ -177,7 +177,7 @@ export function SpacesPage({
               <CardContent className="flex flex-col gap-4">
                 <ul aria-label="Spaces" className={`${LIST_CLASS} -my-3`}>
                   <li className={ROW_CLASS}>
-                    <AllProjectsLink />
+                    <AllWorkPackagesLink />
                   </li>
                   {view.kind === 'ready' &&
                     view.spaces.map((space) => (
@@ -230,9 +230,9 @@ export function SpacesPage({
                             </Link>
                           )}
                           <span className={NOTE_CLASS}>
-                            {space.projectCount === 1
-                              ? '1 project'
-                              : `${String(space.projectCount)} projects`}
+                            {space.workPackageCount === 1
+                              ? '1 work package'
+                              : `${String(space.workPackageCount)} work packages`}
                           </span>
                         </span>
                         {view.writable && renaming?.id !== space.id && (
@@ -258,7 +258,7 @@ export function SpacesPage({
                               onClick={() => {
                                 void write(
                                   () => spaces.deleteApiSpacesById({ params: { id: space.id } }),
-                                  `Deleted ${space.name}. Its projects are unchanged.`,
+                                  `Deleted ${space.name}. Its work packages are unchanged.`,
                                 );
                               }}
                             >
@@ -323,10 +323,10 @@ export function SpacesPage({
   );
 }
 
-function AllProjectsLink(): React.JSX.Element {
+function AllWorkPackagesLink(): React.JSX.Element {
   return (
     <Link to="/spaces/$spaceId" params={{ spaceId: 'all' }} className={LINK_CLASS}>
-      All projects
+      All workPackages
     </Link>
   );
 }

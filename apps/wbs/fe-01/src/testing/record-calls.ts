@@ -1,4 +1,4 @@
-import type { ProjectApi } from '@/lib/wbs-api';
+import type { WorkPackageApi } from '@/lib/wbs-api';
 
 /**
  * The names of `T`'s methods — the keys a recorder may wrap.
@@ -11,8 +11,8 @@ type MethodNames<T> = {
   [K in keyof T]-?: T[K] extends (...args: never[]) => unknown ? K : never;
 }[keyof T];
 
-/** One method of the project client, by name. */
-export type ProjectApiMethod = MethodNames<ProjectApi>;
+/** One method of the work package client, by name. */
+export type WorkPackageApiMethod = MethodNames<WorkPackageApi>;
 
 /**
  * Records what a test's fake client was asked to write, and lets the write
@@ -47,31 +47,31 @@ export type ProjectApiMethod = MethodNames<ProjectApi>;
  * @returns The recorded entries, in call order — the same array the test reads
  * as calls arrive.
  */
-export function recordCalls<M extends ProjectApiMethod>(
-  api: ProjectApi,
+export function recordCalls<M extends WorkPackageApiMethod>(
+  api: WorkPackageApi,
   method: M,
-): Parameters<ProjectApi[M]>[];
-export function recordCalls<M extends ProjectApiMethod, T>(
-  api: ProjectApi,
+): Parameters<WorkPackageApi[M]>[];
+export function recordCalls<M extends WorkPackageApiMethod, T>(
+  api: WorkPackageApi,
   method: M,
-  of: (...args: Parameters<ProjectApi[M]>) => T,
+  of: (...args: Parameters<WorkPackageApi[M]>) => T,
 ): T[];
-export function recordCalls<M extends ProjectApiMethod, T>(
-  api: ProjectApi,
+export function recordCalls<M extends WorkPackageApiMethod, T>(
+  api: WorkPackageApi,
   method: M,
-  of?: (...args: Parameters<ProjectApi[M]>) => T,
-): (T | Parameters<ProjectApi[M]>)[] {
-  const recorded: (T | Parameters<ProjectApi[M]>)[] = [];
-  type Call = (...args: Parameters<ProjectApi[M]>) => ReturnType<ProjectApi[M]>;
+  of?: (...args: Parameters<WorkPackageApi[M]>) => T,
+): (T | Parameters<WorkPackageApi[M]>)[] {
+  const recorded: (T | Parameters<WorkPackageApi[M]>)[] = [];
+  type Call = (...args: Parameters<WorkPackageApi[M]>) => ReturnType<WorkPackageApi[M]>;
   // The boundary: replacing a method on an object by a computed key is what
   // every copy of this did, and TypeScript cannot express "the same signature"
   // through `M` without it. Both casts are between the method's own parameter
-  // and return types, taken from `ProjectApi[M]` itself, so a wrong `method`
+  // and return types, taken from `WorkPackageApi[M]` itself, so a wrong `method`
   // is still a compile error at the call site.
   const perform = (api[method] as Call).bind(api);
-  api[method] = ((...args: Parameters<ProjectApi[M]>) => {
+  api[method] = ((...args: Parameters<WorkPackageApi[M]>) => {
     recorded.push(of === undefined ? args : of(...args));
     return perform(...args);
-  }) as ProjectApi[M];
+  }) as WorkPackageApi[M];
   return recorded;
 }

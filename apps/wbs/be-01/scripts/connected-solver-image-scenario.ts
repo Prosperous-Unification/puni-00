@@ -55,12 +55,12 @@ function captureStage(fractional: boolean): ConnectedOptimizationStage {
     },
     order: {
       kind: 'connected' as const,
-      projectIdByWorkItem: new Map([
+      workPackageIdByWorkItem: new Map([
         [A, A],
         [B, B],
         [C, C],
       ]),
-      rankByProject: new Map([
+      rankByWorkPackage: new Map([
         [A, 0],
         [B, 1],
         [C, 2],
@@ -70,23 +70,27 @@ function captureStage(fractional: boolean): ConnectedOptimizationStage {
   const placement = scheduleResolved(input);
   return {
     kind: 'connected-stage',
-    projectId: B,
+    workPackageId: B,
     mode: 'isolated',
     originOrdinal: 20000,
-    projects: [A, B, C].map((projectId, rank) => ({ projectId, rank, anchorOrdinal: 20000 })),
+    workPackages: [A, B, C].map((workPackageId, rank) => ({
+      workPackageId,
+      rank,
+      anchorOrdinal: 20000,
+    })),
     input,
     relationships: [
       {
         id: AB,
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: A, workItemId: A },
-        successor: { scope: 'whole', projectId: B, workItemId: B },
+        predecessor: { scope: 'whole', workPackageId: A, workItemId: A },
+        successor: { scope: 'whole', workPackageId: B, workItemId: B },
       },
       {
         id: BC,
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: B, workItemId: B },
-        successor: { scope: 'whole', projectId: C, workItemId: C },
+        predecessor: { scope: 'whole', workPackageId: B, workItemId: B },
+        successor: { scope: 'whole', workPackageId: C, workItemId: C },
       },
     ],
     starts: new Map([...placement.slices].map(([slice, placed]) => [slice, placed.earliestStart])),

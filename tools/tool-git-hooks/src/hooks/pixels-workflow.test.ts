@@ -60,6 +60,7 @@ describe('the CI pixels gate', () => {
     const setup = requirePhase('Install chromium');
     const layout = requirePhase('Layout gate');
     const organization = requirePhase('Activated organization context');
+    const local = requirePhase('Local quiet-load cohort');
     const crossProject = requirePhase('Cross-project dependency delivery');
     const jobMinutes = shardJob?.['timeout-minutes'];
     const timeoutOf = (phase: WorkflowStep): number => {
@@ -72,6 +73,7 @@ describe('the CI pixels gate', () => {
     expect(jobMinutes).toBeGreaterThan(0);
     expect(shardJob?.['continue-on-error']).not.toBe(true);
     expect(organization.if).toBe('${{ matrix.shard == 1 }}');
+    expect(local.if).toBe('${{ matrix.shard == 2 }}');
     expect(crossProject.if).toBe('${{ matrix.shard == 4 }}');
     if (jobMinutes === undefined) throw new Error('browser job timeout is absent');
     for (const shard of shardJob?.strategy?.matrix?.shard ?? []) {
@@ -79,6 +81,7 @@ describe('the CI pixels gate', () => {
         timeoutOf(setup) +
         timeoutOf(layout) +
         (shard === 1 ? timeoutOf(organization) : 0) +
+        (shard === 2 ? timeoutOf(local) : 0) +
         (shard === 4 ? timeoutOf(crossProject) : 0);
       expect(
         jobMinutes,
@@ -89,6 +92,7 @@ describe('the CI pixels gate', () => {
     expect(timeoutOf(setup)).toBe(15);
     expect(timeoutOf(layout)).toBe(25);
     expect(timeoutOf(organization)).toBe(5);
+    expect(timeoutOf(local)).toBe(5);
     expect(timeoutOf(crossProject)).toBe(10);
   });
 
@@ -127,7 +131,7 @@ describe('the CI pixels gate', () => {
     // Proof: restoring only the first upload root to `apps/fe-01/test-results/`
     // failed this production-workflow oracle with the complete legacy path (2026-09-14).
     expect(artifactStep?.with?.path).toBe(
-      'apps/wbs/fe-01/test-results/\napps/wbs/fe-01/playwright-report/\n',
+      'apps/wbs/fe-01/test-results/\napps/wbs/fe-01/playwright-report/\napps/wbs/fe-01/test-results-local/\napps/wbs/fe-01/playwright-report-local/\ntmp/junit/wbs-fe-01.browser.local.xml\n',
     );
     expect(summaryJob?.needs).toEqual(['pixels_mode', 'pixels_shard']);
     expect(summaryJob?.if).toBe('${{ always() }}');
@@ -455,5 +459,30 @@ describe('the CI browser plan boundary', () => {
       expect(selection.execution.exitCode, JSON.stringify(fault)).not.toBe(0);
       expect(selection.output).toBe('');
     }
+  });
+});
+
+describe('the CI local quiet-load cohort', () => {
+  test('requires all three local cases once on shard two and retains their artifacts', () => {
+    const shardJob = readWorkflow().jobs?.['pixels_shard'];
+    const steps = shardJob?.steps;
+    if (steps === undefined) throw new Error('pixels shard steps are absent');
+    const localSteps = steps.filter((step) => step.run === 'bunx nx run wbs-fe-01:e2e-local');
+    expect(localSteps).toHaveLength(1);
+    const local = localSteps.at(0);
+    if (local === undefined) throw new Error('required local quiet-load step is absent');
+    expect(local.name).toBe('Local quiet-load cohort');
+    expect(local.if).toBe('${{ matrix.shard == 2 }}');
+    expect(local['timeout-minutes']).toBe(5);
+    expect(local['continue-on-error']).not.toBe(true);
+    const layoutIndex = steps.findIndex((step) => step.name === 'Layout gate');
+    expect(layoutIndex).toBeGreaterThanOrEqual(0);
+    expect(steps.indexOf(local)).toBeGreaterThan(layoutIndex);
+    const upload = steps.find((step) => step.uses?.startsWith('actions/upload-artifact@'));
+    expect(upload?.if).toBe('always()');
+    expect(upload?.with?.path).toBe(
+      'apps/wbs/fe-01/test-results/\napps/wbs/fe-01/playwright-report/\napps/wbs/fe-01/test-results-local/\napps/wbs/fe-01/playwright-report-local/\ntmp/junit/wbs-fe-01.browser.local.xml\n',
+    );
+    expect(shardJob?.['timeout-minutes']).toBe(55);
   });
 });

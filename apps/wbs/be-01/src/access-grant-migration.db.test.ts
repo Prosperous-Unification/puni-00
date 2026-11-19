@@ -41,7 +41,7 @@ let db: Database;
 /**
  * A store at {@link BASELINE} shaped like dev. `org-a`: sam super_admin, ada
  * admin, mo member, vi viewer; `org-b`: bo member, ada viewer; `out` belongs
- * nowhere. Projects: `p-mo` (mo, org-a), `p-out` (out, org-a), `p-ada` (ada,
+ * nowhere. Work packages: `p-mo` (mo, org-a), `p-out` (out, org-a), `p-ada` (ada,
  * org-a), `p-loose` (mo, no organization), `p-bo` (bo, org-b), `p-mo-b` (mo,
  * org-b, where mo is not a member). Credentials in org-a bound through agent
  * persons to ada, mo (one live, one revoked), vi and out, and one unbound.
@@ -60,12 +60,12 @@ function seedBaseline(): void {
      ('org-a', 'vi', 'viewer', 1), ('org-b', 'bo', 'member', 1), ('org-b', 'ada', 'viewer', 1)`,
   );
   db.run(
-    `INSERT INTO project (id, name, owner_id, revision, created_at) VALUES
+    `INSERT INTO work_package (id, name, owner_id, revision, created_at) VALUES
      ('p-mo', 'Mo', 'mo', 0, 1), ('p-out', 'Out', 'out', 0, 1), ('p-ada', 'Ada', 'ada', 0, 1),
      ('p-loose', 'Loose', 'mo', 0, 1), ('p-bo', 'Bo', 'bo', 0, 1), ('p-mo-b', 'Mo B', 'mo', 0, 1)`,
   );
   db.run(
-    `INSERT INTO project_organization (resource_id, organization_id) VALUES
+    `INSERT INTO work_package_organization (resource_id, organization_id) VALUES
      ('p-mo', 'org-a'), ('p-out', 'org-a'), ('p-ada', 'org-a'), ('p-bo', 'org-b'), ('p-mo-b', 'org-b')`,
   );
   db.run(
@@ -139,7 +139,7 @@ const tablesLeft = () =>
 
 const customRole = (id: string, name: string, organizationId = 'org-a') =>
   db.run(
-    `INSERT INTO access_role (id, name, object_kind, organization_id, created_at) VALUES ('${id}', '${name}', 'project', '${organizationId}', 1)`,
+    `INSERT INTO access_role (id, name, object_kind, organization_id, created_at) VALUES ('${id}', '${name}', 'work package', '${organizationId}', 1)`,
   );
 
 const grant = (id: string, origin: string, subjectKind = 'user', subjectId = 'mo') =>
@@ -235,12 +235,12 @@ describe(MIGRATION, () => {
     it('refuses a role that is neither built-in nor custom, and an unknown kind', () => {
       expect(() =>
         db.run(
-          "INSERT INTO access_role (id, name, object_kind, level, organization_id, created_at) VALUES ('01JLEVEL', 'Levelled', 'project', 3, 'org-a', 1)",
+          "INSERT INTO access_role (id, name, object_kind, level, organization_id, created_at) VALUES ('01JLEVEL', 'Levelled', 'work_package', 3, 'org-a', 1)",
         ),
       ).toThrow('CHECK constraint failed');
       expect(() =>
         db.run(
-          "INSERT INTO access_role (id, name, object_kind, created_at) VALUES ('nobody', 'nobody', 'project', 1)",
+          "INSERT INTO access_role (id, name, object_kind, created_at) VALUES ('nobody', 'nobody', 'work_package', 1)",
         ),
       ).toThrow('CHECK constraint failed');
       expect(() =>
@@ -265,12 +265,12 @@ describe(MIGRATION, () => {
     });
 
     // Proof: `access_role_reaches_restricted_kind` made `CHECK (1)` in
-    // migration.sql made this case store a project-kind role with
+    // migration.sql made this case store a work-package-kind role with
     // `reaches_restricted = 1`; watched 2026-11-03.
     it('refuses reaches_restricted outside an organization role, and outside 0 and 1', () => {
       expect(() =>
         db.run(
-          "INSERT INTO access_role (id, name, object_kind, reaches_restricted, organization_id, created_at) VALUES ('01JPROJECT', 'Project auditors', 'project', 1, 'org-a', 1)",
+          "INSERT INTO access_role (id, name, object_kind, reaches_restricted, organization_id, created_at) VALUES ('01JPROJECT', 'WorkPackage auditors', 'work_package', 1, 'org-a', 1)",
         ),
       ).toThrow('CHECK constraint failed: access_role_reaches_restricted_kind');
       expect(() =>
@@ -346,17 +346,17 @@ describe(MIGRATION, () => {
           ['org-a', 'ada', 'p-ada'],
           ['org-a', 'mo', 'p-mo'],
           ['org-b', 'bo', 'p-bo'],
-        ].map(([organization, user, project]) => ({
+        ].map(([organization, user, workPackage]) => ({
           organization_id: organization,
           scope_kind: 'work_package',
-          scope_id: project,
+          scope_id: workPackage,
           subject_kind: 'user',
           subject_id: user,
           role_id: 'package-manager',
         })),
       );
       expect(
-        db.query("SELECT COUNT(*) AS n FROM access_grant WHERE scope_kind = 'project'").get(),
+        db.query("SELECT COUNT(*) AS n FROM access_grant WHERE scope_kind = 'work_package'").get(),
       ).toEqual({ n: 0 });
     });
 

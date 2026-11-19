@@ -12,7 +12,7 @@ import { runMigrations } from '../../repository/migrate';
 import { admitDependencyClient } from '../../runtime/dependency-client';
 import { testApp } from '../../testing/app-fixture';
 
-// Bun's header constructor overload is shadowed by this project's DOM library.
+// Bun's header constructor overload is shadowed by this work package's DOM library.
 const CookieSocket = WebSocket as unknown as new (
   url: string,
   options: Bun.WebSocketOptions,
@@ -54,8 +54,10 @@ test('internal gateway admission authenticates first and freshly refuses incompa
   const gateway = Bun.spawn(
     [
       process.execPath,
-      new URL('../../../../gw-01/src/testing/cross-project-delivery-gateway.ts', import.meta.url)
-        .pathname,
+      new URL(
+        '../../../../gw-01/src/testing/cross-work-package-delivery-gateway.ts',
+        import.meta.url,
+      ).pathname,
       `http://localhost:${String(backendPort)}`,
       'k'.repeat(32),
       'x'.repeat(32),

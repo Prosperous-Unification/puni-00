@@ -8,7 +8,7 @@ export type NodeAssignment =
   | { kind: 'explicit'; personId: string }
   | { kind: 'assumed'; personId: string; fromStepId: string };
 
-/** Effective labels, including teams with no project capacity statement. */
+/** Effective labels, including teams with no work package capacity statement. */
 export type NodeTeams =
   | { kind: 'unstated' }
   | {
@@ -35,7 +35,7 @@ export interface NodeResources {
  * 1. **No team, no pool.** An empty set states nothing, so the slice is
  *    unconstrained.
  * 2. **An unsized team labels the work and constrains nothing.** A team this
- *    project has stated no capacity for is absent from `teamSizes`, so it is
+ *    work package has stated no capacity for is absent from `teamSizes`, so it is
  *    absent from `poolIds` too — which is what keeps the engine's `no size for
  *    pool` throw a caller-fault assertion rather than ordinary control flow. It
  *    contributes no clamp either: an unstated capacity is not a capacity of
@@ -119,7 +119,7 @@ export function resolveStepResources(
 /**
  * Each retained leaf's resource readings, before hold reduction or page
  * filtering. Parents have no entry; stepless leaves have an empty record.
- * Inheritance uses the complete tree and capacities are captured project
+ * Inheritance uses the complete tree and capacities are captured work package
  * statements, with null preserving an unsized team rather than inventing zero.
  */
 export function nodeResourcesOf(

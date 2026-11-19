@@ -37,9 +37,9 @@ function placementWords(placement: Connected['placementState']): string {
     case 'scheduled':
       return 'scheduled';
     case 'dependency_calendar_missing':
-      return `dependency calendars missing: ${placement.projects.map((project) => `${project.name} (${project.abbreviation})`).join(', ')}`;
+      return `dependency calendars missing: ${placement.workPackages.map((workPackage) => `${workPackage.name} (${workPackage.abbreviation})`).join(', ')}`;
     case 'engine_unavailable':
-      return `${placement.engine} engine unavailable: ${placement.reason}; projects ${placement.projects.join(', ')}`;
+      return `${placement.engine} engine unavailable: ${placement.reason}; work packages ${placement.workPackages.join(', ')}`;
     case 'unavailable':
       return `unavailable: ${placement.reason}`;
     default:
@@ -76,8 +76,8 @@ function CapturedStage({ stage }: { stage: Stage }) {
       <details>
         <summary>Captured stage boundary</summary>
         <p>
-          Origin ordinal: {stage.boundary.originOrdinal}; project {stage.boundary.projectId}; format{' '}
-          {stage.boundary.format}.
+          Origin ordinal: {stage.boundary.originOrdinal}; work package{' '}
+          {stage.boundary.workPackageId}; format {stage.boundary.format}.
         </p>
         <pre className="max-h-40 overflow-auto break-all whitespace-pre-wrap">
           {stage.boundary.canonical}
@@ -88,10 +88,12 @@ function CapturedStage({ stage }: { stage: Stage }) {
           <ul>
             {stage.boundary.fixed.map((interval, ordinal) => (
               <li key={ordinal}>
-                {interval.projectName} ({interval.projectAbbreviation}) / {interval.workItemName}
+                {interval.workPackageName} ({interval.workPackageAbbreviation}) /{' '}
+                {interval.workItemName}
                 {interval.stepName === null ? '' : ` / ${interval.stepName}`}: start offset{' '}
-                {interval.start}; finish offset {interval.finish}. Project {interval.projectId};
-                work item {interval.workItemId}; step {interval.stepId ?? 'none'}.
+                {interval.start}; finish offset {interval.finish}. Work package{' '}
+                {interval.workPackageId}; work item {interval.workItemId}; step{' '}
+                {interval.stepId ?? 'none'}.
               </li>
             ))}
           </ul>
@@ -112,25 +114,25 @@ function Provenance({ provenance }: { provenance: SavedPlanSideSummary['provenan
         <details>
           <summary>Captured connected provenance ({provenance.mode})</summary>
           <p>
-            Target project: {provenance.targetProjectId}; placement{' '}
+            Target work package: {provenance.targetWorkPackageId}; placement{' '}
             {placementWords(provenance.placementState)}.
           </p>
-          <p>Captured component projects:</p>
+          <p>Captured component work packages:</p>
           <ul>
-            {provenance.projects.map((project) => (
-              <li key={project.projectId}>
-                {project.name} ({project.abbreviation})
+            {provenance.workPackages.map((workPackage) => (
+              <li key={workPackage.workPackageId}>
+                {workPackage.name} ({workPackage.abbreviation})
               </li>
             ))}
           </ul>
           <p>Idle members:</p>
-          {provenance.idleProjects.length === 0 ? (
+          {provenance.idleWorkPackages.length === 0 ? (
             <p>None.</p>
           ) : (
             <ul>
-              {provenance.idleProjects.map((project) => (
-                <li key={project.projectId}>
-                  {project.name} ({project.abbreviation})
+              {provenance.idleWorkPackages.map((workPackage) => (
+                <li key={workPackage.workPackageId}>
+                  {workPackage.name} ({workPackage.abbreviation})
                 </li>
               ))}
             </ul>
@@ -141,7 +143,7 @@ function Provenance({ provenance }: { provenance: SavedPlanSideSummary['provenan
           ) : (
             <ol>
               {provenance.stages.map((stage) => (
-                <CapturedStage key={stage.projectId} stage={stage} />
+                <CapturedStage key={stage.workPackageId} stage={stage} />
               ))}
             </ol>
           )}
@@ -172,6 +174,7 @@ export function FrozenProvenance({
     >
       <h4 className="saved-plan-compare__side-name font-medium">{title}</h4>
       <p>{describeSource(source)}</p>
+      <p>{describeParent(summary.parent)}</p>
       {summary.schedule.present ? (
         <p>Schedule captured ({summary.schedule.algorithmId}).</p>
       ) : (
@@ -198,5 +201,17 @@ function describeSource(source: SavedPlanSideSummary['source']): string {
       // Proof: rendering unknown for an injected post-decode source kind failed
       // saved-plan-history.test.tsx's source Error Boundary assertion.
       return unreachable(source);
+  }
+}
+
+/** Captured identity remains visible without resolving a current project or guessing historical parents. */
+function describeParent(parent: SavedPlanSideSummary['parent']): string {
+  switch (parent.kind) {
+    case 'recorded':
+      return `Captured parent project: ${parent.projectId}.`;
+    case 'unrecorded':
+      return 'Parent project unrecorded.';
+    default:
+      return unreachable(parent);
   }
 }

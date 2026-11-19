@@ -34,9 +34,12 @@ export function inMemoryAttempts(
   };
   const onNode = (workItemId: string, stepId: string) =>
     rows.filter((row) => row.workItemId === workItemId && row.stepId === stepId);
-  const ordered = async (projectId: string, kept: StoredAttempt[]) => {
+  const ordered = async (workPackageId: string, kept: StoredAttempt[]) => {
     const position = new Map(
-      ((await steps?.listByProject(projectId)) ?? []).map((each) => [each.id, each.position]),
+      ((await steps?.listByWorkPackage(workPackageId)) ?? []).map((each) => [
+        each.id,
+        each.position,
+      ]),
     );
     return [...kept].sort(
       (left, right) =>
@@ -46,8 +49,8 @@ export function inMemoryAttempts(
         left.attemptNumber - right.attemptNumber,
     );
   };
-  const projectOf = async (projectId: string) =>
-    new Set((await workItems.listByProject(projectId)).map((row) => row.id));
+  const workPackageOf = async (workPackageId: string) =>
+    new Set((await workItems.listByWorkPackage(workPackageId)).map((row) => row.id));
   const replaceRow = (attempt: StoredAttempt) => {
     const kept = rows.filter(
       (row) =>
@@ -61,18 +64,18 @@ export function inMemoryAttempts(
   };
 
   return {
-    async listByProject(projectId) {
-      const ids = await projectOf(projectId);
+    async listByWorkPackage(workPackageId) {
+      const ids = await workPackageOf(workPackageId);
       return ordered(
-        projectId,
+        workPackageId,
         rows.filter((row) => ids.has(row.workItemId)),
       );
     },
-    async listByWorkItems(projectId, wanted) {
-      const ids = await projectOf(projectId);
+    async listByWorkItems(workPackageId, wanted) {
+      const ids = await workPackageOf(workPackageId);
       const asked = new Set(wanted);
       return ordered(
-        projectId,
+        workPackageId,
         rows.filter((row) => ids.has(row.workItemId) && asked.has(row.workItemId)),
       );
     },
@@ -86,9 +89,9 @@ export function inMemoryAttempts(
       return Promise.resolve(bySteps);
     },
     async start(start, _stamp) {
-      const projectId = (await workItems.findById(start.workItemId))?.projectId;
-      if (progress !== undefined && projectId !== undefined) {
-        const stated = await progress.listByWorkItems(projectId, [start.workItemId]);
+      const workPackageId = (await workItems.findById(start.workItemId))?.workPackageId;
+      if (progress !== undefined && workPackageId !== undefined) {
+        const stated = await progress.listByWorkItems(workPackageId, [start.workItemId]);
         if (stated.some((each) => each.stepId === start.stepId && each.state === 'done')) {
           return { ok: false, reason: 'node_done' as const };
         }
@@ -142,8 +145,8 @@ export function inMemoryAttempts(
       raise([{ ...attempt, issued: attempt.attemptNumber }]);
       return Promise.resolve();
     },
-    async listIssued(projectId, wanted) {
-      const ids = await projectOf(projectId);
+    async listIssued(workPackageId, wanted) {
+      const ids = await workPackageOf(workPackageId);
       const asked = new Set(wanted);
       return issued
         .filter((mark) => ids.has(mark.workItemId) && asked.has(mark.workItemId))

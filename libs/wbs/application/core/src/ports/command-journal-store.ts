@@ -3,7 +3,7 @@ import type { PlanEvent } from './plan-event-store';
 export type { UndoStack, UndoState } from './command-journal-values';
 
 /**
- * One command an account ran on one project, and what it takes to reverse it.
+ * One command an account ran on one work package, and what it takes to reverse it.
  *
  * The three JSON fields arrive parsed. `readCommand` checks discriminators
  * recursively and validates conditional blockage fields; legacy command fields
@@ -11,12 +11,12 @@ export type { UndoStack, UndoState } from './command-journal-values';
  */
 export interface JournalEntry {
   id: string;
-  projectId: string;
+  workPackageId: string;
   userId: string;
   /** The acting person whose stack holds this entry; see {@link UndoStack}. */
   personId: string | null;
   /**
-   * This entry's place among every entry of its project and account; higher is
+   * This entry's place among every entry of its work package and account; higher is
    * newer. Shared by the account's stacks, so one stack's numbers have gaps.
    */
   seq: number;
@@ -35,7 +35,7 @@ export interface JournalEntry {
 /** A journal entry on its way in, before the store decides where it sits in the stack. */
 export interface NewJournalEntry {
   id: string;
-  projectId: string;
+  workPackageId: string;
   userId: string;
   personId: string | null;
   kind: string;
@@ -58,7 +58,7 @@ export const JOURNAL_DEPTH = 50;
 export interface CommandJournalStore {
   /**
    * Appends a command to the entry's {@link UndoStack} and the same command to
-   * the project's history, **clearing that stack's redo branch** and pruning
+   * the work package's history, **clearing that stack's redo branch** and pruning
    * that stack past {@link JOURNAL_DEPTH}, in one transaction.
    *
    * The redo branch goes because it describes a future that no longer exists:
@@ -79,7 +79,7 @@ export interface CommandJournalStore {
    */
   append(entry: NewJournalEntry, event: PlanEvent): Promise<void>;
   /**
-   * Appends `event` to the project's history and nothing to any account's
+   * Appends `event` to the work package's history and nothing to any account's
    * stack: no redo branch is cleared and nothing is pruned. For an act no
    * account pressed — the coordinator releasing a claim whose lease ran out
    * (`wbs-claim-leases` L10) — so nobody's undo reaches it.

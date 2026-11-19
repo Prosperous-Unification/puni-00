@@ -1,13 +1,21 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { UnitOfWork } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { readPreconditions } from '@wbs/core/service/compensating';
@@ -32,13 +40,13 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { buildStores } from '../services';
@@ -64,11 +72,12 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -78,7 +87,7 @@ import { testWrites } from '../testing/writes-fixture';
  * made (openspec/changes/add-step-finish-start-dependencies, task 2).
  *
  * Typed dependencies are seeded through the repository: the commands that
- * write them are task 4's. Each project holds the starting steps Dev then QA,
+ * write them are task 4's. Each work package holds the starting steps Dev then QA,
  * and two leaves A and B.
  */
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -88,7 +97,7 @@ let app: ReturnType<typeof buildApp>;
 let typed: TypedDependencyRepository;
 let dependencies: DependencyRepository;
 let estimates: EstimateRepository;
-let projects: ProjectRepository;
+let workPackages: WorkPackageRepository;
 let steps: StepRepository;
 let journal: CommandJournalRepository;
 let workItems: WorkItemRepository;
@@ -100,8 +109,9 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-graph-'));
   const db = openDrizzle(join(dir, 'test.db'));
   runMigrations(join(dir, 'test.db'), FOLDER);
+  seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
   journal = new CommandJournalRepository(db, OPEN);
-  projects = new ProjectRepository(db, OPEN);
+  workPackages = new WorkPackageRepository(db, OPEN);
   steps = new StepRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
@@ -109,7 +119,7 @@ beforeEach(() => {
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
   const dependencyContext = createLocalDependencyContext({
-    projects,
+    workPackages,
     workItems,
     estimates,
     dependencies,
@@ -125,33 +135,33 @@ beforeEach(() => {
     priorityBands: testPriorityBandService(),
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({
+    workPackages: new WorkPackageService({
       clock: testClock,
-      projects,
+      workPackages,
       broadcast: recordingBroadcaster(),
       dependencyContext,
     }),
     steps: new StepService({
       clock: testClock,
-      projects,
+      workPackages,
       steps,
       broadcast: recordingBroadcaster(),
       dependencyContext,
     }),
     workItems: new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projects,
+        workPackages: workPackages,
         workItems: workItems,
         estimates: estimates,
         dependencies: dependencies,
         typedDependencies: typed,
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
-      projects,
+      workPackages,
       estimates,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
@@ -178,7 +188,15 @@ beforeEach(() => {
     clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: new SqliteWorkPackageObservation({
+      currentCapture: refusingSavedCurrentCapture,
+      openConnection: () => openPackageObservationConnection(join(dir, 'test.db')),
+      activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      now: () => testClock.now(),
+    }),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -188,7 +206,7 @@ beforeEach(() => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
@@ -246,8 +264,8 @@ function send(
   );
 }
 
-function command(projectId: string, token: string, step: object): Promise<Response> {
-  return send(`/api/projects/${projectId}/commands`, token, {
+function command(workPackageId: string, token: string, step: object): Promise<Response> {
+  return send(`/api/work-packages/${workPackageId}/commands`, token, {
     method: 'POST',
     body: JSON.stringify({ commands: [step] }),
   });
@@ -256,14 +274,14 @@ function command(projectId: string, token: string, step: object): Promise<Respon
 interface Plan {
   token: string;
   userId: string;
-  projectId: string;
+  workPackageId: string;
   devId: string;
   qaId: string;
   a: string;
   b: string;
 }
 
-/** An owner, a project with Dev then QA, and two root leaves A and B. */
+/** An owner, a work package with Dev then QA, and two root leaves A and B. */
 async function plan(): Promise<Plan> {
   const registered = await app.handle(
     new Request('http://localhost/api/auth/register', {
@@ -273,21 +291,21 @@ async function plan(): Promise<Plan> {
     }),
   );
   const account = (await registered.json()) as { token: string; user: { id: string } };
-  const created = await send('/api/projects', account.token, {
+  const created = await send('/api/work-packages', account.token, {
     method: 'POST',
-    body: JSON.stringify({ name: 'Rewire the shed' }),
+    body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the shed' }),
   });
   const body = (await created.json()) as {
-    project: { id: string };
+    workPackage: { id: string };
     steps: { id: string; name: string }[];
   };
   const stepId = (name: string): string => {
     const found = body.steps.find((each) => each.name === name);
-    if (found === undefined) throw new Error(`a project without its ${name} step`);
+    if (found === undefined) throw new Error(`a work package without its ${name} step`);
     return found.id;
   };
   const add = async (name: string): Promise<string> => {
-    const res = await command(body.project.id, account.token, {
+    const res = await command(body.workPackage.id, account.token, {
       kind: 'createWorkItem',
       parentId: null,
       afterId: null,
@@ -301,7 +319,7 @@ async function plan(): Promise<Plan> {
   return {
     token: account.token,
     userId: account.user.id,
-    projectId: body.project.id,
+    workPackageId: body.workPackage.id,
     devId: stepId('Dev'),
     qaId: stepId('QA'),
     a: await add('A'),
@@ -326,9 +344,9 @@ async function seedTyped(
   await typed.add(
     {
       id,
-      projectId: at.projectId,
-      predecessor: { ...predecessor, projectId: at.projectId },
-      successor: { ...successor, projectId: at.projectId },
+      workPackageId: at.workPackageId,
+      predecessor: { ...predecessor, workPackageId: at.workPackageId },
+      successor: { ...successor, workPackageId: at.workPackageId },
       type,
     },
     { at: 1, by: at.userId },
@@ -340,14 +358,14 @@ const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
 
 /** Every node estimated, reach `anchor-slice`, and legacy B → A anchored at B.dev. */
 async function anchoredAtBDev(at: Plan): Promise<void> {
-  const patched = await send(`/api/projects/${at.projectId}`, at.token, {
+  const patched = await send(`/api/work-packages/${at.workPackageId}`, at.token, {
     method: 'PATCH',
     body: JSON.stringify({ depReach: 'anchor-slice' }),
   });
   expect(patched.status).toBe(200);
   for (const workItemId of [at.a, at.b]) {
     for (const stepId of [at.devId, at.qaId]) {
-      const set = await command(at.projectId, at.token, {
+      const set = await command(at.workPackageId, at.token, {
         kind: 'setEstimate',
         workItemId,
         stepId,
@@ -356,7 +374,7 @@ async function anchoredAtBDev(at: Plan): Promise<void> {
       expect(set.status).toBe(200);
     }
   }
-  const linked = await command(at.projectId, at.token, {
+  const linked = await command(at.workPackageId, at.token, {
     kind: 'addDependency',
     workItemId: at.a,
     predecessorId: at.b,
@@ -364,7 +382,7 @@ async function anchoredAtBDev(at: Plan): Promise<void> {
   expect(linked.status).toBe(200);
 }
 
-/** A second account, which writes to the same unrestricted project. */
+/** A second account, which writes to the same unrestricted work package. */
 async function registerOther(): Promise<string> {
   const registered = await app.handle(
     new Request('http://localhost/api/auth/register', {
@@ -377,7 +395,7 @@ async function registerOther(): Promise<string> {
 }
 
 async function addUnder(at: Plan, parentId: string | null, name: string): Promise<string> {
-  const res = await command(at.projectId, at.token, {
+  const res = await command(at.workPackageId, at.token, {
     kind: 'createWorkItem',
     parentId,
     afterId: null,
@@ -390,30 +408,34 @@ async function addUnder(at: Plan, parentId: string | null, name: string): Promis
 
 describe('route writes that check the graph', () => {
   /**
-   * Proof: the app's `update` bound to `opts.projects.update` and its step
+   * Proof: the app's `update` bound to `opts.workPackages.update` and its step
    * `remove` to `opts.steps.remove`, each in turn, made this case fail on
    * `Expected: 1, Received: 0` for the reach change and `Expected: 2,
    * Received: 1` for the removal; watched 2026-09-27.
    */
-  it('runs a project reach change and a step removal as one unit of work each', async () => {
+  it('runs a work package reach change and a step removal as one unit of work each', async () => {
     const at = await plan();
     const before = admittedRuns;
-    const patched = await send(`/api/projects/${at.projectId}`, at.token, {
+    const patched = await send(`/api/work-packages/${at.workPackageId}`, at.token, {
       method: 'PATCH',
       body: JSON.stringify({ depReach: 'anchor-slice' }),
     });
     expect(patched.status).toBe(200);
     expect(admittedRuns - before).toBe(1);
 
-    const removed = await send(`/api/projects/${at.projectId}/steps/${at.qaId}`, at.token, {
-      method: 'DELETE',
-    });
+    const removed = await send(
+      `/api/work-packages/${at.workPackageId}/steps/${at.qaId}`,
+      at.token,
+      {
+        method: 'DELETE',
+      },
+    );
     expect(removed.status).toBe(204);
     expect(admittedRuns - before).toBe(2);
   });
 });
 
-describe('graph-changing writes on a legacy-only project', () => {
+describe('graph-changing writes on a legacy-only work package', () => {
   for (const refreshRevisions of [false, true]) {
     it(`refuses an undo of a move with ${refreshRevisions ? 'a legacy cycle after refreshing revision evidence' : 'a stale owner revision'}`, async () => {
       const at = await plan();
@@ -421,7 +443,7 @@ describe('graph-changing writes on a legacy-only project', () => {
       const q = await addUnder(at, null, 'Q');
       const x = await addUnder(at, p, 'X');
       const c = await addUnder(at, x, 'C');
-      const moved = await command(at.projectId, at.token, {
+      const moved = await command(at.workPackageId, at.token, {
         kind: 'moveWorkItem',
         workItemId: x,
         parentId: q,
@@ -430,7 +452,7 @@ describe('graph-changing writes on a legacy-only project', () => {
       expect(moved.status).toBe(200);
       // Somebody else makes C wait for P, which is fine while C sits under Q.
       const other = await registerOther();
-      const linked = await command(at.projectId, other, {
+      const linked = await command(at.workPackageId, other, {
         kind: 'addDependency',
         workItemId: c,
         predecessorId: p,
@@ -442,11 +464,15 @@ describe('graph-changing writes on a legacy-only project', () => {
       if (refreshRevisions) {
         // Refresh only revision evidence so the independent graph guard is reached.
         const entry = (
-          await journal.entriesFor({ projectId: at.projectId, userId: at.userId, personId: null })
+          await journal.entriesFor({
+            workPackageId: at.workPackageId,
+            userId: at.userId,
+            personId: null,
+          })
         ).at(-1);
         if (entry === undefined) throw new Error('move journal entry missing');
         const preconditions = readPreconditions(entry.preconditions);
-        const rows = await workItems.listByProject(at.projectId);
+        const rows = await workItems.listByWorkPackage(at.workPackageId);
         const expected = { ...preconditions.expected };
         for (const owner of Object.keys(expected)) {
           const row = rows.find((candidate) => candidate.id === owner);
@@ -459,7 +485,9 @@ describe('graph-changing writes on a legacy-only project', () => {
       // Undoing the move puts C back under P: P → C is then an edge onto its
       // own descendant, a leaf-level cycle nothing else would refuse, because
       // a replayed move does not pass through `canReparent`.
-      const res = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+      const res = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+        method: 'POST',
+      });
 
       expect(res.status).toBe(409);
       expect(await res.json()).toEqual({
@@ -479,7 +507,7 @@ describe('graph-changing writes against typed dependencies', () => {
 
     // Legacy B → A under whole-item leaves B.qa and enters A.dev, and A.dev
     // reaches A.qa, which the typed relationship joins to B.qa.
-    const res = await command(at.projectId, at.token, {
+    const res = await command(at.workPackageId, at.token, {
       kind: 'addDependency',
       workItemId: at.a,
       predecessorId: at.b,
@@ -487,7 +515,7 @@ describe('graph-changing writes against typed dependencies', () => {
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'cycle', at: 0, kind: 'addDependency' });
-    expect(await dependencies.listByProject(at.projectId)).toEqual([]);
+    expect(await dependencies.listByWorkPackage(at.workPackageId)).toEqual([]);
   });
 
   it('accepts a graph-changing write when the typed edges only look cyclic by work item', async () => {
@@ -497,7 +525,7 @@ describe('graph-changing writes against typed dependencies', () => {
     await seedTyped(at, node(at.a, at.devId), node(at.b, at.devId));
     await seedTyped(at, node(at.b, at.qaId), node(at.a, at.qaId));
 
-    const res = await command(at.projectId, at.token, {
+    const res = await command(at.workPackageId, at.token, {
       kind: 'setEstimate',
       workItemId: at.a,
       stepId: at.devId,
@@ -513,7 +541,7 @@ describe('graph-changing writes against typed dependencies', () => {
     await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId));
 
     // Clearing B.dev moves the anchor to B.qa, and B.qa → A.dev → A.qa → B.qa.
-    const res = await command(at.projectId, at.token, {
+    const res = await command(at.workPackageId, at.token, {
       kind: 'clearEstimate',
       workItemId: at.b,
       stepId: at.devId,
@@ -521,7 +549,7 @@ describe('graph-changing writes against typed dependencies', () => {
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'cycle', at: 0, kind: 'clearEstimate' });
-    const kept = (await estimates.listByProject(at.projectId)).filter(
+    const kept = (await estimates.listByWorkPackage(at.workPackageId)).filter(
       (each) => each.workItemId === at.b && each.stepId === at.devId,
     );
     expect(kept).toHaveLength(1);
@@ -532,14 +560,14 @@ describe('graph-changing writes against typed dependencies', () => {
     await anchoredAtBDev(at);
     await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId));
 
-    const res = await send(`/api/projects/${at.projectId}`, at.token, {
+    const res = await send(`/api/work-packages/${at.workPackageId}`, at.token, {
       method: 'PATCH',
       body: JSON.stringify({ depReach: 'whole-item' }),
     });
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'dependency_cycle' });
-    expect((await projects.findById(at.projectId))?.depReach).toBe('anchor-slice');
+    expect((await workPackages.findById(at.workPackageId))?.depReach).toBe('anchor-slice');
   });
 
   for (const type of ['SS', 'FF'] as const) {
@@ -547,19 +575,19 @@ describe('graph-changing writes against typed dependencies', () => {
       const at = await plan();
       await anchoredAtBDev(at);
       await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId), type);
-      const response = await send(`/api/projects/${at.projectId}`, at.token, {
+      const response = await send(`/api/work-packages/${at.workPackageId}`, at.token, {
         method: 'PATCH',
         body: JSON.stringify({ depReach: 'whole-item' }),
       });
       expect(response.status).toBe(409);
       expect(await response.json()).toEqual({ error: 'dependency_cycle' });
-      expect((await projects.findById(at.projectId))?.depReach).toBe('anchor-slice');
+      expect((await workPackages.findById(at.workPackageId))?.depReach).toBe('anchor-slice');
     });
   }
 
   it('refuses a move that brings a successor under its own whole predecessor', async () => {
     const at = await plan();
-    const parent = await command(at.projectId, at.token, {
+    const parent = await command(at.workPackageId, at.token, {
       kind: 'createWorkItem',
       parentId: null,
       afterId: null,
@@ -567,7 +595,7 @@ describe('graph-changing writes against typed dependencies', () => {
     });
     const parentId = ((await parent.json()) as { results: { id: string }[] }).results.at(0)?.id;
     if (parentId === undefined) throw new Error('createWorkItem minted no id');
-    const child = await command(at.projectId, at.token, {
+    const child = await command(at.workPackageId, at.token, {
       kind: 'createWorkItem',
       parentId,
       afterId: null,
@@ -578,7 +606,7 @@ describe('graph-changing writes against typed dependencies', () => {
 
     // Under P, B is one of P's leaves: whole P → B.dev includes B.qa → B.dev,
     // which B's own Dev → QA chain closes.
-    const res = await command(at.projectId, at.token, {
+    const res = await command(at.workPackageId, at.token, {
       kind: 'moveWorkItem',
       workItemId: at.b,
       parentId,
@@ -593,7 +621,7 @@ describe('graph-changing writes against typed dependencies', () => {
     const at = await plan();
     await anchoredAtBDev(at);
     await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId), 'SS');
-    const removed = await command(at.projectId, at.token, {
+    const removed = await command(at.workPackageId, at.token, {
       kind: 'removeDependency',
       workItemId: at.a,
       predecessorId: at.b,
@@ -603,20 +631,22 @@ describe('graph-changing writes against typed dependencies', () => {
     // would put B → A back under whole-item: B.qa → A.dev → A.qa → B.qa.
     // The reach change moves no work item's revision, so the entry is not
     // stale and only the graph check can refuse it.
-    const patched = await send(`/api/projects/${at.projectId}`, at.token, {
+    const patched = await send(`/api/work-packages/${at.workPackageId}`, at.token, {
       method: 'PATCH',
       body: JSON.stringify({ depReach: 'whole-item' }),
     });
     expect(patched.status).toBe(200);
 
-    const res = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+    const res = await send(`/api/work-packages/${at.workPackageId}/undo`, at.token, {
+      method: 'POST',
+    });
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: 'stale_undo',
       detail: 'that would now close a dependency cycle between steps.',
     });
-    expect(await dependencies.listByProject(at.projectId)).toEqual([]);
+    expect(await dependencies.listByWorkPackage(at.workPackageId)).toEqual([]);
   });
 
   it('refuses removing a step a typed dependency names, whatever cascade says', async () => {
@@ -624,7 +654,7 @@ describe('graph-changing writes against typed dependencies', () => {
     const named = await seedTyped(at, node(at.a, at.qaId), node(at.b, at.devId));
 
     const res = await send(
-      `/api/projects/${at.projectId}/steps/${at.qaId}?cascade=true`,
+      `/api/work-packages/${at.workPackageId}/steps/${at.qaId}?cascade=true`,
       at.token,
       { method: 'DELETE' },
     );
@@ -634,7 +664,9 @@ describe('graph-changing writes against typed dependencies', () => {
       error: 'referenced_by_dependency',
       dependencyIds: [named],
     });
-    expect((await projects.stepsOf(at.projectId)).map((step) => step.id)).toContain(at.qaId);
+    expect((await workPackages.stepsOf(at.workPackageId)).map((step) => step.id)).toContain(
+      at.qaId,
+    );
   });
 
   it('refuses removing a step that moves a legacy anchor into a cycle', async () => {
@@ -645,7 +677,7 @@ describe('graph-changing writes against typed dependencies', () => {
     // Without Dev, legacy B → A leaves B.qa and enters A.qa, which the typed
     // relationship joins back to B.qa.
     const res = await send(
-      `/api/projects/${at.projectId}/steps/${at.devId}?cascade=true`,
+      `/api/work-packages/${at.workPackageId}/steps/${at.devId}?cascade=true`,
       at.token,
       { method: 'DELETE' },
     );

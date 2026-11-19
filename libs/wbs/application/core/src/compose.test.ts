@@ -1,7 +1,9 @@
 import { noopLogger } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from './testing/legacy-package-source-fixture';
 import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, test } from 'bun:test';
 
 import {
@@ -18,12 +20,12 @@ import { createPlanCommandRunner } from './module/plan-commands/composition';
 import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
-import { CREATOR_ADMISSION } from './ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from './ports/edit-admission';
 import { NO_MACHINE_CREDENTIALS } from './ports/machine-credentials';
 import { LEGACY_ACCESS } from './ports/organization-access';
-import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
+import type { Broadcaster } from './ports/work-package-event';
 import { createLocalDependencyContext } from './service/dependency-context';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { expectCreated } from './testing/expect-created';
@@ -80,7 +82,7 @@ function accountlessSource(source: ReturnType<typeof openMemorySource>): Account
   };
 }
 
-function fixture() {
+async function fixture() {
   const instant = 1_000;
   let nextId = 0;
   let tick = (): void => {
@@ -107,7 +109,17 @@ function fixture() {
     },
     scheduler: fastScheduler,
   };
-  const accountSource = openMemorySource();
+  const parentFixture = openMemorySourceFixture();
+  const accountSource = parentFixture.source;
+  await accountSource.stores.users.create(
+    { id: 'owner', username: 'owner', passwordHash: null, createdAt: 1 },
+    { at: 1, by: 'owner' },
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: 'owner',
+  });
   const source = accountlessSource(accountSource);
   const graph = composeServices({ source, runtime, shared: fixtureShared });
   return {
@@ -125,7 +137,7 @@ function fixture() {
 }
 
 test('stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport', async () => {
-  const given = fixture();
+  const given = await fixture();
   const transport = signal();
   const changed: string[] = [];
   const pushed: unknown[] = [];
@@ -134,7 +146,7 @@ test('stored outcome and downstream recipient retain their sequences while react
     shared: fixtureShared,
     runtime: {
       ...given.runtime,
-      onPlanChanged: (projectId) => changed.push(projectId),
+      onPlanChanged: (workPackageId) => changed.push(workPackageId),
       push: {
         push: async (payload) => {
           pushed.push(payload);
@@ -146,12 +158,12 @@ test('stored outcome and downstream recipient retain their sequences while react
   });
   const event = {
     type: 'elsewhere_changed' as const,
-    projectId: 'recipient',
-    causeProjectId: 'cause',
+    workPackageId: 'recipient',
+    causeWorkPackageId: 'cause',
   };
   const outcome = {
     type: 'schedule_optimization_failed' as const,
-    projectId: 'origin',
+    workPackageId: 'origin',
     generation: 1,
     inputHash: 'captured-input',
     objective: 'pri' as const,
@@ -160,18 +172,18 @@ test('stored outcome and downstream recipient retain their sequences while react
     failureReason: 'internal-error' as const,
   };
   const recordedOutcome = await given.source.stores.eventLog.recordEvent(
-    'project:origin',
+    'work-package:origin',
     outcome,
     1_000,
   );
   const recorded = await given.source.stores.eventLog.recordEvent(
-    'project:recipient',
+    'work-package:recipient',
     event,
     1_000,
   );
   const delivering = graph.committedFanout.deliverCommitted([
-    { projectId: 'origin', event: outcome, recorded: recordedOutcome },
-    { projectId: 'recipient', event, recorded },
+    { workPackageId: 'origin', event: outcome, recorded: recordedOutcome },
+    { workPackageId: 'recipient', event, recorded },
   ]);
   expect(changed).toEqual(['recipient']);
   const secondWriter = await given.source.uow.run(() =>
@@ -179,16 +191,18 @@ test('stored outcome and downstream recipient retain their sequences while react
   );
   expect(secondWriter).toBe('entered');
   expect(pushed).toEqual([
-    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
+    { subscription: 'work-package:origin', seq: recordedOutcome.seq, message: outcome },
   ]);
   transport.resolve();
   await delivering;
   expect(pushed).toEqual([
-    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
-    { subscription: 'project:recipient', seq: recorded.seq, message: event },
+    { subscription: 'work-package:origin', seq: recordedOutcome.seq, message: outcome },
+    { subscription: 'work-package:recipient', seq: recorded.seq, message: event },
   ]);
-  expect(await given.source.stores.eventLog.latestSeq('project:origin')).toBe(recordedOutcome.seq);
-  expect(await given.source.stores.eventLog.latestSeq('project:recipient')).toBe(recorded.seq);
+  expect(await given.source.stores.eventLog.latestSeq('work-package:origin')).toBe(
+    recordedOutcome.seq,
+  );
+  expect(await given.source.stores.eventLog.latestSeq('work-package:recipient')).toBe(recorded.seq);
 });
 
 function runtimeOf(services: WritingServices): {
@@ -207,8 +221,8 @@ function runtimeOf(services: WritingServices): {
   };
 }
 
-test('accountless composition has no auth capability', () => {
-  const { graph, clock, source, accountSource, runtime } = fixture();
+test('accountless composition has no auth capability', async () => {
+  const { graph, clock, source, accountSource, runtime } = await fixture();
   expect(graph.clock).toBe(clock);
   // The valid access above compiles first, so a missing graph declaration cannot
   // satisfy this negative by making the whole fixture unknown.
@@ -250,7 +264,7 @@ test('accountless composition has no auth capability', () => {
 });
 
 test('accountful composition exposes auth when its source and runtime both offer accounts', async () => {
-  const { accountSource: source, runtime } = fixture();
+  const { accountSource: source, runtime } = await fixture();
   const graph = composeServices({
     source,
     runtime: {
@@ -275,9 +289,11 @@ test('accountful composition exposes auth when its source and runtime both offer
 
 describe('composeServices', () => {
   test('commits a mixed-store batch and rolls every store back on refusal', async () => {
-    const { graph, runner } = fixture();
-    const project = expectCreated(await graph.projects.create('Plan', 'owner'));
-    const committed = await runner.run(project.project.id, 'owner', [
+    const { graph, runner } = await fixture();
+    const workPackage = expectCreated(
+      await graph.workPackages.create('Plan', 'fixture-project', 'owner'),
+    );
+    const committed = await runner.run(workPackage.workPackage.id, 'owner', [
       { kind: 'createTeam', ref: 'team', name: 'Platform' },
       {
         kind: 'createWorkItem',
@@ -289,17 +305,17 @@ describe('composeServices', () => {
     ]);
     expect(committed.ok).toBe(true);
     expect(await graph.directory.listTeams()).toHaveLength(1);
-    const tree = await graph.workItems.tree(project.project.id);
+    const tree = await graph.workItems.tree(workPackage.workPackage.id);
     expect(
       tree === null || !('workItems' in tree) ? [] : tree.workItems.map((row) => row.name),
     ).toEqual(['Committed']);
 
-    const refused = await runner.run(project.project.id, 'owner', [
+    const refused = await runner.run(workPackage.workPackage.id, 'owner', [
       { kind: 'createTeam', name: 'Must roll back' },
       {
         kind: 'setEstimate',
         workItemId: 'absent',
-        stepId: project.steps[0]?.id ?? 'absent-step',
+        stepId: workPackage.steps[0]?.id ?? 'absent-step',
         days: { optimistic: 1, realistic: 2, pessimistic: 3 },
       },
     ]);
@@ -314,7 +330,7 @@ describe('composeServices', () => {
    * one feature whose batches are admitted.
    */
   test('installs Plan commands once, building every batch over its own admitted scope', async () => {
-    const { graph } = fixture();
+    const { graph } = await fixture();
 
     expect(
       await graph.commands.runDirectory('owner', [{ kind: 'createTeam', name: 'First' }]),
@@ -322,9 +338,9 @@ describe('composeServices', () => {
     expect(
       await graph.commands.runDirectory('owner', [
         { kind: 'createTeam', name: 'Rolled back' },
-        { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Needs a project' },
+        { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Needs a work package' },
       ]),
-    ).toMatchObject({ ok: false, at: 1, reason: 'project_required' });
+    ).toMatchObject({ ok: false, at: 1, reason: 'work_package_required' });
     expect(
       await graph.commands.runDirectory('owner', [{ kind: 'createTeam', name: 'Second' }]),
     ).toMatchObject({ ok: true });
@@ -343,8 +359,8 @@ describe('composeServices', () => {
    * `plans` and `savedPlans` are two names for one Saved plans feature identity, never two
    * instances: the backend module map's "Alias exports must not instantiate duplicates".
    */
-  test('composes one Saved plans instance behind both the plans and savedPlans names', () => {
-    const { graph } = fixture();
+  test('composes one Saved plans instance behind both the plans and savedPlans names', async () => {
+    const { graph } = await fixture();
 
     // Proof (2026-09-23): giving `plans` its own `installSavedPlans({...}).savedPlans` in
     // `composeServices` left this assertion failing with two distinct `SavedPlanService`
@@ -352,42 +368,65 @@ describe('composeServices', () => {
     expect(graph.plans).toBe(graph.savedPlans);
   });
 
-  test('denies a foreign save and persists an owner save through independent history', async () => {
-    const { graph } = fixture();
-    const project = expectCreated(await graph.projects.create('Private', 'owner'));
-    await graph.projects.update(project.project.id, 'owner', { restricted: true });
+  test('denies restricted legacy saves and persists an unrestricted save through independent history', async () => {
+    const { graph } = await fixture();
+    const workPackage = expectCreated(
+      await graph.workPackages.create('Private', 'fixture-project', 'owner'),
+    );
+    await graph.workPackages.update(workPackage.workPackage.id, 'owner', { restricted: true });
     const foreign = { id: 'other', username: 'other', scopes: ['write'] as const };
     const owner = { id: 'owner', username: 'owner', scopes: ['write'] as const };
     expect(
       await savePlan(graph, {
-        projectId: project.project.id,
+        workPackageId: workPackage.workPackage.id,
         actor: foreign,
         name: 'Denied',
         access: LEGACY_ACCESS,
       }),
     ).toEqual({ outcome: 'forbidden' });
+    expect(
+      await savePlan(graph, {
+        workPackageId: workPackage.workPackage.id,
+        actor: owner,
+        name: 'Also denied',
+        access: LEGACY_ACCESS,
+      }),
+    ).toEqual({ outcome: 'forbidden' });
+    const writable = expectCreated(
+      await graph.workPackages.create('Writable', 'fixture-project', 'owner'),
+    );
     const saved = await savePlan(graph, {
-      projectId: project.project.id,
+      workPackageId: writable.workPackage.id,
       actor: owner,
       name: 'Baseline',
       access: LEGACY_ACCESS,
     });
     expect(saved.outcome).toBe('saved');
     if (saved.outcome !== 'saved') return;
-    expect(await graph.savedPlans.read(saved.record.id)).toHaveProperty('outcome', 'read');
+    const read = await graph.savedPlans.read(saved.record.id);
+    expect(read).toHaveProperty('outcome', 'read');
+    if (read.outcome !== 'read') return;
+    expect(read.plan.workPackageId).toBe(writable.workPackage.id);
+    expect(read.plan.input.schemaVersion).toBe(12);
+    const input: unknown = JSON.parse(read.plan.input.bytes);
+    expect(input).toHaveProperty('schemaVersion', 12);
+    expect(input).toHaveProperty('workPackage.projectId', 'fixture-project');
+    expect(input).not.toHaveProperty('workPackage.ownerId');
   });
 
   test('replays two committed batches from their public buffer after durable rows are pruned', async () => {
     // Proof: giving ReplayOrchestrator a second buffer changed this answer from
     // the buffered tree_replaced event to `{status:"denied", reason:"out_of_range"}`.
-    const { graph, runner, source } = fixture();
-    const project = expectCreated(await graph.projects.create('Replay', 'owner'));
-    const subscription = `project:${project.project.id}`;
+    const { graph, runner, source } = await fixture();
+    const workPackage = expectCreated(
+      await graph.workPackages.create('Replay', 'fixture-project', 'owner'),
+    );
+    const subscription = `work-package:${workPackage.workPackage.id}`;
     const before = await source.stores.eventLog.latestSeq(subscription);
     for (const name of ['First buffered', 'Second buffered']) {
       expect(
         (
-          await runner.run(project.project.id, 'owner', [
+          await runner.run(workPackage.workPackage.id, 'owner', [
             { kind: 'createWorkItem', name, parentId: null, afterId: null },
           ])
         ).ok,
@@ -413,7 +452,7 @@ describe('composeServices', () => {
   });
 
   test('retention waits for an admitted batch to release the source turn', async () => {
-    const { source, graph, tick } = fixture();
+    const { source, graph, tick } = await fixture();
     const entered = signal();
     const release = signal();
     const batch = source.uow.run(async () => {
@@ -436,8 +475,10 @@ describe('composeServices', () => {
   });
 
   test('shares runtime identities while creating a fresh scope, collector and graph per batch', async () => {
-    const { graph, source, clock, runtime } = fixture();
-    const project = expectCreated(await graph.projects.create('Identities', 'owner'));
+    const { graph, source, clock, runtime } = await fixture();
+    const workPackage = expectCreated(
+      await graph.workPackages.create('Identities', 'fixture-project', 'owner'),
+    );
     const scopes: Scope[] = [];
     const broadcasts: Broadcaster[] = [];
     const graphs: WritingServices[] = [];
@@ -464,8 +505,8 @@ describe('composeServices', () => {
       uow: graph.uow,
       announcements: graph.announcements,
     });
-    await runner.run(project.project.id, 'owner', []);
-    await runner.run(project.project.id, 'owner', []);
+    await runner.run(workPackage.workPackage.id, 'owner', []);
+    await runner.run(workPackage.workPackage.id, 'owner', []);
     expect(scopes[0]).not.toBe(scopes[1]);
     expect(broadcasts[0]).not.toBe(broadcasts[1]);
     expect(graphs[0]).not.toBe(graphs[1]);
@@ -485,20 +526,22 @@ describe('composeServices', () => {
   });
 
   test('discards a stale journal entry through the fresh repair scope', async () => {
-    const { graph, runner, source } = fixture();
-    const project = expectCreated(await graph.projects.create('Repair', 'owner'));
-    await runner.run(project.project.id, 'owner', [
+    const { graph, runner, source } = await fixture();
+    const workPackage = expectCreated(
+      await graph.workPackages.create('Repair', 'fixture-project', 'owner'),
+    );
+    await runner.run(workPackage.workPackage.id, 'owner', [
       { kind: 'createWorkItem', name: 'Original', parentId: null, afterId: null },
     ]);
-    const row = (await source.stores.workItems.listByProject(project.project.id)).at(0);
+    const row = (await source.stores.workItems.listByWorkPackage(workPackage.workPackage.id)).at(0);
     if (row === undefined) throw new Error('committed batch did not create its work item');
     await source.stores.workItems.remove([row.id], [], { at: 2_000, by: 'peer' });
 
-    expect(await runner.undo(project.project.id, 'owner')).toMatchObject({
+    expect(await runner.undo(workPackage.workPackage.id, 'owner')).toMatchObject({
       ok: false,
       reason: 'stale_undo',
     });
-    expect(await runner.undo(project.project.id, 'owner')).toMatchObject({
+    expect(await runner.undo(workPackage.workPackage.id, 'owner')).toMatchObject({
       ok: false,
       reason: 'nothing_to_undo',
     });
@@ -513,19 +556,33 @@ describe('composeServices', () => {
  * of any one of them fails its own case.
  */
 describe('servicesOver', () => {
-  const PROJECT = 'project-1';
+  const WORK_PACKAGE = 'work-package-1';
   const OWNER = 'owner';
   const TEAM = 'team-1';
 
-  /** One source holding the project and the team, and a writing graph over its stores. */
+  /** One source holding the work package and the team, and a writing graph over its stores. */
   async function scopeOver(
     shared: Omit<ServicesOverOptions, 'dependencyContext'>,
   ): Promise<WritingServices> {
-    const source = openMemorySource();
-    await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-      at: 1,
-      by: OWNER,
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: null, createdAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: OWNER,
     });
+    await source.stores.workPackages.create(
+      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
+      [],
+      {
+        at: 1,
+        by: OWNER,
+      },
+    );
     await source.stores.directory.addTeam({ id: TEAM, name: 'Platform' }, { at: 1, by: OWNER });
     return servicesOver(source.stores, {
       ...shared,
@@ -540,7 +597,7 @@ describe('servicesOver', () => {
   }> {
     let next = 0;
     const shared: Omit<ServicesOverOptions, 'dependencyContext'> = {
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: clockOf({ now: () => 1_000, newId: () => `id-${String(++next)}` }),
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
@@ -552,33 +609,36 @@ describe('servicesOver', () => {
     const { first, second } = await twoScopes();
 
     expect(
-      await first.calendarMarkers.create(PROJECT, OWNER, { date: '2026-09-30', name: 'Launch' }),
+      await first.calendarMarkers.create(WORK_PACKAGE, OWNER, {
+        date: '2026-09-30',
+        name: 'Launch',
+      }),
     ).toMatchObject({ ok: true });
     // Proof (2026-09-24): memoizing one `installCalendarMarker(...)` result in a module-level
     // `let` and handing it to every `servicesOver` call left this case failing (0 pass, 1 fail,
     // run alone with `-t`): the second scope listed the first scope's `Launch` marker.
-    expect(await second.calendarMarkers.list(PROJECT)).toEqual({ ok: true, value: [] });
+    expect(await second.calendarMarkers.list(WORK_PACKAGE)).toEqual({ ok: true, value: [] });
   });
 
   test("installs Capacity per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
-    expect(await first.capacity.set(PROJECT, OWNER, TEAM, 3)).toMatchObject({ ok: true });
+    expect(await first.capacity.set(WORK_PACKAGE, OWNER, TEAM, 3)).toMatchObject({ ok: true });
     // Proof (2026-09-24): memoizing one `installCapacity(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope listed the first scope's `{ serviceTeamId: "team-1", size: 3 }`.
-    expect(await second.capacity.listFor(PROJECT)).toEqual([]);
+    expect(await second.capacity.listFor(WORK_PACKAGE)).toEqual([]);
   });
 
   test("installs Priority band per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
     const ladder = DEFAULT_PRIORITY_BANDS.map((band) => ({ ...band, label: `${band.label} now` }));
-    expect(await first.priorityBands.set(PROJECT, OWNER, ladder)).toMatchObject({ ok: true });
+    expect(await first.priorityBands.set(WORK_PACKAGE, OWNER, ladder)).toMatchObject({ ok: true });
     // Proof (2026-09-24): memoizing one `installPriorityBand(...)` result in a module-level `let`
     // and handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run
     // alone with `-t`): the second scope read the first scope's `Critical now` ladder.
-    expect(await second.priorityBands.listFor(PROJECT)).toEqual([...DEFAULT_PRIORITY_BANDS]);
+    expect(await second.priorityBands.listFor(WORK_PACKAGE)).toEqual([...DEFAULT_PRIORITY_BANDS]);
   });
 
   // Proof: forwarding `CREATOR_ADMISSION` instead of `shared.admission` to
@@ -594,23 +654,25 @@ describe('servicesOver', () => {
       scheduler: fastScheduler,
     });
 
-    expect(await graph.capacity.set(PROJECT, OWNER, TEAM, 3)).toEqual({
+    expect(await graph.capacity.set(WORK_PACKAGE, OWNER, TEAM, 3)).toEqual({
       ok: false,
       reason: 'forbidden',
     });
-    expect(await graph.priorityBands.set(PROJECT, OWNER, [...DEFAULT_PRIORITY_BANDS])).toEqual({
-      ok: false,
-      reason: 'forbidden',
-    });
+    expect(await graph.priorityBands.set(WORK_PACKAGE, OWNER, [...DEFAULT_PRIORITY_BANDS])).toEqual(
+      {
+        ok: false,
+        reason: 'forbidden',
+      },
+    );
     expect(
-      await graph.workItems.create(PROJECT, OWNER, {
+      await graph.workItems.create(WORK_PACKAGE, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Scope',
       }),
     ).toEqual({ ok: false, reason: 'forbidden' });
-    expect(await graph.capacity.listFor(PROJECT)).toEqual([]);
-    expect(await graph.priorityBands.listFor(PROJECT)).toEqual([...DEFAULT_PRIORITY_BANDS]);
+    expect(await graph.capacity.listFor(WORK_PACKAGE)).toEqual([]);
+    expect(await graph.priorityBands.listFor(WORK_PACKAGE)).toEqual([...DEFAULT_PRIORITY_BANDS]);
     expect(broadcast.published).toEqual([]);
   });
 
@@ -626,7 +688,7 @@ describe('servicesOver', () => {
     };
     const graph = await scopeOver(shared);
 
-    const failure = await graph.capacity.set(PROJECT, OWNER, TEAM, 3).then(
+    const failure = await graph.capacity.set(WORK_PACKAGE, OWNER, TEAM, 3).then(
       () => null,
       (error: unknown) => error,
     );
@@ -636,25 +698,27 @@ describe('servicesOver', () => {
   test("installs Step per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
-    const added = await first.steps.add(PROJECT, OWNER, 'Review', 0);
+    const added = await first.steps.add(WORK_PACKAGE, OWNER, 'Review', 0);
     if (!added.ok) throw new Error(`the first scope refused the step: ${added.reason}`);
     // Proof (2026-09-24): memoizing one `installStep(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope renamed the first scope's step and answered `ok: true`.
-    expect(await second.steps.rename(PROJECT, added.value.id, OWNER, 'Renamed')).toEqual({
+    expect(await second.steps.rename(WORK_PACKAGE, added.value.id, OWNER, 'Renamed')).toEqual({
       ok: false,
       reason: 'not_found',
     });
   });
 
-  test("installs Project per supplied scope, over that scope's own stores", async () => {
+  test("installs Work package per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
-    const created = expectCreated(await first.projects.create('Alpha', OWNER));
-    // Proof (2026-09-24): memoizing one `installProject(...)` result in a module-level `let` and
+    const created = expectCreated(
+      await first.workPackages.create('Alpha', 'fixture-project', OWNER),
+    );
+    // Proof (2026-09-24): memoizing one `installWorkPackage(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
-    // with `-t`): the second scope read the first scope's `Alpha` project instead of null.
-    expect(await second.projects.read(created.project.id)).toBeNull();
+    // with `-t`): the second scope read the first scope's `Alpha` work package instead of null.
+    expect(await second.workPackages.read(created.workPackage.id)).toBeNull();
   });
 
   test("installs Directory per supplied scope, over that scope's own stores", async () => {
@@ -673,7 +737,7 @@ describe('servicesOver', () => {
     const { first, second } = await twoScopes();
 
     expect(
-      await first.workItems.create(PROJECT, OWNER, {
+      await first.workItems.create(WORK_PACKAGE, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Scope',
@@ -682,6 +746,6 @@ describe('servicesOver', () => {
     // Proof (2026-09-24): memoizing one `installWorkItem(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope's tree listed the first scope's `Scope` work item.
-    expect(await second.workItems.tree(PROJECT)).toMatchObject({ workItems: [] });
+    expect(await second.workItems.tree(WORK_PACKAGE)).toMatchObject({ workItems: [] });
   });
 });

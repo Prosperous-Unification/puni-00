@@ -2,13 +2,13 @@ import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ALL_RESOURCES, resourcesFor } from '@/lib/plan-refresh';
-import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
+import type { WorkPackageStreamDeps, SocketHandlers } from '@/lib/work-package-stream';
 import type { LocalPlanOptimizationView as PlanOptimizationView } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
+import { DEV, fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
-import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { WorkPackagePageOverOwner } from '@/testing/work-package-page-over-owner';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { type SubscriptionHandlers } from './wbs-table';
@@ -47,22 +47,22 @@ const READY: PlanOptimizationView = {
 };
 
 async function openOptimization(): Promise<void> {
-  fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Work package settings' }));
   fireEvent.click(screen.getByRole('tab', { name: 'Optimization' }));
 }
 
-describe('project optimization in the plan', () => {
+describe('work package optimization in the plan', () => {
   /**
    * Proof: replacing the latest plan-read value with one captured in local
    * component state made this case and the collaborator-event case fail. The
    * persisted API state alone could no longer move the checked controls.
    * Watched on h2puni, 2026-09-06.
    */
-  itDom('persists a project-wide schedule choice across a remount', async () => {
-    const api = fakeProjectApi();
+  itDom('persists a work-package-wide schedule choice across a remount', async () => {
+    const api = fakeWorkPackageApi();
     const setSettings = vi.spyOn(api, 'setOptimizationSettings');
     const first = render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
     );
     await openOptimization();
 
@@ -81,37 +81,39 @@ describe('project optimization in the plan', () => {
       ['p1', { scheduleEngine: 'optimized', scheduleObjective: 'time' }],
     ]);
     // The cue is on screen and names the schedule the rows are actually placed
-    // by, which for a project with no optimized result is Fast.
+    // by, which for a work package with no optimized result is Fast.
     //
     // Queried by its mark rather than by role: this assertion is made with the
     // settings modal still open, and Radix aria-hides the toolbar the cue sits
     // in while it is — correctly, nothing behind a modal should be announced.
     // The claim this replaced was `role="status"` saying `Optimizing…`, which
-    // was a promise an **empty** project could not keep: the fake allocates no
+    // was a promise an **empty** work package could not keep: the fake allocates no
     // generation for a plan with no rows, nothing is ever admitted, and the
     // indicator said "Optimizing…" for ever. `variantStateWords` has the rule.
     expect(document.querySelector('[data-cue-active]')?.textContent).toBe('Fast');
 
     first.unmount();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await openOptimization();
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Finish-first' })).toBeChecked();
   });
 
-  itDom('rereads another collaborator’s project settings event', async () => {
-    const api = fakeProjectApi();
+  itDom('rereads another collaborator’s work package settings event', async () => {
+    const api = fakeWorkPackageApi();
     let notify: SubscriptionHandlers['onChange'] = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -124,7 +126,7 @@ describe('project optimization in the plan', () => {
       scheduleObjective: 'time',
     });
     act(() => {
-      notify('project_settings_changed');
+      notify('work_package_settings_changed');
     });
 
     await waitFor(() => {
@@ -136,12 +138,12 @@ describe('project optimization in the plan', () => {
   itDom("keeps the plan current and the optimizer's suggestion when only claims fail", async () => {
     // `wbs-claim-display` C12: claims are optional. Their failure is their
     // own quiet notice, never the plan's stale alert, so the comparison stays.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const readTree = api.tree.bind(api);
     // Fast on screen and Pri three days earlier: a suggestion, which a stale
     // plan would suppress.
-    api.tree = async (projectId) => ({
-      ...(await readTree(projectId)),
+    api.tree = async (workPackageId) => ({
+      ...(await readTree(workPackageId)),
       optimization: {
         ...OPTIMIZATION_BASE,
         engine: 'fast',
@@ -151,7 +153,9 @@ describe('project optimization in the plan', () => {
       },
     });
     api.readClaims = () => Promise.reject(new Error('http_404'));
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     await waitFor(() => {
       expect(document.querySelector('[data-stale-claims]')).not.toBeNull();
@@ -167,34 +171,34 @@ describe('project optimization in the plan', () => {
   });
 
   itDom('removes a ready comparison when a later plan read fails', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const readTree = api.tree.bind(api);
     let refuseRead = false;
-    api.tree = async (projectId) => {
+    api.tree = async (workPackageId) => {
       if (refuseRead) throw new Error('offline');
-      return { ...(await readTree(projectId)), optimization: READY };
+      return { ...(await readTree(workPackageId)), optimization: READY };
     };
     let notify: SubscriptionHandlers['onChange'] = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Earlier project deadline by 2 days',
+      'Earlier work package deadline by 2 days',
     );
 
     refuseRead = true;
     act(() => {
-      notify('project_settings_changed');
+      notify('work_package_settings_changed');
     });
 
     await waitFor(() => {
@@ -203,7 +207,7 @@ describe('project optimization in the plan', () => {
         'Schedule comparison unavailable while this plan may be stale',
       );
     });
-    expect(screen.queryByText(/project deadline by/)).toBeNull();
+    expect(screen.queryByText(/work-package deadline by/)).toBeNull();
     // The pill's own face loses the figures with the sentence: a suggestion is
     // a comparison, and this read is not prepared to show one.
     expect(document.querySelector('[data-cue-suggestion]')).toBeNull();
@@ -218,9 +222,9 @@ describe('project optimization in the plan', () => {
   itDom(
     'leaves the Fast plan on screen and usable, and offers no Retry, when infeasible',
     async () => {
-      const api = fakeProjectApi();
+      const api = fakeWorkPackageApi();
       const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Launch' });
-      // A day zero **and** a cost, so Fast has something to place: a project
+      // A day zero **and** a cost, so Fast has something to place: a work package
       // with no start date has no coordinate system, and the chart filters
       // every unestimated slice out at rest, so without both the assertion
       // below would pass against an empty chart.
@@ -228,8 +232,8 @@ describe('project optimization in the plan', () => {
       await api.setEstimate(row.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
       const patch = vi.spyOn(api, 'patchWorkItem');
       const readTree = api.tree.bind(api);
-      api.tree = async (projectId) => ({
-        ...(await readTree(projectId)),
+      api.tree = async (workPackageId) => ({
+        ...(await readTree(workPackageId)),
         optimization: {
           ...OPTIMIZATION_BASE,
           displayed: 'fast',
@@ -244,7 +248,9 @@ describe('project optimization in the plan', () => {
           },
         } satisfies PlanOptimizationView,
       });
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
 
       await waitFor(() => {
         expect(screen.getByRole('status')).toHaveTextContent(
@@ -347,12 +353,12 @@ describe('project optimization in the plan', () => {
    * event promises a client** (TASK-324); the case below pins it.
    */
   itDom('leaves Optimizing… on the infeasible event alone', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Launch' });
     let infeasible = false;
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => ({
-      ...(await readTree(projectId)),
+    api.tree = async (workPackageId) => ({
+      ...(await readTree(workPackageId)),
       optimization: {
         ...OPTIMIZATION_BASE,
         displayed: 'fast',
@@ -372,14 +378,14 @@ describe('project optimization in the plan', () => {
     let notify: SubscriptionHandlers['onChange'] = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -423,12 +429,12 @@ describe('project optimization in the plan', () => {
    *
    * The **arity** is recorded beside the name, because a name alone cannot see
    * the cheapest way to add a variant-scoped read: an overload of an existing
-   * one. `tree(projectId, objective)` records as one `tree` under a
+   * one. `tree(workPackageId, objective)` records as one `tree` under a
    * name-only recorder and is invisible; it records as `tree/2` here (Sol
    * review, 2026-09-07).
    *
    * `apply` binds `target`, not the proxy, so the fake's own state (`rows`,
-   * `markers`) keeps working and every other test still sees `fakeProjectApi`
+   * `markers`) keeps working and every other test still sees `fakeWorkPackageApi`
    * exactly as it was.
    */
   function recordingApi<T extends object>(api: T): { api: T; calls: string[] } {
@@ -462,13 +468,13 @@ describe('project optimization in the plan', () => {
    * and how many, and the order they are issued in is not part of the
    * requirement this file pins.
    *
-   * **And it is a claim about `ProjectApi` calls, not about requests on the
+   * **And it is a claim about `WorkPackageApi` calls, not about requests on the
    * wire.** The recorder wraps the methods, so it sees a call enter `tree` and
-   * cannot see inside it: an `httpProjectApi.tree` that made a second HTTP
+   * cannot see inside it: an `httpWorkPackageApi.tree` that made a second HTTP
    * request of its own would still record one `tree/1`. That half is pinned
    * where it can be seen, by `FULL_SCOPE_PUTS_ON_THE_WIRE` in
    * `lib/wbs-api.test.ts`, which drives these same reads through a real
-   * `httpProjectApi` over a fake `fetch` and asserts the exact requests it
+   * `httpWorkPackageApi` over a fake `fetch` and asserts the exact requests it
    * issues — the same object the refresh below is handed, so the wiring that
    * puts the six directory reads on it is pinned along with them. The
    * two are one claim in two places: this list says WHICH reads a full-scope
@@ -501,7 +507,7 @@ describe('project optimization in the plan', () => {
    * which "the state came from the frame" and "the state came from the read"
    * look different on screen.
    */
-  function optimizerRead(fake: ReturnType<typeof fakeProjectApi>): {
+  function optimizerRead(fake: ReturnType<typeof fakeWorkPackageApi>): {
     failAndHoldTheNextRead: () => void;
     releaseTheHeldRead: () => void;
   } {
@@ -511,7 +517,7 @@ describe('project optimization in the plan', () => {
     let releaseTree = (): void => {
       throw new Error('the table never read the plan');
     };
-    fake.tree = async (projectId) => {
+    fake.tree = async (workPackageId) => {
       if (holdNextTree) {
         holdNextTree = false;
         await new Promise<void>((resolve) => {
@@ -519,7 +525,7 @@ describe('project optimization in the plan', () => {
         });
       }
       return {
-        ...(await readTree(projectId)),
+        ...(await readTree(workPackageId)),
         optimization: {
           ...OPTIMIZATION_BASE,
           displayed: 'fast',
@@ -566,7 +572,7 @@ describe('project optimization in the plan', () => {
    * 3. **Nothing else.** The recorded calls are exactly the full-scope reads as
    *    a multiset, by name and arity. Add `api.optimizationVariant(…)` beside
    *    the plan read, or overload the existing read as
-   *    `tree(projectId, objective)`, and this is red — a `resourcesFor`
+   *    `tree(workPackageId, objective)`, and this is red — a `resourcesFor`
    *    assertion or a bare `tree` count would stay green for both.
    *
    * **What this case cannot say** (Sol review, 2026-09-07). It calls `onChange`
@@ -574,27 +580,27 @@ describe('project optimization in the plan', () => {
    * carries a `failureReason` at all. It therefore cannot prove that a client
    * given the payload would not use it; the assertion that no field of the
    * frame reaches a screen belongs where a whole frame exists, and lives in
-   * `project-stream.test.ts` — "hands an optimizer outcome frame on as a bare
+   * `work-package-stream.test.ts` — "hands an optimizer outcome frame on as a bare
    * type, dropping the failure reason". The two cases meet at `onChange`: that
    * one proves nothing but the type crosses it, this one proves the type alone
    * does not move the indicator.
    */
   itDom('moves to Retry only when the plan read lands, and asks for no variant read', async () => {
-    const fake = fakeProjectApi();
+    const fake = fakeWorkPackageApi();
     await fake.createWorkItem('p1', { parentId: null, afterId: null, name: 'Launch' });
     const plan = optimizerRead(fake);
     const { api, calls } = recordingApi(fake);
     let notify: SubscriptionHandlers['onChange'] = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -638,13 +644,13 @@ describe('project optimization in the plan', () => {
   });
 
   /**
-   * A socket the case drives by hand, in the shape `subscribeToProject` opens.
+   * A socket the case drives by hand, in the shape `subscribeToWorkPackage` opens.
    *
    * The reconnect wiring is stubbed flat — nothing here closes a socket — so the
-   * scheduler is never reached; `project-stream.test.ts` is where backoff is
+   * scheduler is never reached; `work-package-stream.test.ts` is where backoff is
    * tested and repeating it would be a second implementation of that file.
    */
-  function fakeSocket(): { deps: ProjectStreamDeps; handlers: () => SocketHandlers } {
+  function fakeSocket(): { deps: WorkPackageStreamDeps; handlers: () => SocketHandlers } {
     let opened: SocketHandlers | null = null;
     return {
       deps: {
@@ -692,7 +698,7 @@ describe('project optimization in the plan', () => {
    * TASK-324 AC #2, the composition the two cases above cannot make between
    * them.
    *
-   * They are halves. `project-stream.test.ts` proves the stream hands on a bare
+   * They are halves. `work-package-stream.test.ts` proves the stream hands on a bare
    * type and drops `failureReason`; the case above proves the table needs the
    * plan read before it will say `Retry`. Both hold, and the requirement can
    * still be broken **in the joint**, because neither of them runs the joint:
@@ -700,10 +706,10 @@ describe('project optimization in the plan', () => {
    * case supplies a `subscribe` of its own that never opens a stream at all.
    *
    * The implementation that is green under both of them is concrete (Sol
-   * review, 2026-09-07): give `ProjectStreamOptions` and `SubscriptionHandlers`
+   * review, 2026-09-07): give `WorkPackageStreamOptions` and `SubscriptionHandlers`
    * an optional second callback, have the stream call it with the *whole*
    * failure frame beside the existing `onChange(changedFactOf(…))`, forward it
-   * through the factory in `project-page.tsx`, and let the table render
+   * through the factory in `work-package-page.tsx`, and let the table render
    * `Optimization unavailable` off `failureReason` the moment it
    * arrives. Nothing above goes red: the stream case passes no such callback so
    * its argument list is unchanged, and the table case's fake stream never
@@ -727,14 +733,14 @@ describe('project optimization in the plan', () => {
   itDom(
     'takes the failed variant from the plan read even when a whole frame carried it',
     async () => {
-      const fake = fakeProjectApi();
+      const fake = fakeWorkPackageApi();
       await fake.createWorkItem('p1', { parentId: null, afterId: null, name: 'Launch' });
       const plan = optimizerRead(fake);
       const { api, calls } = recordingApi(fake);
       const socket = fakeSocket();
 
       render(
-        <ProjectPageOverOwner
+        <WorkPackagePageOverOwner
           api={api}
           savedPlanRoutes={NO_SAVED_PLANS}
           streamDeps={socket.deps}
@@ -744,7 +750,7 @@ describe('project optimization in the plan', () => {
         expect(indicatorWords()).toContain('Priority-first: Optimizing…');
       });
 
-      // Selecting the project and the table's first read are not what this case
+      // Selecting the work package and the table's first read are not what this case
       // is about.
       calls.length = 0;
       plan.failAndHoldTheNextRead();
@@ -752,11 +758,11 @@ describe('project optimization in the plan', () => {
         socket.handlers().onOpen();
         socket.handlers().onMessage(
           JSON.stringify({
-            subscription: 'project:p1',
+            subscription: 'work-package:p1',
             seq: 31,
             message: {
               type: 'schedule_optimization_failed',
-              projectId: 'p1',
+              workPackageId: 'p1',
               generation: 4,
               inputHash: 'same-input',
               objective: 'pri',

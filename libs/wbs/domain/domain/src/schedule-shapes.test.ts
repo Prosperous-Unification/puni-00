@@ -190,7 +190,7 @@ const steppedPlan = (
 };
 
 /**
- * The same, for a **three**-step project listing `Design, Dev, QA` in that
+ * The same, for a **three**-step work package listing `Design, Dev, QA` in that
  * order — the shape the anchor rule is about, because it has a step in front
  * of `Dev` that a plan may well leave unestimated.
  */
@@ -298,7 +298,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // Until 2026-08-11 this read the other way — the anchor was the first
     // slice plain, zero days long, and `B` started on day 0 with the edge
     // having decided nothing. Dany's call, on the probe below: "first in list
-    // of project roles, then first that is estimated".
+    // of work package roles, then first that is estimated".
     const found = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
@@ -318,7 +318,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     });
   });
 
-  it('a chain does not collapse because a project lists a step nobody estimated', () => {
+  it('a chain does not collapse because a work package lists a step nobody estimated', () => {
     // The probe that settled the rule (2026-08-11). Three steps — `Design`,
     // `Dev`, `QA` — and a plan that estimates only `Dev`, which is every plan
     // in `refs/gantt/`. `c1 → c2 → c3`, four days of Dev each.
@@ -438,12 +438,12 @@ describe('shapes — a dependency waits on the anchor slice', () => {
   it('splits critical from slack inside the predecessor when the successor runs on', () => {
     // `B`'s ten-day Dev runs 3→13. `A`'s Dev (0→3) releases it, so Dev cannot
     // slip: float 0, critical. `A`'s QA (3→5) has no successor at all after the
-    // flip — the edge leaves the anchor — so it may run as late as the project
-    // allows, and shows no red. The row projects the min-slice rule: `A`
+    // flip — the edge leaves the anchor — so it may run as late as the work package
+    // allows, and shows no red. The row uses the min-slice rule: `A`
     // reports slack 0 and critical because its Dev is, with room to spare on
     // its QA.
     //
-    // `B`'s unestimated QA stands at 13→13 behind its Dev, so the project
+    // `B`'s unestimated QA stands at 13→13 behind its Dev, so the work package
     // finishes on day 13 and `A`'s QA has eight days of slack.
     //
     // On `anchor-slice`: "the edge leaves the anchor" is the whole premise, so
@@ -528,8 +528,8 @@ describe('shapes — a dependency waits on the anchor slice', () => {
   });
 });
 
-describe('shapes — the project decides how far a dependency reaches', () => {
-  it('a project’s reach decides what a successor waits for', () => {
+describe('shapes — the work package decides how far a dependency reaches', () => {
+  it('a work package’s reach decides what a successor waits for', () => {
     // The same plan, twice. `A` is Dev 0→3 then QA 3→5; `B` depends on it.
     // Under `whole-item` the wait is `A`'s **last** slice, so `B` starts on
     // day 5 and nothing of `A` runs beside it. Under `anchor-slice` the wait
@@ -970,11 +970,11 @@ describe('shapes — arithmetic over a long chain', () => {
     expect(Math.abs(finish - 15)).toBeLessThan(1e-9);
   });
 
-  it('paints every row that ends the project red, drift and all', () => {
+  it('paints every row that ends the work package red, drift and all', () => {
     // Cloud case A1, watched live on dev 2026-08-11. Three PERT finals of
     // 45/6, 25/6 and 20/6 days chained end to end — the trios 0/8/13, 3/4/6
     // and 0/3/8 — sum to exactly 15 and arrive as 15.000000000000002, and a
-    // fourth row of a flat 15 days runs beside them. All four end the project
+    // fourth row of a flat 15 days runs beside them. All four end the work package
     // and none of them can slip by so much as an hour.
     //
     // The engine agreed about one of them. `flat`'s late start came back as
@@ -1001,10 +1001,10 @@ describe('shapes — arithmetic over a long chain', () => {
     expect(found.get('flat')).toMatchObject({ float: 0, critical: true });
   });
 
-  it('reports no float on a row a notBefore floor stands at the project finish', () => {
+  it('reports no float on a row a notBefore floor stands at the work package finish', () => {
     // A floor at day 13 stands a 23/6-day row past everything else in the
-    // plan, so that row *is* the project finish and cannot slip at all. The
-    // backward pass reconstructs its `latestStart` as `projectFinish - days`,
+    // plan, so that row *is* the work package finish and cannot slip at all. The
+    // backward pass reconstructs its `latestStart` as `workPackageFinish - days`,
     // and `(13 + 23/6) - 23/6` is not 13 in doubles, so the raw subtraction
     // gives about -1.8e-15.
     //
@@ -1032,7 +1032,7 @@ describe('shapes — arithmetic over a long chain', () => {
 
     const floored = found.workItems.get('floored');
     if (floored === undefined) throw new Error('the floored row is not in the plan');
-    // The floor held, and the row ends the project.
+    // The floor held, and the row ends the work package.
     expect(floored.earliestStart).toBe(13);
     expect(floored.earliestFinish).toBeGreaterThan(
       found.workItems.get('done-early')?.earliestFinish ?? NaN,

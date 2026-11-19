@@ -12,6 +12,7 @@ const descriptors =
     ? undefined
     : (JSON.parse(Buffer.from(encodedDescriptors, 'base64url').toString('utf8')) as {
         command: string;
+        bunArgs: readonly [string, ...string[]];
         cwd: string;
         url: string;
         env: Record<string, string>;

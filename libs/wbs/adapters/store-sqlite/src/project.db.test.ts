@@ -1,1189 +1,649 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { NewProject, Project, Step, WriteStamp } from '@wbs/core';
-import { STEP_POSITION_STEP } from '@wbs/core';
-import { suggestStepCode } from '@wbs/domain';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import {
+  projectCreationAct,
+  projectStoreConformance,
+  type ProjectStoreFixture,
+} from '@wbs/conformance';
+import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { may } from '@wbs/domain';
+import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { messagesOf } from './constraint';
-import { openDatabase, openDrizzle } from './db';
-import { OPEN } from './gate';
+import { AccessDecisionRepository } from './access-decisions';
+import { AccessGrantRepository } from './access-grant';
+import { type Connection, openConnection, openDatabase } from './db';
+import { WriteCoordinator } from './gate';
+import { ProjectRepository } from './index';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
-import { ProjectRepository } from './project';
-import { optimizationGeneration, solverQueue, solverSlot } from './schema';
-import { UserRepository } from './user';
+import { readMigrationFolders } from './migrate-down';
+import { SqliteOrganizationAuditLog } from './organization-audit-log';
+import { createProjectIn, readProjectDetailIn, renameProjectIn } from './project-operations';
+import { runSecurityTransaction } from './security-transaction';
+import { seedDependencyAuthority } from './testing/dependency-activation';
+import { TypedDependencyRepository } from './typed-dependency';
+import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const MIGRATION_CEILING = '20261110120100_space_holds_projects_people_teams';
+let directory: string, sqlite: Database, connection: Connection, gate: WriteCoordinator;
+let nativeOwners: number;
+let statements: string[];
 
-let dir: string;
-let repo: ProjectRepository;
-let ownerId: string;
-
-/**
- * The stamp every write here carries unless the case is about who wrote it. The
- * account is `ownerId`, which the `created_by` foreign key requires to exist;
- * its own signup carries it too, because a new account authors its own row.
- */
-const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
-
-beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'wbs-project-'));
-  const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  const db = openDrizzle(path);
-  repo = new ProjectRepository(db, OPEN);
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    wrote(),
+beforeEach(() => {
+  directory = mkdtempSync(join(tmpdir(), 'project-store-'));
+  const migrations = join(directory, 'migrations'),
+    path = join(directory, 'store.db');
+  mkdirSync(migrations);
+  const folders = readMigrationFolders(FOLDER);
+  for (const migration of folders.filter(
+    ({ name }) => name < '20261110100000_rename_project_to_work_package',
+  ))
+    cpSync(join(FOLDER, migration.name), join(migrations, migration.name), { recursive: true });
+  runMigrations(path, migrations);
+  for (const migration of folders.filter(
+    ({ name }) => name === '20261110100000_rename_project_to_work_package',
+  ))
+    cpSync(join(FOLDER, migration.name), join(migrations, migration.name), { recursive: true });
+  runMigrations(path, migrations);
+  for (const migration of folders.filter(
+    ({ name }) =>
+      name > '20261110100000_rename_project_to_work_package' && name <= MIGRATION_CEILING,
+  ))
+    cpSync(join(FOLDER, migration.name), join(migrations, migration.name), { recursive: true });
+  runMigrations(path, migrations);
+  // Synthetic storage authority only; no runtime compatibility or operational activation claim.
+  seedDependencyAuthority(path);
+  nativeOwners = 0;
+  statements = [];
+  sqlite = openDatabase(path);
+  connection = openConnection(
+    path,
+    {
+      logQuery(statement) {
+        statements.push(statement);
+      },
+    },
+    () => {
+      nativeOwners++;
+    },
+  );
+  gate = new WriteCoordinator();
+  const expectedMigrations = folders
+    .filter(({ name }) => name <= MIGRATION_CEILING)
+    .map(({ name, hash }) => ({ name, hash }));
+  expect(expectedMigrations.at(-1)?.name).toBe(MIGRATION_CEILING);
+  expect(
+    sqlite
+      .query<{ name: string; hash: string }, []>(
+        'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+      )
+      .all(),
+  ).toEqual(expectedMigrations);
+  const projectColumns = sqlite
+    .query<{ name: string }, []>('PRAGMA table_info(project)')
+    .all()
+    .map(({ name }) => name);
+  expect(projectColumns).toContain('space_id');
+  expect(projectColumns).toContain('space_position');
+  sqlite.run("INSERT INTO users(id,username,created_at) VALUES('creator','Creator',1)");
+  sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1),('org-b','B',1)");
+  sqlite.run(
+    "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','creator','member',1),('org-b','creator','member',1)",
   );
 });
-
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  connection.close();
+  sqlite.close();
+  rmSync(directory, { recursive: true, force: true });
 });
 
-function project(name: string, createdAt: number): NewProject {
+it('grants the actual current project scope within its organization and refuses foreign or absent projects', async () => {
+  sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('project-a','org-a','A',1,'creator')",
+  );
+  const grants = new AccessGrantRepository(connection.db, gate);
+  const draft = {
+    id: 'grant',
+    scope: { kind: 'project', projectId: 'project-a' },
+    subject: { kind: 'user', userId: 'creator' },
+    roleId: 'project-manager',
+    origin: 'creation',
+  } as const;
+  const act = {
+    actor: { kind: 'user', userId: 'creator' },
+    at: 20,
+    auditId: 'grant-audit',
+  } as const;
+  const created = await grants.grant('org-a', draft, act);
+  expect(created).toEqual({
+    kind: 'granted',
+    grant: {
+      id: 'grant',
+      organizationId: 'org-a',
+      scope: draft.scope,
+      subject: draft.subject,
+      roleId: 'project-manager',
+      origin: 'creation',
+      createdAt: 20,
+      createdBy: 'creator',
+    },
+  });
+  expect(
+    await grants.grant('org-b', { ...draft, id: 'foreign' }, { ...act, auditId: 'foreign-audit' }),
+  ).toBe('not_found');
+  expect(
+    await grants.grant(
+      'org-a',
+      { ...draft, id: 'absent', scope: { kind: 'project', projectId: 'absent' } },
+      { ...act, auditId: 'absent-audit' },
+    ),
+  ).toBe('not_found');
+});
+
+it('reads all four actual current project audit actions through the closed audit reader', async () => {
+  const actions = [
+    'project_created',
+    'project_renamed',
+    'project_deleted',
+    'work_package_moved',
+  ] as const;
+  for (const action of actions)
+    sqlite.run(
+      "INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at) VALUES(?,'org-a','creator',?,'project','project-a','{}',20)",
+      [action, action],
+    );
+  expect(
+    (await new SqliteOrganizationAuditLog(connection.db).list('org-a')).map(({ action }) => action),
+  ).toEqual([...actions].sort());
+});
+
+function fixture(): ProjectStoreFixture {
+  const store = new ProjectRepository(connection.db, gate),
+    grants = new AccessGrantRepository(connection.db, gate),
+    audits = new SqliteOrganizationAuditLog(connection.db);
   return {
-    id: crypto.randomUUID(),
-    name,
-    ownerId,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    depReach: 'whole-item',
-    startDate: null,
-    solutionRef: null,
-    revision: 0,
-    createdAt,
+    store,
+    async snapshot() {
+      return {
+        projects: [...(await store.listIn('org-a')), ...(await store.listIn('org-b'))]
+          .map(({ workPackageCount: _workPackageCount, ...project }) => project)
+          .sort((first, second) => (first.id < second.id ? -1 : 1)),
+        grants: [...(await grants.list('org-a', {})), ...(await grants.list('org-b', {}))].sort(
+          (first, second) => (first.id < second.id ? -1 : 1),
+        ),
+        audits: [...(await audits.list('org-a')), ...(await audits.list('org-b'))].sort(
+          (first, second) => (first.id < second.id ? -1 : 1),
+        ),
+      };
+    },
+    async snapshotMove() {
+      const state = await this.snapshot(),
+        rows = sqlite.query<{ id: string }, []>('SELECT id FROM work_package ORDER BY id').all(),
+        workPackages = [];
+      for (const { id } of rows) {
+        const workPackage = await new WorkPackageRepository(connection.db, gate).findById(id);
+        if (workPackage === null) throw Error('fixture package disappeared');
+        workPackages.push(workPackage);
+      }
+      return {
+        ...state,
+        workPackages,
+        dependencies: await new TypedDependencyRepository(connection.db, gate).listIncident(
+          rows.map((row) => row.id),
+        ),
+      };
+    },
+    async seedDependency(row) {
+      for (const endpoint of [row.predecessor, row.successor]) {
+        const prior = sqlite
+          .query<{ work_package_id: string }, [string]>(
+            'SELECT work_package_id FROM work_item WHERE id=?',
+          )
+          .get(endpoint.workItemId);
+        if (prior === null)
+          await new WorkItemRepository(connection.db, gate).insert(
+            workItemRow({ id: endpoint.workItemId, workPackageId: endpoint.workPackageId }),
+            [],
+            { at: 42, by: 'creator' },
+          );
+        else if (prior.work_package_id !== endpoint.workPackageId)
+          throw Error('fixture endpoint belongs to another package');
+      }
+      await new TypedDependencyRepository(connection.db, gate).add(row, { at: 42, by: 'creator' });
+    },
+    removeCreatorMembership() {
+      sqlite.run(
+        "DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='creator'",
+      );
+    },
+    changeCreatorRole(kind) {
+      if (kind === null) sqlite.run("DELETE FROM access_role WHERE id='project-manager'");
+      else sqlite.run("UPDATE access_role SET object_kind=? WHERE id='project-manager'", [kind]);
+    },
+    failAt(stage) {
+      const mutation = {
+        move_package: ['UPDATE', 'work_package', " WHEN NEW.id='move-w'"],
+        move_source: ['UPDATE', 'project', " WHEN NEW.id='move-source'"],
+        move_target: ['UPDATE', 'project', " WHEN NEW.id='move-target'"],
+        move_audit: ['INSERT', 'organization_audit', " WHEN NEW.action='work_package_moved'"],
+        rename: ['UPDATE', 'project', ''],
+        rename_audit: ['INSERT', 'organization_audit', " WHEN NEW.action='project_renamed'"],
+        delete_grants: ['DELETE', 'access_grant', ''],
+        revoke_audit: ['INSERT', 'organization_audit', " WHEN NEW.action='access_revoked'"],
+        delete_project: ['DELETE', 'project', ''],
+        delete_audit: ['INSERT', 'organization_audit', " WHEN NEW.action='project_deleted'"],
+      };
+      if (stage in mutation) {
+        const [operation, table, condition] = mutation[stage as keyof typeof mutation];
+        sqlite.run(
+          `CREATE TRIGGER fail_project_mutation BEFORE ${operation} ON ${table}${condition} BEGIN SELECT RAISE(ABORT,'controlled ${stage} write failure'); END`,
+        );
+        return;
+      }
+      const table =
+        stage === 'project' ? 'project' : stage === 'grant' ? 'access_grant' : 'organization_audit';
+      const condition =
+        stage === 'project_audit'
+          ? " WHEN NEW.action='project_created'"
+          : stage === 'grant_audit'
+            ? " WHEN NEW.action='access_granted'"
+            : '';
+      sqlite.run(
+        'CREATE TRIGGER fail_project_create BEFORE INSERT ON ' +
+          table +
+          condition +
+          " BEGIN SELECT RAISE(ABORT,'controlled " +
+          stage +
+          " write failure'); END",
+      );
+    },
+    seedMigrated(project) {
+      sqlite.run(
+        'INSERT INTO project(id,organization_id,name,revision,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?)',
+        [
+          project.id,
+          project.organizationId,
+          project.name,
+          project.revision,
+          project.createdAt,
+          project.updatedAt,
+          project.createdBy,
+        ],
+      );
+    },
+    seedPackage(id, projectId, name) {
+      sqlite.run(
+        "INSERT INTO work_package(id,project_id,name,created_at,created_by) VALUES(?,?,?,1,'creator')",
+        [id, projectId, name],
+      );
+      sqlite.run(
+        'INSERT INTO work_package_organization(resource_id,organization_id) SELECT ?,organization_id FROM project WHERE id=?',
+        [id, projectId],
+      );
+    },
+    removePackage(id) {
+      sqlite.run('DELETE FROM work_package WHERE id=?', [id]);
+    },
+    seedGrant(grant) {
+      const scopeId =
+        grant.scope.kind === 'project'
+          ? grant.scope.projectId
+          : grant.scope.kind === 'work_package'
+            ? grant.scope.workPackageId
+            : grant.organizationId;
+      const subjectId =
+        grant.subject.kind === 'user'
+          ? grant.subject.userId
+          : grant.subject.kind === 'group'
+            ? grant.subject.groupId
+            : grant.subject.kind === 'machine_credential'
+              ? grant.subject.credentialId
+              : grant.organizationId;
+      sqlite.run(
+        'INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)',
+        [
+          grant.id,
+          grant.organizationId,
+          grant.scope.kind,
+          scopeId,
+          grant.subject.kind,
+          subjectId,
+          grant.roleId,
+          grant.origin,
+          grant.createdAt,
+          grant.createdBy,
+        ],
+      );
+    },
+    seedSuperAdmin() {
+      sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at,created_by) VALUES('org-a-admin','org-a','organization','org-a','user','creator','org-super-admin','creation',1,'creator')",
+      );
+    },
   };
 }
 
-function steps(projectId: string, ...names: string[]): Step[] {
-  const taken = new Set<string>();
-  return names.map((name, place) => {
-    const code = suggestStepCode(name, taken);
-    taken.add(code);
-    return {
-      id: crypto.randomUUID(),
-      projectId,
-      name,
-      code,
-      position: (place + 1) * STEP_POSITION_STEP,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    };
-  });
-}
+describe('ProjectRepository administration', () => {
+  projectStoreConformance(fixture);
+});
 
-/**
- * The message a promise rejected with, or a marker when it resolved.
- *
- * Written out rather than using `.rejects.toThrow`, which returns void here and
- * so cannot be awaited — an assertion that is never awaited passes whatever
- * happens, which is the failure mode these two tests exist to rule out.
- */
-async function rejection(promise: Promise<unknown>): Promise<string> {
+it('filters foreign malformed child projections before decode and refuses malformed selected child evidence', async () => {
+  const opened = fixture();
+  await opened.store.create(
+    { id: 'p', organizationId: 'org-a', name: 'Alpha' },
+    projectCreationAct('p'),
+  );
+  opened.seedPackage('child', 'p', 'Child');
+  sqlite.run("UPDATE work_package SET name=X'426164' WHERE id='child'");
+  expect(await opened.store.findIn('org-b', 'p')).toBeNull();
+  expect(await opened.store.listIn('org-b')).toEqual([]);
+  let failure: unknown;
   try {
-    await promise;
-    return '(resolved without throwing)';
-  } catch (err) {
-    // The whole `cause` chain, because drizzle 1.0.0-rc.4 wraps SQLite's
-    // refusal in a `DrizzleQueryError` whose own message names the statement
-    // and not the constraint; see `messagesOf`.
-    return messagesOf(err).join('\n') || String(err);
+    await opened.store.findIn('org-a', 'p');
+  } catch (cause: unknown) {
+    failure = cause;
   }
+  expect(failure).toBeInstanceOf(Error);
+  expect(failure).toMatchObject({ message: 'stored project work package entry is malformed' });
+  expect(await opened.store.listIn('org-a')).toMatchObject([{ workPackageCount: 1 }]);
+});
+
+it('uses one native owner and its actual creator grant reaches only that project while membership remains', async () => {
+  const store = new ProjectRepository(connection.db, gate),
+    created = await store.create(
+      { id: 'p', organizationId: 'org-a', name: 'Alpha' },
+      projectCreationAct('p'),
+    );
+  expect(created).toMatchObject({ kind: 'created' });
+  expect(nativeOwners).toBe(1);
+  const decisions = new AccessDecisionRepository(connection.db);
+  const target = {
+    kind: 'project',
+    chain: { level: 'project', organizationId: 'org-a', spaceId: null, projectId: 'p' },
+  } as const;
+  expect(
+    may(await decisions.effectiveRoleAt({ id: 'creator' }, target), 'project.manage_settings'),
+  ).toBe(true);
+  expect(
+    await decisions.effectiveRoleAt(
+      { id: 'creator' },
+      { ...target, chain: { ...target.chain, projectId: 'other' } },
+    ),
+  ).toBeNull();
+  sqlite.run(
+    "DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='creator'",
+  );
+  expect(await decisions.effectiveRoleAt({ id: 'creator' }, target)).toBeNull();
+  expect(sqlite.query("SELECT id FROM access_grant WHERE id='p-grant'").get()).toEqual({
+    id: 'p-grant',
+  });
+});
+
+it('observes the actual project insert before a typed grant refusal and rolls it back before returning', async () => {
+  sqlite.run(
+    "DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='creator'",
+  );
+  const store = new ProjectRepository(connection.db, gate);
+  expect(
+    await store.create(
+      { id: 'p', organizationId: 'org-a', name: 'Alpha' },
+      projectCreationAct('p'),
+    ),
+  ).toBe('not_a_member');
+  const insertion = statements.findIndex((statement) =>
+    statement.startsWith('insert into "project"'),
+  );
+  expect(insertion).toBeGreaterThanOrEqual(0);
+  expect(
+    statements.findIndex((statement) => statement.includes('from "organization_membership"')),
+  ).toBeGreaterThan(insertion);
+  expect(nativeOwners).toBe(1);
+  expect(sqlite.query('SELECT id FROM project').all()).toEqual([]);
+  expect(sqlite.query('SELECT id FROM access_grant').all()).toEqual([]);
+  expect(sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+});
+
+async function expectMalformedProject(pending: Promise<unknown>, field: string): Promise<void> {
+  let failure: unknown;
+  try {
+    await pending;
+  } catch (cause: unknown) {
+    failure = cause;
+  }
+  expect(failure).toBeInstanceOf(Error);
+  if (!(failure instanceof Error)) throw new Error('selected malformed project was accepted');
+  expect(failure.message).toBe('stored project ' + field + ' is malformed');
 }
 
-describe('ProjectRepository', () => {
-  it('migrates a nullable solution reference onto existing projects', () => {
-    const db = openDatabase(join(dir, 'test.db'));
-    try {
-      const columns = db
-        .query('PRAGMA table_info(project)')
-        .all()
-        .map((column) => (column as { name: string }).name);
+const numericProjectFaults = [
+  { column: 'revision', value: 'not-an-integer', kind: 'text', label: 'text' },
+  { column: 'revision', value: 0.5, kind: 'real', label: 'fraction' },
+  { column: 'revision', value: -1, kind: 'integer', label: 'negative' },
+  { column: 'revision', value: Number.MAX_SAFE_INTEGER + 1, kind: 'integer', label: 'unsafe' },
+  { column: 'created_at', value: 'not-an-integer', kind: 'text', label: 'text' },
+  { column: 'created_at', value: 0.5, kind: 'real', label: 'fraction' },
+  { column: 'created_at', value: Number.MAX_SAFE_INTEGER + 1, kind: 'integer', label: 'unsafe' },
+  { column: 'updated_at', value: 'not-an-integer', kind: 'text', label: 'text' },
+  { column: 'updated_at', value: 0.5, kind: 'real', label: 'fraction' },
+  { column: 'updated_at', value: Number.MAX_SAFE_INTEGER + 1, kind: 'integer', label: 'unsafe' },
+] as const;
 
-      expect(columns).toContain('solution_slug');
-      expect(columns).toContain('solution_url');
-    } finally {
-      db.close();
-    }
-  });
-
-  it('rolls the solution reference back and forward without losing a project', async () => {
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-
-    expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
-      '20261103110000_add_initial_access_offers',
-      '20261102130000_widen_organization_audit_access',
-      '20261102120000_add_access_grants',
-      '20261101120000_add_host_job_projection',
-      '20261101100100_add_resource_directory_capacity',
-      '20261101100000_widen_organization_audit_directory_capacity',
-      '20261028100100_widen_organization_audit_agent_pools',
-      '20261028100000_add_agent_pool',
-      '20261026130000_widen_organization_audit_machine_tokens',
-      '20261026120000_add_command_journal_person',
-      '20261025130000_add_resource_runtime',
-      '20261025120000_add_resource_use',
-      '20261023170000_add_work_item_budget',
-      '20261023160000_add_measure_estimate',
-      '20261023150000_key_step_measure',
-      '20261023140000_add_measure',
-      '20261023100000_add_claim_lease',
-      '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
-      '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
-      '20261022140100_widen_organization_audit_compute_providers',
-      '20261022140000_add_resource_provider',
-      '20261022130100_widen_organization_audit_organization_limits',
-      '20261022130000_add_organization_limits',
-      '20261022121000_add_runtime_commands',
-      '20261022120000_scope_trusted_issuer_audience',
-      '20261022110100_check_machine_credential_id',
-      '20261022110000_widen_organization_audit_machine_credentials',
-      '20261022100000_add_machine_credential',
-      '20261020130000_add_claim_occupancy',
-      '20261020120000_add_resources',
-      '20261019130100_add_external_identity_person',
-      '20261019130000_add_person_account',
-      '20261019120000_add_claim',
-      '20261015110000_add_step_node_parallelism',
-      '20261015100000_add_step_blockage_activation_receipt',
-      '20261014140000_add_step_blockage_activation',
-      '20261014130000_add_shared_people_restore_receipts',
-      '20261014120000_add_shared_people_restore_approvals',
-      '20261013140000_add_step_node_blockages',
-      '20261012130000_add_step_estimate_unit',
-      '20261012120000_add_step_node_attempts',
-      '20261012090200_widen_organization_audit',
-      '20261012090100_add_browser_auth_times',
-      '20261012090000_add_enterprise_sso_records',
-      '20261011200000_add_shared_people_audit',
-      '20261011120000_add_browser_auth_lifecycle',
-      '20261005110000_add_shared_people',
-      '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
-      '20260929100000_add_spaces',
-      '20260928200000_add_work_item_status_facts',
-      '20260928040000_add_email_challenge',
-      '20260928030000_add_delegation_use',
-      '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
-      '20260927220000_add_organization_audit',
-      '20260927213000_add_typed_dependency',
-      '20260927200000_freeze_organization_ownership',
-      '20260927190000_add_organization_bridge',
-      '20260927180000_add_organization_activation',
-      '20260927170000_add_step_allowance',
-      '20260927150000_add_step_code',
-      '20260927130000_add_organization_ownership',
-      '20260927120000_add_organization_records',
-      '20260912120000_add_work_item_facts',
-      '20260909120000_add_external_ref_name',
-      '20260906090000_add_work_item_deadline',
-      '20260906003000_add_work_item_read_order_index',
-      '20260905090000_add_calendar_marker',
-      '20260904140000_add_project_settings',
-      '20260904100000_add_optimizer_tables',
-      '20260904020000_add_saved_plan_created_by_id',
-      '20260903190000_add_saved_plan',
-      '20260902120000_add_lookup_indexes',
-      '20260901120000_add_audit_columns',
-      '20260831120000_rename_role_to_step',
-      '20260830130000_add_estimate_weights_and_rounding',
-      '20260830120000_add_dep_reach',
-      '20260830020000_add_external_ref',
-      '20260830010000_add_work_item_type',
-      '20260824020000_add_solution_ref',
-    ]);
-    const rolledBack = openDatabase(join(dir, 'test.db'));
-    try {
-      const columns = rolledBack
-        .query('PRAGMA table_info(project)')
-        .all()
-        .map((column) => (column as { name: string }).name);
-      expect(columns).not.toContain('solution_slug');
-      expect(columns).not.toContain('solution_url');
-    } finally {
-      rolledBack.close();
-    }
-
-    runMigrations(join(dir, 'test.db'), FOLDER);
-    expect(await repo.findById(shed.id)).toMatchObject({
-      name: 'Rewire the shed',
-      solutionRef: null,
-    });
-  });
-
-  it('refuses one solution slug naming two projects', async () => {
-    const shed = project('Rewire the shed', 100);
-    const fence = project('Paint the fence', 200);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-    await repo.create(fence, steps(fence.id, 'Dev'), wrote());
-    await repo.update(
-      shed.id,
-      { solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/site-refresh' } },
-      wrote(),
+for (const { column, value, kind, label } of numericProjectFaults)
+  for (const reader of ['find', 'list'] as const)
+    it(
+      'refuses actual selected malformed project ' + column + '/' + label + '/' + reader,
+      async () => {
+        const store = new ProjectRepository(connection.db, gate);
+        expect(
+          await store.create(
+            { id: 'malformed', organizationId: 'org-a', name: 'Malformed' },
+            projectCreationAct('malformed'),
+          ),
+        ).toMatchObject({ kind: 'created' });
+        sqlite.run('UPDATE project SET ' + column + '=? WHERE id=?', [value, 'malformed']);
+        expect(
+          sqlite
+            .query<{ value: unknown; kind: string }, [string]>(
+              'SELECT ' +
+                column +
+                ' AS value,typeof(' +
+                column +
+                ') AS kind FROM project WHERE id=?',
+            )
+            .get('malformed'),
+        ).toEqual({ value, kind });
+        await expectMalformedProject(
+          reader === 'find' ? store.findIn('org-a', 'malformed') : store.listIn('org-a'),
+          column,
+        );
+      },
     );
 
+it('filters corrupt foreign projects before decoding addressed find and list rows', async () => {
+  const store = new ProjectRepository(connection.db, gate);
+  await store.create(
+    { id: 'good', organizationId: 'org-a', name: 'Good' },
+    projectCreationAct('good'),
+  );
+  await store.create(
+    { id: 'foreign', organizationId: 'org-b', name: 'Foreign' },
+    projectCreationAct('foreign'),
+  );
+  sqlite.run("UPDATE project SET revision='not-an-integer' WHERE id='foreign'");
+  expect(await store.findIn('org-a', 'foreign')).toBeNull();
+  expect(await store.findIn('org-a', 'good')).toMatchObject({ id: 'good', revision: 0 });
+  expect((await store.listIn('org-a')).map(({ id }) => id)).toEqual(['good']);
+});
+
+for (const reader of ['find', 'list'] as const)
+  it('refuses a selected project name stored as a SQL blob on ' + reader, async () => {
+    const store = new ProjectRepository(connection.db, gate);
+    await store.create(
+      { id: 'blob-name', organizationId: 'org-a', name: 'Name' },
+      projectCreationAct('blob-name'),
+    );
+    sqlite.run("UPDATE project SET name=? WHERE id='blob-name'", [new Uint8Array([65])]);
     expect(
-      await rejection(
-        repo.update(
-          fence.id,
-          { solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/other' } },
-          wrote(),
-        ),
-      ),
-    ).toMatch(/UNIQUE/);
-  });
-
-  it('writes a project and its starting steps together', async () => {
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev', 'QA'), wrote());
-
-    expect(await repo.findById(shed.id)).toMatchObject({
-      name: 'Rewire the shed',
-      ownerId,
-      restricted: false,
-      estimateMethod: 'pert',
-      startDate: null,
-    });
-    expect((await repo.stepsOf(shed.id)).map((r) => r.name)).toEqual(['Dev', 'QA']);
-  });
-
-  it('lists projects newest first, whoever owns them', async () => {
-    const older = project('Older', 100);
-    const newer = project('Newer', 200);
-    await repo.create(older, steps(older.id, 'Dev'), wrote());
-    await repo.create(newer, steps(newer.id, 'Dev'), wrote());
-
-    expect((await repo.list()).map((p) => p.name)).toEqual(['Newer', 'Older']);
-  });
-
-  it('patches name and restricted, leaving the rest alone', async () => {
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-
-    const updated = await repo.update(shed.id, { restricted: true }, wrote());
-    if (typeof updated === 'string') throw new Error(`project write refused: ${updated}`);
-
-    expect(updated).toMatchObject({ name: 'Rewire the shed', restricted: true, ownerId });
-  });
-
-  it('returns null when patching a project that is not there', async () => {
-    expect(await repo.update(crypto.randomUUID(), { name: 'Ghost' }, wrote())).toBeNull();
-  });
-
-  it('refuses two steps with one name in one project', async () => {
-    // The uniqueness lives in the schema rather than the service because two
-    // concurrent step additions both pass a check-then-insert.
-    const shed = project('Rewire the shed', 100);
-    expect(await rejection(repo.create(shed, steps(shed.id, 'Dev', 'Dev'), wrote()))).toMatch(
-      /UNIQUE/,
+      sqlite.query("SELECT typeof(name) AS kind FROM project WHERE id='blob-name'").get(),
+    ).toEqual({ kind: 'blob' });
+    await expectMalformedProject(
+      reader === 'find' ? store.findIn('org-a', 'blob-name') : store.listIn('org-a'),
+      'name',
     );
   });
 
-  it('lists per account: opened first by recency, then never-opened by creation', async () => {
-    const a = project('A', 100);
-    const b = project('B', 200);
-    const c = project('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'), wrote());
-
-    await repo.recordOpen(a.id, { at: 1000, by: ownerId });
-    await repo.recordOpen(b.id, { at: 2000, by: ownerId });
-
-    const listed = await repo.listFor(ownerId);
-    expect(listed.map((p) => p.name)).toEqual(['B', 'A', 'C']);
-    expect(listed.map((p) => p.lastOpenedAt)).toEqual([2000, 1000, null]);
+it('reads signed historical integer timestamps and nullable migrated metadata without imposing an epoch', async () => {
+  const store = new ProjectRepository(connection.db, gate);
+  await store.create(
+    { id: 'historical', organizationId: 'org-a', name: 'Historical' },
+    projectCreationAct('historical'),
+  );
+  sqlite.run(
+    "UPDATE project SET created_at=-10,updated_at=NULL,created_by=NULL WHERE id='historical'",
+  );
+  const historical = {
+    spaceId: null,
+    spacePosition: null,
+    id: 'historical',
+    organizationId: 'org-a',
+    name: 'Historical',
+    revision: 0,
+    createdAt: -10,
+    updatedAt: null,
+    createdBy: null,
+  };
+  expect(await store.findIn('org-a', 'historical')).toEqual({
+    ...historical,
+    workPackageCount: 0,
+    workPackages: [],
   });
-
-  it('answers the update instant as the newest of its row, its work items and its plan events', async () => {
-    const db = openDatabase(join(dir, 'test.db'));
-    const a = project('A', 100);
-    await repo.create(a, steps(a.id, 'Dev'), wrote());
-    const instant = async () => (await repo.listFor(ownerId))[0]?.updatedAt;
-    const workItem = db.prepare(
-      'INSERT INTO work_item (id, project_id, position, updated_at) VALUES (?, ?, ?, ?)',
-    );
-    const planEvent = db.prepare(
-      `INSERT INTO plan_event (id, project_id, user_id, kind, label, before, after, created_at)
-       VALUES (?, ?, ?, 'rename', 'rename', '{}', '{}', ?)`,
-    );
-    try {
-      db.run('UPDATE project SET updated_at = NULL');
-      expect(await instant()).toBeNull();
-      workItem.run('w0', a.id, 0, null);
-      expect(await instant()).toBeNull();
-      db.run('UPDATE project SET updated_at = 10');
-      expect(await instant()).toBe(10);
-      workItem.run('w1', a.id, 1, 20);
-      expect(await instant()).toBe(20);
-      planEvent.run('e1', a.id, ownerId, 30);
-      expect(await instant()).toBe(30);
-      db.run('UPDATE project SET updated_at = 40');
-      expect(await instant()).toBe(40);
-    } finally {
-      db.close();
-    }
-  });
-
-  it('gives another account its own order', async () => {
-    const other = crypto.randomUUID();
-    await new UserRepository(openDrizzle(join(dir, 'test.db')), OPEN).create(
-      { id: other, username: 'other', passwordHash: 'x', createdAt: 1 },
-      { at: 1, by: other },
-    );
-    const a = project('A', 100);
-    const b = project('B', 200);
-    const c = project('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'), wrote());
-    await repo.recordOpen(a.id, { at: 1000, by: ownerId });
-    await repo.recordOpen(c.id, { at: 500, by: other });
-
-    expect((await repo.listFor(other)).map((p) => p.name)).toEqual(['C', 'B', 'A']);
-    expect((await repo.listFor(ownerId)).map((p) => p.name)).toEqual(['A', 'C', 'B']);
-  });
-
-  it('names each entry’s own owner, whoever is asking', async () => {
-    // Two owners rather than one: an entry that took the *caller's* name would
-    // pass with one account in the database and be wrong for every list that
-    // holds somebody else's project — which is the whole reason for the field.
-    const strip = crypto.randomUUID();
-    await new UserRepository(openDrizzle(join(dir, 'test.db')), OPEN).create(
-      { id: strip, username: 'strip', passwordHash: 'x', createdAt: 1 },
-      { at: 1, by: strip },
-    );
-    const shed = project('Rewire the shed', 100);
-    const fence: Project = projectRow({ ...project('Paint the fence', 200), ownerId: strip });
-    // Each project's row is authored by the account that owns it, which is what
-    // makes `ownerName` a claim about two accounts rather than about the caller.
-    for (const p of [shed, fence])
-      await repo.create(p, steps(p.id, 'Dev'), { at: 1, by: p.ownerId });
-    await repo.recordOpen(shed.id, { at: 1000, by: ownerId });
-
-    const listed = await repo.listFor(ownerId);
-
-    // Opened first, then never-opened: the join for the owner's name must not
-    // disturb the order, and the never-opened project must still be listed at
-    // all — a `project_access` inner join would drop it entirely.
-    expect(listed.map((p) => [p.name, p.ownerName, p.lastOpenedAt])).toEqual([
-      ['Rewire the shed', 'owner', 1000],
-      ['Paint the fence', 'strip', null],
-    ]);
-    expect(listed.map((p) => p.createdAt)).toEqual([100, 200]);
-  });
-
-  it('keeps one record per pair, holding the later moment', async () => {
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-
-    await repo.recordOpen(shed.id, { at: 1000, by: ownerId });
-    await repo.recordOpen(shed.id, { at: 3000, by: ownerId });
-
-    expect((await repo.listFor(ownerId)).map((p) => p.lastOpenedAt)).toEqual([3000]);
-  });
-
-  it('patches the estimate method', async () => {
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-
-    const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' }, wrote());
-    if (typeof updated === 'string') throw new Error(`project write refused: ${updated}`);
-
-    expect(updated).toMatchObject({ estimateMethod: 'pessimistic', name: 'Rewire the shed' });
-    expect(await repo.findById(shed.id)).toMatchObject({ estimateMethod: 'pessimistic' });
-  });
-
-  it('throws rather than planning with a method the database should not hold', async () => {
-    // `estimate_method` is text and SQLite will hold anything. Reading one back
-    // as PERT would plan a project by a method nobody chose, and say nothing.
-    // Written past the repository on purpose: this is the case where the
-    // *stored* value is wrong, which no amount of request validation prevents.
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-    const db = openDatabase(join(dir, 'test.db'));
-    try {
-      db.run(`UPDATE project SET estimate_method = 'median' WHERE id = '${shed.id}'`);
-    } finally {
-      db.close();
-    }
-
-    expect(await rejection(repo.findById(shed.id))).toMatch(/unknown estimate method/);
-  });
-
-  it('patches the dependency reach', async () => {
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-
-    const updated = await repo.update(shed.id, { depReach: 'anchor-slice' }, wrote());
-    if (typeof updated === 'string') throw new Error(`project write refused: ${updated}`);
-
-    expect(updated).toMatchObject({ depReach: 'anchor-slice', name: 'Rewire the shed' });
-    expect(await repo.findById(shed.id)).toMatchObject({ depReach: 'anchor-slice' });
-  });
-
-  it('an unrecognised stored reach is refused', async () => {
-    // `dep_reach` is text and SQLite will hold anything. Reading `first-role`
-    // back as either value schedules the plan by a rule nobody chose — the two
-    // answers differ by every date behind a multi-step predecessor — so this is
-    // the R5 case: unknown is not OK, and the read throws.
-    //
-    // Written past the repository for the reason the estimate-method case above
-    // is: the *stored* value is the wrong one, which no request validation
-    // reaches. A value from a future release read by an older colour mid-swap
-    // arrives exactly this way.
-    //
-    // Proof: the throw in `toProject` replaced by
-    // `isDependencyReach(row.depReach) ? row.depReach : 'whole-item'` and this
-    // failed on `Expected substring or pattern: /unknown dependency reach/`,
-    // `Received: "(resolved without throwing)"` — the project came back read,
-    // silently, under a rule nobody chose. Watched 2026-08-29.
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-    const db = openDatabase(join(dir, 'test.db'));
-    try {
-      db.run(`UPDATE project SET dep_reach = 'first-role' WHERE id = '${shed.id}'`);
-    } finally {
-      db.close();
-    }
-
-    expect(await rejection(repo.findById(shed.id))).toMatch(/unknown dependency reach/);
-  });
-
-  it('gives a project the arithmetic it has said nothing about: 1/4/1, ceil', async () => {
-    // The four column defaults, read back through the boundary. Every project
-    // the migration reached lands here too — the same statement, one release
-    // earlier — which is what makes `ceil` a change to every stored plan and
-    // 1/4/1 a change to none.
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-
-    expect(await repo.findById(shed.id)).toMatchObject({
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-      estimateRounding: 'ceil',
-    });
-  });
-
-  it('patches the weights and the rounding, and moves the revision for each', async () => {
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-
-    const weighted = await repo.update(
-      shed.id,
-      { pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 } },
-      wrote(),
-    );
-    if (typeof weighted === 'string') throw new Error(`project write refused: ${weighted}`);
-    const rounded = await repo.update(shed.id, { estimateRounding: 'floor' }, wrote());
-    if (typeof rounded === 'string') throw new Error(`project write refused: ${rounded}`);
-
-    expect(weighted).toMatchObject({
-      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
-      revision: 1,
-    });
-    expect(rounded).toMatchObject({ estimateRounding: 'floor', revision: 2 });
-    expect(await repo.findById(shed.id)).toMatchObject({
-      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
-      estimateRounding: 'floor',
-      // Untouched by either patch: the three weights are written as a triple or
-      // not at all, and neither patch named the method.
-      estimateMethod: 'pert',
-    });
-  });
-
-  it('refuses a stored rounding it does not know', async () => {
-    // `estimate_rounding` is text and SQLite will hold anything. Reading
-    // `nearest` back as `ceil` — which is what a `?? 'ceil'` would do, and what
-    // `roundDays`' last branch would do if the value ever reached it — charges
-    // every step of the plan by a rule nobody chose. R5's case exactly, and it
-    // arrives for real when an older colour reads a value a newer release wrote
-    // mid-swap.
-    //
-    // Proof: the `isEstimateRounding` throw in `toProject` replaced by
-    // `isEstimateRounding(row.estimateRounding) ? row.estimateRounding : 'ceil'`
-    // and this failed on `Expected substring or pattern: /unknown estimate
-    // rounding/`, `Received: "(resolved without throwing)"`. Watched
-    // 2026-08-30.
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-    const db = openDatabase(join(dir, 'test.db'));
-    try {
-      db.run(`UPDATE project SET estimate_rounding = 'nearest' WHERE id = '${shed.id}'`);
-    } finally {
-      db.close();
-    }
-
-    expect(await rejection(repo.findById(shed.id))).toMatch(/unknown estimate rounding/);
-  });
-
-  it('refuses stored weights that cannot average a triple', async () => {
-    // Three zeroes have no divisor: every PERT figure in the plan would be
-    // `NaN`, which renders as a blank cell and reports itself as estimated.
-    // Refused as a triple rather than a column at a time, because that is the
-    // shape of the fault — see `PertWeights`.
-    //
-    // Proof: the `type.errors` branch in `toProject` replaced by a cast to the
-    // triple, and this failed on `Expected substring or pattern: /unusable PERT
-    // weights/`, `Received: "(resolved without throwing)"` — the project read
-    // back happily and `tree` then answered `NaN` days. Watched 2026-08-30.
-    const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-    const db = openDatabase(join(dir, 'test.db'));
-    try {
-      db.run(
-        `UPDATE project SET pert_weight_optimistic = 0, pert_weight_realistic = 0, pert_weight_pessimistic = 0 WHERE id = '${shed.id}'`,
-      );
-    } finally {
-      db.close();
-    }
-
-    expect(await rejection(repo.findById(shed.id))).toMatch(/unusable PERT weights/);
-  });
-
-  it('costs one statement however many projects there are', async () => {
-    // Fifty rather than two: the fault this rules out is a per-project lookup,
-    // and at two projects "one query" and "one per project" differ by one
-    // statement — a difference a reader could argue was setup. At fifty it is
-    // 1 against 51.
-    for (let made = 0; made < 50; made += 1) {
-      const p = project(`Project ${String(made)}`, 100 + made);
-      await repo.create(p, steps(p.id, 'Dev'), wrote());
-    }
-    const statements: string[] = [];
-    const counted = new ProjectRepository(
-      openDrizzle(join(dir, 'test.db'), {
-        logQuery(query) {
-          statements.push(query);
-        },
-      }),
-      OPEN,
-    );
-
-    const listed = await counted.listFor(ownerId);
-
-    // The precondition: a list that answered nothing would also issue one
-    // statement, and the count would prove nothing about the join.
-    expect(listed).toHaveLength(50);
-    expect(statements).toHaveLength(1);
-  });
-
-  it('fails the list rather than answering a project whose owner is nobody', async () => {
-    // Written past the repository, like the estimate-method test above and for
-    // the same reason: the *stored* row is wrong, which no request validation
-    // prevents. `foreign_keys=OFF` is the boundary — the pragma is per
-    // connection, this connection is opened, used and closed here, and the
-    // repository's own connection never has it off.
-    const kept = project('Rewire the shed', 100);
-    await repo.create(kept, steps(kept.id, 'Dev'), wrote());
-    const orphan = project('Orphan', 200);
-    const db = openDatabase(join(dir, 'test.db'));
-    try {
-      db.run('PRAGMA foreign_keys=OFF');
-      db.run(
-        `INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)
-         VALUES ('${orphan.id}', 'Orphan', '${crypto.randomUUID()}', 0, 'pert', NULL, 0, 200)`,
-      );
-    } finally {
-      db.close();
-    }
-
-    // Both halves are the claim. Not "the list is one project short", and not
-    // "the orphan is listed with a blank owner" — the read fails.
-    expect(await rejection(repo.listFor(ownerId))).toMatch(/owner/);
-  });
-
-  it('refuses a project whose owner does not exist', async () => {
-    // Proof that foreign keys are enforced rather than merely declared: this
-    // insert parses fine and is rejected only because the pragma is on.
-    const orphan: Project = projectRow({ ...project('Orphan', 100), ownerId: crypto.randomUUID() });
-    // Stamped by an account that does exist, so `owner_id` is the only reference
-    // left dangling — a stamp naming nobody would satisfy the match through
-    // `created_by` instead, and the case would stop being about the owner.
-    expect(await rejection(repo.create(orphan, steps(orphan.id, 'Dev'), wrote()))).toMatch(
-      /FOREIGN KEY/,
-    );
+  expect(await store.listIn('org-a')).toEqual([{ ...historical, workPackageCount: 0 }]);
+  sqlite.run("UPDATE project SET updated_at=-5 WHERE id='historical'");
+  expect(await store.findIn('org-a', 'historical')).toEqual({
+    ...historical,
+    updatedAt: -5,
+    workPackageCount: 0,
+    workPackages: [],
   });
 });
 
-describe('what a project read publishes', () => {
-  /**
-   * The audit columns are recorded and not published (ADR 0012), and this is
-   * the read that decides it for `GET /api/projects/{id}` and `PATCH` — neither
-   * declares a response schema, so whatever the store hands back is the body.
-   *
-   * `toProject` spread the rest of the row until 2026-09-02, so `createdBy` — a
-   * user id — and `updatedAt` were on the wire, while the JSDoc on `stepsOf`
-   * cited this mapper as the reason they could not be. Asserted against the
-   * declared type's own keys rather than a second hand-written list, so a
-   * column added to `Project` is not a column this test forgets.
-   *
-   * Proof: with `withoutAuditColumns(rest)` in `toProject` put back to `...rest`,
-   * watched failing on
-   * `expect(received).toEqual(expected) · + "createdBy" · + "updatedAt"`
-   * (2026-09-02).
-   */
-  it('carries the columns the Project type declares and no others', async () => {
-    const made = await repo.create(project('Rewire', 10), [], wrote());
-    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
-    const read = await repo.findById(made.id);
-
-    expect(read).not.toBeNull();
-    expect(Object.keys(read ?? {}).sort()).toEqual(Object.keys(made).sort());
-    expect(Object.keys(read ?? {})).not.toContain('createdBy');
-    expect(Object.keys(read ?? {})).not.toContain('updatedAt');
-  });
-
-  /**
-   * The three settings, published by name (tasks.md 3b.2).
-   *
-   * This case replaces `withholds the optimizer settings until the read payload
-   * declares them`, which run 33 wrote to hold the columns off the payload
-   * until this item mapped them; 3b.2 deletes it rather than lets it pass,
-   * because a `not.toContain` that has become true by accident is a test that
-   * cannot fail. The assertion is inverted rather than dropped: the case above
-   * says only "the same keys as the created project", and would go quiet if the
-   * mapper and `create` both stopped carrying all three at once.
-   *
-   * Proof: with the three names put back into `INTERNAL_PROJECT_COLUMNS`, this
-   * fails on the first expectation.
-   */
-  it('publishes the three project settings in the read payload', async () => {
-    const made = await repo.create(project('Rewire', 10), [], wrote());
-    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
-    const read = await repo.findById(made.id);
-    const published = Object.keys(read ?? {});
-
-    expect(published).toContain('optimizationEnabled');
-    expect(published).toContain('scheduleEngine');
-    expect(published).toContain('scheduleObjective');
-    // Never published: the drain's cross-process fence is internal state and no
-    // boundary returns it (tasks.md 3.1b).
-    expect(published).not.toContain('optimizationDeletePendingAt');
-  });
-
-  /**
-   * The values a project gets when nobody states them, read back through the
-   * production path (tasks.md 3b.2, 3b.4).
-   *
-   * `create` writes the three explicitly rather than omitting the columns, so
-   * this case is the one that proves its constant and the migration's
-   * `ADD COLUMN` defaults still agree: the second project is inserted with raw
-   * SQL naming neither settings column, which is the only way to read what the
-   * database itself defaults to, and the two reads must match.
-   *
-   * Proof: with `DEFAULT_PROJECT_SETTINGS.engine` changed to `optimized`, the
-   * two reads disagree and this fails on `scheduleEngine`.
-   */
-  /**
-   * Each setting patched on its own, and read back off the database rather than
-   * off `update`'s own answer (tasks.md 3b.2, 3b.4).
-   *
-   * Three separate patches rather than one carrying all three, because the
-   * columns are independent by design: a project switched off must keep the
-   * engine and objective it was on, so it comes back to them rather than to a
-   * default when it is switched on again. One combined patch would pass against
-   * an `update` that wrote all three from whichever key it saw first.
-   *
-   * The reload is the point. `update` returns its own `RETURNING` row, so a
-   * patch that never reached the column would still be answered correctly by
-   * the same statement that failed to write it.
-   *
-   * Proof: with `optimizationEnabled` dropped from the `SET` — spread as
-   * `...fields` — this fails on the first reload.
-   */
-  it('patches each project setting on its own, and each survives a reload', async () => {
-    const made = await repo.create(project('Rewire', 10), [], wrote());
-    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
-
-    await repo.update(made.id, { optimizationEnabled: true }, wrote());
-    expect(await repo.findById(made.id)).toMatchObject({
-      optimizationEnabled: true,
-      scheduleEngine: 'fast',
-      scheduleObjective: 'pri',
+it('commits borrowed create and rename across an await in one actual outer transaction', async () => {
+  const act = projectCreationAct('borrowed');
+  statements.length = 0;
+  nativeOwners = 0;
+  const outcome = await runSecurityTransaction(connection.db, gate, async (db) => {
+    const created = createProjectIn(
+      db,
+      { id: 'borrowed', organizationId: 'org-a', name: 'Alpha' },
+      act,
+    );
+    await Promise.resolve();
+    const renamed = renameProjectIn(db, 'org-a', 'borrowed', 'Beta', {
+      actor: act.actor,
+      at: 44,
+      auditId: 'borrowed-renamed',
     });
-
-    await repo.update(made.id, { scheduleEngine: 'optimized' }, wrote());
-    expect(await repo.findById(made.id)).toMatchObject({
-      optimizationEnabled: true,
-      scheduleEngine: 'optimized',
-      scheduleObjective: 'pri',
-    });
-
-    const settled = await repo.update(made.id, { scheduleObjective: 'time' }, wrote());
-    if (typeof settled === 'string') throw new Error(`project write refused: ${settled}`);
-    expect(await repo.findById(made.id)).toMatchObject({
-      optimizationEnabled: true,
-      scheduleEngine: 'optimized',
-      scheduleObjective: 'time',
-    });
-    // Three writes, three bumps: a settings patch is a write to the project
-    // like any other, and a reader holding revision 1 must not be able to
-    // overwrite it blind.
-    expect(settled?.revision).toBe(made.revision + 3);
+    return { created, renamed };
   });
-
-  it('turns optimization off as an idempotent project-scoped cancellation', async () => {
-    const made = await repo.create(
-      {
-        ...project('Rewire', 10),
-        optimizationEnabled: true,
-        scheduleEngine: 'optimized',
+  expect(outcome.created).toMatchObject({
+    kind: 'created',
+    project: { id: 'borrowed', name: 'Alpha', revision: 0, workPackageCount: 0 },
+  });
+  expect(outcome.renamed).toMatchObject({
+    kind: 'renamed',
+    project: { id: 'borrowed', name: 'Beta', revision: 1, workPackageCount: 0 },
+  });
+  expect(sqlite.query('SELECT id,name,revision FROM project WHERE id=?').get('borrowed')).toEqual({
+    id: 'borrowed',
+    name: 'Beta',
+    revision: 1,
+  });
+  const state = await fixture().snapshot();
+  expect(state.grants).toMatchObject([
+    {
+      id: act.grantId,
+      scope: { kind: 'project', projectId: 'borrowed' },
+      subject: { kind: 'user', userId: 'creator' },
+      roleId: 'project-manager',
+      origin: 'creation',
+    },
+  ]);
+  expect(
+    state.audits.map(({ id, action, subjectKind, subjectId, detail }) => ({
+      id,
+      action,
+      subjectKind,
+      subjectId,
+      detail,
+    })),
+  ).toEqual([
+    {
+      id: act.projectAuditId,
+      action: 'project_created',
+      subjectKind: 'project',
+      subjectId: 'borrowed',
+      detail: {},
+    },
+    {
+      id: act.grantAuditId,
+      action: 'access_granted',
+      subjectKind: 'access_grant',
+      subjectId: act.grantId,
+      detail: {
+        roleId: 'project-manager',
+        scopeKind: 'project',
+        scopeId: 'borrowed',
+        subjectKind: 'user',
+        subjectId: 'creator',
+        origin: 'creation',
       },
-      [],
-      wrote(),
-    );
-    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
-    const bystander = await repo.create(
-      {
-        ...project('Roof', 11),
-        optimizationEnabled: true,
-        scheduleEngine: 'optimized',
-      },
-      [],
-      wrote(),
-    );
-    if (typeof bystander === 'string') throw new Error(`project write refused: ${bystander}`);
-    const db = openDrizzle(join(dir, 'test.db'));
-    for (const [projectId, contractVersion, cancelEpoch] of [
-      [made.id, '7+1.0.0', 2],
-      [made.id, '8+1.0.0', 4],
-      [bystander.id, '7+1.0.0', 6],
-    ] as const) {
-      db.insert(optimizationGeneration)
-        .values({
-          projectId,
-          contractVersion,
-          generation: 1,
-          inputHash: 'hash',
-          cancelEpoch,
-          admissionState: 'open',
-          updatedAt: 1,
-        })
-        .run();
-      db.insert(solverQueue)
-        .values({
-          projectId,
-          contractVersion,
-          objective: 'pri',
-          budgetMs: 60_000,
-          generation: 1,
-          admittedCancelEpoch: cancelEpoch,
-          enqueuedAt: 1,
-        })
-        .run();
-      db.insert(solverSlot)
-        .values({
-          projectId,
-          contractVersion,
-          generation: 1,
-          objective: 'time',
-          budgetMs: 60_000,
-          ownerId: 'blue',
-          attemptToken: `${projectId}-${contractVersion}`,
-          lifecycle: 'running',
-          pid: 42,
-          startedAt: 1,
-          heartbeatAt: 1,
-          cancelRequestedAt: null,
-          admittedDeadlineAt: 80_000,
-        })
-        .run();
-    }
-
-    await repo.update(made.id, { optimizationEnabled: false }, { at: 50, by: ownerId });
-    await repo.update(made.id, { optimizationEnabled: false }, { at: 60, by: ownerId });
-
-    const generations = db.select().from(optimizationGeneration).all();
-    expect(
-      new Set(
-        generations.map(
-          (row) =>
-            `${row.projectId}/${row.contractVersion}/${String(row.cancelEpoch)}/${String(row.updatedAt)}`,
-        ),
-      ),
-    ).toEqual(
-      new Set([
-        `${made.id}/7+1.0.0/3/50`,
-        `${made.id}/8+1.0.0/5/50`,
-        `${bystander.id}/7+1.0.0/6/1`,
-      ]),
-    );
-    const slots = db.select().from(solverSlot).all();
-    expect(slots.filter((row) => row.projectId === made.id)).toHaveLength(2);
-    expect(
-      slots.filter((row) => row.projectId === made.id).every((row) => row.cancelRequestedAt === 50),
-    ).toBe(true);
-    expect(slots.find((row) => row.projectId === bystander.id)?.cancelRequestedAt).toBeNull();
-    expect(
-      db
-        .select()
-        .from(solverQueue)
-        .all()
-        .map((row) => row.projectId),
-    ).toEqual([bystander.id]);
-    expect(await repo.findById(made.id)).toMatchObject({ optimizationEnabled: false });
-
-    // 6.9c-c: the ON→OFF edge's epoch increment authorizes cleanup; no child
-    // token is involved. Without that cleanup, the first generation tuple
-    // stays at 2/1, both owned slots stay null, and both queue rows survive.
-  });
-
-  /**
-   * A patch that says nothing reads instead of writing (tasks.md 3b.2).
-   *
-   * The guard used to be one `=== undefined` line per `ProjectPatch` key, which
-   * this item would have grown by three; a key added without its line is a
-   * patch that silently reads. It is now `Object.values(...).every(...)`, and
-   * this case is what says so: the empty patch must leave the revision where it
-   * was, and the settings patch beside it must not.
-   *
-   * Proof: with the guard deleted, the empty patch reaches drizzle and the case
-   * fails on `SET` with no assignments rather than on the revision.
-   */
-  it('reads rather than writes when the patch names nothing, settings included', async () => {
-    const made = await repo.create(project('Rewire', 10), [], wrote());
-    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
-
-    const untouched = await repo.update(made.id, {}, wrote());
-    if (typeof untouched === 'string') throw new Error(`project write refused: ${untouched}`);
-    expect(untouched?.revision).toBe(made.revision);
-
-    const explicitlyAbsent = await repo.update(
-      made.id,
-      { optimizationEnabled: undefined, scheduleEngine: undefined },
-      wrote(),
-    );
-    if (typeof explicitlyAbsent === 'string')
-      throw new Error(`project write refused: ${explicitlyAbsent}`);
-    expect(explicitlyAbsent?.revision).toBe(made.revision);
-
-    const written = await repo.update(made.id, { optimizationEnabled: true }, wrote());
-    if (typeof written === 'string') throw new Error(`project write refused: ${written}`);
-    expect(written?.revision).toBe(made.revision + 1);
-  });
-
-  it('creates a project without settings agreeing with the columns own defaults', async () => {
-    const made = await repo.create(project('Rewire', 10), [], wrote());
-    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
-    const throughCreate = await repo.findById(made.id);
-
-    const raw = openDatabase(join(dir, 'test.db'));
-    const defaulted = crypto.randomUUID();
-    try {
-      raw.run(
-        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
-         VALUES ('${defaulted}', 'Defaulted', '${ownerId}', 0, 0, 1)`,
-      );
-    } finally {
-      raw.close();
-    }
-    const throughDefaults = await repo.findById(defaulted);
-
-    expect(throughCreate).toMatchObject({
-      optimizationEnabled: false,
-      scheduleEngine: 'fast',
-      scheduleObjective: 'pri',
-    });
-    expect(throughDefaults).toMatchObject({
-      optimizationEnabled: throughCreate?.optimizationEnabled ?? true,
-      scheduleEngine: throughCreate?.scheduleEngine ?? 'optimized',
-      scheduleObjective: throughCreate?.scheduleObjective ?? 'time',
-    });
-  });
-
-  /**
-   * A stored settings value outside its vocabulary, refused on the way out
-   * (tasks.md 3b.8).
-   *
-   * The `CHECK`s refuse the write, so the row has to be injected with
-   * `PRAGMA ignore_check_constraints = ON` — which is what a row written by a
-   * release before the constraint, or restored from an older backup, looks
-   * like. That is the only state a read validator exists for, and the refusal
-   * names the column and the value so the log line alone is diagnosable.
-   *
-   * Proof: with either guard removed from `toProject`, the matching case fails
-   * on `expected [Function] to throw`.
-   */
-  it.each([
-    ['schedule_engine', 'shcedule_engine_typo', 'unknown project.schedule_engine in the database'],
-    ['schedule_objective', 'priority', 'unknown project.schedule_objective in the database'],
-  ])('refuses a stored %s it does not know', async (column, stored, message) => {
-    const made = await repo.create(project('Rewire', 10), [], wrote());
-    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
-
-    const refused = openDatabase(join(dir, 'test.db'));
-    let enforced: string | null = null;
-    try {
-      refused.run(`UPDATE project SET ${column} = '${stored}' WHERE id = '${made.id}'`);
-    } catch (error) {
-      enforced = error instanceof Error ? error.message : String(error);
-    } finally {
-      refused.close();
-    }
-    // Half the case: the injection below would prove nothing about a `CHECK`
-    // that was never declared.
-    expect(enforced).toContain('CHECK');
-
-    const injected = openDatabase(join(dir, 'test.db'));
-    try {
-      injected.run('PRAGMA ignore_check_constraints = ON;');
-      injected.run(`UPDATE project SET ${column} = '${stored}' WHERE id = '${made.id}'`);
-    } finally {
-      injected.close();
-    }
-
-    let refusedOnRead: string | null = null;
-    try {
-      await repo.findById(made.id);
-    } catch (error) {
-      refusedOnRead = error instanceof Error ? error.message : String(error);
-    }
-    expect(refusedOnRead).toBe(`${message}: ${stored}`);
-  });
+    },
+    {
+      id: 'borrowed-renamed',
+      action: 'project_renamed',
+      subjectKind: 'project',
+      subjectId: 'borrowed',
+      detail: { revision: 1 },
+    },
+  ]);
+  expect(
+    statements.filter((statement) => ['BEGIN IMMEDIATE', 'COMMIT', 'ROLLBACK'].includes(statement)),
+  ).toEqual(['BEGIN IMMEDIATE', 'COMMIT']);
+  expect(nativeOwners).toBe(0);
 });
 
-describe('organization-scoped writes', () => {
-  async function scopedWriter(grantRoleId: 'package-viewer' | null) {
-    const raw = openDatabase(join(dir, 'test.db'));
-    raw.run("INSERT INTO organization (id,name,created_at) VALUES ('org-a','A',1)");
-    raw.run(
-      "UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1",
-    );
-    raw.run(
-      "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a',?,'member',1)",
-      [ownerId],
-    );
-    const target = project('Scoped target', 1);
-    await repo.createInOrganization(target, steps(target.id, 'Dev'), wrote(), 'org-a');
-    if (grantRoleId !== null)
-      raw.run(
-        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,'org-a','work_package',?,'user',?,?,'route',1)",
-        [crypto.randomUUID(), target.id, ownerId, grantRoleId],
-      );
-    const editor = {
-      principal: { id: ownerId },
-      actorId: ownerId,
-      auditId: crypto.randomUUID(),
-      role: 'super_admin' as const,
-    };
-    const capture = () =>
-      [
-        'project',
-        'project_organization',
-        'step',
-        'organization_audit',
-        'command_journal',
-        'event_log',
-        'event_sequencer',
-      ].map((table) => raw.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
-    return { raw, target, editor, capture };
+it('rolls borrowed create and rename back across an await through their actual outer owner', async () => {
+  const before = await fixture().snapshot();
+  const act = projectCreationAct('borrowed-rollback');
+  const sentinel = new Error('selected borrowed-project rollback');
+  let inside: ReturnType<typeof readProjectDetailIn> | undefined;
+  let caught: unknown;
+  statements.length = 0;
+  nativeOwners = 0;
+  try {
+    await runSecurityTransaction(connection.db, gate, async (db) => {
+      createProjectIn(db, { id: 'borrowed-rollback', organizationId: 'org-a', name: 'Alpha' }, act);
+      await Promise.resolve();
+      renameProjectIn(db, 'org-a', 'borrowed-rollback', 'Beta', {
+        actor: act.actor,
+        at: 44,
+        auditId: 'borrowed-rollback-renamed',
+      });
+      inside = readProjectDetailIn(db, 'org-a', 'borrowed-rollback');
+      throw sentinel;
+    });
+  } catch (cause) {
+    caught = cause;
   }
-
-  it('conceals an owned hidden project exactly like an absent target in the independent writer', async () => {
-    const fixture = await scopedWriter(null);
-    try {
-      const before = fixture.capture();
-      for (const patch of [{ name: 'Must stay hidden' }, {}]) {
-        expect(
-          await repo.editInOrganization(fixture.target.id, patch, wrote(), 'org-a', fixture.editor),
-        ).toBeNull();
-        expect(
-          await repo.editInOrganization('missing', patch, wrote(), 'org-a', fixture.editor),
-        ).toBeNull();
-        expect(fixture.capture()).toEqual(before);
-      }
-    } finally {
-      fixture.raw.close();
-    }
-  });
-
-  it('refuses a readable project without settings permission in the independent writer', async () => {
-    const fixture = await scopedWriter('package-viewer');
-    try {
-      const before = fixture.capture();
-      for (const patch of [{ name: 'Must stay unchanged' }, {}]) {
-        expect(
-          await repo.editInOrganization(fixture.target.id, patch, wrote(), 'org-a', fixture.editor),
-        ).toBe('forbidden');
-        expect(fixture.capture()).toEqual(before);
-      }
-    } finally {
-      fixture.raw.close();
-    }
-  });
-
-  it('records an open and a write only while the organization owns the project', async () => {
-    const raw = openDatabase(join(dir, 'test.db'));
-    try {
-      raw.run(
-        "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1), ('org-b', 'B', 1)",
-      );
-      raw.run(
-        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
-      );
-      const owned = project('Owned', 1);
-      const foreign = project('Foreign', 2);
-      await repo.createInOrganization(owned, steps(owned.id, 'Dev'), wrote(), 'org-a');
-      await repo.createInOrganization(foreign, steps(foreign.id, 'Dev'), wrote(), 'org-b');
-      raw.run(
-        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
-        [ownerId],
-      );
-      raw.run(
-        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('scoped-owned','org-a','work_package',?,'user',?,'package-manager','route',1)",
-        [owned.id, ownerId],
-      );
-      const editor = {
-        principal: { id: ownerId },
-        actorId: ownerId,
-        auditId: 'audit-1',
-        role: 'super_admin' as const,
-      };
-
-      expect(
-        await repo.editInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a', editor),
-      ).toBe(null);
-      expect(await repo.editInOrganization(foreign.id, {}, wrote(), 'org-a', editor)).toBe(null);
-      expect(await repo.recordOpenInOrganization(foreign.id, wrote(), 'org-a')).toBe(false);
-      expect((await repo.findById(foreign.id))?.name).toBe('Foreign');
-      expect(raw.query('SELECT COUNT(*) AS n FROM project_access').get()).toEqual({ n: 0 });
-
-      expect(
-        await repo.editInOrganization(owned.id, { name: 'Renamed' }, wrote(), 'org-a', editor),
-      ).toMatchObject({ name: 'Renamed' });
-      expect(await repo.recordOpenInOrganization(owned.id, wrote(), 'org-a')).toBe(true);
-      expect(raw.query('SELECT project_id FROM project_access').all()).toEqual([
-        { project_id: owned.id },
-      ]);
-    } finally {
-      raw.close();
-    }
-  });
-});
-
-describe('findCrossReferences', () => {
-  it('searches every arm through an index and scans no table', async () => {
-    const path = join(dir, 'test.db');
-    const queries: { sql: string; params: unknown[] }[] = [];
-    const logged = new ProjectRepository(
-      openDrizzle(path, { logQuery: (sql, params) => queries.push({ sql, params }) }),
-      OPEN,
-    );
-    await logged.findCrossReferences('p', 'o');
-    const query = queries.at(-1);
-    if (query === undefined) throw new Error('findCrossReferences issued no statement');
-    const raw = openDatabase(path);
-    try {
-      // Parameters arrive as drizzle logged them: the project and organization ids.
-      const plan = raw
-        .query<{ detail: string }, string[]>(`EXPLAIN QUERY PLAN ${query.sql}`)
-        .all(...(query.params as string[]));
-      expect(plan.length).toBeGreaterThan(0);
-      // Every alias the arms give `work_item` or `dependency`. A scan of the
-      // small `project` table, through its covering index, is allowed: the
-      // parent arm probes `work_item_siblings` once per other project.
-      // Proof, observed 2026-09-29: with the `incoming_parent` arm restored to
-      // its join on `parent.id = w.parent_id`, this listed `SCAN w`; with the
-      // `incoming_dependency` arm restored, `SCAN d`. Each scan ran the whole
-      // `work_item` or `dependency` table on every scoped project read.
-      const scans = plan
-        .map(({ detail }) => detail)
-        .filter((detail) => /^SCAN (w|d|l|pre|suc|parent|work_item|dependency)\b/.test(detail));
-      expect(scans).toEqual([]);
-    } finally {
-      raw.close();
-    }
-  });
-
-  // Proof: with the two resource arms removed from `findCrossReferences`, this
-  // answered []; watched 2026-10-20.
-  it('reports a demand, a capacity and an occupancy naming another organization’s resource', async () => {
-    const raw = openDatabase(join(dir, 'test.db'));
-    try {
-      raw.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
-      raw.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
-      raw.run(
-        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
-      );
-      const mine = project('Mine', 1);
-      await repo.createInOrganization(mine, steps(mine.id, 'Dev'), wrote(), 'org-a');
-      raw.run(
-        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-m', ?, NULL, 0, 'Root')",
-        [mine.id],
-      );
-      raw.run(
-        "INSERT INTO resource (id, name, kind, unit_label) VALUES ('ram-a', 'ram-a', 'divisible', 'GB'), ('ram-b', 'ram-b', 'divisible', 'GB')",
-      );
-      raw.run(
-        "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('ram-a', 'org-a', 'RAM'), ('ram-b', 'org-b', 'RAM')",
-      );
-      raw.run(
-        "INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES ('w-m', 'ram-a', 1), ('w-m', 'ram-b', 2)",
-      );
-      raw.run(
-        "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, 'ram-a', 4), (?, 'ram-b', 8)",
-        [mine.id, mine.id],
-      );
-      const stepId = raw
-        .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ?')
-        .get(mine.id)?.id;
-      if (stepId === undefined) throw new Error('the project has no step');
-      raw.run("INSERT INTO person (id, name) VALUES ('pe-m', 'Mine')");
-      raw.run(
-        "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('pe-m', 'org-a', 'Mine')",
-      );
-      raw.run(
-        "INSERT INTO claim (id, work_item_id, step_id, person_id) VALUES ('c-m', 'w-m', ?, 'pe-m')",
-        [stepId],
-      );
-      raw.run(
-        "INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES ('c-m', 'ram-a', 1), ('c-m', 'ram-b', 2)",
-      );
-
-      expect(await repo.findCrossReferences(mine.id, 'org-a')).toEqual([
-        { kind: 'project_resource_capacity', id: 'ram-b' },
-        { kind: 'work_item_resource_demand', id: 'w-m/ram-b' },
-        { kind: 'claim_occupancy_resource', id: 'c-m/ram-b' },
-      ]);
-    } finally {
-      raw.close();
-    }
-  });
-
-  it('reports a work item whose parent lies in another project', async () => {
-    const raw = openDatabase(join(dir, 'test.db'));
-    try {
-      raw.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
-      raw.run(
-        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
-      );
-      const mine = project('Mine', 1);
-      const theirs = project('Theirs', 2);
-      await repo.createInOrganization(mine, steps(mine.id, 'Dev'), wrote(), 'org-a');
-      await repo.createInOrganization(theirs, steps(theirs.id, 'Dev'), wrote(), 'org-a');
-      raw.run(
-        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-t', ?, NULL, 0, 'Root')",
-        [theirs.id],
-      );
-      raw.run(
-        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-m', ?, 'w-t', 0, 'Child')",
-        [mine.id],
-      );
-
-      expect(await repo.findCrossReferences(mine.id, 'org-a')).toEqual([
-        { kind: 'work_item_parent', id: 'w-m' },
-      ]);
-    } finally {
-      raw.close();
-    }
-  });
+  expect(caught).toBe(sentinel);
+  expect(inside).toMatchObject({ id: 'borrowed-rollback', name: 'Beta', revision: 1 });
+  expect(await fixture().snapshot()).toEqual(before);
+  expect(
+    statements.filter((statement) => ['BEGIN IMMEDIATE', 'COMMIT', 'ROLLBACK'].includes(statement)),
+  ).toEqual(['BEGIN IMMEDIATE', 'ROLLBACK']);
+  expect(nativeOwners).toBe(0);
 });

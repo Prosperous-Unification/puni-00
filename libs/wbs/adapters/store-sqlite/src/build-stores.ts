@@ -16,13 +16,13 @@ import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write
 import { MeasureEstimateRepository } from './measure-estimate';
 import { PlanEventRepository } from './plan-event';
 import { PriorityBandRepository } from './priority-band';
-import { ProjectRepository } from './project';
-import { ProjectRankRepository } from './project-rank';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { RuntimeCommandRepository } from './runtime-command';
+import { SettingRepository } from './settings';
 import { SpaceRepository } from './space';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
+import { StepCatalogueRepository } from './step-catalogue';
 import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepParallelRepository } from './step-parallel';
@@ -31,6 +31,8 @@ import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 import { WorkItemBudgetRepository } from './work-item-budget';
+import { WorkPackageRepository } from './work-package';
+import { WorkPackageRankRepository } from './work-package-rank';
 
 /** Builds the complete transactional SQLite catalog over one write gate. */
 export function buildStores(
@@ -51,9 +53,10 @@ export function buildStores(
     externalDependencyAuthoring: () => {
       throw new Error('external dependency authority requires an admitted writer');
     },
-    projects: new ProjectRepository(db, gate, writeScope),
+    settings: new SettingRepository(db),
+    workPackages: new WorkPackageRepository(db, gate, writeScope),
     spaces: new SpaceRepository(db, gate),
-    projectRanks: new ProjectRankRepository(db, gate),
+    workPackageRanks: new WorkPackageRankRepository(db, gate),
     users: new UserRepository(db, gate),
     directory: new DirectoryRepository(db, gate),
     // Proof: left out of this catalog, `both catalogs carry the decisions; a
@@ -69,6 +72,7 @@ export function buildStores(
     eventLog: new DrizzleEventLogStore(db, gate),
     planEvents: new PlanEventRepository(db, gate),
     steps: new StepRepository(db, gate),
+    stepCatalogue: new StepCatalogueRepository(db, gate, writeScope),
     workItems: new WorkItemRepository(db, gate),
     estimates: new EstimateRepository(db, gate),
     actuals: new ActualRepository(db, gate),

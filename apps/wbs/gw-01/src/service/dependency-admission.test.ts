@@ -131,3 +131,58 @@ test('protocol selection trims HTTP space/tab only and rejects non-ASCII whitesp
     ])
       expect(() => selectDependencyProtocol(capable, offered)).toThrow();
 });
+
+test('preserves published V1 wire identities and never forwards V1 for a renamed alias', async () => {
+  expect(DEPENDENCY_SEMANTICS).toBe('cross-project-dependencies-v1');
+  expect(DEPENDENCY_WEBSOCKET_PROTOCOL).toBe('wbs.cross-project-dependencies.v1');
+  const published = {
+    protocol: 'wbs-dependency-runtime',
+    version: 1,
+    role: 'gateway',
+    semantics: ['cross-project-dependencies-v1'],
+  } as const;
+  expect(selectDependencyProtocol(published, 'wbs.cross-project-dependencies.v1')).toBe(
+    'wbs.cross-project-dependencies.v1',
+  );
+  expect(claimsDependencySemantics(published, 'wbs.cross-project-dependencies.v1')).toBe(true);
+  expect(() =>
+    selectDependencyProtocol(published, 'wbs.cross-work-package-dependencies.v1'),
+  ).toThrow('unsupported dependency protocol offer');
+  const selected = selectDependencyProtocol(
+    published,
+    'wbs.cross-work-package-dependencies.v1, wbs.legacy',
+  );
+  expect(selected).toBe('wbs.legacy');
+  expect(claimsDependencySemantics(published, selected)).toBe(false);
+  const claims: (string | null)[] = [];
+  const options = {
+    beUrl: 'http://be.test',
+    secret: 'gateway-secret',
+    timers: systemTimers,
+    attemptMs: 50,
+    overallMs: 100,
+    fetchImpl: (_url: string, init?: RequestInit) => {
+      const claim = new Headers(init?.headers).get('X-WBS-Dependency-Semantics');
+      claims.push(claim);
+      return Promise.resolve(
+        claim === 'cross-project-dependencies-v1'
+          ? new Response(null, { status: 204 })
+          : Response.json(
+              {
+                error: 'client_dependency_incompatible',
+                required: 'cross-project-dependencies-v1',
+              },
+              { status: 409 },
+            ),
+      );
+    },
+  };
+  expect(
+    await admitDependencyUpgrade(options, 'wbs.cross-project-dependencies.v1', published),
+  ).toBeNull();
+  expect(await admitDependencyUpgrade(options, selected, published)).toEqual({
+    error: 'client_dependency_incompatible',
+    required: 'cross-project-dependencies-v1',
+  });
+  expect(claims).toEqual(['cross-project-dependencies-v1', null]);
+});

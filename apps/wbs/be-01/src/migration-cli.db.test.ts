@@ -1139,8 +1139,8 @@ describe('migration deploy entrypoints', () => {
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/space-rollback'"],
       ],
       [
-        'project-rank-rollback-cli.ts',
-        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/project-rank-rollback'"],
+        'work-package-rank-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/work-package-rank-rollback'"],
       ],
       [
         'step-node-attempt-rollback-cli.ts',
@@ -1197,11 +1197,11 @@ describe('migration deploy entrypoints', () => {
     try {
       sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)");
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','P','u',0,1)",
+        "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','P','u',0,1)",
       );
-      sqlite.run("INSERT INTO step (id,project_id,name,position) VALUES ('s','p','Dev',1)");
+      sqlite.run("INSERT INTO step (id,work_package_id,name,position) VALUES ('s','p','Dev',1)");
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('w','p','W',1,0)",
+        "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('w','p','W',1,0)",
       );
       sqlite.run("INSERT INTO person (id,name) VALUES ('claire','claire')");
       sqlite.run(
@@ -1233,9 +1233,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
-          name !== '20261022210000_add_project_abbreviations' &&
+          name !== '20261022210000_add_work_package_abbreviations' &&
           name !== '20261022211000_add_external_dependencies' &&
-          name !== '20261022212000_add_cross_project_dependency_activation' &&
+          name !== '20261022212000_add_cross_work_package_dependency_activation' &&
           name !== '20261022213000_add_optimization_boundary_certificates' &&
           name !== '20261022121000_add_runtime_commands' &&
           name !== '20261022130000_add_organization_limits' &&
@@ -1287,16 +1287,16 @@ describe('migration deploy entrypoints', () => {
     try {
       sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)");
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','P','u',0,1)",
+        "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','P','u',0,1)",
       );
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('w','p','W',1,0)",
+        "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('w','p','W',1,0)",
       );
       sqlite.run(
         "INSERT INTO resource (id,name,kind,unit_label) VALUES ('ram','h2puni ram','divisible','GB')",
       );
       sqlite.run(
-        "INSERT INTO project_resource_capacity (project_id,resource_id,units) VALUES ('p','ram',32)",
+        "INSERT INTO work_package_resource_capacity (work_package_id,resource_id,units) VALUES ('p','ram',32)",
       );
       sqlite.run(
         "INSERT INTO work_item_resource_demand (work_item_id,resource_id,units) VALUES ('w','ram',4)",
@@ -1319,9 +1319,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
-          name !== '20261022210000_add_project_abbreviations' &&
+          name !== '20261022210000_add_work_package_abbreviations' &&
           name !== '20261022211000_add_external_dependencies' &&
-          name !== '20261022212000_add_cross_project_dependency_activation' &&
+          name !== '20261022212000_add_cross_work_package_dependency_activation' &&
           name !== '20261022213000_add_optimization_boundary_certificates' &&
           name !== '20261022121000_add_runtime_commands' &&
           name !== '20261022130000_add_organization_limits' &&
@@ -1350,7 +1350,7 @@ describe('migration deploy entrypoints', () => {
     const after = openDatabase(dbPath);
     try {
       after.run('DELETE FROM work_item_resource_demand');
-      after.run('DELETE FROM project_resource_capacity');
+      after.run('DELETE FROM work_package_resource_capacity');
     } finally {
       after.close();
     }
@@ -1375,7 +1375,7 @@ describe('migration deploy entrypoints', () => {
     for (const table of [
       'resource',
       'resource_organization',
-      'project_resource_capacity',
+      'work_package_resource_capacity',
       'work_item_resource_demand',
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
@@ -1407,11 +1407,13 @@ describe('migration deploy entrypoints', () => {
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
       );
       sqlite.run(
-        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+        'INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
           " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
       );
       // The outgoing release's statement: it names no `code`.
-      sqlite.run("INSERT INTO step (id, project_id, name, position) VALUES ('s', 'p', 'Dev', 10)");
+      sqlite.run(
+        "INSERT INTO step (id, work_package_id, name, position) VALUES ('s', 'p', 'Dev', 10)",
+      );
     } finally {
       sqlite.close();
     }
@@ -1419,7 +1421,7 @@ describe('migration deploy entrypoints', () => {
     const first = await runCli('backfill-step-codes-cli.ts', dbPath);
     expect(first).toEqual({
       exitCode: 0,
-      stdout: 'coded step s in project p as dev\nstep codes backfilled: 1\n',
+      stdout: 'coded step s in work package p as dev\nstep codes backfilled: 1\n',
       stderr: '',
     });
     const again = await runCli('backfill-step-codes-cli.ts', dbPath);
@@ -1449,14 +1451,16 @@ describe('migration deploy entrypoints', () => {
       );
       sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+        "INSERT INTO work_package (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
       );
-      sqlite.run("INSERT INTO project_organization (resource_id,organization_id) VALUES ('p','o')");
+      sqlite.run(
+        "INSERT INTO work_package_organization (resource_id,organization_id) VALUES ('p','o')",
+      );
       sqlite.run(
         "INSERT INTO space (id,organization_id,name,revision,created_at,created_by) VALUES ('s','o','Q3',1,1,'u')",
       );
       sqlite.run(
-        "INSERT INTO space_project (space_id,project_id,organization_id,position,created_at,created_by) VALUES ('s','p','o',10,1,'u')",
+        "INSERT INTO space_work_package (space_id,work_package_id,organization_id,position,created_at,created_by) VALUES ('s','p','o',10,1,'u')",
       );
     } finally {
       sqlite.close();
@@ -1469,7 +1473,7 @@ describe('migration deploy entrypoints', () => {
     expect(JSON.parse(readFileSync(savedPath, 'utf8'))).toMatchObject({
       format: 'space-save',
       version: 1,
-      spaces: [{ id: 's', members: [{ projectId: 'p', position: 10 }] }],
+      spaces: [{ id: 's', members: [{ workPackageId: 'p', position: 10 }] }],
     });
     expect(await runCli('space-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
       exitCode: 0,
@@ -1483,9 +1487,9 @@ describe('migration deploy entrypoints', () => {
     });
     const restored = openDatabase(dbPath);
     try {
-      expect(restored.query('SELECT space_id, project_id FROM space_project').all()).toEqual([
-        { space_id: 's', project_id: 'p' },
-      ]);
+      expect(
+        restored.query('SELECT space_id, work_package_id FROM space_work_package').all(),
+      ).toEqual([{ space_id: 's', work_package_id: 'p' }]);
     } finally {
       restored.close();
     }
@@ -1505,8 +1509,8 @@ describe('migration deploy entrypoints', () => {
     expect(absentFile.stderr).toContain('ENOENT');
   }, 60_000);
 
-  it('saves, removes and restores project ranks through the rollback CLI', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'wbs-project-rank-cli-'));
+  it('saves, removes and restores work package ranks through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-work-package-rank-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'ranks.json');
@@ -1518,39 +1522,88 @@ describe('migration deploy entrypoints', () => {
       );
       sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+        "INSERT INTO work_package (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
       );
-      sqlite.run("INSERT INTO project_organization (resource_id,organization_id) VALUES ('p','o')");
       sqlite.run(
-        "INSERT INTO project_rank (project_id,organization_id,position,created_at,updated_at,created_by) VALUES ('p','o',10,1,1,'u')",
+        "INSERT INTO work_package_organization (resource_id,organization_id) VALUES ('p','o')",
+      );
+      sqlite.run(
+        "INSERT INTO work_package_rank (work_package_id,organization_id,position,created_at,updated_at,created_by) VALUES ('p','o',10,1,1,'u')",
       );
     } finally {
       sqlite.close();
     }
-    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
       exitCode: 0,
-      stdout: 'project ranks saved: 1\n',
+      stdout: 'work package ranks saved: 1\n',
       stderr: '',
     });
     expect(JSON.parse(readFileSync(savedPath, 'utf8'))).toMatchObject({
+      format: 'work-package-rank-save',
+      version: 2,
+      ranks: [{ workPackageId: 'p', organizationId: 'o', position: 10 }],
+    });
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'work package ranks removed: 1\n',
+      stderr: '',
+    });
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual(
+      {
+        exitCode: 0,
+        stdout: 'work package ranks restored: 1\n',
+        stderr: '',
+      },
+    );
+    const savedBytes = readFileSync(savedPath, 'utf8');
+    const current = JSON.parse(savedBytes) as {
+      ranks: {
+        workPackageId: string;
+        organizationId: string;
+        position: number;
+        createdAt: number;
+        updatedAt: number | null;
+        createdBy: string;
+      }[];
+    };
+    const legacy = {
       format: 'project-rank-save',
       version: 1,
-      ranks: [{ projectId: 'p', organizationId: 'o', position: 10 }],
-    });
-    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
-      exitCode: 0,
-      stdout: 'project ranks removed: 1\n',
-      stderr: '',
-    });
-    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
-      exitCode: 0,
-      stdout: 'project ranks restored: 1\n',
-      stderr: '',
-    });
-    const invalid = await runCli('project-rank-rollback-cli.ts', dbPath, 'erase', savedPath);
+      ranks: current.ranks.map(({ workPackageId, ...facts }) => ({
+        projectId: workPackageId,
+        ...facts,
+      })),
+    };
+    const legacyPath = join(root, 'legacy-ranks1.json'),
+      legacyBytes = JSON.stringify(legacy);
+    writeFileSync(legacyPath, legacyBytes);
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'remove', legacyPath)).toEqual(
+      { exitCode: 0, stdout: 'work package ranks removed: 1\n', stderr: '' },
+    );
+    expect(
+      await runCli('work-package-rank-rollback-cli.ts', dbPath, 'restore', legacyPath),
+    ).toEqual({ exitCode: 0, stdout: 'work package ranks restored: 1\n', stderr: '' });
+    const checked = openDatabase(dbPath);
+    try {
+      expect(checked.query('SELECT * FROM work_package_rank').all()).toEqual([
+        {
+          work_package_id: 'p',
+          organization_id: 'o',
+          position: 10,
+          created_at: 1,
+          updated_at: 1,
+          created_by: 'u',
+        },
+      ]);
+    } finally {
+      checked.close();
+    }
+    expect(readFileSync(legacyPath, 'utf8')).toBe(legacyBytes);
+    expect(readFileSync(savedPath, 'utf8')).toBe(savedBytes);
+    const invalid = await runCli('work-package-rank-rollback-cli.ts', dbPath, 'erase', savedPath);
     expect(invalid.exitCode).not.toBe(0);
     expect(invalid.stderr).toContain('usage:');
-    const missingArgument = await runCli('project-rank-rollback-cli.ts', dbPath, 'restore');
+    const missingArgument = await runCli('work-package-rank-rollback-cli.ts', dbPath, 'restore');
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);
@@ -1631,12 +1684,14 @@ describe('migration deploy entrypoints', () => {
       sqlite.run(
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
-      sqlite.run("INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','Project','u',1)");
       sqlite.run(
-        "INSERT INTO step (id,project_id,name,position,estimate_unit) VALUES ('dev','p','Dev',10,'minutes'),('qa','p','QA',20,'minutes')",
+        "INSERT INTO work_package (id,name,owner_id,created_at) VALUES ('p','WorkPackage','u',1)",
       );
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,position,name) VALUES ('a','p',1,'A'),('b','p',2,'B')",
+        "INSERT INTO step (id,work_package_id,name,position,estimate_unit) VALUES ('dev','p','Dev',10,'minutes'),('qa','p','QA',20,'minutes')",
+      );
+      sqlite.run(
+        "INSERT INTO work_item (id,work_package_id,position,name) VALUES ('a','p',1,'A'),('b','p',2,'B')",
       );
       sqlite.run(
         "INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic,created_at,updated_at,created_by) VALUES ('a','dev',30,40,90,1,2,'u'),('a','qa',4,5,6,3,4,'u'),('b','dev',10,12,15,5,6,'u'),('b','qa',0,0,0,7,8,'u')",
@@ -1672,7 +1727,7 @@ describe('migration deploy entrypoints', () => {
     }
     const withHistory = openDatabase(dbPath);
     withHistory.run(
-      `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('minute-history','p','u',1,'clear_estimate','{}','{}','{"expected":{},"from":{},"estimateUnits":{"dev":"minutes"}}',1,1)`,
+      `INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('minute-history','p','u',1,'clear_estimate','{}','{}','{"expected":{},"from":{},"estimateUnits":{"dev":"minutes"}}',1,1)`,
     );
     const journalBefore = withHistory.query('SELECT * FROM command_journal').all();
     const journalRefusal = await runCli(
@@ -1828,13 +1883,13 @@ describe('migration deploy entrypoints', () => {
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+        "INSERT INTO work_package (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
       );
       sqlite.run(
-        "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',10),('qa','p','QA',20)",
+        "INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',10),('qa','p','QA',20)",
       );
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,position,name,revision) VALUES ('a','p',1,'A',0)",
+        "INSERT INTO work_item (id,work_package_id,position,name,revision) VALUES ('a','p',1,'A',0)",
       );
       sqlite.run("INSERT INTO person (id,name) VALUES ('kat','Kat')");
       sqlite.run(
@@ -1931,10 +1986,10 @@ describe('migration deploy entrypoints', () => {
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+        "INSERT INTO work_package (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
       );
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,position,name,revision,hold) VALUES ('a','p',1,'A',0,'on_hold')",
+        "INSERT INTO work_item (id,work_package_id,position,name,revision,hold) VALUES ('a','p',1,'A',0,'on_hold')",
       );
     } finally {
       sqlite.close();
@@ -1999,13 +2054,13 @@ describe('migration deploy entrypoints', () => {
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+        "INSERT INTO work_package (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
       );
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,position,name,revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0)",
+        "INSERT INTO work_item (id,work_package_id,position,name,revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0)",
       );
       sqlite.run(
-        "INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at) VALUES ('link','p','a','whole','b','whole','FS',12)",
+        "INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at) VALUES ('link','p','a','whole','b','whole','FS',12)",
       );
     } finally {
       sqlite.close();

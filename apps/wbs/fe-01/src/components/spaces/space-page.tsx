@@ -66,14 +66,14 @@ type FocusTarget = { kind: 'control'; label: string } | { kind: 'heading' };
 /** One row's roll-up as the table shows it while chunks arrive. */
 type RollUpState = { kind: 'loading' } | { kind: 'failed' } | RollUp;
 
-/** A Projects cell: room around its figures, and the row's middle for a 44px handle. */
+/** A Work packages cell: room around its figures, and the row's middle for a 44px handle. */
 const CELL_CLASS = 'px-3 py-2 align-middle first:pl-6 last:pr-6';
 
-/** A Projects column heading, quieter than the figures under it. */
+/** A Work packages column heading, quieter than the figures under it. */
 const HEAD_CELL_CLASS = `${CELL_CLASS} text-xs font-medium whitespace-nowrap`;
 
 /**
- * The Project column, held at the left while a phone scrolls the figures
+ * The Work package column, held at the left while a phone scrolls the figures
  * under it, with a hairline marking where the scrolled columns slide beneath.
  * A shadow rather than a border: under `border-collapse` a sticky cell's
  * border stays where the column was.
@@ -87,11 +87,11 @@ const ARROW_CLASS = `${CONTROL_HEIGHT} w-11 px-0 sm:w-9`;
 export const ROLL_UP_CHUNK = 20;
 
 /**
- * One space, at `/spaces/$spaceId` (`all` included): its projects in order,
+ * One space, at `/spaces/$spaceId` (`all` included): its work packages in order,
  * each with its roll-up as it arrives. Members and above reorder, remove and
- * add projects; the handles appear only when the read says `writable`, so a
- * viewer never sees a control a write would refuse. A project links to
- * `/?project=<id>`, which opens it on the plan page.
+ * add work packages; the handles appear only when the read says `writable`, so a
+ * viewer never sees a control a write would refuse. A work package links to
+ * `/?workPackage=<id>`, which opens it on the plan page.
  */
 export function SpacePage({
   spaceId,
@@ -121,7 +121,7 @@ export function SpacePage({
 
   const loadRollUps = useCallback(
     async (rows: readonly Row[]) => {
-      const ids = rows.map(({ project }) => project.id);
+      const ids = rows.map(({ workPackage }) => workPackage.id);
       // A row keeps the figures it showed until its chunk answers: a poll, a
       // focus or a write redraws no row as loading. Only a new row starts so.
       // Proof, observed 2026-09-29: with every row reset to loading here,
@@ -135,7 +135,7 @@ export function SpacePage({
         const chunk = ids.slice(at, at + ROLL_UP_CHUNK);
         const reply = await client['getApiSpacesByIdRoll-ups']({
           params: { id: spaceId },
-          query: { projectIds: chunk.join(',') },
+          query: { workPackageIds: chunk.join(',') },
         });
         if (reply.kind === 'success') {
           setRollUps((current) => ({ ...current, ...reply.body.rollUps }));
@@ -159,12 +159,19 @@ export function SpacePage({
         setView({ kind: 'ready', read: reply.body });
         if (reply.body.writable) {
           const listed = await client.getApiProjects({});
-          const members = new Set(reply.body.rows.map(({ project }) => project.id));
+          const members = new Set(reply.body.rows.map(({ workPackage }) => workPackage.projectId));
           // Proof, observed 2026-09-29: with the failure arm ignored (the old
-          // candidates kept silently), `says when the projects to add could
+          // candidates kept silently), `says when the workPackages to add could
           // not be read` in `space-page.test.tsx` found no alert.
           if (listed.kind === 'success') {
-            setCandidates(listed.body.projects.filter(({ id }) => !members.has(id)));
+            setCandidates(
+              listed.body.projects.filter(
+                (project) =>
+                  'organizationId' in project &&
+                  project.spaceId === null &&
+                  !members.has(project.id),
+              ),
+            );
             setCandidatesProblem(null);
           } else {
             setCandidates([]);
@@ -176,11 +183,11 @@ export function SpacePage({
           }
         }
         // In progress is read with the rows, so a write that adds or removes a
-        // project refreshes both.
+        // work package refreshes both.
         // Proof, observed 2026-09-29: with this read moved to a mount-only
         // effect, `refreshes in progress now after a remove` in
         // `space-page.test.tsx` never found `Nothing is in progress in this
-        // space.`: the removed project's leaf stayed listed.
+        // space.`: the removed workPackage's leaf stayed listed.
         await Promise.all([
           loadRollUps(reply.body.rows),
           readInProgress(spaceId, scope).then(setInProgress),
@@ -275,7 +282,11 @@ export function SpacePage({
   }
 
   const title =
-    view.kind === 'ready' ? view.read.space.name : spaceId === 'all' ? 'All projects' : 'Space';
+    view.kind === 'ready'
+      ? view.read.space.name
+      : spaceId === 'all'
+        ? 'All work packages'
+        : 'Space';
   return (
     <>
       <AppHeader nav={nav} account={account} />
@@ -304,18 +315,18 @@ export function SpacePage({
             <Card className="border-border">
               <CardContent className="flex flex-col gap-4">
                 {view.read.rows.length === 0 && (
-                  <p className={NOTE_CLASS}>No projects in this space yet.</p>
+                  <p className={NOTE_CLASS}>No work packages in this space yet.</p>
                 )}
                 {view.read.rows.length > 0 && (
                   <div className="border-border -mx-6 -mt-6 overflow-x-auto border-b last:-mb-6 last:border-b-0">
                     <table
-                      aria-label="Projects"
+                      aria-label="Work packages"
                       className="w-full border-collapse text-left text-sm"
                     >
                       <thead className="text-muted-foreground">
                         <tr className="border-border border-b">
                           <th scope="col" className={`${HEAD_CELL_CLASS} ${PINNED_CELL_CLASS}`}>
-                            Project
+                            Work package
                           </th>
                           <th scope="col" className={HEAD_CELL_CLASS}>
                             Status
@@ -340,76 +351,90 @@ export function SpacePage({
                         </tr>
                       </thead>
                       <tbody className="divide-border divide-y">
-                        {view.read.rows.map((row, index) => (
-                          <ProjectRow
-                            key={row.project.id}
-                            row={row}
-                            rollUp={rollUps[row.project.id] ?? { kind: 'loading' }}
-                            handles={
-                              view.read.writable
-                                ? {
-                                    sending,
-                                    // Up: after the row two above, or first.
-                                    onUp:
-                                      index === 0
-                                        ? null
-                                        : () => {
-                                            focusAfterWrite.current = {
-                                              kind: 'control',
-                                              label: `Move ${row.project.name} up`,
-                                            };
-                                            const anchor =
-                                              view.read.rows[index - 2]?.project.id ?? null;
-                                            void write(
-                                              () =>
-                                                client.postApiSpacesByIdProjectsByProjectIdMove({
-                                                  params: {
-                                                    id: spaceId,
-                                                    projectId: row.project.id,
-                                                  },
-                                                  body: { afterProjectId: anchor },
-                                                }),
-                                              `Moved ${row.project.name} up.`,
-                                            );
-                                          },
-                                    onDown:
-                                      index === view.read.rows.length - 1
-                                        ? null
-                                        : () => {
-                                            focusAfterWrite.current = {
-                                              kind: 'control',
-                                              label: `Move ${row.project.name} down`,
-                                            };
-                                            const anchor =
-                                              view.read.rows[index + 1]?.project.id ?? null;
-                                            void write(
-                                              () =>
-                                                client.postApiSpacesByIdProjectsByProjectIdMove({
-                                                  params: {
-                                                    id: spaceId,
-                                                    projectId: row.project.id,
-                                                  },
-                                                  body: { afterProjectId: anchor },
-                                                }),
-                                              `Moved ${row.project.name} down.`,
-                                            );
-                                          },
-                                    onRemove: () => {
-                                      // The row is gone after the re-read: the heading.
-                                      focusAfterWrite.current = { kind: 'heading' };
-                                      void write(
-                                        () =>
-                                          client.deleteApiSpacesByIdProjectsByProjectId({
-                                            params: { id: spaceId, projectId: row.project.id },
-                                          }),
-                                        `Removed ${row.project.name} from this space. The project is unchanged.`,
-                                      );
-                                    },
-                                  }
-                                : null
-                            }
-                          />
-                        ))}
+                        {view.read.rows.map((row, index) => {
+                          const projects = [
+                            ...new Set(
+                              view.read.rows.map(({ workPackage }) => workPackage.projectId),
+                            ),
+                          ];
+                          const projectIndex = projects.indexOf(row.workPackage.projectId);
+                          const firstInProject =
+                            view.read.rows.findIndex(
+                              ({ workPackage }) =>
+                                workPackage.projectId === row.workPackage.projectId,
+                            ) === index;
+                          return (
+                            <WorkPackageRow
+                              key={row.workPackage.id}
+                              row={row}
+                              rollUp={rollUps[row.workPackage.id] ?? { kind: 'loading' }}
+                              handles={
+                                view.read.writable && firstInProject
+                                  ? {
+                                      sending,
+                                      // Up: after the row two above, or first.
+                                      onUp:
+                                        projectIndex === 0
+                                          ? null
+                                          : () => {
+                                              focusAfterWrite.current = {
+                                                kind: 'control',
+                                                label: `Move the project containing ${row.workPackage.name} up`,
+                                              };
+                                              const anchor = projects[projectIndex - 2] ?? null;
+                                              void write(
+                                                () =>
+                                                  client.postApiSpacesByIdProjectsByProjectIdMove({
+                                                    params: {
+                                                      id: spaceId,
+                                                      projectId: row.workPackage.projectId,
+                                                    },
+                                                    body: { afterProjectId: anchor },
+                                                  }),
+                                                `Moved ${row.workPackage.name} up.`,
+                                              );
+                                            },
+                                      onDown:
+                                        projectIndex === projects.length - 1
+                                          ? null
+                                          : () => {
+                                              focusAfterWrite.current = {
+                                                kind: 'control',
+                                                label: `Move the project containing ${row.workPackage.name} down`,
+                                              };
+                                              const anchor = projects[projectIndex + 1] ?? null;
+                                              void write(
+                                                () =>
+                                                  client.postApiSpacesByIdProjectsByProjectIdMove({
+                                                    params: {
+                                                      id: spaceId,
+                                                      projectId: row.workPackage.projectId,
+                                                    },
+                                                    body: { afterProjectId: anchor },
+                                                  }),
+                                                `Moved ${row.workPackage.name} down.`,
+                                              );
+                                            },
+                                      onRemove: () => {
+                                        // The row is gone after the re-read: the heading.
+                                        focusAfterWrite.current = { kind: 'heading' };
+                                        void write(
+                                          () =>
+                                            client.deleteApiSpacesByIdProjectsByProjectId({
+                                              params: {
+                                                id: spaceId,
+                                                projectId: row.workPackage.projectId,
+                                              },
+                                            }),
+                                          `Removed the project containing ${row.workPackage.name} from this space. Its work packages are unchanged.`,
+                                        );
+                                      },
+                                    }
+                                  : null
+                              }
+                            />
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -424,17 +449,17 @@ export function SpacePage({
                     className={FORM_CLASS}
                     onSubmit={(event) => {
                       event.preventDefault();
-                      const project = candidates.find(({ id }) => id === chosen);
-                      if (project === undefined) return;
-                      const last = view.read.rows.at(-1)?.project.id ?? null;
+                      const workPackage = candidates.find(({ id }) => id === chosen);
+                      if (workPackage === undefined) return;
+                      const last = view.read.rows.at(-1)?.workPackage.projectId ?? null;
                       setChosen('');
                       void write(
                         () =>
                           client.postApiSpacesByIdProjects({
                             params: { id: spaceId },
-                            body: { projectId: project.id, afterProjectId: last },
+                            body: { projectId: workPackage.id, afterProjectId: last },
                           }),
-                        `Added ${project.name}.`,
+                        `Added ${workPackage.name}.`,
                       );
                     }}
                   >
@@ -451,9 +476,9 @@ export function SpacePage({
                         }}
                       >
                         <option value="">Choose a project</option>
-                        {candidates.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
+                        {candidates.map((workPackage) => (
+                          <option key={workPackage.id} value={workPackage.id}>
+                            {workPackage.name}
                           </option>
                         ))}
                       </select>
@@ -486,8 +511,8 @@ export function SpacePage({
           {view.kind === 'ready' && (
             <InProgressList
               state={inProgress}
-              projectNames={
-                new Map(view.read.rows.map(({ project }) => [project.id, project.name]))
+              workPackageNames={
+                new Map(view.read.rows.map(({ workPackage }) => [workPackage.id, workPackage.name]))
               }
             />
           )}
@@ -504,8 +529,8 @@ interface Handles {
   onRemove: () => void;
 }
 
-/** One project's row; `handles` is null for a reader who may not arrange the space. */
-function ProjectRow({
+/** One work package's row; `handles` is null for a reader who may not arrange the space. */
+function WorkPackageRow({
   row,
   rollUp,
   handles,
@@ -514,7 +539,7 @@ function ProjectRow({
   rollUp: RollUpState;
   handles: Handles | null;
 }): React.JSX.Element {
-  const { project } = row;
+  const { workPackage } = row;
   return (
     <tr>
       <th
@@ -522,10 +547,10 @@ function ProjectRow({
         className={`${CELL_CLASS} ${PINNED_CELL_CLASS} min-w-36 font-normal sm:min-w-48`}
       >
         <span className="flex flex-wrap items-baseline gap-x-2">
-          <a href={`/?project=${encodeURIComponent(project.id)}`} className={LINK_CLASS}>
-            {project.name}
+          <a href={`/?workPackage=${encodeURIComponent(workPackage.id)}`} className={LINK_CLASS}>
+            {workPackage.name}
           </a>
-          {project.restricted && (
+          {workPackage.restricted && (
             <span className="text-muted-foreground text-sm" title="Restricted">
               (restricted)
             </span>
@@ -541,7 +566,7 @@ function ProjectRow({
               variant="outline"
               className={ARROW_CLASS}
               disabled={handles.sending || handles.onUp === null}
-              aria-label={`Move ${project.name} up`}
+              aria-label={`Move the project containing ${workPackage.name} up`}
               onClick={() => handles.onUp?.()}
             >
               ↑
@@ -551,7 +576,7 @@ function ProjectRow({
               variant="outline"
               className={ARROW_CLASS}
               disabled={handles.sending || handles.onDown === null}
-              aria-label={`Move ${project.name} down`}
+              aria-label={`Move the project containing ${workPackage.name} down`}
               onClick={() => handles.onDown?.()}
             >
               ↓
@@ -561,7 +586,7 @@ function ProjectRow({
               variant="outline"
               className={`text-destructive hover:text-destructive ${CONTROL_HEIGHT}`}
               disabled={handles.sending}
-              aria-label={`Remove ${project.name} from this space`}
+              aria-label={`Remove the project containing ${workPackage.name} from this space`}
               onClick={handles.onRemove}
             >
               Remove
@@ -585,7 +610,7 @@ function RollUpCells({ rollUp }: { rollUp: RollUpState }): React.JSX.Element {
     case 'failed':
       return (
         <td colSpan={5} className={`${CELL_CLASS} text-destructive`}>
-          Could not load this project’s figures.
+          Could not load this work package’s figures.
         </td>
       );
     case 'unavailable':
@@ -635,8 +660,8 @@ function scheduleOf(rollUp: RollUpState): SpaceGanttInput['schedule'] {
 }
 
 /**
- * The space's read-only Gantt: one bar per project over its roll-up's dates,
- * and a blank saying why for a project undated, loading, unavailable or
+ * The space's read-only Gantt: one bar per work package over its roll-up's dates,
+ * and a blank saying why for a work package undated, loading, unavailable or
  * whose figures failed.
  */
 function SpaceGantt({
@@ -647,11 +672,11 @@ function SpaceGantt({
   rollUps: Readonly<Record<string, RollUpState>>;
 }): React.JSX.Element {
   const lanes = spaceGanttLanesOf(
-    rows.map(({ project }) => ({
-      projectId: project.id,
-      name: project.name,
+    rows.map(({ workPackage }) => ({
+      workPackageId: workPackage.id,
+      name: workPackage.name,
       // A row whose chunk has not landed has no entry yet: it reads as loading.
-      schedule: scheduleOf(rollUps[project.id] ?? { kind: 'loading' }),
+      schedule: scheduleOf(rollUps[workPackage.id] ?? { kind: 'loading' }),
     })),
   );
   return (
@@ -661,9 +686,9 @@ function SpaceGantt({
           <CardTitle id="space-gantt-heading">Timeline</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          <ul aria-label="Project timeline" className="m-0 flex list-none flex-col gap-2 p-0">
+          <ul aria-label="Work package timeline" className="m-0 flex list-none flex-col gap-2 p-0">
             {lanes.map((lane) => (
-              <li key={lane.projectId} className="flex items-center gap-3 text-sm">
+              <li key={lane.workPackageId} className="flex items-center gap-3 text-sm">
                 <span className="w-28 shrink-0 truncate sm:w-48">{lane.name}</span>
                 <span className="bg-muted relative min-h-5 min-w-0 flex-1 rounded-sm">
                   {lane.kind === 'bar' ? (

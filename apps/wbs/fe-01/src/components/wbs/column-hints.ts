@@ -18,7 +18,7 @@ import { facetOfColumn, type MeasureFacet } from './measure-reading';
  * that is the one place this file disagrees with {@link ColumnMeta}: a
  * definition that changes remounts every cell in the table (landmine #1 in
  * `wbs-table.tsx`), so the schedule columns' hint — which moves the day the
- * project gets a start date — would be a remount of the whole grid on the one
+ * work package gets a start date — would be a remount of the whole grid on the one
  * edit most likely to be made while somebody is reading it. It is also how the
  * copy stays one voice: fifteen sentences written in one file read as a set,
  * and fifteen written beside fifteen `cell:` renderers do not.
@@ -32,15 +32,15 @@ import { facetOfColumn, type MeasureFacet } from './measure-reading';
 /** Every fact about the plan a hint is allowed to depend on. */
 export interface ColumnHintState {
   /**
-   * Whether the project is on a calendar.
+   * Whether the work package is on a calendar.
    *
    * The one fact a hint bends for, and for the reason `startDateHint` was
-   * written in `wbs-table.tsx` before it moved here: without a project start
+   * written in `wbs-table.tsx` before it moved here: without a work package start
    * date the schedule columns hold day numbers counted from day zero, so a bare
    * `2.5` under **Start** reads as a date that failed to load. This is where
    * that is answered.
    */
-  hasProjectStartDate: boolean;
+  hasWorkPackageStartDate: boolean;
 }
 
 /**
@@ -87,7 +87,7 @@ export interface ColumnHintState {
  * (The reflow above is load-bearing too: `jsdoc/no-multi-asterisks` reads a
  * middle line that *starts* with an emphasis marker as a stray asterisk and
  * fails `fe-01:lint` — watched at `9c08d94e`, `column-hints.ts:72`, the one
- * error in a 24-project run no suite here can see. Keep emphasis off the first
+ * error in a 24-work-package run no suite here can see. Keep emphasis off the first
  * column.)
  *
  * The optimizing engines constrain the projected finish, adding one solver
@@ -190,7 +190,7 @@ const COLUMN_HINTS = new Map<string, string>([
   [
     'resources',
     'What this work holds while any of its steps runs — RAM, a staging environment, agent slots. ' +
-      'Rows that need more than the project states wait for each other, and a claim holds ' +
+      'Rows that need more than the work package states wait for each other, and a claim holds ' +
       'these units until it is released. Never inherited.',
   ],
   [
@@ -246,9 +246,9 @@ function scheduleHint(what: string, state: ColumnHintState): string {
   const computed =
     `Computed, not typed: this work item’s ${what}, worked out from its dependencies, ` +
     'its earliest start and when its team has people free.';
-  return state.hasProjectStartDate
+  return state.hasWorkPackageStartDate
     ? computed
-    : `${computed} In days from the start of the plan until the project has a start date.`;
+    : `${computed} In days from the start of the plan until the work package has a start date.`;
 }
 
 /**
@@ -293,7 +293,7 @@ export const STEP_FINAL_HINT =
  */
 const MEASURE_FACET_HINTS: Readonly<Record<MeasureFacet, string>> = {
   estimate:
-    'The expected figure: this measure’s three points weighed by the project’s PERT weights, summed over the row’s steps. A dot marks a single legacy figure. Edit it in the row’s Measures panel.',
+    'The expected figure: this measure’s three points weighed by the work package’s PERT weights, summed over the row’s steps. A dot marks a single legacy figure. Edit it in the row’s Measures panel.',
   fact: 'What was recorded in this measure, summed over the row’s steps. A dash means nothing was recorded — not zero. Agent minutes come from ended attempts and are never typed.',
   variance:
     'Recorded less expected, summed over the steps that hold both. Positive means it took more than expected.',
@@ -316,7 +316,7 @@ export class UnexplainedColumnError extends Error {
  *
  * Step columns are matched by suffix and named by kind rather than by step,
  * exactly as {@link defaultWidthFor} sizes them: a step is created at runtime,
- * so the step half of the id is whatever the project called it. The step's own
+ * so the step half of the id is whatever the work package called it. The step's own
  * name is already the heading the reader is resting on.
  *
  * @throws {UnexplainedColumnError} when nothing explains that id.

@@ -21,7 +21,7 @@ import { addInteger, equalRecords } from './record-codecs';
 import { recordExecution } from './record-execution';
 import type { Attempt, ExecutionCommandId } from './records';
 import type { RunStore, ScopedAttemptGuard, StoreRefusal } from './run-store';
-import { equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
+import { equalRuntimeScopes, mapLocalScope, readRuntimeRequest } from './runtime-codecs';
 import { readRuntimeHistory } from './runtime-history';
 import { TurnDispatchError } from './turn-dispatch-error';
 import { ExecutionCommandIdCodec } from './value-codecs';
@@ -209,7 +209,9 @@ export async function dispatchTurn(
   const selected = inventory[0];
   if (
     live.ledgerId !== scope.pin.ledgerId ||
-    !equalRuntimeScopes(live.scope, snapshotGuard.scope) ||
+    // Proof: dash-turn-live-local-scope: bypassing live current-state/local-owner correspondence.
+    // 'memory turn dispatch > refuses fresh live owner_scope before stage' failed; exact restoration passed.
+    !equalRuntimeScopes(mapLocalScope(live.scope), snapshotGuard.scope) ||
     live.authority.kind !== 'held' ||
     live.authority.ownerId !== acquisition.authority.ownerId ||
     live.authority.generation !== acquisition.authority.generation ||

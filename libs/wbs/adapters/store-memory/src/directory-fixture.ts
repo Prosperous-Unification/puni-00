@@ -23,7 +23,7 @@ import { type MemoryResourceTables, memoryResourceTables } from './resource-fixt
 /** The empty usage, both halves present — what this fixture can honestly say. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   workItems: [],
-  projects: [],
+  workPackages: [],
   assignments: [],
   steps: [],
   people: [],
@@ -126,7 +126,7 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
  * cannot tell an unknown account from a known one.
  */
 export function inMemoryDirectory(
-  readProject?: (projectId: string) => Promise<readonly { id: string }[]>,
+  readWorkPackage?: (workPackageId: string) => Promise<readonly { id: string }[]>,
   tables: MemoryDirectoryTables = memoryDirectoryTables(),
   accounts?: Pick<ReadonlyMap<string, unknown>, 'has'>,
 ): DirectoryStore {
@@ -164,10 +164,10 @@ export function inMemoryDirectory(
       return Promise.reject(new Error('the in-memory directory has no organization-local writes'));
     },
     foreignReferencesTo() {
-      return Promise.reject(new Error('the in-memory directory has no project ownership'));
+      return Promise.reject(new Error('the in-memory directory has no work package ownership'));
     },
-    projectsOutside() {
-      return Promise.reject(new Error('the in-memory directory has no project ownership'));
+    workPackagesOutside() {
+      return Promise.reject(new Error('the in-memory directory has no work package ownership'));
     },
     async listInOrganization(catalog, organizationId) {
       const inOrganization = (id: string) => organizationOf.get(id) === organizationId;
@@ -214,7 +214,7 @@ export function inMemoryDirectory(
       resourceTables.resources.set(toAdd.id, { ...toAdd });
       return Promise.resolve({ ok: true, resource: { ...toAdd } });
     },
-    // The projects a demand sits in are not known to these Maps, which hold no
+    // The work packages a demand sits in are not known to these Maps, which hold no
     // work items; the bound source answers them (`memory-stores.ts`).
     patchResource(resourceId, patch, _stamp) {
       const found = resourceTables.resources.get(resourceId);
@@ -227,14 +227,14 @@ export function inMemoryDirectory(
       if (held) return Promise.resolve({ ok: false, reason: 'taken' });
       const patched = { ...found, ...patch };
       resourceTables.resources.set(resourceId, patched);
-      const projectIds = [
+      const workPackageIds = [
         ...new Set(
           [...resourceTables.capacities.values()]
             .filter((each) => each.resourceId === resourceId)
-            .map((each) => each.projectId),
+            .map((each) => each.workPackageId),
         ),
       ].sort();
-      return Promise.resolve({ ok: true, resource: { ...patched }, projectIds });
+      return Promise.resolve({ ok: true, resource: { ...patched }, workPackageIds });
     },
     // The memory twin holds no provider instance (compute providers are
     // SQLite's alone), so every id is unknown and only clearing succeeds.
@@ -242,14 +242,14 @@ export function inMemoryDirectory(
       if (!resourceTables.resources.has(resourceId))
         return Promise.resolve({ ok: false, reason: 'not_found' });
       if (providerId !== null) return Promise.resolve({ ok: false, reason: 'unknown_provider' });
-      const projectIds = [
+      const workPackageIds = [
         ...new Set(
           [...resourceTables.capacities.values()]
             .filter((each) => each.resourceId === resourceId)
-            .map((each) => each.projectId),
+            .map((each) => each.workPackageId),
         ),
       ].sort();
-      return Promise.resolve({ ok: true, projectIds });
+      return Promise.resolve({ ok: true, workPackageIds });
     },
     directoryCapacitiesOf(resourceIds) {
       return Promise.resolve(
@@ -262,7 +262,7 @@ export function inMemoryDirectory(
       );
     },
     // SQLite's twin: the resource's organization is its ownership row; there
-    // is no audit table to append to. The projects a demand sits in are the
+    // is no audit table to append to. The work packages a demand sits in are the
     // bound source's (`memory-stores.ts`).
     setDirectoryCapacity(resourceId, units, _act) {
       if (!resourceTables.resources.has(resourceId))
@@ -273,16 +273,16 @@ export function inMemoryDirectory(
       const before = resourceTables.directoryCapacities.get(resourceId) ?? null;
       if (units === null) resourceTables.directoryCapacities.delete(resourceId);
       else resourceTables.directoryCapacities.set(resourceId, units);
-      const projectIds = [
+      const workPackageIds = [
         ...new Set(
           [...resourceTables.capacities.values()]
             .filter((each) => each.resourceId === resourceId)
-            .map((each) => each.projectId),
+            .map((each) => each.workPackageId),
         ),
       ].sort();
-      return Promise.resolve({ ok: true, before, after: units, organizationId, projectIds });
+      return Promise.resolve({ ok: true, before, after: units, organizationId, workPackageIds });
     },
-    // The counts are the tables' own; the rows naming a demand's project are
+    // The counts are the tables' own; the rows naming a demand's work package are
     // not, for `usageOfTag`'s reason, and the bound source answers them.
     usageOfResource: (resourceId) => Promise.resolve(resourceUsageOf(resourceTables, resourceId)),
     removeResource(resourceId, cascade, _stamp) {
@@ -309,7 +309,7 @@ export function inMemoryDirectory(
         ok: true,
         removal: {
           workItemIds: [...new Set(usage.demands.map((each) => each.workItemId))],
-          projectIds: [...new Set(usage.capacities.map((each) => each.projectId))].sort(),
+          workPackageIds: [...new Set(usage.capacities.map((each) => each.workPackageId))].sort(),
         },
       });
     },
@@ -341,7 +341,7 @@ export function inMemoryDirectory(
       if (held) return Promise.resolve({ ok: false, reason: 'taken' });
       const renamed = { id: tagId, name };
       tags.set(tagId, renamed);
-      return Promise.resolve({ ok: true, tag: renamed, projectIds: [] });
+      return Promise.resolve({ ok: true, tag: renamed, workPackageIds: [] });
     },
     // The usage and the removal are **not** modelled here beyond the shape.
     // This store has no work items and no foreign keys, so the counting that
@@ -352,7 +352,7 @@ export function inMemoryDirectory(
     usageOfTag: () =>
       Promise.resolve({
         workItems: [],
-        projects: [],
+        workPackages: [],
         assignments: [],
         steps: [],
         people: [],
@@ -376,7 +376,7 @@ export function inMemoryDirectory(
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       tags.delete(tagId);
-      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], workPackageIds: [] } });
     },
     listWorkItemTypes: () =>
       Promise.resolve([...workItemTypes.values()].sort((a, b) => a.name.localeCompare(b.name))),
@@ -400,7 +400,7 @@ export function inMemoryDirectory(
       if (held) return Promise.resolve({ ok: false, reason: 'taken' });
       const renamed = { id: typeId, name };
       workItemTypes.set(typeId, renamed);
-      return Promise.resolve({ ok: true, workItemType: renamed, projectIds: [] });
+      return Promise.resolve({ ok: true, workItemType: renamed, workPackageIds: [] });
     },
     // Not modelled beyond the shape, for `usageOfTag`'s reason exactly: no work
     // items and no foreign keys here, so the counting that decides a removal
@@ -408,7 +408,7 @@ export function inMemoryDirectory(
     usageOfWorkItemType: () =>
       Promise.resolve({
         workItems: [],
-        projects: [],
+        workPackages: [],
         assignments: [],
         steps: [],
         people: [],
@@ -421,7 +421,7 @@ export function inMemoryDirectory(
       const found = workItemTypes.get(typeId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       workItemTypes.delete(typeId);
-      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], workPackageIds: [] } });
     },
     listServices: () =>
       Promise.resolve([...services.values()].sort((a, b) => a.name.localeCompare(b.name))),
@@ -442,7 +442,7 @@ export function inMemoryDirectory(
       if (held) return Promise.resolve({ ok: false, reason: 'taken' });
       const renamed = { id: serviceId, name };
       services.set(serviceId, renamed);
-      return Promise.resolve({ ok: true, service: renamed, projectIds: [] });
+      return Promise.resolve({ ok: true, service: renamed, workPackageIds: [] });
     },
     // Not modelled beyond the shape, for `usageOfTag`'s reason: this store holds
     // no work items and no foreign keys, so neither the count that decides a
@@ -453,7 +453,7 @@ export function inMemoryDirectory(
     removeService(serviceId, _cascade, _stamp) {
       if (!services.has(serviceId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       services.delete(serviceId);
-      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], workPackageIds: [] } });
     },
     addTeam(team, _stamp) {
       const already = [...teams.values()].find((each) => each.name === team.name);
@@ -483,12 +483,12 @@ export function inMemoryDirectory(
       // Whole-set replacement, exactly as the repository writes it: absent
       // leaves the map alone, empty clears it.
       if (patch.serviceIds !== undefined) owned.set(teamId, new Set(patch.serviceIds));
-      // No project here to touch: these Maps hold no work items, so the
+      // No work package here to touch: these Maps hold no work items, so the
       // fixture can only ever honestly report the empty set.
       return Promise.resolve({
         ok: true,
         team: { ...renamed, serviceIds: [...(owned.get(teamId) ?? [])].sort() },
-        projectIds: [],
+        workPackageIds: [],
       });
     },
     listPeople: () =>
@@ -573,7 +573,7 @@ export function inMemoryDirectory(
           teamIds: [...(memberships.get(personId) ?? [])],
           accountId: accountOf.get(personId) ?? null,
         },
-        projectIds: [],
+        workPackageIds: [],
       });
     },
     boundAccountOf(personId) {
@@ -583,7 +583,7 @@ export function inMemoryDirectory(
     },
     // The four removal methods model only what an array can: a person or team
     // this fixture holds, and the rows it holds about them. **Nothing here
-    // models the usage a refusal names** — that needs a project, its tree and
+    // models the usage a refusal names** — that needs a work package, its tree and
     // the numbers derived from it, none of which exist in these Maps. A fixture
     // answering them would be a second implementation of the rule under test,
     // so every behavioural claim about a removal is asserted against real
@@ -607,21 +607,21 @@ export function inMemoryDirectory(
       people.delete(personId);
       return Promise.resolve({
         ok: true,
-        removal: { workItemIds: held.map((each) => each.workItemId), projectIds: [] },
+        removal: { workItemIds: held.map((each) => each.workItemId), workPackageIds: [] },
       });
     },
     removeTeam(teamId, _cascade, _stamp) {
       if (!teams.has(teamId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       for (const held of memberships.values()) held.delete(teamId);
       teams.delete(teamId);
-      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], workPackageIds: [] } });
     },
-    // Proof: removing the project filter made `names only the people assigned
-    // in the requested project` receive grace alongside the requested ada.
-    async assignmentsInProject(projectId) {
-      if (readProject === undefined)
-        throw new Error('project assignment reads require a work-item store');
-      const wanted = new Set((await readProject(projectId)).map((row) => row.id));
+    // Proof: removing the work package filter made `names only the people assigned
+    // in the requested work package` receive grace alongside the requested ada.
+    async assignmentsInWorkPackage(workPackageId) {
+      if (readWorkPackage === undefined)
+        throw new Error('work package assignment reads require a work-item store');
+      const wanted = new Set((await readWorkPackage(workPackageId)).map((row) => row.id));
       const assigned = [...assignments.values()].filter((each) => wanted.has(each.workItemId));
       const named = [...new Set(assigned.map((each) => each.personId))].map((id) => {
         const found = people.get(id);
@@ -675,8 +675,8 @@ function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
       .sort((left, right) => left.workItemId.localeCompare(right.workItemId)),
     capacities: [...tables.capacities.values()]
       .filter((each) => each.resourceId === resourceId)
-      .map(({ projectId, units }) => ({ projectId, units }))
-      .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+      .map(({ workPackageId, units }) => ({ workPackageId, units }))
+      .sort((left, right) => left.workPackageId.localeCompare(right.workPackageId)),
     // This directory holds no claims; the bound source (`memory-stores.ts`)
     // answers the occupying leaves in `usageOfResource` and `removeResource`,
     // which the memory certification's `directory.removeResource:in-use-cascade`

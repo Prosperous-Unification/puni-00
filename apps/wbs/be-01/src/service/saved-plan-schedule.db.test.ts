@@ -12,12 +12,13 @@ import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import type { PlanInputReads } from '../repository/saved-plan-capture';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
-import { projectRow } from '../testing/project-fixture';
+import { WorkPackageRepository } from '../repository/work-package';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -57,6 +58,7 @@ describe('scheduling a captured plan', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-schedule-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     live = 0;
     opened = 0;
     const seed = openConnection(path);
@@ -65,12 +67,17 @@ describe('scheduling a captured plan', () => {
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: 'p1', name: 'plan', ownerId: 'owner', estimateMethod: 'realistic' }),
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
+        id: 'p1',
+        name: 'plan',
+        projectId: 'saved-plan-parent',
+        estimateMethod: 'realistic',
+      }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -92,7 +99,7 @@ describe('scheduling a captured plan', () => {
       await items.insert(
         {
           id,
-          projectId: 'p1',
+          workPackageId: 'p1',
           parentId: null,
           position,
           name: id,
@@ -177,7 +184,7 @@ describe('scheduling a captured plan', () => {
     expect(again.waitingForCapacity).toBe(planned.waitingForCapacity);
   });
 
-  it('returns null for a project that is not there, and schedules nothing', async () => {
+  it('returns null for a work package that is not there, and schedules nothing', async () => {
     let scheduled = 0;
     const result = await captureAndSchedulePlan(capture(), 'missing', (reads) => {
       scheduled += 1;

@@ -1,19 +1,23 @@
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import type { AccessDecisions } from '../../ports/access-decisions';
-import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
+import {
+  type EditAdmission,
+  LEGACY_EDIT_ADMISSION,
+  NO_ADMISSION,
+} from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
-import type { Project } from '../../ports/project-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { createPlanCommandRunner } from './composition';
 import { type PlanCommandServices } from './plan-commands.feature';
 
-const PROJECT = 'project-1';
+const WORK_PACKAGE = 'work-package-1';
 const ACTOR = 'super-admin';
 const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const SCOPED: ResourceAccess = {
@@ -22,8 +26,9 @@ const SCOPED: ResourceAccess = {
   scope: { cap: null, organizationId: 'org-a', userId: ACTOR },
 };
 
-/** Another creator's restricted project; the fixture grants this actor package.write explicitly. */
-const restricted = (id = PROJECT) => ({ id, ownerId: 'creator', restricted: true }) as Project;
+/** Another creator's restricted work package; the fixture grants this actor package.write explicitly. */
+const restricted = (id = WORK_PACKAGE) =>
+  workPackageRow({ id, projectId: 'fixture-project', restricted: true });
 
 const silent: Broadcaster = recordingBroadcaster();
 
@@ -35,6 +40,21 @@ function runnerOver(entryToDiscard?: string) {
   const admissions: EditAdmission[] = [];
   // A stand-in for the stores the runner reads itself; the graph is stubbed.
   const accessDecisions: AccessDecisions = {
+    packageTargetOf: (id, organizationId) => {
+      if (organizationId !== 'org-a' || id !== WORK_PACKAGE)
+        throw new Error('unexpected admission target');
+      return Promise.resolve({
+        kind: 'work_package',
+        chain: {
+          level: 'work_package',
+          organizationId,
+          spaceId: null,
+          projectId: 'fixture-project',
+          workPackageId: id,
+        },
+        restricted: true,
+      });
+    },
     effectiveRoleAt: (principal, target) => {
       if (principal.id !== ACTOR) throw new Error('unexpected admission fixture subject');
       if (target.kind === 'organization' && target.organizationId === 'org-a')
@@ -45,7 +65,7 @@ function runnerOver(entryToDiscard?: string) {
       if (
         target.kind === 'work_package' &&
         target.chain.organizationId === 'org-a' &&
-        target.chain.workPackageId === PROJECT
+        target.chain.workPackageId === WORK_PACKAGE
       )
         return Promise.resolve({
           permissions: new Set(['package.read', 'package.write']),
@@ -59,9 +79,9 @@ function runnerOver(entryToDiscard?: string) {
     accessDecisions,
     typedDependencies: inMemoryTypedDependencies(),
     journal: { discard: () => Promise.resolve() },
-    projects: {
+    workPackages: {
       findInOrganization: (id: string, organizationId: string) =>
-        Promise.resolve(id === PROJECT && organizationId === 'org-a' ? restricted() : null),
+        Promise.resolve(id === WORK_PACKAGE && organizationId === 'org-a' ? restricted() : null),
       findCrossReferences: () => Promise.resolve([]),
     },
   } as unknown as PlanTransactionalStores;
@@ -75,13 +95,13 @@ function runnerOver(entryToDiscard?: string) {
       return decision.value;
     },
   };
-  const whileBuilt: { granted: boolean; otherActor: boolean; otherProject: boolean }[] = [];
+  const whileBuilt: { granted: boolean; otherActor: boolean; otherWorkPackage: boolean }[] = [];
   const graph = (admission: EditAdmission) => {
     admissions.push(admission);
     whileBuilt.push({
       granted: admission.admits(restricted(), ACTOR),
       otherActor: admission.admits(restricted(), 'someone-else'),
-      otherProject: admission.admits(restricted('project-2'), ACTOR),
+      otherWorkPackage: admission.admits(restricted('work-package-2'), ACTOR),
     });
     return {
       workItems: {
@@ -105,7 +125,7 @@ function runnerOver(entryToDiscard?: string) {
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     batchServices: (_scope, _broadcast, admission) => graph(admission),
-    publicServices: graph(CREATOR_ADMISSION),
+    publicServices: graph(LEGACY_EDIT_ADMISSION),
     uow,
     announcements: silent,
   });
@@ -115,12 +135,12 @@ function runnerOver(entryToDiscard?: string) {
 }
 
 describe('the admission a batch graph is built with', () => {
-  it('admits the granted actor on the granted project only while its unit of work runs', async () => {
+  it('admits the granted actor on the granted work package only while its unit of work runs', async () => {
     const { runner, admissions, whileBuilt } = runnerOver();
 
-    expect(await runner.runWithin(PROJECT, PRINCIPAL, [], SCOPED)).toMatchObject({ ok: true });
+    expect(await runner.runWithin(WORK_PACKAGE, PRINCIPAL, [], SCOPED)).toMatchObject({ ok: true });
 
-    expect(whileBuilt).toEqual([{ granted: true, otherActor: false, otherProject: false }]);
+    expect(whileBuilt).toEqual([{ granted: true, otherActor: false, otherWorkPackage: false }]);
     // Proof: skipping `expire` in `execute` made this receive true (0 pass,
     // 1 fail, run alone with `-t`); watched 2026-09-28.
     expect(admissions[0]?.admits(restricted(), ACTOR)).toBe(false);
@@ -130,15 +150,15 @@ describe('the admission a batch graph is built with', () => {
     const { runner, admissions } = runnerOver();
 
     await runner.runDirectoryWithin(PRINCIPAL, [], SCOPED);
-    await runner.run(PROJECT, ACTOR, []);
+    await runner.run(WORK_PACKAGE, ACTOR, []);
 
-    expect(admissions).toEqual([NO_ADMISSION, CREATOR_ADMISSION]);
+    expect(admissions).toEqual([NO_ADMISSION, LEGACY_EDIT_ADMISSION]);
   });
 
   it('grants a journal walk until it settles, and its repair nothing', async () => {
     const { runner, admissions, whileBuilt } = runnerOver('entry-1');
 
-    await runner.undoWithin(PROJECT, PRINCIPAL, SCOPED);
+    await runner.undoWithin(WORK_PACKAGE, PRINCIPAL, SCOPED);
 
     expect(admissions).toHaveLength(1);
     expect(whileBuilt[0]?.granted).toBe(true);
@@ -149,16 +169,16 @@ describe('the admission a batch graph is built with', () => {
   it('builds a legacy journal walk with the creator rule', async () => {
     const { runner, admissions } = runnerOver();
 
-    await runner.undoWithin(PROJECT, PRINCIPAL, LEGACY_ACCESS);
+    await runner.undoWithin(WORK_PACKAGE, PRINCIPAL, LEGACY_ACCESS);
 
-    expect(admissions).toEqual([CREATOR_ADMISSION]);
+    expect(admissions).toEqual([LEGACY_EDIT_ADMISSION]);
   });
 });
 
 it('refuses a direct runner principal without write scope before opening a graph', async () => {
   const { runner, admissions } = runnerOver();
   const principal = { id: ACTOR, username: ACTOR, scopes: ['read'] as const };
-  expect(await runner.runWithin(PROJECT, principal, [], SCOPED)).toEqual({
+  expect(await runner.runWithin(WORK_PACKAGE, principal, [], SCOPED)).toEqual({
     ok: false,
     error: 'insufficient_scope',
   });

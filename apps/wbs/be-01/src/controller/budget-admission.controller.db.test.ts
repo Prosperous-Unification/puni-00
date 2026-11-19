@@ -26,13 +26,15 @@ beforeEach(async () => {
   h.grantPermissions('org-a', 'ada', ['organization.create_project', 'project.manage_budgets']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Admission' });
+  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Admission' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  own = (created.body as { project: { id: string } }).project.id;
+  own = (created.body as { workPackage: { id: string } }).workPackage.id;
   const first = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
+    )
     .get(own)?.id;
-  if (first === undefined) throw new Error('the project has no step');
+  if (first === undefined) throw new Error('the work package has no step');
   dev = first;
   const built = await batch([
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
@@ -61,7 +63,7 @@ afterEach(() => {
 });
 
 function send(commands: readonly unknown[]) {
-  return h.call('ada', 'POST', `/api/projects/${own}/commands`, { commands });
+  return h.call('ada', 'POST', `/api/work-packages/${own}/commands`, { commands });
 }
 
 async function batch(commands: readonly unknown[]) {

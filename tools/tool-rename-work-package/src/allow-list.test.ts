@@ -20,10 +20,6 @@ const NEW_SENSE_WITNESSES: readonly { readonly path: string; readonly line: stri
     path: 'CONTEXT-MAP.md',
     line: '  development and client projects. Client content and authority remain isolated.',
   },
-  {
-    path: 'libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts',
-    line: "  it('[PROJECT-ASSIGNMENT-READS-003] names only the people assigned in the requested project', async () => {",
-  },
 ];
 
 describe('the allow-list', () => {

@@ -36,7 +36,16 @@ const present: PlanSideSchedule = {
 };
 
 function side(over: CanonicalPlanInput = input, schedule: PlanSideSchedule = present): PlanSide {
-  return { input: over, schedule };
+  const { projectId, ...workPackage } = over.workPackage;
+  return {
+    comparison: { kind: 'captured' },
+    input: { ...over, workPackage },
+    inputEvidence: {
+      parent: { kind: 'recorded', projectId },
+      dependencies: { kind: 'recorded', history: { kind: 'local' } },
+    },
+    schedule,
+  };
 }
 
 /** Deep clone through JSON — the values are already JSON by construction. */
@@ -151,7 +160,7 @@ describe('diffPlans — 7.1, the two sides', () => {
   });
 
   it('is one function in both directions: swapping the sides swaps left and right', () => {
-    const changed = mutateAt(input, 'project.name');
+    const changed = mutateAt(input, 'workPackage.name');
     const forward = diffPlans(side(), side(changed)).input;
     const back = diffPlans(side(changed), side()).input;
 
@@ -248,8 +257,8 @@ describe('diffPlans — 7.2, the presentation categories', () => {
       ['actuals', 'stepValues[0].actual'],
       ['progress', 'stepValues[0].progress'],
       ['measures', 'measures[0].value'],
-      ['settings', 'project.estimateMethod'],
-      ['ownership', 'project.ownerId'],
+      ['settings', 'workPackage.estimateMethod'],
+      ['reparented', 'workPackage.projectId'],
       ['priority-bands', 'priorityBands[0].label'],
       ['capacity', 'capacity[0].people'],
       ['registry', 'tags[0].name'],
@@ -267,17 +276,17 @@ describe('diffPlans — 7.2, the presentation categories', () => {
   it('names a timezone change under settings with both values', () => {
     const kyiv: CanonicalPlanInput = {
       ...input,
-      project: { ...input.project, timezone: 'Europe/Kyiv' },
+      workPackage: { ...input.workPackage, timezone: 'Europe/Kyiv' },
     };
     expect(inputDiff(kyiv)).toEqual([
       {
         category: 'settings',
-        path: 'project.timezone',
-        left: input.project.timezone,
+        path: 'workPackage.timezone',
+        left: input.workPackage.timezone,
         right: 'Europe/Kyiv',
       },
     ]);
-    expect(input.project.timezone).toBe('UTC');
+    expect(input.workPackage.timezone).toBe('UTC');
   });
 
   it('groups dependency and assignment changes as themselves', () => {
@@ -491,17 +500,17 @@ describe('diffPlans — the catch-all', () => {
   it('reports an unlisted field under other, naming it', () => {
     const withNewField = {
       ...input,
-      project: { ...input.project, someLaterField: 'a' },
+      workPackage: { ...input.workPackage, someLaterField: 'a' },
     } as unknown as CanonicalPlanInput;
     const changed = {
       ...input,
-      project: { ...input.project, someLaterField: 'b' },
+      workPackage: { ...input.workPackage, someLaterField: 'b' },
     } as unknown as CanonicalPlanInput;
 
     const differences = diffPlans(side(withNewField), side(changed)).input;
 
     expect(differences).toHaveLength(1);
-    expect(differences[0].path).toBe('project.someLaterField');
+    expect(differences[0].path).toBe('workPackage.someLaterField');
   });
 
   it('reports a whole collection the field list gains later', () => {

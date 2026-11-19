@@ -33,11 +33,11 @@ export function attemptRegistrations(open: OpenCase<'attempts'>): readonly CaseR
         ok: true,
         attempt: { attemptNumber: 2 },
       });
-      expect(keysOf(await port.listByProject(seed.projectIds[0]))).toEqual([
+      expect(keysOf(await port.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         `${workItemId}/${stepId}#1:failed`,
         `${workItemId}/${stepId}#2:running`,
       ]);
-      expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
+      expect(await port.listByWorkPackage(seed.workPackageIds[1])).toEqual([]);
     }),
     // A42: a removed number stays issued, the highest one included, and the
     // undo of a removal puts the row back under its own number.
@@ -59,16 +59,16 @@ export function attemptRegistrations(open: OpenCase<'attempts'>): readonly CaseR
         attempt: { attemptNumber: 3 },
       });
       await port.restore(removed, seed.stamps[1]);
-      expect(keysOf(await port.listByProject(seed.projectIds[0]))).toEqual([
+      expect(keysOf(await port.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         `${workItemId}/${stepId}#1:failed`,
         `${workItemId}/${stepId}#2:failed`,
         `${workItemId}/${stepId}#3:running`,
       ]);
-      expect(await port.listIssued(seed.projectIds[0], [workItemId])).toEqual([
+      expect(await port.listIssued(seed.workPackageIds[0], [workItemId])).toEqual([
         { workItemId, stepId, issued: 3 },
       ]);
       await port.raiseIssued([{ workItemId, stepId, issued: 2 }]);
-      expect(await port.listIssued(seed.projectIds[0], [workItemId])).toEqual([
+      expect(await port.listIssued(seed.workPackageIds[0], [workItemId])).toEqual([
         { workItemId, stepId, issued: 3 },
       ]);
     }),
@@ -96,7 +96,7 @@ export function attemptRegistrations(open: OpenCase<'attempts'>): readonly CaseR
         `${targetId}/${devId}#1:succeeded`,
         `${targetId}/${qaId}#1:running`,
       ]);
-      expect(keysOf(await port.listByProject(seed.projectIds[1]))).toEqual([
+      expect(keysOf(await port.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         `${otherId}/${seed.stepIds[1][0]}#1:running`,
       ]);
     }),
@@ -117,7 +117,7 @@ export function attemptRegistrations(open: OpenCase<'attempts'>): readonly CaseR
 
       await port.moveAll(sourceId, targetId, seed.stamps[1]);
 
-      expect(await port.listIssued(seed.projectIds[0], [sourceId, targetId])).toEqual(
+      expect(await port.listIssued(seed.workPackageIds[0], [sourceId, targetId])).toEqual(
         [
           { workItemId: sourceId, stepId, issued: 2 },
           { workItemId: targetId, stepId, issued: 2 },
@@ -126,7 +126,7 @@ export function attemptRegistrations(open: OpenCase<'attempts'>): readonly CaseR
       expect(
         await port.start({ ...node, workItemId: targetId, startedAt: 140 }, seed.stamps[1]),
       ).toMatchObject({ ok: true, attempt: { attemptNumber: 3 } });
-      expect(await port.listIssued(seed.projectIds[1], [sourceId])).toEqual([]);
+      expect(await port.listIssued(seed.workPackageIds[1], [sourceId])).toEqual([]);
     }),
   ];
 }

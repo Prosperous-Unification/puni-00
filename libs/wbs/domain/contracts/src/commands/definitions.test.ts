@@ -43,8 +43,8 @@ const PINNED_COMMAND_KINDS = [
   'updateTypedDependency',
   'removeTypedDependency',
   'arrangeBySchedule',
-  'freezeProject',
-  'unfreezeProject',
+  'freezeWorkPackage',
+  'unfreezeWorkPackage',
   'unfreezeWorkItem',
   'setCapacity',
   'setResourceCapacity',
@@ -108,7 +108,7 @@ export function definitionTypeCases() {
   // @ts-expect-error A definition key must agree with its schema discriminator.
   defineCommand('setMeasure', {
     schema: type({ kind: "'clearMeasure'", stepId: 'string', metric: 'string' }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Wrongly binds clearMeasure under setMeasure.',
   });
   const kind: PlanCommandKind = 'clearMeasure';

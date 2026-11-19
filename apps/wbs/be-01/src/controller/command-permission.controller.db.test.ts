@@ -16,7 +16,7 @@ import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import { normalizeCommand } from '@wbs/core/service/command-normalizers';
 import * as dependencyContexts from '@wbs/core/service/dependency-context';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
-import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
+import { WorkPackageRankResource } from '@wbs/core/service/work-package-rank.resource';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
@@ -24,10 +24,10 @@ import { AccessDecisionRepository } from '@wbs/store-sqlite/access-decisions';
 import { openConnection } from '@wbs/store-sqlite/db';
 import { DirectoryRepository } from '@wbs/store-sqlite/directory';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
-import { ProjectRepository } from '@wbs/store-sqlite/project';
 import { SavedPlanRepository } from '@wbs/store-sqlite/saved-plan';
 import { SpaceRepository } from '@wbs/store-sqlite/space';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { WorkPackageRepository } from '@wbs/store-sqlite/work-package';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
@@ -36,6 +36,7 @@ import type { HarnessMachineGrants } from '../testing/organization-harness';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let h: OrganizationHarness;
+let fixtureCloseConsumed = false;
 let machineGrants: HarnessMachineGrants;
 beforeAll(async () => {
   machineGrants = await forwardingMachineGrants();
@@ -54,12 +55,17 @@ function grant(
 }
 
 beforeEach(async () => {
+  fixtureCloseConsumed = false;
   h = OrganizationHarness.openComposedWith({
     machineGrants,
     supportedCapacityModes: ['isolated', 'shared'],
   });
   for (const username of ['contributor', 'manager', 'viewer', 'plain']) await h.register(username);
   h.organization('org-a');
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-a','org-a','Permission parent',?,1)",
+    [h.userId('manager')],
+  );
   for (const username of ['contributor', 'manager', 'viewer', 'plain']) {
     // Deliberately disagree with grants: persisted membership roles confer no permission.
     h.member('org-a', username, username === 'manager' ? 'viewer' : 'admin');
@@ -69,20 +75,23 @@ beforeEach(async () => {
   grant('manager', 'org-admin');
   grant('viewer', 'project-viewer');
   h.sqlite.run(
-    "INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES ('wp', 'Package', ?, 0, 1)",
+    "INSERT INTO work_package (id, name, created_by, project_id, restricted, created_at) VALUES ('wp', 'Package', ?, 'permission-parent-a', 0, 1)",
     [h.userId('manager')],
   );
   h.sqlite.run(
-    "INSERT INTO project_organization (resource_id, organization_id) VALUES ('wp', 'org-a')",
+    "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('wp', 'org-a')",
   );
-  h.sqlite.run("INSERT INTO step (id, project_id, name, position) VALUES ('step', 'wp', 'Dev', 1)");
   h.sqlite.run(
-    "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('work', 'wp', NULL, 1, 'Work')",
+    "INSERT INTO step (id, work_package_id, name, position) VALUES ('step', 'wp', 'Dev', 1)",
+  );
+  h.sqlite.run(
+    "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('work', 'wp', NULL, 1, 'Work')",
   );
   h.activate();
 });
 
 afterEach(() => {
+  if (fixtureCloseConsumed) return;
   h.close();
 });
 
@@ -129,8 +138,8 @@ const commands = {
   },
   removeTypedDependency: { kind: 'removeTypedDependency', dependencyId: 'missing' },
   arrangeBySchedule: { kind: 'arrangeBySchedule' },
-  freezeProject: { kind: 'freezeProject' },
-  unfreezeProject: { kind: 'unfreezeProject' },
+  freezeWorkPackage: { kind: 'freezeWorkPackage' },
+  unfreezeWorkPackage: { kind: 'unfreezeWorkPackage' },
   unfreezeWorkItem: { kind: 'unfreezeWorkItem', ...work },
   setCapacity: { kind: 'setCapacity', teamId: 'missing', size: null },
   setResourceCapacity: { kind: 'setResourceCapacity', resourceId: 'missing', units: null },
@@ -181,8 +190,8 @@ const commands = {
 } satisfies Record<PlanCommandKind, PlanCommandWire>;
 
 const settings: ReadonlySet<PlanCommandKind> = new Set([
-  'freezeProject',
-  'unfreezeProject',
+  'freezeWorkPackage',
+  'unfreezeWorkPackage',
   'setCapacity',
   'setResourceCapacity',
   'setStepAllowance',
@@ -212,7 +221,7 @@ async function batch(username: string, kind: PlanCommandKind) {
     'POST',
     commandDefinitions[kind].scope === 'directory'
       ? '/api/directory/commands'
-      : '/api/projects/wp/commands',
+      : '/api/work-packages/wp/commands',
     { commands: [commands[kind]] },
   );
 }
@@ -238,9 +247,9 @@ describe('persisted command permission matrix', () => {
       for (const match of (cells[2] ?? '').matchAll(/`([^`]+)`/g)) {
         const kind =
           match[1] === 'freezeWorkPackage'
-            ? 'freezeProject'
+            ? 'freezeWorkPackage'
             : match[1] === 'unfreezeWorkPackage'
-              ? 'unfreezeProject'
+              ? 'unfreezeWorkPackage'
               : match[1];
         mappings.push([kind, granted]);
       }
@@ -271,7 +280,7 @@ describe('persisted command permission matrix', () => {
       });
     }
     if (permission(kind) !== 'package.write') {
-      it(`refuses a project-contributor ${kind} naming ${permission(kind)}`, async () => {
+      it(`refuses a work-package-contributor ${kind} naming ${permission(kind)}`, async () => {
         expect(await batch('contributor', kind)).toMatchObject({
           status: 403,
           body: { error: 'forbidden', permission: permission(kind) },
@@ -281,7 +290,7 @@ describe('persisted command permission matrix', () => {
   }
   it('answers the same HTTP404 for an invisible and an absent work package', async () => {
     const invoke = (id: string) =>
-      h.call('plain', 'POST', `/api/projects/${id}/commands`, {
+      h.call('plain', 'POST', `/api/work-packages/${id}/commands`, {
         commands: [commands.createWorkItem],
       });
     expect(await invoke('wp')).toEqual({ status: 404, body: { error: 'not_found' } });
@@ -295,46 +304,66 @@ describe('persisted command permission matrix', () => {
 
 describe('grant authorization on route writes', () => {
   for (const [label, method, path, body, status] of [
-    ['project creation', 'POST', '/api/projects', { name: 'Denied' }, 403],
-    ['project settings', 'PATCH', '/api/projects/wp', { name: 'Denied' }, 404],
-    ['step creation', 'POST', '/api/projects/wp/steps', { name: 'Denied' }, 404],
-    ['step rename', 'PATCH', '/api/projects/wp/steps/step', { name: 'Denied' }, 404],
-    ['step removal', 'DELETE', '/api/projects/wp/steps/step?cascade=true', undefined, 404],
+    [
+      'work package creation',
+      'POST',
+      '/api/work-packages',
+      { name: 'Denied', projectId: 'permission-parent-a' },
+      403,
+    ],
+    ['work package settings', 'PATCH', '/api/work-packages/wp', { name: 'Denied' }, 404],
+    ['step creation', 'POST', '/api/work-packages/wp/steps', { name: 'Denied' }, 404],
+    ['step rename', 'PATCH', '/api/work-packages/wp/steps/step', { name: 'Denied' }, 404],
+    ['step removal', 'DELETE', '/api/work-packages/wp/steps/step?cascade=true', undefined, 404],
     [
       'calendar marker',
       'POST',
-      '/api/projects/wp/calendar-markers',
+      '/api/work-packages/wp/calendar-markers',
       { markerId: '6b0d9f3e-4c1a-4c77-9a53-1b2f0e6d7c11', date: '2026-11-09', name: 'Denied' },
       404,
     ],
-    ['saved plan capture', 'POST', '/api/projects/wp/saved-plans', { name: 'Denied' }, 404],
+    ['saved plan capture', 'POST', '/api/work-packages/wp/saved-plans', { name: 'Denied' }, 404],
     ['space creation', 'POST', '/api/spaces', { name: 'Denied' }, 403],
-    ['rank move', 'POST', '/api/organization/projects/wp/rank', { afterProjectId: null }, 403],
+    [
+      'rank move',
+      'POST',
+      '/api/organization/work-packages/wp/rank',
+      { afterWorkPackageId: null },
+      403,
+    ],
   ] as const) {
     it(`refuses ${label} without a reaching grant`, async () => {
       expect(await h.call('plain', method, path, body)).toMatchObject({ status });
     });
   }
-  it('refuses a project-contributor creating a package (P7)', async () => {
-    expect(await h.call('contributor', 'POST', '/api/projects', { name: 'Denied' })).toMatchObject({
+  it('refuses a work-package-contributor creating a package (P7)', async () => {
+    expect(
+      await h.call('contributor', 'POST', '/api/work-packages', {
+        projectId: 'permission-parent-a',
+        name: 'Denied',
+      }),
+    ).toMatchObject({
       status: 403,
     });
   });
-  it('refuses a project-contributor editing package settings (P7)', async () => {
+  it('refuses a work-package-contributor editing package settings (P7)', async () => {
     expect(
-      await h.call('contributor', 'PATCH', '/api/projects/wp', { name: 'Denied' }),
+      await h.call('contributor', 'PATCH', '/api/work-packages/wp', { name: 'Denied' }),
     ).toMatchObject({ status: 403 });
   });
-  it('refuses a project-contributor creating a space (P7)', async () => {
+  it('refuses a work-package-contributor creating a space (P7)', async () => {
     expect(await h.call('contributor', 'POST', '/api/spaces', { name: 'Denied' })).toMatchObject({
       status: 403,
     });
   });
 });
 
-it('refuses an import without organization.create_project', async () => {
+it('refuses an import without organization.create_work_package', async () => {
   expect(
-    await h.call('contributor', 'POST', '/api/projects/import', planDocumentFixture()),
+    await h.call('contributor', 'POST', '/api/work-packages/import', {
+      projectId: 'permission-parent-a',
+      document: planDocumentFixture(),
+    }),
   ).toMatchObject({ status: 403 });
 });
 
@@ -362,7 +391,7 @@ describe('authenticated machine command permissions', () => {
         'POST',
         commandDefinitions[kind].scope === 'directory'
           ? '/api/directory/commands'
-          : '/api/projects/wp/commands',
+          : '/api/work-packages/wp/commands',
         { commands: [commands[kind]] },
       );
       if (permission(kind) === 'package.write')
@@ -381,7 +410,7 @@ describe('claim and restricted recovery grants', () => {
     addAgentPerson(h.sqlite, 'other', 'org-a', h.userId('manager'));
     // An ordinary visible person reaches claim authority; another account's agent is concealed by directory policy.
     h.sqlite.run("UPDATE person SET kind = 'person' WHERE id = 'other'");
-    const answer = await h.call('contributor', 'POST', '/api/projects/wp/commands', {
+    const answer = await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
       commands: [
         { kind: 'setStatus', workItemId: 'work', status: 'ready' },
         { kind: 'claimWorkItem', workItemId: 'work', personId: 'other' },
@@ -396,7 +425,7 @@ describe('claim and restricted recovery grants', () => {
   it('admits a granted package manager claiming for another account despite viewer membership', async () => {
     addAgentPerson(h.sqlite, 'other', 'org-a', h.userId('contributor'));
     expect(
-      await h.call('manager', 'POST', '/api/projects/wp/commands', {
+      await h.call('manager', 'POST', '/api/work-packages/wp/commands', {
         commands: [
           { kind: 'setStatus', workItemId: 'work', status: 'ready' },
           { kind: 'claimWorkItem', workItemId: 'work', personId: 'other' },
@@ -406,18 +435,21 @@ describe('claim and restricted recovery grants', () => {
   });
   it('allows recovery only to clear the restricted flag', async () => {
     grant('plain', 'org-super-admin');
-    h.sqlite.run("UPDATE project SET restricted = 1 WHERE id = 'wp'");
+    h.sqlite.run("UPDATE work_package SET restricted = 1 WHERE id = 'wp'");
     expect(
-      await h.call('plain', 'PATCH', '/api/projects/wp', { restricted: false, name: 'Denied' }),
+      await h.call('plain', 'PATCH', '/api/work-packages/wp', {
+        restricted: false,
+        name: 'Denied',
+      }),
     ).toMatchObject({ status: 403 });
     expect(
-      await h.call('plain', 'POST', '/api/projects/wp/steps', { name: 'Denied' }),
+      await h.call('plain', 'POST', '/api/work-packages/wp/steps', { name: 'Denied' }),
     ).toMatchObject({ status: 403 });
-    expect(await h.call('plain', 'PATCH', '/api/projects/wp', { restricted: false })).toMatchObject(
-      { status: 200 },
-    );
+    expect(
+      await h.call('plain', 'PATCH', '/api/work-packages/wp', { restricted: false }),
+    ).toMatchObject({ status: 200 });
     expect(h.sqlite.query('SELECT action, detail FROM organization_audit').all()).toEqual([
-      { action: 'restricted_project_recovery', detail: '{"fields":["restricted"]}' },
+      { action: 'restricted_work_package_recovery', detail: '{"fields":["restricted"]}' },
     ]);
   });
 });
@@ -497,10 +529,10 @@ it('grants capacity-mode authority from the authenticated account grant', async 
 
 it('admits a contributor writing current package steps and markers', async () => {
   expect(
-    await h.call('contributor', 'POST', '/api/projects/wp/steps', { name: 'Review' }),
+    await h.call('contributor', 'POST', '/api/work-packages/wp/steps', { name: 'Review' }),
   ).toMatchObject({ status: 200 });
   expect(
-    await h.call('contributor', 'POST', '/api/projects/wp/calendar-markers', {
+    await h.call('contributor', 'POST', '/api/work-packages/wp/calendar-markers', {
       markerId: crypto.randomUUID(),
       date: '2026-11-09',
       name: 'Release',
@@ -510,7 +542,7 @@ it('admits a contributor writing current package steps and markers', async () =>
 
 it('conceals an invisible package in the combined step allowance path', async () => {
   expect(
-    await h.call('plain', 'PATCH', '/api/projects/wp/steps/step', {
+    await h.call('plain', 'PATCH', '/api/work-packages/wp/steps/step', {
       name: 'Denied',
       allowancePercent: 10,
     }),
@@ -519,7 +551,7 @@ it('conceals an invisible package in the combined step allowance path', async ()
 
 it('refuses a contributor retry without package.manage_settings', async () => {
   expect(
-    await h.call('contributor', 'POST', '/api/projects/wp/optimization/retry', {
+    await h.call('contributor', 'POST', '/api/work-packages/wp/optimization/retry', {
       objective: 'pri',
       inputHash: 'unavailable',
     }),
@@ -535,7 +567,7 @@ for (const mixed of [false, true]) {
         ]
       : [{ kind: 'setBudget', workItemId: 'work', measure: 'tokens', cap: 5, policy: 'advisory' }];
     expect(
-      await h.call('manager', 'POST', '/api/projects/wp/commands', { commands }),
+      await h.call('manager', 'POST', '/api/work-packages/wp/commands', { commands }),
     ).toMatchObject({ status: 200 });
     h.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [h.userId('manager')]);
     grant('manager', 'project-contributor');
@@ -546,7 +578,7 @@ for (const mixed of [false, true]) {
       'event_log',
       'organization_audit',
     ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
-    expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+    expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
       status: 403,
       body: { error: 'forbidden', permission: 'project.manage_budgets' },
     });
@@ -560,7 +592,7 @@ for (const mixed of [false, true]) {
 
 it('keeps saved-plan author-or-manager authority with equivalent custom permissions', async () => {
   expect(
-    await h.call('manager', 'POST', '/api/projects/wp/saved-plans', { name: 'Original' }),
+    await h.call('manager', 'POST', '/api/work-packages/wp/saved-plans', { name: 'Original' }),
   ).toMatchObject({ status: 201 });
   const plan = h.sqlite.query<{ id: string }, []>('SELECT id FROM saved_plan').get();
   if (plan === null) throw new Error('fixture saved plan is absent');
@@ -634,7 +666,7 @@ it('never borrows credential B grants from stale expected access for authenticat
   ).toMatchObject({ ok: false, refusal: 'not_found' });
 });
 
-for (const operation of ['batch', 'project', 'step', 'create', 'import'] as const) {
+for (const operation of ['batch', 'work_package', 'step', 'create', 'import'] as const) {
   it(
     'retains authenticated machine provenance across queued ' + operation + ' admission',
     async () => {
@@ -674,8 +706,8 @@ for (const operation of ['batch', 'project', 'step', 'create', 'import'] as cons
               ],
               expected,
             )
-          : operation === 'project'
-            ? writes.updateProjectWithin('wp', actor, { name: 'Denied' }, expected)
+          : operation === 'work_package'
+            ? writes.updateWorkPackageWithin('wp', actor, { name: 'Denied' }, expected)
             : operation === 'step'
               ? runRecoveryWrite(
                   h.publicWrites(),
@@ -688,12 +720,16 @@ for (const operation of ['batch', 'project', 'step', 'create', 'import'] as cons
                   (reason) => ({ ok: false as const, reason }),
                 )
               : operation === 'create'
-                ? writes.createProjectWithin('Denied', actor, expected)
-                : h.publicImports().import(planDocumentFixture(), {
-                    kind: 'human',
-                    principal: actor,
-                    expectedAccess: expected,
-                  });
+                ? writes.createWorkPackageWithin('Denied', 'permission-parent-a', actor, expected)
+                : h.publicImports().import(
+                    planDocumentFixture(),
+                    {
+                      kind: 'human',
+                      principal: actor,
+                      expectedAccess: expected,
+                    },
+                    'permission-parent-a',
+                  );
       actor.authentication = undefined;
       h.sqlite.run(
         "DELETE FROM access_grant WHERE subject_kind = 'machine_credential' AND subject_id = ?",
@@ -709,7 +745,7 @@ for (const operation of ['batch', 'project', 'step', 'create', 'import'] as cons
         expect(answer).toMatchObject({
           reason: operation === 'create' ? 'forbidden' : 'not_found',
         });
-      expect(h.sqlite.query('SELECT name FROM project ORDER BY id').all()).toEqual([
+      expect(h.sqlite.query('SELECT name FROM work_package ORDER BY id').all()).toEqual([
         { name: 'Package' },
       ]);
       expect(h.sqlite.query('SELECT name FROM step ORDER BY id').all()).toEqual([{ name: 'Dev' }]);
@@ -775,14 +811,14 @@ for (const direction of ['undo', 'redo'] as const) {
   it(`refuses legacy ${direction} without changing journal bytes, cursor, or plan`, async () => {
     expect(await batch('manager', 'createWorkItem')).toMatchObject({ status: 200 });
     if (direction === 'redo')
-      expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+      expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
         status: 200,
       });
     h.sqlite.run("UPDATE command_journal SET payload = json_remove(payload, '$.authorization')");
     const before = ['work_item', 'command_journal', 'event_log', 'organization_audit'].map(
       (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
     );
-    expect(await h.call('manager', 'POST', `/api/projects/wp/${direction}`)).toMatchObject({
+    expect(await h.call('manager', 'POST', `/api/work-packages/wp/${direction}`)).toMatchObject({
       status: 409,
       body: { error: 'replay_provenance_unavailable' },
     });
@@ -799,19 +835,23 @@ it('throws on present unknown replay provenance instead of treating it as legacy
   h.sqlite.run(
     "UPDATE command_journal SET payload = json_set(payload, '$.authorization.version', 999)",
   );
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({ status: 500 });
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+    status: 500,
+  });
 });
 
 it('records only contributing replay permissions when a package freeze is a no-op', async () => {
-  expect(await batch('manager', 'freezeProject')).toMatchObject({ status: 200 });
+  expect(await batch('manager', 'freezeWorkPackage')).toMatchObject({ status: 200 });
   expect(
-    await h.call('manager', 'POST', '/api/projects/wp/commands', {
-      commands: [{ kind: 'freezeProject' }, commands.unfreezeWorkItem],
+    await h.call('manager', 'POST', '/api/work-packages/wp/commands', {
+      commands: [{ kind: 'freezeWorkPackage' }, commands.unfreezeWorkItem],
     }),
   ).toMatchObject({ status: 200 });
   h.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [h.userId('manager')]);
   grant('manager', 'project-contributor');
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({ status: 200 });
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+    status: 200,
+  });
 });
 
 it('requires package.write at both old and new ends of compound typed dependency writes', async () => {
@@ -820,25 +860,29 @@ it('requires package.write at both old and new ends of compound typed dependency
   seedDependencyAuthority(h.databasePath());
   await h.register('contributor');
   h.organization('org-a');
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-a','org-a','Permission parent',?,1)",
+    [h.userId('contributor')],
+  );
   h.member('org-a', 'contributor', 'admin');
   h.bind('contributor', 'org-a');
   h.activate();
   for (const id of ['wp', 'remote', 'new-remote']) {
     h.sqlite.run(
-      'INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES (?, ?, ?, 0, 1)',
+      "INSERT INTO work_package (id, name, created_by, project_id, restricted, created_at) VALUES (?, ?, ?, 'permission-parent-a', 0, 1)",
       [id, id, h.userId('contributor')],
     );
     h.sqlite.run(
-      "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
       [id],
     );
-    h.sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 1)', [
+    h.sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 1)', [
       id + '-step',
       id,
       'Dev',
     ]);
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
       [id + '-work', id, id],
     );
     grant(
@@ -848,9 +892,9 @@ it('requires package.write at both old and new ends of compound typed dependency
       id,
     );
   }
-  const endpoint = (projectId: string) => ({
-    projectId,
-    workItemId: projectId + '-work',
+  const endpoint = (workPackageId: string) => ({
+    workPackageId,
+    workItemId: workPackageId + '-work',
     scope: 'whole',
   });
   const add = {
@@ -860,7 +904,7 @@ it('requires package.write at both old and new ends of compound typed dependency
     type: 'FS',
   };
   const invoke = (commands: unknown[]) =>
-    h.call('contributor', 'POST', '/api/projects/wp/commands', { commands });
+    h.call('contributor', 'POST', '/api/work-packages/wp/commands', { commands });
   expect(await invoke([add])).toMatchObject({
     status: 403,
     body: { error: 'forbidden', permission: 'package.write' },
@@ -898,7 +942,7 @@ it('requires package.write at both old and new ends of compound typed dependency
 it('refuses replay of a claim for another account after claim_for_others is revoked', async () => {
   addAgentPerson(h.sqlite, 'other', 'org-a', h.userId('contributor'));
   expect(
-    await h.call('manager', 'POST', '/api/projects/wp/commands', {
+    await h.call('manager', 'POST', '/api/work-packages/wp/commands', {
       commands: [
         { kind: 'setStatus', workItemId: 'work', status: 'ready' },
         { kind: 'claimWorkItem', workItemId: 'work', personId: 'other' },
@@ -910,7 +954,7 @@ it('refuses replay of a claim for another account after claim_for_others is revo
   const before = ['claim', 'command_journal', 'event_log', 'organization_audit'].map((table) =>
     h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
   );
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
     status: 403,
     body: { error: 'forbidden', permission: 'package.claim_for_others' },
   });
@@ -1069,18 +1113,24 @@ it('evaluates a standalone machine by its own credential grants rather than its 
 it('resolves budget replay authority at the current interim owner rather than unrelated organization grants', async () => {
   expect(await batch('manager', 'setBudget')).toMatchObject({ status: 200 });
   h.organization('org-b');
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-b','org-b','Permission parent',?,1)",
+    [h.userId('manager')],
+  );
   h.member('org-b', 'manager', 'viewer', ['project-contributor']);
   h.grant('org-b', 'manager', 'org-admin');
   h.sqlite.run("DELETE FROM access_grant WHERE organization_id = 'org-a' AND subject_id = ?", [
     h.userId('manager'),
   ]);
   grant('manager', 'project-contributor');
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
     status: 403,
     body: { error: 'forbidden', permission: 'project.manage_budgets' },
   });
   grant('manager', 'org-admin');
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({ status: 200 });
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+    status: 200,
+  });
 });
 
 it('preserves immutable replay requirements through undo redo undo and restamping', async () => {
@@ -1088,7 +1138,7 @@ it('preserves immutable replay requirements through undo redo undo and restampin
   expect(await batch('manager', 'setBudget')).toMatchObject({ status: 200 });
   const bytes = h.sqlite.query('SELECT id, payload FROM command_journal ORDER BY rowid').all();
   for (const direction of ['undo', 'redo', 'undo', 'undo']) {
-    expect(await h.call('manager', 'POST', '/api/projects/wp/' + direction)).toMatchObject({
+    expect(await h.call('manager', 'POST', '/api/work-packages/wp/' + direction)).toMatchObject({
       status: 200,
     });
     expect(h.sqlite.query('SELECT id, payload FROM command_journal ORDER BY rowid').all()).toEqual(
@@ -1104,7 +1154,7 @@ it('refuses absent replay provenance before stale entry discard', async () => {
   const before = ['work_item', 'command_journal', 'event_log', 'organization_audit'].map((table) =>
     h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
   );
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
     status: 409,
     body: { error: 'replay_provenance_unavailable' },
   });
@@ -1183,35 +1233,47 @@ it('returns only a detached grant principal projection from authenticated machin
 });
 
 for (const [label, method, path, body, permission] of [
-  ['package creation', 'POST', '/api/projects', { name: 'Denied' }, 'organization.create_project'],
-  ['package settings', 'PATCH', '/api/projects/wp', { name: 'Denied' }, 'package.manage_settings'],
-  ['step creation', 'POST', '/api/projects/wp/steps', { name: 'Denied' }, 'package.write'],
-  ['step rename', 'PATCH', '/api/projects/wp/steps/step', { name: 'Denied' }, 'package.write'],
+  [
+    'package creation',
+    'POST',
+    '/api/work-packages',
+    { name: 'Denied' },
+    'organization.create_project',
+  ],
+  [
+    'package settings',
+    'PATCH',
+    '/api/work-packages/wp',
+    { name: 'Denied' },
+    'package.manage_settings',
+  ],
+  ['step creation', 'POST', '/api/work-packages/wp/steps', { name: 'Denied' }, 'package.write'],
+  ['step rename', 'PATCH', '/api/work-packages/wp/steps/step', { name: 'Denied' }, 'package.write'],
   [
     'step removal',
     'DELETE',
-    '/api/projects/wp/steps/step?cascade=true',
+    '/api/work-packages/wp/steps/step?cascade=true',
     undefined,
     'package.write',
   ],
   [
     'calendar marker',
     'POST',
-    '/api/projects/wp/calendar-markers',
+    '/api/work-packages/wp/calendar-markers',
     { markerId: '6b0d9f3e-4c1a-4c77-9a53-1b2f0e6d7c11', date: '2026-11-09', name: 'Denied' },
     'package.write',
   ],
   [
     'saved plan capture',
     'POST',
-    '/api/projects/wp/saved-plans',
+    '/api/work-packages/wp/saved-plans',
     { name: 'Denied' },
     'package.write',
   ],
   [
     'package retry',
     'POST',
-    '/api/projects/wp/optimization/retry',
+    '/api/work-packages/wp/optimization/retry',
     { objective: 'pri', inputHash: 'old' },
     'package.manage_settings',
   ],
@@ -1219,8 +1281,8 @@ for (const [label, method, path, body, permission] of [
   [
     'rank move',
     'POST',
-    '/api/organization/projects/wp/rank',
-    { afterProjectId: null },
+    '/api/organization/work-packages/wp/rank',
+    { afterWorkPackageId: null },
     'organization.manage_spaces',
   ],
   [
@@ -1250,25 +1312,29 @@ for (const operation of ['duplicate', 'delete', 'first-child-outgoing'] as const
       seedDependencyAuthority(h.databasePath());
       await h.register('contributor');
       h.organization('org-a');
+      h.sqlite.run(
+        "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-a','org-a','Permission parent',?,1)",
+        [h.userId('contributor')],
+      );
       h.member('org-a', 'contributor', 'admin');
       h.bind('contributor', 'org-a');
       h.activate();
       for (const id of ['wp', 'remote', 'new-remote']) {
         h.sqlite.run(
-          'INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES (?, ?, ?, 0, 1)',
+          "INSERT INTO work_package (id, name, created_by, project_id, restricted, created_at) VALUES (?, ?, ?, 'permission-parent-a', 0, 1)",
           [id, id, h.userId('contributor')],
         );
         h.sqlite.run(
-          "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+          "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
           [id],
         );
-        h.sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 1)', [
+        h.sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 1)', [
           id + '-step',
           id,
           'Dev',
         ]);
         h.sqlite.run(
-          'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
+          'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
           [id + '-work', id, id],
         );
         grant(
@@ -1281,18 +1347,18 @@ for (const operation of ['duplicate', 'delete', 'first-child-outgoing'] as const
 
       for (const id of ['remote', 'new-remote'])
         grant('contributor', 'package-contributor', 'work_package', id);
-      const node = (projectId: string) => ({
-        projectId,
-        workItemId: projectId + '-work',
+      const node = (workPackageId: string) => ({
+        workPackageId,
+        workItemId: workPackageId + '-work',
         scope: 'node',
-        stepId: projectId + '-step',
+        stepId: workPackageId + '-step',
       });
       const outgoing = operation === 'first-child-outgoing';
       expect(
         await h.call(
           'contributor',
           'POST',
-          '/api/projects/' + (outgoing ? 'remote' : 'wp') + '/commands',
+          '/api/work-packages/' + (outgoing ? 'remote' : 'wp') + '/commands',
           {
             commands: [
               {
@@ -1326,7 +1392,9 @@ for (const operation of ['duplicate', 'delete', 'first-child-outgoing'] as const
             ? { kind: 'deleteWorkItem', workItemId: 'wp-work', strategy: 'cascade' }
             : { kind: 'createWorkItem', parentId: 'wp-work', name: 'Denied child' };
       expect(
-        await h.call('contributor', 'POST', '/api/projects/wp/commands', { commands: [command] }),
+        await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
+          commands: [command],
+        }),
       ).toMatchObject({ status: 403, body: { error: 'forbidden', permission: 'package.write' } });
       expect(
         tables.map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all()),
@@ -1344,7 +1412,7 @@ it('refuses clear-budget undo after its original budget permission is revoked', 
   const before = tables.map((table) =>
     h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
   );
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
     status: 403,
     body: { error: 'forbidden', permission: 'project.manage_budgets' },
   });
@@ -1357,7 +1425,7 @@ for (const method of ['PATCH', 'DELETE'] as const) {
   it(
     'encodes the manager permission when another author saved-plan ' + method + ' is refused',
     async () => {
-      const saved = await h.call('manager', 'POST', '/api/projects/wp/saved-plans', {
+      const saved = await h.call('manager', 'POST', '/api/work-packages/wp/saved-plans', {
         name: 'Held',
       });
       const id = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
@@ -1379,7 +1447,7 @@ for (const method of ['PATCH', 'DELETE'] as const) {
 it('refuses replay of a release for another account after claim_for_others is revoked', async () => {
   addAgentPerson(h.sqlite, 'other', 'org-a', h.userId('contributor'));
   expect(
-    await h.call('manager', 'POST', '/api/projects/wp/commands', {
+    await h.call('manager', 'POST', '/api/work-packages/wp/commands', {
       commands: [
         { kind: 'setStatus', workItemId: 'work', status: 'ready' },
         { kind: 'claimWorkItem', workItemId: 'work', personId: 'other' },
@@ -1387,7 +1455,7 @@ it('refuses replay of a release for another account after claim_for_others is re
     }),
   ).toMatchObject({ status: 200 });
   expect(
-    await h.call('manager', 'POST', '/api/projects/wp/commands', {
+    await h.call('manager', 'POST', '/api/work-packages/wp/commands', {
       commands: [{ kind: 'releaseWorkItem', workItemId: 'work', personId: 'other' }],
     }),
   ).toMatchObject({ status: 200 });
@@ -1397,7 +1465,7 @@ it('refuses replay of a release for another account after claim_for_others is re
   const before = tables.map((table) =>
     h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
   );
-  expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+  expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
     status: 403,
     body: { error: 'forbidden', permission: 'package.claim_for_others' },
   });
@@ -1469,7 +1537,9 @@ for (const [fault, authorization] of [
       h.publicCommands().undoWithin('wp', actor, access),
       /replay.*(authorization|permission)/,
     );
-    expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({ status: 500 });
+    expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+      status: 500,
+    });
     expect(h.sqlite.query('SELECT * FROM command_journal ORDER BY rowid').all()).toEqual(before);
   });
 }
@@ -1501,7 +1571,7 @@ async function borrowedWrite<T extends { readonly ok: boolean }>(
     const admission = granted.admission;
     const opened = createDependencyContext(
       scope.stores,
-      { projectId: 'wp', actorId: principal.id, access, admission },
+      { workPackageId: 'wp', actorId: principal.id, access, admission },
       () => undefined,
       { kind: 'raw' },
     );
@@ -1551,7 +1621,7 @@ it('conceals an invisible package in the actual borrowed marker resource', async
 
 it('requires package.write for borrowed step lookup without super-admin recovery exception', async () => {
   grant('plain', 'org-super-admin');
-  h.sqlite.run("UPDATE project SET restricted = 1 WHERE id = 'wp'");
+  h.sqlite.run("UPDATE work_package SET restricted = 1 WHERE id = 'wp'");
   expect(
     await borrowedWrite('plain', (services, access, actorId) =>
       services.steps.findWithin('wp', 'step', actorId, access),
@@ -1559,12 +1629,15 @@ it('requires package.write for borrowed step lookup without super-admin recovery
   ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
 });
 
-it('encodes organization.create_project on a refused import before writes', async () => {
+it('encodes project.manage_packages on a refused import before writes', async () => {
   expect(
-    await h.call('viewer', 'POST', '/api/projects/import', planDocumentFixture()),
+    await h.call('viewer', 'POST', '/api/work-packages/import', {
+      projectId: 'permission-parent-a',
+      document: planDocumentFixture(),
+    }),
   ).toMatchObject({
     status: 403,
-    body: { error: 'forbidden', permission: 'organization.create_project' },
+    body: { error: 'forbidden', permission: 'project.manage_packages' },
   });
 });
 
@@ -1575,18 +1648,18 @@ for (const definition of ['directory', 'measure'] as const) {
       ' rows without mutation',
     async () => {
       h.sqlite.run(
-        "INSERT INTO access_role (id, name, object_kind, level, reaches_restricted, organization_id, created_at) VALUES ('creator-only', 'Creator', 'organization', NULL, 0, 'org-a', 1)",
+        "INSERT INTO access_role (id, name, object_kind, level, reaches_restricted, organization_id, created_at) VALUES ('project-importer', 'Project importer', 'project', NULL, 0, 'org-a', 1)",
       );
-      for (const permission of ['organization.navigate', 'organization.create_project'])
+      for (const permission of ['organization.navigate', 'project.read', 'project.manage_packages'])
         h.sqlite.run(
-          "INSERT INTO access_role_permission (role_id, permission) VALUES ('creator-only', ?)",
+          "INSERT INTO access_role_permission (role_id, permission) VALUES ('project-importer', ?)",
           [permission],
         );
-      grant('plain', 'creator-only');
+      grant('plain', 'project-importer', 'project', 'permission-parent-a');
       let document = planDocumentFixture();
       if (definition === 'measure') {
         h.sqlite.run("UPDATE step SET code = 'dev' WHERE id = 'step'");
-        const exported = await h.call('manager', 'GET', '/api/projects/wp/export?format=json');
+        const exported = await h.call('manager', 'GET', '/api/work-packages/wp/export?format=json');
         if (exported.status !== 200) throw new Error('measure import fixture export refused');
         document = exported.body as PlanDocumentImport;
         document.directory = {
@@ -1615,7 +1688,7 @@ for (const definition of ['directory', 'measure'] as const) {
         });
       }
       const tables = [
-        'project',
+        'work_package',
         'service_team',
         'service_team_organization',
         'measure',
@@ -1626,7 +1699,12 @@ for (const definition of ['directory', 'measure'] as const) {
       const before = tables.map((table) =>
         h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
       );
-      expect(await h.call('plain', 'POST', '/api/projects/import', document)).toMatchObject({
+      expect(
+        await h.call('plain', 'POST', '/api/work-packages/import', {
+          projectId: 'permission-parent-a',
+          document: document,
+        }),
+      ).toMatchObject({
         status: 403,
         body: { error: 'forbidden', permission: 'organization.manage_directory' },
       });
@@ -1636,6 +1714,107 @@ for (const definition of ['directory', 'measure'] as const) {
     },
   );
 }
+
+/** Complete persisted application state around a modeled refused import. */
+function importAdmissionSnapshot() {
+  return h.sqlite
+    .query<{ name: string }, []>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .all()
+    .map(({ name }) => ({
+      name,
+      rows: h.sqlite
+        .query('SELECT * FROM "' + name.replaceAll('"', '""') + '"')
+        .all()
+        .map((row) => JSON.stringify(row))
+        .sort(),
+    }));
+}
+
+it('imports into the named project with its manager grant and no organization creation permission', async () => {
+  const created = await h.call('manager', 'POST', '/api/projects', { name: 'Import destination' });
+  expect(created.status).toBe(201);
+  const project = h.sqlite
+    .query<{ id: string }, []>(
+      "SELECT id FROM project WHERE organization_id='org-a' AND name='Import destination'",
+    )
+    .get();
+  if (project === null) throw new Error('actual created import destination is absent');
+  grant('plain', 'project-manager', 'project', project.id);
+  h.grantPermissions('org-a', 'plain', ['organization.manage_directory']);
+  expect(
+    h.sqlite
+      .query<{ count: number }, [string]>(
+        "SELECT COUNT(*) AS count FROM access_grant g JOIN access_role_permission p ON p.role_id=g.role_id WHERE g.subject_kind='user' AND g.subject_id=? AND p.permission='organization.create_project'",
+      )
+      .get(h.userId('plain')),
+  ).toEqual({ count: 0 });
+  const imported = await h.call('plain', 'POST', '/api/work-packages/import', {
+    projectId: project.id,
+    document: planDocumentFixture(),
+  });
+  expect(imported.status).toBe(201);
+  const children = h.sqlite
+    .query<{ id: string; project_id: string }, [string]>(
+      'SELECT id,project_id FROM work_package WHERE project_id=? ORDER BY id',
+    )
+    .all(project.id);
+  expect(children).toHaveLength(1);
+  const child = children.at(0);
+  if (child === undefined) throw new Error('imported child is absent from its actual destination');
+  expect(child.project_id).toBe(project.id);
+  expect(imported.body).toMatchObject({ workPackageId: child.id });
+});
+
+it('refuses a visible project import despite organization creation permission without package management', async () => {
+  h.grantPermissions('org-a', 'viewer', ['organization.create_project']);
+  const before = importAdmissionSnapshot();
+  expect(
+    await h.call('viewer', 'POST', '/api/work-packages/import', {
+      projectId: 'permission-parent-a',
+      document: planDocumentFixture(),
+    }),
+  ).toEqual({ status: 403, body: { error: 'forbidden', permission: 'project.manage_packages' } });
+  expect(importAdmissionSnapshot()).toEqual(before);
+});
+
+it('conceals unreadable foreign and absent import destinations before private settings decoding', async () => {
+  grant('plain', 'project-manager', 'project', 'permission-parent-a');
+  h.grantPermissions('org-a', 'plain', ['organization.manage_directory']);
+  expect(
+    (
+      await h.call('plain', 'POST', '/api/work-packages/import', {
+        projectId: 'permission-parent-a',
+        document: planDocumentFixture(),
+      })
+    ).status,
+  ).toBe(201);
+  h.organization('org-b');
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('unreadable-import-parent','org-a','Unreadable import',?,1),('foreign-import-parent','org-b','Foreign import',?,1)",
+    [h.userId('manager'), h.userId('manager')],
+  );
+  for (const projectId of ['unreadable-import-parent', 'foreign-import-parent'])
+    h.sqlite.run(
+      "INSERT INTO setting_value(scope_kind,scope_id,key,value_json,created_at) VALUES('project',?,'budgetFactor','not-json',1)",
+      [projectId],
+    );
+  const before = importAdmissionSnapshot();
+  for (const projectId of [
+    'unreadable-import-parent',
+    'foreign-import-parent',
+    'absent-import-parent',
+  ]) {
+    expect(
+      await h.call('plain', 'POST', '/api/work-packages/import', {
+        projectId,
+        document: planDocumentFixture(),
+      }),
+    ).toEqual({ status: 404, body: { error: 'not_found' } });
+    expect(importAdmissionSnapshot()).toEqual(before);
+  }
+});
 
 it('passes the retained actor into a queued step writer after caller identity alias substitution', async () => {
   const actor = await h.authenticatedCommandPrincipal('contributor', '');
@@ -1715,25 +1894,29 @@ it('duplicates a package row without requiring write at unchanged outgoing depen
   seedDependencyAuthority(h.databasePath());
   await h.register('contributor');
   h.organization('org-a');
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-a','org-a','Permission parent',?,1)",
+    [h.userId('contributor')],
+  );
   h.member('org-a', 'contributor', 'admin');
   h.bind('contributor', 'org-a');
   h.activate();
   for (const id of ['wp', 'remote', 'new-remote']) {
     h.sqlite.run(
-      'INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES (?, ?, ?, 0, 1)',
+      "INSERT INTO work_package (id, name, created_by, project_id, restricted, created_at) VALUES (?, ?, ?, 'permission-parent-a', 0, 1)",
       [id, id, h.userId('contributor')],
     );
     h.sqlite.run(
-      "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
       [id],
     );
-    h.sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 1)', [
+    h.sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 1)', [
       id + '-step',
       id,
       'Dev',
     ]);
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
       [id + '-work', id, id],
     );
     grant(
@@ -1745,14 +1928,14 @@ it('duplicates a package row without requiring write at unchanged outgoing depen
   }
 
   grant('contributor', 'package-contributor', 'work_package', 'remote');
-  const node = (projectId: string) => ({
-    projectId,
-    workItemId: projectId + '-work',
+  const node = (workPackageId: string) => ({
+    workPackageId,
+    workItemId: workPackageId + '-work',
     scope: 'node',
-    stepId: projectId + '-step',
+    stepId: workPackageId + '-step',
   });
   expect(
-    await h.call('contributor', 'POST', '/api/projects/remote/commands', {
+    await h.call('contributor', 'POST', '/api/work-packages/remote/commands', {
       commands: [
         {
           kind: 'addTypedDependency',
@@ -1768,7 +1951,7 @@ it('duplicates a package row without requiring write at unchanged outgoing depen
   );
   const before = h.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all();
   expect(
-    await h.call('contributor', 'POST', '/api/projects/wp/commands', {
+    await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
       commands: [{ kind: 'duplicateWorkItem', workItemId: 'wp-work' }],
     }),
   ).toMatchObject({ status: 200 });
@@ -1786,25 +1969,29 @@ for (const direction of ['undo', 'redo'] as const) {
       seedDependencyAuthority(h.databasePath());
       await h.register('contributor');
       h.organization('org-a');
+      h.sqlite.run(
+        "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-a','org-a','Permission parent',?,1)",
+        [h.userId('contributor')],
+      );
       h.member('org-a', 'contributor', 'admin');
       h.bind('contributor', 'org-a');
       h.activate();
       for (const id of ['wp', 'remote', 'new-remote']) {
         h.sqlite.run(
-          'INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES (?, ?, ?, 0, 1)',
+          "INSERT INTO work_package (id, name, created_by, project_id, restricted, created_at) VALUES (?, ?, ?, 'permission-parent-a', 0, 1)",
           [id, id, h.userId('contributor')],
         );
         h.sqlite.run(
-          "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+          "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
           [id],
         );
-        h.sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 1)', [
+        h.sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 1)', [
           id + '-step',
           id,
           'Dev',
         ]);
         h.sqlite.run(
-          'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
+          'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
           [id + '-work', id, id],
         );
         grant(
@@ -1816,14 +2003,14 @@ for (const direction of ['undo', 'redo'] as const) {
       }
 
       grant('contributor', 'package-contributor', 'work_package', 'remote');
-      const node = (projectId: string) => ({
-        projectId,
-        workItemId: projectId + '-work',
+      const node = (workPackageId: string) => ({
+        workPackageId,
+        workItemId: workPackageId + '-work',
         scope: 'node',
-        stepId: projectId + '-step',
+        stepId: workPackageId + '-step',
       });
       expect(
-        await h.call('contributor', 'POST', '/api/projects/wp/commands', {
+        await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
           commands: [
             {
               kind: 'addTypedDependency',
@@ -1835,7 +2022,7 @@ for (const direction of ['undo', 'redo'] as const) {
         }),
       ).toMatchObject({ status: 200 });
       if (direction === 'redo')
-        expect(await h.call('contributor', 'POST', '/api/projects/wp/undo')).toMatchObject({
+        expect(await h.call('contributor', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
           status: 200,
         });
       h.sqlite.run(
@@ -1851,7 +2038,9 @@ for (const direction of ['undo', 'redo'] as const) {
       const before = tables.map((table) =>
         h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
       );
-      expect(await h.call('contributor', 'POST', '/api/projects/wp/' + direction)).toMatchObject({
+      expect(
+        await h.call('contributor', 'POST', '/api/work-packages/wp/' + direction),
+      ).toMatchObject({
         status: 403,
         body: { error: 'forbidden', permission: 'package.write' },
       });
@@ -1868,25 +2057,29 @@ it('throws on a missing admitted remote dependency authorization capability with
   seedDependencyAuthority(h.databasePath());
   await h.register('contributor');
   h.organization('org-a');
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-a','org-a','Permission parent',?,1)",
+    [h.userId('contributor')],
+  );
   h.member('org-a', 'contributor', 'admin');
   h.bind('contributor', 'org-a');
   h.activate();
   for (const id of ['wp', 'remote', 'new-remote']) {
     h.sqlite.run(
-      'INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES (?, ?, ?, 0, 1)',
+      "INSERT INTO work_package (id, name, created_by, project_id, restricted, created_at) VALUES (?, ?, ?, 'permission-parent-a', 0, 1)",
       [id, id, h.userId('contributor')],
     );
     h.sqlite.run(
-      "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
       [id],
     );
-    h.sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 1)', [
+    h.sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 1)', [
       id + '-step',
       id,
       'Dev',
     ]);
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
       [id + '-work', id, id],
     );
     grant(
@@ -1898,14 +2091,14 @@ it('throws on a missing admitted remote dependency authorization capability with
   }
 
   grant('contributor', 'package-contributor', 'work_package', 'remote');
-  const node = (projectId: string) => ({
-    projectId,
-    workItemId: projectId + '-work',
+  const node = (workPackageId: string) => ({
+    workPackageId,
+    workItemId: workPackageId + '-work',
     scope: 'node',
-    stepId: projectId + '-step',
+    stepId: workPackageId + '-step',
   });
   expect(
-    await h.call('contributor', 'POST', '/api/projects/wp/commands', {
+    await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
       commands: [
         {
           kind: 'addTypedDependency',
@@ -1927,7 +2120,7 @@ it('throws on a missing admitted remote dependency authorization capability with
   );
   try {
     expect(
-      await h.call('contributor', 'POST', '/api/projects/wp/commands', {
+      await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
         commands: [{ kind: 'duplicateWorkItem', workItemId: 'wp-work' }],
       }),
     ).toMatchObject({ status: 500 });
@@ -1960,25 +2153,29 @@ it('rechecks the actual current dependency endpoints after an earlier command ch
   seedDependencyAuthority(h.databasePath());
   await h.register('contributor');
   h.organization('org-a');
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('permission-parent-a','org-a','Permission parent',?,1)",
+    [h.userId('contributor')],
+  );
   h.member('org-a', 'contributor', 'admin');
   h.bind('contributor', 'org-a');
   h.activate();
   for (const id of ['wp', 'remote', 'new-remote']) {
     h.sqlite.run(
-      'INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES (?, ?, ?, 0, 1)',
+      "INSERT INTO work_package (id, name, created_by, project_id, restricted, created_at) VALUES (?, ?, ?, 'permission-parent-a', 0, 1)",
       [id, id, h.userId('contributor')],
     );
     h.sqlite.run(
-      "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
       [id],
     );
-    h.sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 1)', [
+    h.sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 1)', [
       id + '-step',
       id,
       'Dev',
     ]);
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 1, ?)',
       [id + '-work', id, id],
     );
     grant(
@@ -1991,13 +2188,13 @@ it('rechecks the actual current dependency endpoints after an earlier command ch
 
   for (const id of ['remote', 'new-remote'])
     grant('contributor', 'package-contributor', 'work_package', id);
-  const node = (projectId: string) => ({
-    projectId,
-    workItemId: projectId + '-work',
+  const node = (workPackageId: string) => ({
+    workPackageId,
+    workItemId: workPackageId + '-work',
     scope: 'node',
-    stepId: projectId + '-step',
+    stepId: workPackageId + '-step',
   });
-  const added = await h.call('contributor', 'POST', '/api/projects/wp/commands', {
+  const added = await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
     commands: [
       {
         kind: 'addTypedDependency',
@@ -2032,15 +2229,17 @@ it('rechecks the actual current dependency endpoints after an earlier command ch
           accessDecisions: {
             readablePackageIds: (principal, organizationId) =>
               decisions.readablePackageIds(principal, organizationId),
+            packageTargetOf: (id, organizationId) =>
+              scope.stores.settings.readTarget({ level: 'work_package', id }, organizationId),
             effectiveRoleAt: async (principal, target) => {
               const effective = await decisions.effectiveRoleAt(principal, target);
-              const held = await scope.stores.typedDependencies.listByProject('wp');
+              const held = await scope.stores.typedDependencies.listByWorkPackage('wp');
               // Inject a current permission revocation only after the first command changed the held relationship.
               if (
                 effective !== null &&
                 target.kind === 'work_package' &&
                 target.chain.workPackageId === 'new-remote' &&
-                held.some((row) => row.predecessor.projectId === 'new-remote')
+                held.some((row) => row.predecessor.workPackageId === 'new-remote')
               )
                 return {
                   ...effective,
@@ -2059,7 +2258,7 @@ it('rechecks the actual current dependency endpoints after an earlier command ch
   const injected = spyOn(boundary.uow, 'run').mockImplementation(inject);
   try {
     expect(
-      await h.call('contributor', 'POST', '/api/projects/wp/commands', {
+      await h.call('contributor', 'POST', '/api/work-packages/wp/commands', {
         commands: [
           {
             kind: 'updateTypedDependency',
@@ -2092,7 +2291,7 @@ for (const direction of ['undo', 'redo'] as const) {
   it(
     'encodes package.write when a visible viewer is denied ' + direction + ' admission',
     async () => {
-      expect(await h.call('viewer', 'POST', '/api/projects/wp/' + direction)).toMatchObject({
+      expect(await h.call('viewer', 'POST', '/api/work-packages/wp/' + direction)).toMatchObject({
         status: 403,
         body: { error: 'forbidden', permission: 'package.write' },
       });
@@ -2103,7 +2302,7 @@ for (const direction of ['undo', 'redo'] as const) {
 it('encodes package.write on current runtime scope refusal', async () => {
   addAgentPerson(h.sqlite, 'runtime-person', 'org-a', h.userId('viewer'));
   expect(
-    await h.call('viewer', 'GET', '/api/projects/wp/runtime-state?personId=runtime-person'),
+    await h.call('viewer', 'GET', '/api/work-packages/wp/runtime-state?personId=runtime-person'),
   ).toMatchObject({
     status: 403,
     body: { error: 'forbidden', permission: 'package.write' },
@@ -2113,7 +2312,11 @@ it('encodes package.write on current runtime scope refusal', async () => {
 it('encodes package.claim_for_others on current runtime person refusal', async () => {
   addAgentPerson(h.sqlite, 'runtime-person', 'org-a', h.userId('manager'));
   expect(
-    await h.call('contributor', 'GET', '/api/projects/wp/runtime-state?personId=runtime-person'),
+    await h.call(
+      'contributor',
+      'GET',
+      '/api/work-packages/wp/runtime-state?personId=runtime-person',
+    ),
   ).toMatchObject({
     status: 403,
     body: { error: 'forbidden', permission: 'package.claim_for_others' },
@@ -2179,7 +2382,7 @@ for (const role of ['org-admin', 'org-super-admin']) {
         expect(await batch('manager', 'setBudget')).toMatchObject({ status: 200 });
         h.sqlite.run('DELETE FROM access_grant WHERE subject_id=?', [h.userId('manager')]);
         grant('manager', role);
-        h.sqlite.run("UPDATE project SET restricted=1 WHERE id='wp'");
+        h.sqlite.run("UPDATE work_package SET restricted=1 WHERE id='wp'");
         const before = [
           'work_item_budget',
           'command_journal',
@@ -2204,23 +2407,25 @@ for (const role of ['org-admin', 'org-super-admin']) {
       async () => {
         expect(await batch('manager', 'setBudget')).toMatchObject({ status: 200 });
         if (direction === 'redo')
-          expect(await h.call('manager', 'POST', '/api/projects/wp/undo')).toMatchObject({
+          expect(await h.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
             status: 200,
           });
         h.sqlite.run('DELETE FROM access_grant WHERE subject_id=?', [h.userId('manager')]);
         grant('manager', role);
         grant('manager', 'package-contributor', 'work_package', 'wp');
-        h.sqlite.run("UPDATE project SET restricted=1 WHERE id='wp'");
+        h.sqlite.run("UPDATE work_package SET restricted=1 WHERE id='wp'");
         const before = [
           'work_item_budget',
           'command_journal',
           'event_log',
           'organization_audit',
         ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
-        expect(await h.call('manager', 'POST', '/api/projects/wp/' + direction)).toMatchObject({
-          status: 403,
-          body: { error: 'forbidden', permission: 'project.manage_budgets' },
-        });
+        expect(await h.call('manager', 'POST', '/api/work-packages/wp/' + direction)).toMatchObject(
+          {
+            status: 403,
+            body: { error: 'forbidden', permission: 'project.manage_budgets' },
+          },
+        );
         expect(
           ['work_item_budget', 'command_journal', 'event_log', 'organization_audit'].map((table) =>
             h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
@@ -2437,9 +2642,9 @@ it('publishes a successful standalone removal only after committed rows are visi
   const broadcaster = h.publicWrites().announcements;
   const publish = broadcaster.publish.bind(broadcaster);
   const announcement = spyOn(broadcaster, 'publish').mockImplementation(
-    async (projectId, event) => {
+    async (workPackageId, event) => {
       expect(h.sqlite.query("SELECT id FROM tag WHERE id='used'").get()).toBeNull();
-      await publish(projectId, event);
+      await publish(workPackageId, event);
     },
   );
   try {
@@ -2456,13 +2661,13 @@ it('publishes a successful standalone removal only after committed rows are visi
 it('retains package.write in the actual borrowed saved-capture authorization', async () => {
   expect(
     await borrowedWrite('viewer', (services, access, actorId) =>
-      services.projects.authorizeWrite('wp', actorId, access),
+      services.workPackages.authorizeWrite('wp', actorId, access),
     ),
   ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
 });
 
-it('refuses borrowed project settings before reaching a broken mutation port', async () => {
-  const mutation = spyOn(ProjectRepository.prototype, 'editInOrganization').mockImplementation(
+it('refuses borrowed work package settings before reaching a broken mutation port', async () => {
+  const mutation = spyOn(WorkPackageRepository.prototype, 'editInOrganization').mockImplementation(
     () => {
       throw Error('settings mutation reached before permission');
     },
@@ -2470,7 +2675,7 @@ it('refuses borrowed project settings before reaching a broken mutation port', a
   try {
     expect(
       await borrowedWrite('viewer', (services, access, actorId) =>
-        services.projects.updateWithin('wp', actorId, { name: 'Denied' }, access),
+        services.workPackages.updateWithin('wp', actorId, { name: 'Denied' }, access),
       ),
     ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.manage_settings' });
     expect(mutation).not.toHaveBeenCalled();
@@ -2524,12 +2729,12 @@ it('encodes the second current grant denial at runtime command admission', async
   const initial = await h.call(
     'contributor',
     'GET',
-    '/api/projects/wp/runtime-state?personId=runtime-person',
+    '/api/work-packages/wp/runtime-state?personId=runtime-person',
   );
   expect(initial.status).toBe(200);
   const ledgerId = (initial.body as { ledgerId: string }).ledgerId;
   expect(
-    await h.call('contributor', 'POST', '/api/projects/wp/runtime-authority', {
+    await h.call('contributor', 'POST', '/api/work-packages/wp/runtime-authority', {
       schemaVersion: 1,
       commandId: 'authority',
       personId: 'runtime-person',
@@ -2541,7 +2746,7 @@ it('encodes the second current grant denial at runtime command admission', async
   const state = await h.call(
     'contributor',
     'GET',
-    '/api/projects/wp/runtime-state?personId=runtime-person',
+    '/api/work-packages/wp/runtime-state?personId=runtime-person',
   );
   expect(state.status).toBe(200);
   const basis = (state.body as { basis: string }).basis;
@@ -2564,7 +2769,7 @@ it('encodes the second current grant denial at runtime command admission', async
   ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
   try {
     expect(
-      await h.call('contributor', 'POST', '/api/projects/wp/runtime-commands', {
+      await h.call('contributor', 'POST', '/api/work-packages/wp/runtime-commands', {
         schemaVersion: 1,
         commandId: 'claim-denied',
         personId: 'runtime-person',
@@ -2593,7 +2798,7 @@ it('encodes the second current grant denial at runtime command admission', async
 
 for (const operation of ['write', 'replay'] as const) {
   it(
-    'requires budget-owner authority independently of the package verdict during ' + operation,
+    'requires current-parent budget authority independently of package.write during ' + operation,
     async () => {
       if (operation === 'replay')
         expect(await batch('manager', 'setBudget')).toMatchObject({ status: 200 });
@@ -2603,8 +2808,9 @@ for (const operation of ['write', 'replay'] as const) {
         'effectiveRoleAt',
       ).mockImplementation(async function (this: AccessDecisionRepository, principal, target) {
         const effective = await evaluate.call(this, principal, target);
-        if (target.kind === 'organization') {
-          if (effective === null) throw Error('fixture organization authority vanished');
+        if (target.kind === 'work_package') {
+          if (effective === null) throw Error('fixture work-package authority vanished');
+          expect(effective.permissions.has('package.write')).toBe(true);
           return {
             ...effective,
             permissions: new Set(
@@ -2623,7 +2829,7 @@ for (const operation of ['write', 'replay'] as const) {
         expect(
           operation === 'write'
             ? await batch('manager', 'setBudget')
-            : await h.call('manager', 'POST', '/api/projects/wp/undo'),
+            : await h.call('manager', 'POST', '/api/work-packages/wp/undo'),
         ).toMatchObject({
           status: 403,
           body: { error: 'forbidden', permission: 'project.manage_budgets' },
@@ -2676,15 +2882,15 @@ for (const operation of ['rank', 'capacity mode'] as const) {
       }
       return effective;
     });
-    const tables = ['project_rank', 'organization', 'event_log', 'organization_audit'];
+    const tables = ['work_package_rank', 'organization', 'event_log', 'organization_audit'];
     const before = tables.map((table) =>
       h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
     );
     try {
       const pending =
         operation === 'rank'
-          ? h.call('manager', 'POST', '/api/organization/projects/wp/rank', {
-              afterProjectId: null,
+          ? h.call('manager', 'POST', '/api/organization/work-packages/wp/rank', {
+              afterWorkPackageId: null,
             })
           : h.call('manager', 'PATCH', '/api/organization', { sharedPeople: true });
       await grantRead.promise;
@@ -2722,9 +2928,9 @@ it('refuses public rank authority before a broken mutation port', async () => {
   };
   const connection = openConnection(h.databasePath());
   const mutate = () => Promise.reject(new Error('rank mutation must not run'));
-  const ranks = new ProjectRankResource({
+  const ranks = new WorkPackageRankResource({
     ranks: { orderIn: () => Promise.resolve([]), moveAfter: mutate },
-    projects: { listWithin: () => Promise.reject(new Error('naming must not run')) },
+    workPackages: { listWithin: () => Promise.reject(new Error('naming must not run')) },
     clock: testClock,
     accessDecisions: new AccessDecisionRepository(connection.db),
   });
@@ -2833,14 +3039,19 @@ for (const operation of [
   });
 }
 
-it('throws before grant reads when direct project creation names another owner', async () => {
+it('throws before grant reads when direct work package creation names another owner', async () => {
   expect(
     await borrowedWrite('manager', async (services, access) => {
       const grants = spyOn(AccessDecisionRepository.prototype, 'effectiveRoleAt');
       try {
         await rejectsWith(
-          services.projects.createWithin('Denied', h.userId('contributor'), access),
-          'project creation principal differs',
+          services.workPackages.createWithin(
+            'Denied',
+            'permission-parent-a',
+            h.userId('contributor'),
+            access,
+          ),
+          'work package creation principal differs',
         );
         expect(grants).not.toHaveBeenCalled();
         return { ok: false };
@@ -2849,7 +3060,7 @@ it('throws before grant reads when direct project creation names another owner',
       }
     }),
   ).toEqual({ ok: false });
-  expect(h.sqlite.query('SELECT name FROM project ORDER BY id').all()).toEqual([
+  expect(h.sqlite.query('SELECT name FROM work_package ORDER BY id').all()).toEqual([
     { name: 'Package' },
   ]);
 });
@@ -2866,9 +3077,9 @@ it('keeps direct service creation with its authenticated actor', async () => {
   ).toMatchObject({ ok: true });
   expect(
     await borrowedWrite('manager', (services, current, actorId) =>
-      services.projects.createWithin('Same actor', actorId, current),
+      services.workPackages.createWithin('Same actor', 'permission-parent-a', actorId, current),
     ),
-  ).toMatchObject({ ok: true, value: { project: { ownerId: accountId } } });
+  ).toMatchObject({ ok: true, value: { workPackage: { projectId: 'permission-parent-a' } } });
 });
 
 for (const fault of ['principal', 'scoped account'] as const) {
@@ -2907,7 +3118,7 @@ for (const operation of ['capture', 'rename', 'delete'] as const) {
   it('rechecks package.write in the independent saved-plan ' + operation + ' writer', async () => {
     if (operation !== 'capture')
       expect(
-        await h.call('manager', 'POST', '/api/projects/wp/saved-plans', { name: 'Original' }),
+        await h.call('manager', 'POST', '/api/work-packages/wp/saved-plans', { name: 'Original' }),
       ).toMatchObject({ status: 201 });
     const saved = h.sqlite.query<{ id: string }, []>('SELECT id FROM saved_plan').get();
     const before = [
@@ -2956,7 +3167,7 @@ for (const operation of ['capture', 'rename', 'delete'] as const) {
     try {
       const answer = await (async () => {
         if (operation === 'capture')
-          return h.call('manager', 'POST', '/api/projects/wp/saved-plans', { name: 'Denied' });
+          return h.call('manager', 'POST', '/api/work-packages/wp/saved-plans', { name: 'Denied' });
         if (saved === null) throw Error('fixture saved plan disappeared');
         return operation === 'rename'
           ? h.call('manager', 'PATCH', '/api/saved-plans/' + saved.id, { name: 'Denied' })
@@ -3010,7 +3221,7 @@ for (const phase of ['admission', 'command'] as const)
         await h.call(
           phase === 'admission' ? 'contributor' : 'manager',
           'PATCH',
-          '/api/projects/wp/steps/step',
+          '/api/work-packages/wp/steps/step',
           { allowancePercent: 25 },
         ),
       ).toMatchObject({
@@ -3027,3 +3238,359 @@ for (const phase of ['admission', 'command'] as const)
       denied?.mockRestore();
     }
   });
+
+/** Runs new parent-budget controls over the actual fixture, preserving primary and selected-close failures. */
+async function runCurrentParentBudgetCase(
+  act: (scope: OrganizationHarness) => Promise<void>,
+): Promise<void> {
+  const scope = h;
+  const close = scope.closeComposed.bind(scope);
+  let primary: { readonly failure: unknown } | undefined;
+  try {
+    await act(scope);
+  } catch (failure: unknown) {
+    primary = { failure };
+  }
+  const cleanup: unknown[] = [];
+  if (!fixtureCloseConsumed) {
+    fixtureCloseConsumed = true;
+    try {
+      await close();
+    } catch (failure: unknown) {
+      cleanup.push(failure);
+    }
+  }
+  if (primary !== undefined) {
+    if (cleanup.length !== 0)
+      throw new AggregateError(
+        [primary.failure, ...cleanup],
+        'Current-parent budget operation and composed cleanup failed',
+        { cause: primary.failure },
+      );
+    throw primary.failure;
+  }
+  if (cleanup.length !== 0)
+    throw new AggregateError(cleanup, 'Current-parent budget composed cleanup failed', {
+      cause: cleanup[0],
+    });
+}
+
+/** Persists only the explicit project budget pair and a separate direct package visibility grant. */
+function seedCurrentParentBudgetRole(scope: OrganizationHarness): void {
+  scope.sqlite.run(
+    "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+    [scope.userId('manager')],
+  );
+  scope.sqlite.run(
+    "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES('current-parent-budget','Current parent budget','project',NULL,0,'org-a',1)",
+  );
+  for (const permission of ['package.read', 'project.manage_budgets'])
+    scope.sqlite.run(
+      "INSERT INTO access_role_permission(role_id,permission) VALUES('current-parent-budget',?)",
+      [permission],
+    );
+  grant('manager', 'current-parent-budget', 'project', 'permission-parent-a');
+  grant('manager', 'package-viewer', 'work_package', 'wp');
+  scope.sqlite.run("UPDATE work_package SET restricted=1 WHERE id='wp'");
+  expect(
+    scope.sqlite.query("SELECT project_id,restricted FROM work_package WHERE id='wp'").get(),
+  ).toEqual({ project_id: 'permission-parent-a', restricted: 1 });
+  expect(
+    scope.sqlite
+      .query(
+        "SELECT permission FROM access_role_permission WHERE role_id='current-parent-budget' ORDER BY permission",
+      )
+      .all(),
+  ).toEqual([{ permission: 'package.read' }, { permission: 'project.manage_budgets' }]);
+}
+
+/** A real verified actor and current stored package parent, observed on the composed transaction's stores. */
+async function readBudgetAuthority(scope: OrganizationHarness) {
+  const principal = await scope.authenticatedCommandPrincipal('manager', '');
+  expect(principal.id).toBe(scope.userId('manager'));
+  return scope.publicWrites().uow.run(async ({ stores }) => {
+    const addressed = await stores.workPackages.findInOrganization('wp', 'org-a');
+    if (addressed === null) throw new Error('Current budget fixture package is absent');
+    const decisions = stores.accessDecisions;
+    if (decisions === undefined)
+      throw new Error('Current SQL budget fixture access decisions are absent');
+    const effective = await decisions.effectiveRoleAt(principal, {
+      kind: 'work_package',
+      chain: {
+        level: 'work_package',
+        organizationId: 'org-a',
+        spaceId: null,
+        projectId: addressed.projectId,
+        workPackageId: addressed.id,
+      },
+      restricted: addressed.restricted,
+    });
+    return {
+      commit: false,
+      value: {
+        projectId: addressed.projectId,
+        reads: effective?.permissions.has('package.read') ?? false,
+        writes: effective?.permissions.has('package.write') ?? false,
+        budgets: effective?.permissions.has('project.manage_budgets') ?? false,
+      },
+    };
+  });
+}
+
+/** Selected business state; authentication bookkeeping is deliberately outside this no-effect claim. */
+function captureBudgetState(scope: OrganizationHarness) {
+  return [
+    'work_item_budget',
+    'work_item',
+    'work_package',
+    'project',
+    'command_journal',
+    'event_log',
+    'event_sequencer',
+    'organization_audit',
+  ].map((table) => ({
+    table,
+    rows: scope.sqlite.query('SELECT * FROM "' + table + '" ORDER BY rowid').all(),
+  }));
+}
+
+/** Retains actual journal text bytes, independently of parsed runtime envelopes and mutable cursor facts. */
+function readBudgetJournalBytes(scope: OrganizationHarness) {
+  return scope.sqlite
+    .query<{ id: unknown; payload: unknown; inverse: unknown }, [string]>(
+      "SELECT id,payload,inverse FROM command_journal WHERE work_package_id='wp' AND user_id=? ORDER BY seq",
+    )
+    .all(scope.userId('manager'))
+    .map((row) => {
+      if (
+        typeof row.id !== 'string' ||
+        typeof row.payload !== 'string' ||
+        typeof row.inverse !== 'string'
+      )
+        throw new Error('Actual budget journal bytes are malformed');
+      return { id: row.id, payload: row.payload, inverse: row.inverse };
+    });
+}
+
+function expectCurrentBudgetRequirements(scope: OrganizationHarness): void {
+  const expected = JSON.stringify({
+    version: 1,
+    requirements: [
+      {
+        permission: 'project.manage_budgets',
+        target: { kind: 'budget_owner', workPackageId: 'wp' },
+      },
+    ],
+  });
+  const recorded = scope.sqlite
+    .query<{ authorization: unknown }, [string]>(
+      "SELECT json_extract(payload,'$.authorization') AS authorization FROM command_journal WHERE work_package_id='wp' AND user_id=? ORDER BY seq",
+    )
+    .all(scope.userId('manager'));
+  expect(recorded.length).toBeGreaterThan(0);
+  for (const row of recorded) expect(row.authorization).toBe(expected);
+}
+
+function readBudgetWorkRevision(scope: OrganizationHarness): number {
+  const row = scope.sqlite
+    .query<{ revision: unknown }, []>("SELECT revision FROM work_item WHERE id='work'")
+    .get();
+  if (row === null || typeof row.revision !== 'number' || !Number.isSafeInteger(row.revision))
+    throw new Error('Actual budget work revision is malformed');
+  return row.revision;
+}
+
+it('permits a restricted budget through its actual project grant without package.write and retains generic replay admission', async () =>
+  runCurrentParentBudgetCase(async (scope) => {
+    seedCurrentParentBudgetRole(scope);
+    expect(await readBudgetAuthority(scope)).toEqual({
+      projectId: 'permission-parent-a',
+      reads: true,
+      writes: false,
+      budgets: true,
+    });
+    expect(await batch('manager', 'setBudget')).toMatchObject({ status: 200 });
+    expect(
+      scope.sqlite
+        .query(
+          "SELECT cap FROM work_item_budget WHERE work_item_id='work' AND measure_key='tokens'",
+        )
+        .all(),
+    ).toEqual([{ cap: 5 }]);
+    expect(await batch('manager', 'clearBudget')).toMatchObject({ status: 200 });
+    expect(
+      scope.sqlite
+        .query(
+          "SELECT cap FROM work_item_budget WHERE work_item_id='work' AND measure_key='tokens'",
+        )
+        .all(),
+    ).toEqual([]);
+    expectCurrentBudgetRequirements(scope);
+    const before = captureBudgetState(scope);
+    expect(await scope.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'package.write' },
+    });
+    expect(captureBudgetState(scope)).toEqual(before);
+  }));
+
+it('replays immutable budget obligations at the actual moved parent and restamps neighboring preconditions', async () =>
+  runCurrentParentBudgetCase(async (scope) => {
+    seedCurrentParentBudgetRole(scope);
+    expect(await readBudgetAuthority(scope)).toEqual({
+      projectId: 'permission-parent-a',
+      reads: true,
+      writes: false,
+      budgets: true,
+    });
+    expect(await batch('manager', 'setBudget')).toMatchObject({ status: 200 });
+    expect(
+      await scope.call('manager', 'POST', '/api/work-packages/wp/commands', {
+        commands: [{ ...commands.setBudget, cap: 8 }],
+      }),
+    ).toMatchObject({ status: 200 });
+    const immutable = readBudgetJournalBytes(scope);
+    expect(immutable).toHaveLength(2);
+    expectCurrentBudgetRequirements(scope);
+    const older = immutable.at(0);
+    if (older === undefined) throw new Error('Actual older budget recording is absent');
+    const originalPreconditions = scope.sqlite
+      .query<{ preconditions: unknown }, [string]>(
+        'SELECT preconditions FROM command_journal WHERE id=?',
+      )
+      .get(older.id);
+    if (originalPreconditions === null || typeof originalPreconditions.preconditions !== 'string')
+      throw new Error('Actual older budget preconditions are absent');
+    let before = captureBudgetState(scope);
+    expect(await scope.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'package.write' },
+    });
+    expect(captureBudgetState(scope)).toEqual(before);
+
+    await scope.register('Mover');
+    scope.member('org-a', 'Mover', 'viewer', ['org-admin']);
+    scope.bind('Mover', 'org-a');
+    scope.grant('org-a', 'Mover', 'package-contributor', 'work_package', 'wp');
+    const target = await scope.call('Mover', 'POST', '/api/projects', {
+      name: 'Actual budget replay target',
+    });
+    expect(target.status).toBe(201);
+    const targetBody = target.body;
+    if (
+      typeof targetBody !== 'object' ||
+      targetBody === null ||
+      !('project' in targetBody) ||
+      typeof targetBody.project !== 'object' ||
+      targetBody.project === null ||
+      !('id' in targetBody.project) ||
+      typeof targetBody.project.id !== 'string' ||
+      targetBody.project.id === ''
+    )
+      throw new Error('Actual named budget replay target is absent');
+    const targetProjectId = targetBody.project.id;
+    const workRevision = readBudgetWorkRevision(scope);
+    expect(
+      await scope.call('Mover', 'POST', '/api/work-packages/wp/move', {
+        projectId: targetProjectId,
+      }),
+    ).toMatchObject({ status: 200, body: { workPackageId: 'wp', projectId: targetProjectId } });
+    expect(
+      scope.sqlite.query("SELECT project_id,restricted FROM work_package WHERE id='wp'").get(),
+    ).toEqual({ project_id: targetProjectId, restricted: 1 });
+    expect(readBudgetWorkRevision(scope)).toBe(workRevision);
+    expect(readBudgetJournalBytes(scope)).toEqual(immutable);
+    expect(
+      scope.sqlite
+        .query(
+          "SELECT scope_id FROM access_grant WHERE subject_kind='user' AND subject_id=? AND role_id='current-parent-budget' ORDER BY scope_id",
+        )
+        .all(scope.userId('manager')),
+    ).toEqual([{ scope_id: 'permission-parent-a' }]);
+
+    grant('manager', 'package-contributor', 'work_package', 'wp');
+    expect(await readBudgetAuthority(scope)).toEqual({
+      projectId: targetProjectId,
+      reads: true,
+      writes: true,
+      budgets: false,
+    });
+    before = captureBudgetState(scope);
+    expect(await scope.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'project.manage_budgets' },
+    });
+    expect(captureBudgetState(scope)).toEqual(before);
+    grant('manager', 'current-parent-budget', 'project', targetProjectId);
+    const authority = await readBudgetAuthority(scope);
+    expect(authority).toEqual({
+      projectId: targetProjectId,
+      reads: true,
+      writes: true,
+      budgets: true,
+    });
+    console.info(
+      'Actual current-parent budget replay prerequisites',
+      JSON.stringify({ authority, journal: immutable.map(({ id }) => id) }),
+    );
+    expect(await scope.call('manager', 'POST', '/api/work-packages/wp/undo')).toMatchObject({
+      status: 200,
+    });
+    expect(
+      scope.sqlite
+        .query(
+          "SELECT cap FROM work_item_budget WHERE work_item_id='work' AND measure_key='tokens'",
+        )
+        .all(),
+    ).toEqual([{ cap: 5 }]);
+    const restamped = scope.sqlite
+      .query<{ preconditions: unknown; expectedRevision: unknown }, [string]>(
+        "SELECT preconditions,json_extract(preconditions,'$.expected.work') AS expectedRevision FROM command_journal WHERE id=?",
+      )
+      .get(older.id);
+    if (restamped === null || typeof restamped.preconditions !== 'string')
+      throw new Error('Actual restamped budget preconditions are absent');
+    expect(restamped.preconditions).not.toBe(originalPreconditions.preconditions);
+    expect(restamped.expectedRevision).toBe(workRevision + 1);
+    expect(restamped.expectedRevision).toBe(readBudgetWorkRevision(scope));
+    expect(readBudgetJournalBytes(scope)).toEqual(immutable);
+    expectCurrentBudgetRequirements(scope);
+    for (const [direction, cap] of [
+      ['redo', 8],
+      ['undo', 5],
+      ['undo', null],
+    ] as const) {
+      expect(
+        await scope.call('manager', 'POST', '/api/work-packages/wp/' + direction),
+      ).toMatchObject({ status: 200 });
+      expect(
+        scope.sqlite
+          .query(
+            "SELECT cap FROM work_item_budget WHERE work_item_id='work' AND measure_key='tokens'",
+          )
+          .all(),
+      ).toEqual(cap === null ? [] : [{ cap }]);
+      expect(readBudgetJournalBytes(scope)).toEqual(immutable);
+      expectCurrentBudgetRequirements(scope);
+    }
+    const revoked = scope.sqlite
+      .query(
+        "DELETE FROM access_grant WHERE subject_kind='user' AND subject_id=? AND scope_kind='project' AND scope_id=? AND role_id='current-parent-budget'",
+      )
+      .run(scope.userId('manager'), targetProjectId);
+    expect(revoked.changes).toBe(1);
+    expect(await readBudgetAuthority(scope)).toEqual({
+      projectId: targetProjectId,
+      reads: true,
+      writes: true,
+      budgets: false,
+    });
+    before = captureBudgetState(scope);
+    expect(await scope.call('manager', 'POST', '/api/work-packages/wp/redo')).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'project.manage_budgets' },
+    });
+    expect(captureBudgetState(scope)).toEqual(before);
+    expect(readBudgetJournalBytes(scope)).toEqual(immutable);
+    expectCurrentBudgetRequirements(scope);
+  }));

@@ -15,7 +15,7 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
  * the partial index and the order `CHECK` included.
  */
 let h: OrganizationHarness;
-let project: string;
+let workPackage: string;
 let dev: string;
 let qa: string;
 let strip: string;
@@ -33,10 +33,13 @@ async function populate(): Promise<void> {
   h.grantPermissions('org-a', 'ada', ['organization.create_project', 'package.manage_settings']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Rewire the shed' });
+  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Rewire the shed' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const body = created.body as { project: { id: string }; steps: { id: string; name: string }[] };
-  project = body.project.id;
+  const body = created.body as {
+    workPackage: { id: string };
+    steps: { id: string; name: string }[];
+  };
+  workPackage = body.workPackage.id;
   dev = stepNamed(body.steps, 'Dev');
   qa = stepNamed(body.steps, 'QA');
   const leaf = await batch([
@@ -53,12 +56,12 @@ afterEach(() => {
 
 function stepNamed(steps: readonly { id: string; name: string }[], name: string): string {
   const step = steps.find((each) => each.name === name);
-  if (step === undefined) throw new Error(`a project without its seed step ${name}`);
+  if (step === undefined) throw new Error(`a work package without its seed step ${name}`);
   return step.id;
 }
 
 const batch = (commands: unknown[]): Promise<Answer> =>
-  h.call('ada', 'POST', `/api/projects/${project}/commands`, { commands });
+  h.call('ada', 'POST', `/api/work-packages/${workPackage}/commands`, { commands });
 
 /** One node's stored attempts, ascending, as the table holds them. */
 function stored(stepId: string) {
@@ -78,19 +81,19 @@ function stored(stepId: string) {
     .all(strip, stepId);
 }
 
-describe('the project timezone on the tree read', () => {
+describe('the work package timezone on the tree read', () => {
   /**
    * The zone a step card formats attempt instants in arrives with the plan it
    * draws (`step-node-attempts` D7), so a card never reads a second request.
    */
   it('carries UTC by default and the patched zone after a PATCH', async () => {
     const zoneOfTree = async (): Promise<unknown> => {
-      const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      const read = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
       if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
       return (read.body as { timezone?: unknown }).timezone;
     };
     expect(await zoneOfTree()).toBe('UTC');
-    const patched = await h.call('ada', 'PATCH', `/api/projects/${project}`, {
+    const patched = await h.call('ada', 'PATCH', `/api/work-packages/${workPackage}`, {
       timezone: 'Europe/Kyiv',
     });
     expect(patched.status).toBe(200);
@@ -194,7 +197,7 @@ describe('the attempt commands', () => {
   });
 
   it('starts an attempt by step node ID with a reference, as an MCP client sends it, and one undo removes it', async () => {
-    // The body the derived `postApiProjectsByIdCommands` tool forwards.
+    // The body the derived `postApiWorkPackagesByIdCommands` tool forwards.
     const started = await batch([
       {
         kind: 'startAttempt',
@@ -207,7 +210,7 @@ describe('the attempt commands', () => {
       { attempt_number: 1, ended_at: null, outcome: null, reference: 'https://ci.example/run/7' },
     ]);
 
-    expect(await h.call('ada', 'POST', `/api/projects/${project}/undo`)).toMatchObject({
+    expect(await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).toMatchObject({
       status: 200,
       body: { done: 'started attempt 1 of 010.s1-dev' },
     });
@@ -225,7 +228,9 @@ describe('the attempt commands', () => {
     expect(created.status).toBe(200);
     expect(stored(dev)).toEqual([]);
 
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(stored(dev)).toEqual(held);
   });
 
@@ -241,7 +246,9 @@ describe('the attempt commands', () => {
     await batch([{ kind: 'deleteWorkItem', workItemId: strip }]);
     expect(stored(dev)).toEqual([]);
 
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(stored(dev)).toEqual(held);
   });
 });
@@ -272,7 +279,7 @@ describe('attempt numbers are never reused', () => {
   };
 
   const call = (route: 'undo' | 'redo') =>
-    h.call('ada', 'POST', `/api/projects/${project}/${route}`);
+    h.call('ada', 'POST', `/api/work-packages/${workPackage}/${route}`);
 
   it('numbers count up and never reuse: remove 2 of {1, 2}, the next start is 3', async () => {
     await twoEnded();
@@ -358,7 +365,7 @@ describe('the work-item read', () => {
   }
 
   async function readRows(): Promise<Map<string, ReadRow>> {
-    const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+    const read = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
     if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
     return new Map(
       (read.body as { workItems: ReadRow[] }).workItems.map((row) => [row.name, row] as const),
@@ -368,7 +375,7 @@ describe('the work-item read', () => {
   /**
    * The spec's "a running attempt leaves the span open" and "no attempts, no
    * span", read through both live-plan paths: the isolated read and the shared
-   * observation `readLiveProjectIn` captures.
+   * observation `readLiveWorkPackageIn` captures.
    */
   for (const mode of ['isolated', 'shared'] as const) {
     it(`reads attempts ascending and derived spans per node and leaf (${mode})`, async () => {
@@ -427,7 +434,7 @@ describe('node readings on the work-item read', () => {
 
   /** Every row's readings by name; a parent carries none. */
   async function readingsByName(): Promise<Map<string, Readings | undefined>> {
-    const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+    const read = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
     if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
     const rows = (read.body as { workItems: { name: string; nodeReadings?: Readings }[] })
       .workItems;
@@ -531,7 +538,7 @@ describe('node readings on the work-item read', () => {
           type: 'FS',
         },
       ]);
-      const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      const read = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
       expect(read.status).toBe(200);
       const rows = (
         read.body as { workItems: { id: string; status: string; nodeReadings: Readings }[] }
@@ -557,14 +564,14 @@ describe('node readings on the work-item read', () => {
       ).at(0);
       if (child === undefined) throw new Error('no child');
       await run([{ kind: 'setProgress', workItemId: child, stepId: dev, state: 'in_progress' }]);
-      const before = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      const before = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
       expect(before.status).toBe(200);
       // Reproduce a pre-fix move's persisted row in the fully migrated database.
       h.sqlite.run(
         "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, 'done', 1)",
         [strip, dev],
       );
-      const after = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      const after = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
       expect(after.status).toBe(200);
       interface Row {
         id: string;
@@ -572,12 +579,12 @@ describe('node readings on the work-item read', () => {
         progress: Record<string, string>;
         nodeReadings: Readings;
       }
-      const projectRows = (answer: Answer) =>
+      const workPackageRows = (answer: Answer) =>
         (answer.body as { workItems: Row[] }).workItems.map(
           ({ id, status, progress, nodeReadings }) => ({ id, status, progress, nodeReadings }),
         );
-      expect(projectRows(after)).toEqual(projectRows(before));
-      expect(projectRows(after).find((row) => row.id === strip)?.nodeReadings).toBeUndefined();
+      expect(workPackageRows(after)).toEqual(workPackageRows(before));
+      expect(workPackageRows(after).find((row) => row.id === strip)?.nodeReadings).toBeUndefined();
       expect(
         h.sqlite
           .query<{ state: string }, [string]>(
@@ -603,23 +610,23 @@ describe('node readings on the work-item read', () => {
         const downstream = await leaf('Downstream');
         if (hasHold) await run([{ kind: 'setStatus', workItemId: strip, status: 'blocked' }]);
         h.sqlite.run(
-          'INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)',
+          'INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)',
           [
             crypto.randomUUID(),
-            project,
+            workPackage,
             strip,
             other,
             crypto.randomUUID(),
-            project,
+            workPackage,
             other,
             strip,
             crypto.randomUUID(),
-            project,
+            workPackage,
             other,
             downstream,
           ],
         );
-        const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+        const read = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
         expect(read.status).toBe(200);
         const tree = read.body as {
           scheduleError: string;
@@ -721,11 +728,11 @@ describe('persisted step blockage on the live work-item read', () => {
       try {
         const capture = async () => {
           const beforeCalls = observed.mock.calls.length;
-          const answer = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+          const answer = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
           if (answer.status !== 200) throw new Error(`read refused: ${JSON.stringify(answer)}`);
           const call = observed.mock.calls
             .slice(beforeCalls)
-            .find(([ask]) => ask.projectId === project);
+            .find(([ask]) => ask.workPackageId === workPackage);
           if (call === undefined) throw new Error('live Fast scheduler request was not captured');
           const index = observed.mock.calls.indexOf(call);
           // Bun spy metadata loses the scheduler overload's return type at this test boundary.
@@ -810,7 +817,7 @@ describe('persisted step blockage on the live work-item read', () => {
       ]);
       expect(linked.status).toBe(200);
       const read = async () => {
-        const answer = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+        const answer = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
         if (answer.status !== 200) throw new Error(`read refused: ${JSON.stringify(answer)}`);
         return (
           answer.body as {
@@ -878,7 +885,7 @@ describe('persisted step blockage on the live work-item read', () => {
         [child, dev, 111],
       );
       const read = async () => {
-        const answer = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+        const answer = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items`);
         if (answer.status !== 200) throw new Error(`read refused: ${JSON.stringify(answer)}`);
         return (
           answer.body as {
@@ -958,11 +965,14 @@ describe('the plan document carries the zone and the attempts', () => {
   const failed = Date.UTC(2026, 9, 10, 9, 30);
   const retried = Date.UTC(2026, 9, 10, 10, 0);
 
-  /** `Strip` in a Kyiv project: Dev attempt 1 failed by Ana, attempt 2 running. */
+  /** `Strip` in a Kyiv work package: Dev attempt 1 failed by Ana, attempt 2 running. */
   async function attemptedExport(): Promise<Document> {
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${project}`, { timezone: 'Europe/Kyiv' }))
-        .status,
+      (
+        await h.call('ada', 'PATCH', `/api/work-packages/${workPackage}`, {
+          timezone: 'Europe/Kyiv',
+        })
+      ).status,
     ).toBe(200);
     h.sqlite.run("INSERT INTO person (id, name) VALUES ('pe-ana', 'root-Ana')");
     h.sqlite.run(
@@ -986,15 +996,19 @@ describe('the plan document carries the zone and the attempts', () => {
       const answered = await batch(commands);
       if (answered.status !== 200) throw new Error(`refused: ${JSON.stringify(answered)}`);
     }
-    const exported = await h.call('ada', 'GET', `/api/projects/${project}/export?format=json`);
+    const exported = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackage}/export?format=json`,
+    );
     if (exported.status !== 200) throw new Error(`export refused: ${JSON.stringify(exported)}`);
     return exported.body as Document;
   }
 
-  const projectCount = () =>
-    h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM project').get()?.n;
+  const workPackageCount = () =>
+    h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM work_package').get()?.n;
 
-  it('round-trips a Kyiv project whose 010.dev holds attempts 1 failed and 2 running', async () => {
+  it('round-trips a Kyiv work package whose 010.dev holds attempts 1 failed and 2 running', async () => {
     const document = await attemptedExport();
     expect(document.document.version).toBe(11);
     expect(document.settings.timezone).toBe('Europe/Kyiv');
@@ -1024,12 +1038,14 @@ describe('the plan document carries the zone and the attempts', () => {
     });
     expect(document.directory.people.map(({ name }) => name)).toContain('Ana');
 
-    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(imported.status).toBe(201);
-    const copy = (imported.body as { projectId: string }).projectId;
-    const read = await h.call('ada', 'GET', `/api/projects/${copy}`);
-    expect((read.body as { project: { timezone: string } }).project.timezone).toBe('Europe/Kyiv');
-    const tree = await h.call('ada', 'GET', `/api/projects/${copy}/work-items`);
+    const copy = (imported.body as { workPackageId: string }).workPackageId;
+    const read = await h.call('ada', 'GET', `/api/work-packages/${copy}`);
+    expect((read.body as { workPackage: { timezone: string } }).workPackage.timezone).toBe(
+      'Europe/Kyiv',
+    );
+    const tree = await h.call('ada', 'GET', `/api/work-packages/${copy}/work-items`);
     const body = tree.body as {
       steps: { id: string; code: string }[];
       workItems: (DocumentRow & { id: string; attempts?: Record<string, unknown[]> })[];
@@ -1062,16 +1078,16 @@ describe('the plan document carries the zone and the attempts', () => {
   it('imports a version-6 document as UTC with no attempts', async () => {
     const document = await attemptedExport();
     document.document.version = 6;
-    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(imported.status).toBe(201);
-    const copy = (imported.body as { projectId: string }).projectId;
-    const read = await h.call('ada', 'GET', `/api/projects/${copy}`);
-    expect((read.body as { project: { timezone: string } }).project.timezone).toBe('UTC');
+    const copy = (imported.body as { workPackageId: string }).workPackageId;
+    const read = await h.call('ada', 'GET', `/api/work-packages/${copy}`);
+    expect((read.body as { workPackage: { timezone: string } }).workPackage.timezone).toBe('UTC');
     const rows = h.sqlite
       .query<{ n: number }, [string]>(
         `SELECT count(*) AS n FROM step_node_attempt
           JOIN work_item ON work_item.id = step_node_attempt.work_item_id
-          WHERE work_item.project_id = ?`,
+          WHERE work_item.work_package_id = ?`,
       )
       .get(copy);
     expect(rows?.n).toBe(0);
@@ -1079,7 +1095,7 @@ describe('the plan document carries the zone and the attempts', () => {
 
   /**
    * Each refusal answers `400 invalid_body` at its path and creates no
-   * project. Proofs, watched 2026-10-12, each check in `classifyPlanDocument`
+   * work package. Proofs, watched 2026-10-12, each check in `classifyPlanDocument`
    * disabled in turn: recorded beside the check.
    */
   it('refuses an unknown zone, an unknown outcome, an end before its start, two running and a running attempt not the highest', async () => {
@@ -1134,10 +1150,10 @@ describe('the plan document carries the zone and the attempts', () => {
         `workItems[${String(at)}].attempts.dev`,
       ],
     ];
-    const before = projectCount();
+    const before = workPackageCount();
     const answers = [];
     for (const [named, file] of cases) {
-      const refused = await h.call('ada', 'POST', '/api/projects/import', file);
+      const refused = await h.call('ada', 'POST', '/api/work-packages/import', file);
       answers.push({ named, status: refused.status, body: refused.body });
     }
     expect(answers).toEqual(
@@ -1147,17 +1163,17 @@ describe('the plan document carries the zone and the attempts', () => {
         body: { error: 'invalid_body', path, detail: null },
       })),
     );
-    expect(projectCount()).toBe(before);
+    expect(workPackageCount()).toBe(before);
   });
 
-  it('refuses an attempt executor the directory does not name, creating no project', async () => {
+  it('refuses an attempt executor the directory does not name, creating no work package', async () => {
     const document = await attemptedExport();
     const at = document.workItems.findIndex((each) => each.name === 'Strip');
     const first = document.workItems[at]?.attempts?.['dev']?.[0];
     if (first === undefined) throw new Error('the export lost the attempts');
     first['executor'] = 'Nobody';
-    const before = projectCount();
-    const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+    const before = workPackageCount();
+    const refused = await h.call('ada', 'POST', '/api/work-packages/import', document);
     expect(refused).toEqual({
       status: 400,
       body: {
@@ -1166,7 +1182,7 @@ describe('the plan document carries the zone and the attempts', () => {
         detail: null,
       },
     });
-    expect(projectCount()).toBe(before);
+    expect(workPackageCount()).toBe(before);
   });
 });
 
@@ -1213,7 +1229,9 @@ describe('first-child blockage preservation', () => {
         )
         .all();
     expect(owners()).toEqual([{ work_item_id: child, state: 'in_progress' }]);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(facts()).toEqual([
       { workItemId: strip, stepId: dev, blockedAt: 123 },
       { workItemId: strip, stepId: qa, blockedAt: 789 },
@@ -1226,7 +1244,9 @@ describe('first-child blockage preservation', () => {
         )
         .get(strip)?.count,
     ).toBe(0);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(facts()).toEqual([
       { workItemId: child, stepId: dev, blockedAt: 123 },
       { workItemId: child, stepId: qa, blockedAt: 789 },
@@ -1258,7 +1278,9 @@ describe('first-child blockage preservation', () => {
       const child = (created.body as { results: { id: string }[] }).results.at(0)?.id;
       if (child === undefined) throw new Error('first child missing');
       if (direction === 'redo')
-        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+        expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+          200,
+        );
       const owner = direction === 'undo' ? child : strip;
       // Direct SQL changes no owner revision: the conditional fact comparison must refuse.
       h.sqlite.run(
@@ -1270,9 +1292,9 @@ describe('first-child blockage preservation', () => {
           (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
         );
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        409,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(409);
       expect(snapshot()).toEqual(before);
       expect(facts()).toEqual([
         { workItemId: owner, stepId: dev, blockedAt: 123 },
@@ -1376,7 +1398,9 @@ describe('move blockage closure', () => {
         .query('SELECT work_item_id, step_id, state FROM step_progress ORDER BY work_item_id')
         .all();
     expect(states()).toEqual([{ work_item_id: moving, step_id: dev, state: 'in_progress' }]);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(facts()).toEqual(before);
     expect(states()).toEqual(
       [
@@ -1384,7 +1408,9 @@ describe('move blockage closure', () => {
         { work_item_id: destination, step_id: dev, state: 'done' },
       ].sort((a, b) => a.work_item_id.localeCompare(b.work_item_id)),
     );
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(facts()).toEqual(after);
     expect(states()).toEqual([{ work_item_id: moving, step_id: dev, state: 'in_progress' }]);
   });
@@ -1410,9 +1436,13 @@ describe('move blockage closure', () => {
     expect(h.sqlite.query('SELECT * FROM step_progress WHERE work_item_id = ?').all(strip)).toEqual(
       [],
     );
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(facts()).toEqual(incoming);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(
       h.sqlite
         .query('SELECT step_id, blocked_at FROM step_blockage WHERE work_item_id = ?')
@@ -1433,16 +1463,22 @@ describe('move blockage closure', () => {
   it('preserves exact mounted historical progress through last-child move undo redo', async () => {
     const moving = await historicalMove();
     const historical = h.sqlite.query('SELECT * FROM step_progress').all();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
     expect(
       h.sqlite
         .query<{ parent_id: string }, [string]>('SELECT parent_id FROM work_item WHERE id = ?')
         .get(moving)?.parent_id,
     ).toBe(strip);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
   });
 
@@ -1471,7 +1507,9 @@ describe('move blockage closure', () => {
           dev,
         ]);
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(409);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+        409,
+      );
       expect(snapshot()).toEqual(before);
     },
   );
@@ -1479,10 +1517,16 @@ describe('move blockage closure', () => {
   it('excludes unrelated owners from historical move replay revisions', async () => {
     const unrelated = await create('Unrelated');
     await historicalMove();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     h.sqlite.run('UPDATE work_item SET revision = revision + 1 WHERE id = ?', [unrelated]);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
   });
 
   it('requires empty leaf progress for a legacy move without a snapshot', async () => {
@@ -1492,7 +1536,9 @@ describe('move blockage closure', () => {
       'move',
     ]);
     const before = snapshot();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(409);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      409,
+    );
     expect(snapshot()).toEqual(before);
   });
 
@@ -1521,7 +1567,9 @@ describe('move blockage closure', () => {
       }),
       'move',
     ]);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(h.sqlite.query('SELECT * FROM step_progress ORDER BY step_id').all()).toEqual(
       historical,
     );
@@ -1553,12 +1601,14 @@ describe('move blockage closure', () => {
         'move',
       ]);
       const before = snapshot(true);
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+        500,
+      );
       expect(snapshot(true)).toEqual(before);
     },
   );
 
-  it('refuses a historical move snapshot naming a step outside the project', async () => {
+  it('refuses a historical move snapshot naming a step outside the work package', async () => {
     const moving = await historicalMove();
     h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
       JSON.stringify({
@@ -1573,7 +1623,9 @@ describe('move blockage closure', () => {
       'move',
     ]);
     const before = snapshot(true);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      404,
+    );
     expect(snapshot(true)).toEqual(before);
   });
 
@@ -1591,9 +1643,9 @@ describe('move blockage closure', () => {
     const historical = h.sqlite.query('SELECT * FROM step_progress').all();
     expect((await move(moving, null)).status).toBe(200);
     for (const direction of ['undo', 'undo', 'redo', 'redo', 'undo'] as const) {
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        200,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(200);
       expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
     }
   });
@@ -1611,17 +1663,25 @@ describe('move blockage closure', () => {
       'move',
     ]);
     const before = snapshot(true);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      500,
+    );
     expect(snapshot(true)).toEqual(before);
   });
 
   it('tracks the historical owner revision after redo before the second undo', async () => {
     await historicalMove();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     h.sqlite.run('UPDATE work_item SET revision = revision + 1 WHERE id = ?', [strip]);
     const before = snapshot();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(409);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      409,
+    );
     expect(snapshot()).toEqual(before);
   });
 
@@ -1631,16 +1691,18 @@ describe('move blockage closure', () => {
       const { moving, destination } = await arranged();
       expect((await move(moving, destination)).status).toBe(200);
       if (direction === 'redo')
-        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+        expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+          200,
+        );
       const owner = direction === 'undo' ? strip : destination;
       h.sqlite.run(
         'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
         [owner, qa, 'done', 456],
       );
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        409,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(409);
       expect(snapshot()).toEqual(before);
     },
   );
@@ -1654,12 +1716,14 @@ describe('move blockage closure', () => {
       block(destination, dev, 234);
       expect((await move(moving, destination)).status).toBe(200);
       if (direction === 'redo')
-        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+        expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+          200,
+        );
       block(direction === 'undo' ? strip : destination, qa, 456);
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        409,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(409);
       expect(snapshot()).toEqual(before);
     },
   );
@@ -1670,15 +1734,17 @@ describe('move blockage closure', () => {
       const { moving, destination } = await arranged();
       expect((await move(moving, destination)).status).toBe(200);
       if (direction === 'redo')
-        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+        expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+          200,
+        );
       h.sqlite.run(
         'UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
         [direction === 'undo' ? strip : destination, dev],
       );
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        409,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(409);
       expect(snapshot()).toEqual(before);
     },
   );
@@ -1689,7 +1755,9 @@ describe('move blockage closure', () => {
     async (fault) => {
       const { moving, destination } = await arranged();
       expect((await move(moving, destination)).status).toBe(200);
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+        200,
+      );
       if (fault === 'state')
         h.sqlite.run(
           "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
@@ -1706,7 +1774,9 @@ describe('move blockage closure', () => {
           dev,
         ]);
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+        409,
+      );
       expect(snapshot()).toEqual(before);
     },
   );
@@ -1719,9 +1789,9 @@ describe('move blockage closure', () => {
     ).toBe(200);
     expect((await move(moving, strip)).status).toBe(200);
     for (const direction of ['undo', 'undo', 'redo', 'redo'] as const) {
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        200,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(200);
     }
     expect(h.sqlite.query('SELECT * FROM step_progress WHERE work_item_id = ?').all(strip)).toEqual(
       [],
@@ -1754,7 +1824,9 @@ describe('move blockage closure', () => {
           : { [destination]: fault === 'owner' ? [{ ...fact, workItemId: moving }] : [fact, fact] },
       );
       const before = snapshot(true);
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+        500,
+      );
       expect(snapshot(true)).toEqual(before);
     },
   );
@@ -1768,7 +1840,9 @@ describe('move blockage closure', () => {
       ],
     });
     const before = snapshot(true);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      404,
+    );
     expect(snapshot(true)).toEqual(before);
   });
 
@@ -1779,7 +1853,9 @@ describe('move blockage closure', () => {
         .status,
     ).toBe(200);
     expect((await move(moving, strip)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     const path = `$.expected."${strip}"`;
     h.sqlite.run(
       "UPDATE command_journal SET preconditions = json_set(preconditions, ?, json_extract(preconditions, ?) - 1) WHERE kind = 'move'",
@@ -1793,11 +1869,17 @@ describe('move blockage closure', () => {
         .get()?.snapshot;
     const expected = guarded();
     expect(expected).toBeDefined();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(guarded()).toBe(expected);
     const before = snapshot();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      409,
+    );
     expect(snapshot()).toEqual(before);
   });
 
@@ -1815,23 +1897,29 @@ describe('move blockage closure', () => {
         ])
       ).status,
     ).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     h.sqlite.run(
       "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
       [destination, dev],
     );
     const before = snapshot();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      409,
+    );
     expect(snapshot()).toEqual(before);
   });
 
   it('scopes empty destination progress metadata owners before replay', async () => {
     const { moving, destination } = await arranged();
     expect((await move(moving, destination)).status).toBe(200);
-    const foreignProject = await h.call('ada', 'POST', '/api/projects', { name: 'Other plan' });
-    expect(foreignProject.status).toBe(200);
-    const foreignId = (foreignProject.body as { project: { id: string } }).project.id;
-    const created = await h.call('ada', 'POST', `/api/projects/${foreignId}/commands`, {
+    const foreignWorkPackage = await h.call('ada', 'POST', '/api/work-packages', {
+      name: 'Other plan',
+    });
+    expect(foreignWorkPackage.status).toBe(200);
+    const foreignId = (foreignWorkPackage.body as { workPackage: { id: string } }).workPackage.id;
+    const created = await h.call('ada', 'POST', `/api/work-packages/${foreignId}/commands`, {
       commands: [
         { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Other destination' },
       ],
@@ -1841,7 +1929,9 @@ describe('move blockage closure', () => {
     if (owner === undefined) throw new Error('foreign metadata fixture missing');
     replaceMoveProgress({ [owner]: [] });
     const before = snapshot(true);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      404,
+    );
     expect(snapshot(true)).toEqual(before);
   });
 
@@ -1856,17 +1946,25 @@ describe('move blockage closure', () => {
         .status,
     ).toBe(200);
     expect((await move(moving, strip)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     h.sqlite.run(
       "UPDATE step_progress SET state = 'in_progress', stated_at = 456 WHERE work_item_id = ? AND step_id = ?",
       [strip, dev],
     );
     const facts = h.sqlite.query('SELECT * FROM step_progress ORDER BY rowid').all();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(h.sqlite.query('SELECT * FROM step_progress ORDER BY rowid').all()).toEqual(facts);
     const before = snapshot();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      409,
+    );
     expect(snapshot()).toEqual(before);
   });
 
@@ -1890,7 +1988,9 @@ describe('move blockage closure', () => {
         ).status,
       ).toBe(200);
       expect((await move(moving, strip)).status).toBe(200);
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+        200,
+      );
       const guarded = () =>
         h.sqlite
           .query<{ snapshot: string }, []>(
@@ -1919,11 +2019,17 @@ describe('move blockage closure', () => {
           'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
           [strip, qa, 'in_progress', 456],
         );
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+        200,
+      );
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+        200,
+      );
       expect(guarded()).toBe(expected);
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+      expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+        409,
+      );
       expect(snapshot()).toEqual(before);
     },
   );
@@ -1939,30 +2045,42 @@ describe('move blockage closure', () => {
         .status,
     ).toBe(200);
     expect((await move(moving, strip)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     const qaRows = () =>
       h.sqlite
         .query('SELECT * FROM step_progress WHERE work_item_id = ? AND step_id = ?')
         .all(strip, qa);
     const untouched = qaRows();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     expect(qaRows()).toEqual(untouched);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(qaRows()).toEqual(untouched);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      200,
+    );
     expect(qaRows()).toEqual([]);
   });
 
   it('rolls back earlier replay steps when a later destination replacement refuses', async () => {
     const { moving, destination } = await arranged();
     expect((await move(moving, destination)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+      200,
+    );
     h.sqlite.run(
       'UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
       [destination, qa],
     );
     const before = snapshot();
-    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`)).status).toBe(
+      409,
+    );
     expect(snapshot()).toEqual(before);
   });
 
@@ -2017,8 +2135,8 @@ describe('deletion blockage preservation', () => {
     batch([
       { kind: 'deleteWorkItem', workItemId: owner, ...(strategy === null ? {} : { strategy }) },
     ]);
-  const undo = () => h.call('ada', 'POST', `/api/projects/${project}/undo`);
-  const redo = () => h.call('ada', 'POST', `/api/projects/${project}/redo`);
+  const undo = () => h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`);
+  const redo = () => h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`);
 
   it('preserves root leaf exact done blockage and time through mounted delete undo redo', async () => {
     expect(
@@ -2185,9 +2303,9 @@ describe('deletion blockage preservation', () => {
     ).toBe(200);
     expect((await remove(leaf)).status).toBe(200);
     for (const direction of ['undo', 'undo', 'redo', 'redo', 'undo'] as const) {
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        200,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(200);
     }
     expect(facts()).toEqual([{ work_item_id: leaf, step_id: dev, blocked_at: 10 }]);
   });
@@ -2311,14 +2429,14 @@ describe('deletion blockage preservation', () => {
         .status,
     ).toBe(200);
     for (const direction of ['undo', 'undo', 'redo', 'redo'] as const)
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        200,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(200);
     expect(states()).toMatchObject([{ work_item_id: strip, step_id: dev, state: 'in_progress' }]);
   });
 });
 
-describe('project-step blockage deletion', () => {
+describe('work-package-step blockage deletion', () => {
   const block = () =>
     h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
       strip,
@@ -2339,13 +2457,22 @@ describe('project-step blockage deletion', () => {
           (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state }])).status,
         ).toBe(200);
       const before = snapshot();
-      const refused = await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}`);
+      const refused = await h.call(
+        'ada',
+        'DELETE',
+        `/api/work-packages/${workPackage}/steps/${dev}`,
+      );
       expect(refused.status).toBe(409);
       expect(refused.body).toMatchObject({ error: 'in_use', inUse: { blockages: 1 } });
       expect(snapshot()).toEqual(before);
       expect(
-        (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`))
-          .status,
+        (
+          await h.call(
+            'ada',
+            'DELETE',
+            `/api/work-packages/${workPackage}/steps/${dev}?cascade=true`,
+          )
+        ).status,
       ).toBe(204);
       expect(h.sqlite.query('SELECT * FROM step_blockage').all()).toEqual([]);
       expect(h.sqlite.query('SELECT * FROM step WHERE id = ?').all(dev)).toEqual([]);
@@ -2357,10 +2484,11 @@ describe('project-step blockage deletion', () => {
     const before = snapshot();
     const historyBefore = h.sqlite.query('SELECT * FROM command_journal ORDER BY seq').all();
     h.sqlite.run(
-      "CREATE TRIGGER refuse_project_bump BEFORE UPDATE ON project BEGIN SELECT RAISE(ABORT, 'injected project bump failure'); END",
+      "CREATE TRIGGER refuse_work_package_bump BEFORE UPDATE ON work_package BEGIN SELECT RAISE(ABORT, 'injected work_package bump failure'); END",
     );
     expect(
-      (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`)).status,
+      (await h.call('ada', 'DELETE', `/api/work-packages/${workPackage}/steps/${dev}?cascade=true`))
+        .status,
     ).toBe(500);
     expect(snapshot()).toEqual(before);
     expect(h.sqlite.query('SELECT * FROM command_journal ORDER BY seq').all()).toEqual(
@@ -2374,24 +2502,31 @@ describe('project-step blockage deletion', () => {
       block();
       expect((await batch([{ kind: 'deleteWorkItem', workItemId: strip }])).status).toBe(200);
       if (direction === 'redo')
-        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+        expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+          200,
+        );
       expect(
-        (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`))
-          .status,
+        (
+          await h.call(
+            'ada',
+            'DELETE',
+            `/api/work-packages/${workPackage}/steps/${dev}?cascade=true`,
+          )
+        ).status,
       ).toBe(204);
       h.sqlite.run(
         "UPDATE command_journal SET preconditions = json_set(preconditions, '$.expected', json('{}'))",
       );
       const before = snapshot();
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        404,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(404);
       expect(snapshot()).toEqual(before);
     },
   );
 
   it.each(['undo', 'redo'] as const)(
-    'refuses old first-child %s after confirmed project-step deletion',
+    'refuses old first-child %s after confirmed work-package-step deletion',
     async (direction) => {
       block();
       const created = await batch([
@@ -2399,19 +2534,26 @@ describe('project-step blockage deletion', () => {
       ]);
       expect(created.status).toBe(200);
       if (direction === 'redo')
-        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+        expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
+          200,
+        );
       expect(
-        (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`))
-          .status,
+        (
+          await h.call(
+            'ada',
+            'DELETE',
+            `/api/work-packages/${workPackage}/steps/${dev}?cascade=true`,
+          )
+        ).status,
       ).toBe(204);
       const before = snapshot();
       // Remove revision evidence so step reference validation must itself refuse replay.
       h.sqlite.run(
         "UPDATE command_journal SET preconditions = json_set(preconditions, '$.expected', json('{}'))",
       );
-      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
-        404,
-      );
+      expect(
+        (await h.call('ada', 'POST', `/api/work-packages/${workPackage}/${direction}`)).status,
+      ).toBe(404);
       expect(snapshot()).toEqual(before);
     },
   );
@@ -2419,7 +2561,7 @@ describe('project-step blockage deletion', () => {
 
 function admissionSnapshot() {
   return Object.fromEntries(
-    ['work_item', 'step_blockage', 'command_journal', 'plan_event', 'project'].map((table) => [
+    ['work_item', 'step_blockage', 'command_journal', 'plan_event', 'work_package'].map((table) => [
       table,
       h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
     ]),
@@ -2448,16 +2590,16 @@ it('refuses mounted undo and redo of empty nested structural snapshots without c
   expect(deleted.status).toBe(200);
   h.sqlite.run("UPDATE step_blockage_activation SET state='DISABLED'");
   const deletedState = admissionSnapshot();
-  const refusedUndo = await h.call('ada', 'POST', `/api/projects/${project}/undo`);
+  const refusedUndo = await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`);
   expect(refusedUndo.status).toBe(409);
   expect(refusedUndo.body).toEqual({ error: 'step_blockage_inactive' });
   expect(admissionSnapshot()).toEqual(deletedState);
   activateTestStepBlockages(h.sqlite.filename);
-  const undone = await h.call('ada', 'POST', `/api/projects/${project}/undo`);
+  const undone = await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`);
   expect(undone.status).toBe(200);
   h.sqlite.run("UPDATE step_blockage_activation SET state='DISABLED'");
   const restoredState = admissionSnapshot();
-  const refusedRedo = await h.call('ada', 'POST', `/api/projects/${project}/redo`);
+  const refusedRedo = await h.call('ada', 'POST', `/api/work-packages/${workPackage}/redo`);
   expect(refusedRedo.status).toBe(409);
   expect(refusedRedo.body).toEqual({ error: 'step_blockage_inactive' });
   expect(admissionSnapshot()).toEqual(restoredState);

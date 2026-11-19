@@ -16,7 +16,7 @@ import { OrganizationHarness } from '../testing/organization-harness';
  * without the forwarded cookie (2026-10-11).
  *
  * Proof: composing `NO_BOUND_ORGANIZATION` in `bootBe01` when enabled failed
- * every booted case in `beforeEach`: the selected pair's project creation
+ * every booted case in `beforeEach`: the selected pair's work package creation
  * answered 403 `no_active_organization` (4 pass, 4 fail, 2026-10-11).
  */
 type SelectionHost = Pick<
@@ -35,8 +35,8 @@ const HOSTS: readonly [string, () => Promise<SelectionHost>][] = [
 let h: SelectionHost;
 const SECRET = 'x'.repeat(32);
 const selections = new Map<string, string>();
-let aProject: string;
-let bProject: string;
+let aWorkPackage: string;
+let bWorkPackage: string;
 
 async function select(username: string, organizationId: string): Promise<string> {
   const response = await h.app.handle(
@@ -56,9 +56,13 @@ async function select(username: string, organizationId: string): Promise<string>
   return pair.slice('__Host-wbs_organization='.length);
 }
 
-async function project(username: string, name: string, organizationId: string): Promise<string> {
+async function workPackage(
+  username: string,
+  name: string,
+  organizationId: string,
+): Promise<string> {
   const response = await h.app.handle(
-    new Request('http://localhost/api/projects', {
+    new Request('http://localhost/api/work-packages', {
       method: 'POST',
       headers: {
         cookie: `__Host-wbs_access=${h.token(username)}; __Host-wbs_organization=${selections.get(username) ?? ''}`,
@@ -70,13 +74,13 @@ async function project(username: string, name: string, organizationId: string): 
     }),
   );
   if (response.status !== 200) throw new Error(`create refused: ${await response.text()}`);
-  return ((await response.json()) as { project: { id: string } }).project.id;
+  return ((await response.json()) as { workPackage: { id: string } }).workPackage.id;
 }
 
 /** gw-01's call: its secret plus `username`'s access cookie and `organizationCookie`. */
-async function browserAccess(projectId: string, username: string, organizationCookie: string) {
+async function browserAccess(workPackageId: string, username: string, organizationCookie: string) {
   const response = await h.app.handle(
-    new Request(`http://localhost/internal/gateway/projects/${projectId}/browser-access`, {
+    new Request(`http://localhost/internal/gateway/work-packages/${workPackageId}/browser-access`, {
       method: 'POST',
       headers: {
         'x-internal-auth': SECRET,
@@ -107,8 +111,8 @@ describe.each(HOSTS)('browser-access with a real forwarded organization cookie (
     h.activate();
     selections.set('ada', await select('ada', 'org-a'));
     selections.set('grace', await select('grace', 'org-b'));
-    aProject = await project('ada', 'A plan', 'org-a');
-    bProject = await project('grace', 'B plan', 'org-b');
+    aWorkPackage = await workPackage('ada', 'A plan', 'org-a');
+    bWorkPackage = await workPackage('grace', 'B plan', 'org-b');
   });
 
   afterEach(async () => {
@@ -116,8 +120,8 @@ describe.each(HOSTS)('browser-access with a real forwarded organization cookie (
     selections.clear();
   });
 
-  it('admits the selected organization’s own project', async () => {
-    expect(await browserAccess(aProject, 'ada', selections.get('ada') ?? '')).toEqual({
+  it('admits the selected organization’s own work package', async () => {
+    expect(await browserAccess(aWorkPackage, 'ada', selections.get('ada') ?? '')).toEqual({
       status: 204,
       body: null,
     });
@@ -126,9 +130,9 @@ describe.each(HOSTS)('browser-access with a real forwarded organization cookie (
   it('refuses another user’s valid organization cookie pasted beside one’s own credential', async () => {
     // Grace's cookie is genuine but bound to her credential, so for Ada it
     // binds nothing: Ada has no active organization, not a foreign one.
-    const pasted = await browserAccess(bProject, 'ada', selections.get('grace') ?? '');
+    const pasted = await browserAccess(bWorkPackage, 'ada', selections.get('grace') ?? '');
     expect(pasted).toEqual({ status: 403, body: { error: 'no_active_organization' } });
-    expect(await browserAccess(aProject, 'ada', selections.get('grace') ?? '')).toEqual(pasted);
+    expect(await browserAccess(aWorkPackage, 'ada', selections.get('grace') ?? '')).toEqual(pasted);
   });
 
   it('refuses a removed member presenting their own still-valid cookie', async () => {
@@ -137,14 +141,14 @@ describe.each(HOSTS)('browser-access with a real forwarded organization cookie (
       h.userId('ada'),
     ]);
 
-    expect(await browserAccess(aProject, 'ada', selections.get('ada') ?? '')).toEqual({
+    expect(await browserAccess(aWorkPackage, 'ada', selections.get('ada') ?? '')).toEqual({
       status: 403,
       body: { error: 'not_a_member' },
     });
   });
 
-  it('refuses a foreign project as not found under the own selection', async () => {
-    const foreign = await browserAccess(bProject, 'ada', selections.get('ada') ?? '');
+  it('refuses a foreign work package as not found under the own selection', async () => {
+    const foreign = await browserAccess(bWorkPackage, 'ada', selections.get('ada') ?? '');
     expect(foreign).toEqual({ status: 404, body: { error: 'not_found' } });
     expect(await browserAccess(crypto.randomUUID(), 'ada', selections.get('ada') ?? '')).toEqual(
       foreign,

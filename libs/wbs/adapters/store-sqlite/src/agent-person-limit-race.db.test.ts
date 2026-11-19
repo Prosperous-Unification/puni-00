@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OrganizationLimitGauge, ResourceAccess, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -81,7 +81,7 @@ interface Hold {
 function runnerWith(hold: Hold) {
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -100,8 +100,8 @@ function runnerWith(hold: Hold) {
         return reading;
       },
       readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
-      readCapacityCap: (organizationId, resourceId, exceptProjectId) =>
-        gauge.readCapacityCap(organizationId, resourceId, exceptProjectId),
+      readCapacityCap: (organizationId, resourceId, exceptWorkPackageId) =>
+        gauge.readCapacityCap(organizationId, resourceId, exceptWorkPackageId),
     };
   };
   return createPlanCommandRunner({

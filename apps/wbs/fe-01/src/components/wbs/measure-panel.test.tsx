@@ -8,10 +8,10 @@ import {
   WbsRequestError,
   type WorkItemView,
 } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
+import { DEV, fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { CARD_A, CARD_B, RICH_MEASURES, SEEDED_MEASURES } from '@/testing/measure-fixtures';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { MeasurePanel, type MeasureWrites } from './measure-panel';
@@ -32,7 +32,7 @@ beforeEach(() => {
 
 /** A plan of one leaf, `extra` written onto its row, over the fake's model of be-01. */
 async function planOfOne(extra: Partial<WorkItemView> = {}) {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const made = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
   const row = api.rows.find((each) => each.id === made.id);
   if (row === undefined) throw new Error('the fake made no row');
@@ -40,9 +40,12 @@ async function planOfOne(extra: Partial<WorkItemView> = {}) {
   return { api, row };
 }
 
-function drawTable(api: ReturnType<typeof fakeProjectApi>, projectId = 'p1') {
+function drawTable(api: ReturnType<typeof fakeWorkPackageApi>, workPackageId = 'p1') {
   return render(
-    <WbsTableOverClient projectId={projectId} projectServices={projectServicesOf(api)} />,
+    <WbsTableOverClient
+      workPackageId={workPackageId}
+      workPackageServices={workPackageServicesOf(api)}
+    />,
   );
 }
 
@@ -67,7 +70,7 @@ async function openPanel(number = '010'): Promise<HTMLElement> {
 
 describe('measure columns (wbs-measure-budgets task 4.2)', () => {
   itDom(
-    'a fresh reader sees time only, and enabling tokens persists for this project alone',
+    'a fresh reader sees time only, and enabling tokens persists for this work package alone',
     async () => {
       const { api } = await planOfOne(RICH_MEASURES);
       const drawn = drawTable(api);
@@ -359,7 +362,7 @@ describe('reading the definitions', () => {
     expect(result.current).toEqual({ kind: 'organization_required' });
   });
 
-  itDom('shows no project’s definitions against another, nor a late answer', async () => {
+  itDom('shows no work package’s definitions against another, nor a late answer', async () => {
     let answerFirst: (directory: MeasureDirectory) => void = () => undefined;
     let answerLate: (directory: MeasureDirectory) => void = () => undefined;
     const commands = {
@@ -380,8 +383,8 @@ describe('reading the definitions', () => {
         .mockImplementationOnce(() => new Promise(() => undefined)),
     };
     const { result, rerender } = renderHook(
-      ({ projectId }) => useMeasureDefinitions(commands, projectId),
-      { initialProps: { projectId: 'p1' } },
+      ({ workPackageId }) => useMeasureDefinitions(commands, workPackageId),
+      { initialProps: { workPackageId: 'p1' } },
     );
     await waitFor(() => {
       expect(commands.listMeasures).toHaveBeenCalledTimes(1);
@@ -392,12 +395,12 @@ describe('reading the definitions', () => {
     });
     // The render right after the switch, before p2's read answers, holds p1's
     // definitions in state: they must not be shown.
-    rerender({ projectId: 'p2' });
+    rerender({ workPackageId: 'p2' });
     expect(result.current).toEqual({ kind: 'loading' });
     await waitFor(() => {
       expect(commands.listMeasures).toHaveBeenCalledTimes(2);
     });
-    rerender({ projectId: 'p3' });
+    rerender({ workPackageId: 'p3' });
     await act(async () => {
       answerLate({ kind: 'organization_required' });
       await Promise.resolve();
@@ -668,7 +671,7 @@ describe('review fixes of PR #680', () => {
         // test the operation-indexed union's spelling.
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: { error: 'rate_card_required', index: 0, kind: 'setMeasureEstimate' },
         } as unknown as WbsProblem),
       );
@@ -699,15 +702,17 @@ describe('review fixes of PR #680', () => {
     expect(localStorage.getItem('wbs.measureColumns.p1')).toBeNull();
   });
 
-  itDom('reads another project’s measure columns afresh', async () => {
+  itDom('reads another work package’s measure columns afresh', async () => {
     localStorage.setItem('wbs.measureColumns.p1', JSON.stringify({ tokens: true }));
     const { api } = await planOfOne();
-    const services = projectServicesOf(api);
-    const { rerender } = render(<WbsTableOverClient projectId="p1" projectServices={services} />);
+    const services = workPackageServicesOf(api);
+    const { rerender } = render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={services} />,
+    );
     await waitFor(() => {
       expect(headings()).toContain('measure-tokens-fact');
     });
-    rerender(<WbsTableOverClient projectId="p2" projectServices={services} />);
+    rerender(<WbsTableOverClient workPackageId="p2" workPackageServices={services} />);
     await waitFor(() => {
       expect(headings()).toContain('final-total');
     });

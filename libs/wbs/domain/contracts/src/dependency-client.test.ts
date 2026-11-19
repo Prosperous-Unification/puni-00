@@ -3,16 +3,16 @@ import { expect, test } from 'bun:test';
 import { dependencyClientRefusal, requiresDependencyClient } from './dependency-client';
 import { documentFromShapes } from './http/document-from-shapes';
 import { dependencyCapability, health } from './http/infrastructure-shapes';
-import { listProjects } from './http/project-shapes';
 import { httpShapes } from './http/shapes';
+import { listWorkPackages } from './http/work-package-shapes';
 
 test('documents resource admission and exempts health and immutable capability', () => {
-  expect(requiresDependencyClient(listProjects)).toBe(true);
+  expect(requiresDependencyClient(listWorkPackages)).toBe(true);
   expect(requiresDependencyClient(health)).toBe(false);
   expect(requiresDependencyClient(dependencyCapability)).toBe(false);
   expect(
     JSON.stringify(
-      documentFromShapes([listProjects]).paths['/api/projects']?.['get']?.responses['409'],
+      documentFromShapes([listWorkPackages]).paths['/api/work-packages']?.['get']?.responses['409'],
     ),
   ).toContain('client_dependency_incompatible');
   expect(dependencyClientRefusal.status).toBe(409);
@@ -51,11 +51,11 @@ test('pins the complete protected and exempt operation matrix', () => {
       'deleteApiOrganizationProvisioningTokensById',
       'deleteApiOrganizationSso-connectionsById',
       'deleteApiOrganizationTrusted-issuersById',
-      'deleteApiProjectsByIdCalendar-markersByMarkerId',
-      'deleteApiProjectsByIdStepsByStepId',
       'deleteApiSaved-plansById',
       'deleteApiSpacesById',
       'deleteApiSpacesByIdProjectsByProjectId',
+      'deleteApiWorkPackagesByIdCalendar-markersByMarkerId',
+      'deleteApiWorkPackagesByIdStepsByStepId',
       'getApiExternal-systems',
       'getApiMeasures',
       'getApiOnboarding',
@@ -70,7 +70,6 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiOrganizationMachine-credentials',
       'getApiOrganizationMembers',
       'getApiOrganizationMemberships',
-      'getApiOrganizationProject-rank',
       'getApiOrganizationProvisioningTokens',
       // Proof: temporarily exempting this exact operation in dependency-claim.ts
       // failed the real protected/exempt matrix consumer (2026-10-26);
@@ -79,48 +78,15 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiOrganizationSession-policy',
       'getApiOrganizationSso-connections',
       'getApiOrganizationTrusted-issuers',
+      'getApiOrganizationWorkPackage-rank',
       'getApiPeople',
       'getApiPeopleByPersonIdLoad',
       'getApiPeopleLoad',
-      'getApiProjectAddressesProjects',
-      'getApiProjects',
-      'getApiProjectsById',
-      'getApiProjectsByIdAddressCandidates',
-      'getApiProjectsByIdAddressReferences',
-      'getApiProjectsByIdBudget-headroom',
-      'getApiProjectsByIdCalendar-markers',
-      // Proof: exempting this id made the mounted connected history read
-      // admit a missing semantics claim with 200 instead of 409 (2026-10-24).
-      'getApiProjectsByIdClaim-history',
-      // Proof: temporarily exempting this exact claim operation moved it out of
-      // the protected matrix and failed this test (2026-10-24 CI repair).
-      'getApiProjectsByIdClaims',
-      'getApiProjectsByIdExport',
-      'getApiProjectsByIdHistory',
-      'getApiProjectsByIdPeopleByPersonIdWork',
-      // Proof: temporarily exempting this exact operation in dependency-claim.ts
-      // failed the real protected/exempt matrix consumer (2026-10-26);
-      // restoring the classifier passed both tests. Classification proof only.
-      'getApiProjectsByIdResourceUses',
-      // Proof: temporarily exempting this exact operation in dependency-claim.ts
-      // failed the real protected/exempt matrix consumer (2026-10-26);
-      // restoring the classifier passed both tests. Classification proof only.
-      'getApiProjectsByIdResourceUsesByUseIdHistory',
-      'getApiProjectsByIdResources',
-      'getApiProjectsByIdSaved-plans',
-      'getApiProjectsByIdSaved-plansCompare',
-      'getApiProjectsByIdStartable',
-      'getApiProjectsByIdStep-references',
-      'getApiProjectsByIdWork-item-rows',
-      'getApiProjectsByIdWork-items',
-      'getApiProjectsByIdWork-itemsByWorkItemId',
-      // Proof: temporarily exempting this saved-reference delivery operation
-      // moved it out of the protected matrix and failed this test (2026-10-24).
-      'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
       // Proof: temporarily exempting this exact operation in dependency-claim.ts
       // failed the real protected/exempt matrix consumer (2026-10-26);
       // restoring the classifier passed both tests. Classification proof only.
       'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
+      'getApiProjectsByIdSettings',
       'getApiSaved-plansById',
       'getApiServices',
       'getApiSpaces',
@@ -130,6 +96,41 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiTags',
       'getApiTeams',
       'getApiWork-item-types',
+      'getApiWorkPackageAddressesWorkPackages',
+      'getApiWorkPackages',
+      'getApiWorkPackagesById',
+      'getApiWorkPackagesByIdAddressCandidates',
+      'getApiWorkPackagesByIdAddressReferences',
+      'getApiWorkPackagesByIdBudget-headroom',
+      'getApiWorkPackagesByIdCalendar-markers',
+      // Proof: exempting this id made the mounted connected history read
+      // admit a missing semantics claim with 200 instead of 409 (2026-10-24).
+      'getApiWorkPackagesByIdClaim-history',
+      // Proof: temporarily exempting this exact claim operation moved it out of
+      // the protected matrix and failed this test (2026-10-24 CI repair).
+      'getApiWorkPackagesByIdClaims',
+      'getApiWorkPackagesByIdExport',
+      'getApiWorkPackagesByIdHistory',
+      'getApiWorkPackagesByIdPeopleByPersonIdWork',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'getApiWorkPackagesByIdResourceUses',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'getApiWorkPackagesByIdResourceUsesByUseIdHistory',
+      'getApiWorkPackagesByIdResources',
+      'getApiWorkPackagesByIdSaved-plans',
+      'getApiWorkPackagesByIdSaved-plansCompare',
+      'getApiWorkPackagesByIdStartable',
+      'getApiWorkPackagesByIdStep-references',
+      'getApiWorkPackagesByIdWork-item-rows',
+      'getApiWorkPackagesByIdWork-items',
+      'getApiWorkPackagesByIdWork-itemsByWorkItemId',
+      // Proof: temporarily exempting this saved-reference delivery operation
+      // moved it out of the protected matrix and failed this test (2026-10-24).
+      'getApiWorkPackagesByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
       'getPlansBy-solutionBySlug',
       // Proof: temporarily exempting this exact operation in dependency-claim.ts
       // failed the real protected/exempt matrix (2026-10-26 R12); restoring
@@ -138,11 +139,12 @@ test('pins the complete protected and exempt operation matrix', () => {
       'patchApiOrganization',
       'patchApiOrganizationCompute-providersById',
       'patchApiOrganizationSso-connectionsById',
-      'patchApiProjectsById',
-      'patchApiProjectsByIdCalendar-markersByMarkerId',
-      'patchApiProjectsByIdStepsByStepId',
+      'patchApiProjectsByIdSettings',
       'patchApiSaved-plansById',
       'patchApiSpacesById',
+      'patchApiWorkPackagesById',
+      'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
+      'patchApiWorkPackagesByIdStepsByStepId',
       'postApiClaimsRenew',
       'postApiDirectoryCommands',
       'postApiOnboardingEmailChallenges',
@@ -162,38 +164,38 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postApiOrganizationJoinRequestsByIdDeny',
       'postApiOrganizationMachine-credentials',
       'postApiOrganizationMachine-credentialsByIdRotate',
-      'postApiOrganizationProjectsByIdRank',
       'postApiOrganizationProvisioningTokens',
       'postApiOrganizationProvisioningTokensByIdRotate',
       'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
       'postApiOrganizationSharedPeopleRestoreApprovals',
       'postApiOrganizationSso-connections',
       'postApiOrganizationTrusted-issuers',
-      'postApiProjects',
-      'postApiProjectsByIdCalendar-markers',
-      'postApiProjectsByIdCommands',
-      'postApiProjectsByIdOpened',
-      'postApiProjectsByIdOptimizationRetry',
-      'postApiProjectsByIdRedo',
-      // Proof: temporarily exempting this exact operation in dependency-claim.ts
-      // failed the real protected/exempt matrix consumer (2026-10-26);
-      // restoring the classifier passed both tests. Classification proof only.
-      'postApiProjectsByIdResourceUses',
-      // Proof: temporarily exempting this exact operation in dependency-claim.ts
-      // failed the real protected/exempt matrix consumer (2026-10-26);
-      // restoring the classifier passed both tests. Classification proof only.
-      'postApiProjectsByIdResourceUsesByUseIdEvents',
-      'postApiProjectsByIdSaved-plans',
-      'postApiProjectsByIdSteps',
-      'postApiProjectsByIdUndo',
-      'postApiProjectsImport',
+      'postApiOrganizationWorkPackagesByIdRank',
       'postApiSpaces',
       'postApiSpacesByIdProjects',
       'postApiSpacesByIdProjectsByProjectIdMove',
+      'postApiWorkPackages',
+      'postApiWorkPackagesByIdCalendar-markers',
+      'postApiWorkPackagesByIdCommands',
+      'postApiWorkPackagesByIdOpened',
+      'postApiWorkPackagesByIdOptimizationRetry',
+      'postApiWorkPackagesByIdRedo',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'postApiWorkPackagesByIdResourceUses',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'postApiWorkPackagesByIdResourceUsesByUseIdEvents',
+      'postApiWorkPackagesByIdSaved-plans',
+      'postApiWorkPackagesByIdSteps',
+      'postApiWorkPackagesByIdUndo',
+      'postApiWorkPackagesImport',
       'postInternalForward',
       'postInternalGatewayDependencyAdmission',
-      'postInternalGatewayProjectAccess',
-      'postInternalGatewayProjectBrowserAccess',
+      'postInternalGatewayWorkPackageAccess',
+      'postInternalGatewayWorkPackageBrowserAccess',
       'postInternalMcpMachineGrants',
       'postInternalMcpOrganizations',
       'postInternalResume',

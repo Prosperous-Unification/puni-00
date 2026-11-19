@@ -1,3 +1,4 @@
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,10 +10,10 @@ import { CapacityService } from '@wbs/core';
 import { DirectoryService } from '@wbs/core';
 import { type ScopedBatchOutcome } from '@wbs/core';
 import { PriorityBandService } from '@wbs/core';
-import { ProjectService } from '@wbs/core';
+import { WorkPackageService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -37,7 +38,6 @@ import { OPEN, WriteCoordinator } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
-import { ProjectRepository } from './project';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
@@ -49,6 +49,7 @@ import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 import { WorkItemBudgetRepository } from './work-item-budget';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -88,24 +89,25 @@ let runner: PlanCommandRunner;
 let steps: StepService;
 let stepStore: StepRepository;
 let workItemStore: WorkItemRepository;
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 let hold: ReturnType<typeof suspension>;
 let coordinator: WriteCoordinator;
 let publicDirectory: DirectoryRepository;
 let publicEventLog: DrizzleEventLogStore;
-let publicProjects: ProjectRepository;
+let publicWorkPackages: WorkPackageRepository;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-coordinator-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   db = openDrizzle(path);
 
   // The process's one coordinator, exactly as `boot.ts` builds it.
   coordinator = new WriteCoordinator();
   // The batch's stores hold no turn: `PlanCommandRunner` holds it for them.
-  const projectStore = new ProjectRepository(db, OPEN);
+  const workPackageStore = new WorkPackageRepository(db, OPEN);
   const directoryStore = new DirectoryRepository(db, OPEN);
   const capacityStore = new CapacityRepository(db, OPEN);
   const bandStore = new PriorityBandRepository(db, OPEN);
@@ -114,7 +116,7 @@ beforeEach(async () => {
   stepStore = new StepRepository(db, coordinator);
   publicDirectory = new DirectoryRepository(db, coordinator);
   publicEventLog = new DrizzleEventLogStore(db, coordinator);
-  publicProjects = new ProjectRepository(db, coordinator);
+  publicWorkPackages = new WorkPackageRepository(db, coordinator);
   const broadcast = recordingBroadcaster();
 
   ownerId = crypto.randomUUID();
@@ -145,7 +147,7 @@ beforeEach(async () => {
   const serviceOptions = {
     scheduler: fastScheduler,
     workItems: suspendingWorkItems,
-    projects: projectStore,
+    workPackages: workPackageStore,
     estimates: new EstimateRepository(db, OPEN),
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
@@ -166,7 +168,7 @@ beforeEach(async () => {
     stepParallels: buildStores(db, OPEN).stepParallels,
     broadcast,
     dependencyContext: createLocalDependencyContext({
-      projects: projectStore,
+      workPackages: workPackageStore,
       workItems: suspendingWorkItems,
       estimates: new EstimateRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
@@ -179,7 +181,7 @@ beforeEach(async () => {
   const admitted = { ...buildStores(db, OPEN), workItems: suspendingWorkItems };
   const servicesWith = (selectedBroadcast: Broadcaster) => ({
     workItems: new WorkItemService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
       ...serviceOptions,
       broadcast: selectedBroadcast,
@@ -190,42 +192,42 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       capacity: capacityStore,
       resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       bands: bandStore,
       broadcast: selectedBroadcast,
     }),
-    projects: new ProjectService({
+    workPackages: new WorkPackageService({
       dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
-        projects: projectStore,
+        workPackages: workPackageStore,
       }),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
       dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
-        projects: projectStore,
+        workPackages: workPackageStore,
       }),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       steps: stepStore,
       broadcast: selectedBroadcast,
     }),
     calendarMarkers: new CalendarMarkerService({
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       markers: new CalendarMarkerRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
@@ -245,25 +247,25 @@ beforeEach(async () => {
   steps = new StepService({
     dependencyContext: createLocalDependencyContext({
       ...buildStores(db, OPEN),
-      projects: projectStore,
+      workPackages: workPackageStore,
     }),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     steps: stepStore,
     broadcast,
   });
 
-  const created = await new ProjectService({
+  const created = await new WorkPackageService({
     dependencyContext: createLocalDependencyContext({
       ...buildStores(db, OPEN),
-      projects: projectStore,
+      workPackages: workPackageStore,
     }),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
-  }).create('Rewire the shed', ownerId);
+  }).create('Rewire the shed', 'fixture-project', ownerId);
   if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
-  projectId = created.project.id;
+  workPackageId = created.workPackage.id;
 });
 
 afterEach(() => {
@@ -291,13 +293,13 @@ const REFUSED_BATCH: PlanCommand[] = [
 
 describe('the write coordinator', () => {
   it('does not roll a route write back with a batch it never belonged to', async () => {
-    const batch: Promise<ScopedBatchOutcome> = runner.run(projectId, ownerId, REFUSED_BATCH);
+    const batch: Promise<ScopedBatchOutcome> = runner.run(workPackageId, ownerId, REFUSED_BATCH);
     await hold.reached;
 
     // Started while the batch holds the transaction open, and deliberately not
     // awaited yet: what this case is about is where the write *lands*, and on a
     // process whose route writes take no turn it lands inside the batch.
-    const added = steps.add(projectId, ownerId, 'Wiring', 0);
+    const added = steps.add(workPackageId, ownerId, 'Wiring', 0);
     hold.release();
 
     const outcome = await batch;
@@ -306,7 +308,7 @@ describe('the write coordinator', () => {
     expect(step.ok).toBe(true);
 
     // The batch's own two rows went with its refusal, which is ADR 0007 working.
-    expect(await workItemStore.listByProject(projectId)).toEqual([]);
+    expect(await workItemStore.listByWorkPackage(workPackageId)).toEqual([]);
     // The step did not. It was a different request, and nobody refused it.
     // Proof: `StepRepository.add`'s `this.gate` replaced by `OPEN` — the shape
     // this process had before the coordinator existed, where a route's write
@@ -314,7 +316,9 @@ describe('the write coordinator', () => {
     // [ "Dev", "QA" ]`: the insert landed inside the batch's `BEGIN IMMEDIATE`
     // and its refusal took the step with it, while `steps.add` had answered
     // `ok`. Watched 2026-09-08, and again on `main` before the fix existed.
-    expect((await stepStore.listByProject(projectId)).map((each) => each.name)).toContain('Wiring');
+    expect((await stepStore.listByWorkPackage(workPackageId)).map((each) => each.name)).toContain(
+      'Wiring',
+    );
   });
 
   it("makes every public transactional store wait for the batch's turn", async () => {
@@ -327,14 +331,14 @@ describe('the write coordinator', () => {
     // is a few turns late, not synchronous, so the sample was satisfied for the
     // wrong reason.
     const stamp = { at: 1, by: ownerId };
-    const batch = runner.run(projectId, ownerId, REFUSED_BATCH);
+    const batch = runner.run(workPackageId, ownerId, REFUSED_BATCH);
     await hold.reached;
 
     const writes = [
       stepStore.add(
         {
           id: crypto.randomUUID(),
-          projectId,
+          workPackageId,
           name: 'Wiring',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -342,22 +346,30 @@ describe('the write coordinator', () => {
         stamp,
       ),
       publicDirectory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp),
-      publicEventLog.recordEvent(`project:${projectId}`, { type: 'saved_plans_changed' }, 1),
-      publicProjects.update(projectId, { name: 'Rewire the shed, again' }, stamp),
+      publicEventLog.recordEvent(
+        `work-package:${workPackageId}`,
+        { type: 'saved_plans_changed' },
+        1,
+      ),
+      publicWorkPackages.update(workPackageId, { name: 'Rewire the shed, again' }, stamp),
     ];
     hold.release();
 
     expect((await batch).ok).toBe(false);
     await Promise.all(writes);
 
-    // Proof: `publicProjects` built over `OPEN` instead of the coordinator —
+    // Proof: `publicWorkPackages` built over `OPEN` instead of the coordinator —
     // the shape every store had before this change. Failed on `expected
     // 'Rewire the shed' to be 'Rewire the shed, again'`: the rename landed
     // inside the batch's transaction and its refusal took it. Watched
     // 2026-09-08.
-    expect((await publicProjects.findById(projectId))?.name).toBe('Rewire the shed, again');
-    expect((await stepStore.listByProject(projectId)).map((each) => each.name)).toContain('Wiring');
+    expect((await publicWorkPackages.findById(workPackageId))?.name).toBe('Rewire the shed, again');
+    expect((await stepStore.listByWorkPackage(workPackageId)).map((each) => each.name)).toContain(
+      'Wiring',
+    );
     expect((await publicDirectory.listTags()).map((each) => each.name)).toContain('urgent');
-    expect(await publicEventLog.latestSeq(`project:${projectId}`)).toBeGreaterThanOrEqual(0);
+    expect(await publicEventLog.latestSeq(`work-package:${workPackageId}`)).toBeGreaterThanOrEqual(
+      0,
+    );
   });
 });

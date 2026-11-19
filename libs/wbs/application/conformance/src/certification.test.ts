@@ -8,22 +8,22 @@ import { offeredDeclaration, passingRegistrations } from './source-declaration.t
 describe('terminal certification', () => {
   it('prints certified cases, exclusions and absent families separately', async () => {
     const offered = offeredDeclaration();
-    const projects = offered.capabilities.projects;
-    if (projects.kind !== 'offered') throw new Error('test projects capability is absent');
+    const workPackages = offered.capabilities.workPackages;
+    if (workPackages.kind !== 'offered') throw new Error('test work packages capability is absent');
     const gap = {
-      caseId: CASE_MANIFEST.projects[0],
-      reason: 'observed project gap',
+      caseId: CASE_MANIFEST.workPackages[0],
+      reason: 'observed work package gap',
       evidence: {
         sourceRevision: 'gap-revision',
-        assertion: 'project assertion',
-        observedFailure: 'project mismatch',
+        assertion: 'work package assertion',
+        observedFailure: 'work package mismatch',
       },
     } as const;
     const declaration = {
       ...offered,
       capabilities: {
         ...offered.capabilities,
-        projects: { ...projects, gaps: [gap] },
+        workPackages: { ...workPackages, gaps: [gap] },
         users: { kind: 'absent' as const, reason: 'accountless source' },
       },
     };
@@ -36,7 +36,7 @@ describe('terminal certification', () => {
     );
 
     expect(lines).toEqual([`source-conformance certification ${JSON.stringify(report)}`]);
-    expect(report.exclusions).toEqual([{ family: 'projects', ...gap }]);
+    expect(report.exclusions).toEqual([{ family: 'workPackages', ...gap }]);
     expect(report.absentFamilies).toEqual([{ family: 'users', reason: 'accountless source' }]);
     expect(report.certifiedCases).not.toContain(gap.caseId);
     expect(report.certifiedCases).not.toContain(CASE_MANIFEST.users[0]);
@@ -80,7 +80,7 @@ describe('terminal certification', () => {
   it('a skipped body is not passed', async () => {
     const declaration = offeredDeclaration();
     const registrations = passingRegistrations(declaration).map((registration) =>
-      registration.caseId === CASE_MANIFEST.projects[0]
+      registration.caseId === CASE_MANIFEST.workPackages[0]
         ? { family: registration.family, caseId: registration.caseId }
         : registration,
     );
@@ -101,17 +101,17 @@ describe('terminal certification', () => {
     const offered = offeredDeclaration();
     const registrations = passingRegistrations(offered);
     const report = await runCases(registrations);
-    const projects = offered.capabilities.projects;
-    if (projects.kind !== 'offered') throw new Error('test projects capability is absent');
+    const workPackages = offered.capabilities.workPackages;
+    if (workPackages.kind !== 'offered') throw new Error('test work packages capability is absent');
     const declaration = {
       ...offered,
       capabilities: {
         ...offered.capabilities,
-        projects: {
-          ...projects,
+        workPackages: {
+          ...workPackages,
           gaps: [
             {
-              caseId: CASE_MANIFEST.projects[0],
+              caseId: CASE_MANIFEST.workPackages[0],
               reason: 'stale test exclusion',
               evidence: {
                 sourceRevision: 'stale',
@@ -128,7 +128,7 @@ describe('terminal certification', () => {
     // while the same case remained excluded.
     expect(() => {
       certifyExecution({ declaration, registrations, report });
-    }).toThrow('capability status mismatch: projects: projects.create:steps (passed)');
+    }).toThrow('capability status mismatch: work packages: work packages.create:steps (passed)');
   });
 
   it('absent accounts do not create fake methods', async () => {

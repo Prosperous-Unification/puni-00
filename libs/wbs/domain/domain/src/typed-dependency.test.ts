@@ -8,7 +8,7 @@ import {
   isWritableRelationshipType,
 } from './typed-dependency';
 
-/** Parent `P` over leaf `L`, and a project with steps `dev` and `qa`. */
+/** Parent `P` over leaf `L`, and a work package with steps `dev` and `qa`. */
 const context: EndpointContext = {
   isLeaf: (id) => (id === 'L' ? true : id === 'P' ? false : undefined),
   hasStep: (stepId) => stepId === 'dev' || stepId === 'qa',
@@ -42,14 +42,14 @@ describe('findTypedEndpointDefect', () => {
     ).toBe('descendant_step_on_leaf');
   });
 
-  it('refuses an unknown work item and a step outside the project', () => {
+  it('refuses an unknown work item and a step outside the work package', () => {
     expect(findTypedEndpointDefect({ scope: 'whole', workItemId: 'X' }, context)).toBe('not_found');
     expect(
       findTypedEndpointDefect({ scope: 'node', workItemId: 'L', stepId: 'design' }, context),
     ).toBe('unknown_step');
   });
 
-  it('leaves a stepless project whole scope only', () => {
+  it('leaves a stepless work package whole scope only', () => {
     const stepless: EndpointContext = { ...context, hasStep: () => false };
     expect(findTypedEndpointDefect({ scope: 'whole', workItemId: 'L' }, stepless)).toBeNull();
     expect(

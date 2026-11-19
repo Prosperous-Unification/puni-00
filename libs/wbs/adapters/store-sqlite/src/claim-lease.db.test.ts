@@ -1,10 +1,11 @@
+import { seedPackageParent, seedOrganizationPackage } from './testing/legacy-package-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AuthenticatedUser } from '@wbs/contracts';
 import type { CredentialPin, PlanCommand, ResourceAccess, Scope } from '@wbs/core';
-import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
+import { clockOf, LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
@@ -80,13 +81,14 @@ afterEach(async () => {
 
 /**
  * Organization A (claims cap `cap`), Dany its admin, agents `codex` and
- * `claire` and the human `ann`, one project of A with a parent over two
+ * `claire` and the human `ann`, one work package of A with a parent over two
  * leaves and three root leaves, and an exclusive slot of capacity 1 that the
  * first two root leaves each demand. The clock is `now`, moved by the test.
  */
 async function seeded(cap = 40) {
   source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
+  seedPackageParent(join(directory, 'plan.db'), 'org-a', 'fixture-project');
   source.db.run(
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
   );
@@ -117,19 +119,23 @@ async function seeded(cap = 40) {
   const clock = clockOf({ now: () => now, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = await graph.projects.create('Leases', 'dany');
-  if (typeof created === 'string') throw new Error(`lease fixture project refused: ${created}`);
-  const projectId = created.project.id;
-  source.db.run(
-    sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
+  const created = await seedOrganizationPackage(
+    source.stores.workPackages,
+    options.clock,
+    'org-a',
+    'fixture-project',
+    'dany',
+    'Leases',
   );
+  const workPackageId = created.workPackage.id;
+
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     uow: source.uow,
@@ -145,7 +151,7 @@ async function seeded(cap = 40) {
   });
   /** One batch by Dany's account, under an agent's credential or a session (null). */
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
-    runner.runWithin(projectId, principalOf(credential), commands, admin);
+    runner.runWithin(workPackageId, principalOf(credential), commands, admin);
   const plan = await run(
     [
       { kind: 'createWorkItem', ref: 'parent', name: 'Parent', parentId: null, afterId: null },
@@ -183,7 +189,7 @@ async function seeded(cap = 40) {
     );
   const count = (query: ReturnType<typeof sql>) => source.db.get<{ n: number }>(query).n;
   return {
-    projectId,
+    workPackageId,
     runner,
     run,
     claim,
@@ -310,7 +316,7 @@ describe('renewal', () => {
 
 describe('a heartbeat queued behind a long write', () => {
   it('does not renew a lease that ran out while the heartbeat waited for the turn', async () => {
-    const { run, claim, items, runner, projectId, leases } = await seeded();
+    const { run, claim, items, runner, workPackageId, leases } = await seeded();
     await run([claim(items.one, 'codex')], pinned('codex'));
     let release: () => void = () => undefined;
     let holding: () => void = () => undefined;
@@ -334,21 +340,21 @@ describe('a heartbeat queued behind a long write', () => {
     await held;
     expect(await renewing).toEqual({ leases: 0, leaseExpiresAt: null });
     expect(leases()[0]?.lease).toBe(T + CLAIM_LEASE_MS);
-    expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
+    expect(await runner.releaseExpiredLeases(workPackageId)).toBe(1);
   });
 });
 
 describe('release by the coordinator', () => {
   it('releases at exactly the expiry and not one millisecond before', async () => {
-    const { run, claim, items, runner, projectId, claims, occupancy, stackEntries, history } =
+    const { run, claim, items, runner, workPackageId, claims, occupancy, stackEntries, history } =
       await seeded();
     await run([claim(items.one, 'codex')], pinned('codex'));
     const entries = stackEntries();
     now = T + CLAIM_LEASE_MS - 1;
-    expect(await runner.releaseExpiredLeases(projectId)).toBe(0);
+    expect(await runner.releaseExpiredLeases(workPackageId)).toBe(0);
     expect(claims()).toBe(1);
     now = T + CLAIM_LEASE_MS;
-    expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
+    expect(await runner.releaseExpiredLeases(workPackageId)).toBe(1);
     expect(claims()).toBe(0);
     expect(occupancy()).toBe(0);
     expect(history()).toEqual([
@@ -359,20 +365,20 @@ describe('release by the coordinator', () => {
   });
 
   it('never reaps a human claim', async () => {
-    const { run, claim, items, runner, projectId, claims } = await seeded();
+    const { run, claim, items, runner, workPackageId, claims } = await seeded();
     await run([claim(items.one, 'ann')], null);
     now = T + 10 * 24 * 60 * MINUTE;
-    expect(await runner.releaseExpiredLeases(projectId)).toBe(0);
+    expect(await runner.releaseExpiredLeases(workPackageId)).toBe(0);
     expect(claims()).toBe(1);
   });
 
   it('releases the claims delegated under an expired subtree claim', async () => {
-    const { run, claim, items, runner, projectId, claims } = await seeded();
+    const { run, claim, items, runner, workPackageId, claims } = await seeded();
     const subtree = await run([claim(items.parent, 'codex')], pinned('codex'));
     const [parentClaim] = claimIdsOf(subtree);
     await run([claim(items.inner, 'claire', { parentClaim })], pinned('codex'));
     now = T + CLAIM_LEASE_MS;
-    expect(await runner.releaseExpiredLeases(projectId)).toBe(2);
+    expect(await runner.releaseExpiredLeases(workPackageId)).toBe(2);
     expect(claims()).toBe(0);
   });
 
@@ -387,8 +393,8 @@ describe('release by the coordinator', () => {
     const ticks: (() => void)[] = [];
     const sweep = new ClaimLeaseSweep({
       runner,
-      projectsWithExpiredLeases: (at, limit) =>
-        source.stores.claims.projectsWithExpiredLeases(at, limit),
+      workPackagesWithExpiredLeases: (at, limit) =>
+        source.stores.claims.workPackagesWithExpiredLeases(at, limit),
       now: () => now,
       intervals: {
         every: (_ms, callback) => {
@@ -397,7 +403,7 @@ describe('release by the coordinator', () => {
         },
       },
       intervalMs: 30_000,
-      projectsPerTick: 50,
+      workPackagesPerTick: 50,
       onError: (error) => {
         throw error;
       },
@@ -410,24 +416,30 @@ describe('release by the coordinator', () => {
   });
 
   it('refuses the holder’s undo after a reap, and redoes a claim with a fresh lease', async () => {
-    const { run, claim, items, runner, projectId, claims, leases } = await seeded();
+    const { run, claim, items, runner, workPackageId, claims, leases } = await seeded();
     await run([claim(items.one, 'codex')], pinned('codex'));
     // Undo and redo by the agent that wrote the claim put it back with a lease
     // from the redo's instant (L11).
     now = T + MINUTE;
-    expect(await runner.undoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
+    expect(
+      await runner.undoWithin(workPackageId, principalOf(pinned('codex')), admin),
+    ).toMatchObject({
       ok: true,
     });
     now = T + 5 * MINUTE;
-    expect(await runner.redoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
+    expect(
+      await runner.redoWithin(workPackageId, principalOf(pinned('codex')), admin),
+    ).toMatchObject({
       ok: true,
     });
     expect(leases()).toEqual([
       { person_id: 'codex', work_item_id: items.one, lease: T + 5 * MINUTE + CLAIM_LEASE_MS },
     ]);
     now = T + 5 * MINUTE + CLAIM_LEASE_MS;
-    expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
-    expect(await runner.undoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
+    expect(await runner.releaseExpiredLeases(workPackageId)).toBe(1);
+    expect(
+      await runner.undoWithin(workPackageId, principalOf(pinned('codex')), admin),
+    ).toMatchObject({
       ok: false,
     });
     expect(claims()).toBe(0);
@@ -438,7 +450,7 @@ describe('revocation', () => {
   const at = { stamp: { at: T + MINUTE, by: 'dany' }, actor: 'dany', auditId: 'audit' };
 
   it('keeps the leases when one of two keys is revoked, and ends them with the last', async () => {
-    const { run, claim, items, runner, projectId, leases, history } = await seeded();
+    const { run, claim, items, runner, workPackageId, leases, history } = await seeded();
     // Explicit CP14 fixture holder for this credential-revocation scenario; no harness default.
     source.db.run(
       sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-revoke-cp14','org-a','organization','org-a','user','dany','org-super-admin','route',1)`,
@@ -460,7 +472,7 @@ describe('revocation', () => {
     // A revoked lease is never renewed, even by a write that still gets through.
     now = T + MINUTE + 1;
     expect(await runner.renewLeases('codex', null)).toEqual({ leases: 0, leaseExpiresAt: null });
-    expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
+    expect(await runner.releaseExpiredLeases(workPackageId)).toBe(1);
     expect(history()).toEqual([
       { kind: 'release', label: 'release “One” (credential revoked)', user_id: 'dany' },
     ]);

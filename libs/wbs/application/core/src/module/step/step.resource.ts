@@ -1,5 +1,5 @@
 import type { Permission } from '@wbs/domain';
-import { canEditProject } from '@wbs/domain';
+import { canEditLegacyWorkPackage } from '@wbs/domain';
 import {
   type AllowancePercent,
   type AssumedAssigneeFlip,
@@ -22,22 +22,22 @@ import {
 } from '../../ports/dependency-context';
 import type { BeforeStepRemoval, BeforeStepWrite } from '../../ports/fanout-capture-store';
 import {
-  findProjectWithin,
+  findWorkPackageWithin,
   LEGACY_ACCESS,
   type ResourceAccess,
 } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
-import type { Project, ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
+import type { Broadcaster } from '../../ports/work-package-event';
+import type { WorkPackage, WorkPackageStore } from '../../ports/work-package-store';
 import { authorizePackage } from '../../service/authorize';
 
 export interface StepServiceOptions {
   readonly accessDecisions?: AccessDecisions;
-  projects: ProjectStore;
+  workPackages: Pick<WorkPackageStore, 'findById' | 'findInOrganization' | 'stepsOf' | 'setStepUnit'>;
   steps: StepStore;
   /**
    * Required, like the work item service's. A step service built without one
-   * would change what every estimate in a project means and tell nobody — every
+   * would change what every estimate in a work package means and tell nobody — every
    * other client would keep drawing a column for a step that has gone until
    * somebody reloaded.
    */
@@ -77,6 +77,14 @@ export type StepOutcome =
   { ok: true; value: Step } | { ok: false; reason: StepRefusal; readonly permission?: Permission };
 export type StepUnitOutcome =
   StepOutcome | { ok: false; reason: 'estimates_present'; count: number };
+
+/** Current addressed package values, with named settings authority and concealed missing pairs. */
+export type PackageStepValuesOutcome =
+  | { readonly ok: true; readonly value: Step }
+  | { readonly ok: false; readonly reason: 'not_found' | 'forbidden'; readonly permission?: Permission };
+export type PackageStepUnitOutcome =
+  | PackageStepValuesOutcome
+  | { readonly ok: false; readonly reason: 'estimates_present'; readonly count: number };
 
 /** What a removal would take with it, as the refusal reports it. */
 export interface StepInUse {
@@ -174,16 +182,16 @@ function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
 }
 
 /**
- * A project's steps: adding, renaming and removing them.
+ * A work package's steps: adding, renaming and removing them.
  *
- * **Not journalled**, like the project's start date — there is no undo for a
+ * **Not journalled**, like the work package's start date — there is no undo for a
  * step change. What protects the entries already in somebody's stack is the
  * revision bumps the removal makes: an undo whose estimate was deleted with the
  * step refuses as stale rather than writing a row against a step that is gone.
  *
  * Every write announces itself **after** the transaction has committed, so a
- * client that reads on the event reads a project the change is already in. See
- * {@link ProjectEvent}.
+ * client that reads on the event reads a work package the change is already in. See
+ * {@link WorkPackageEvent}.
  *
  * Proof: with the publish moved ahead of the write in `add` and `remove`,
  * `records the event after the write, never before it` fails — the steps read
@@ -202,7 +210,7 @@ export class StepService {
    * boundary) and with the code the caller chose, or one suggested from its
    * name when `code` is absent.
    *
-   * A chosen code is checked before the project is read: `invalid_code` when it
+   * A chosen code is checked before the work package is read: `invalid_code` when it
    * breaks the grammar, `reserved_code` when it lies in the ordinal alias's
    * namespace (`s2`, `s2-review`), which would make `010.s2-review` mean two
    * things. `code_taken` comes from the store's unique index.
@@ -210,26 +218,26 @@ export class StepService {
    * Proof: with the `isReservedStepCode` refusal removed, `refuses a reserved
    * code and writes no step` in `step.controller.db.test.ts` failed on
    * `Expected: 422, Received: 200`; with the `isStepCode` refusal removed,
-   * `refuses a code outside the grammar, and one the project already holds`
+   * `refuses a code outside the grammar, and one the workPackage already holds`
    * failed the same way, the step written as `Design`. Both watched 2026-09-27.
    */
   add(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     name: string,
     allowancePercent: AllowancePercent,
     code?: string,
   ): Promise<StepOutcome> {
-    return this.addWithin(projectId, actorId, name, allowancePercent, code, LEGACY_ACCESS);
+    return this.addWithin(workPackageId, actorId, name, allowancePercent, code, LEGACY_ACCESS);
   }
 
   /**
-   * {@link add} through the caller's access: a foreign project is `not_found`.
+   * {@link add} through the caller's access: a foreign work package is `not_found`.
    * Scoped observation follows name/code, authority and graph preflights; a
    * failed observation prevents storage and publication.
    */
   async addWithin(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     name: string,
     allowancePercent: AllowancePercent,
@@ -238,35 +246,35 @@ export class StepService {
     estimateUnit: EstimateUnit = 'workdays',
   ): Promise<StepOutcome> {
     const clean = cleanName(name);
-    // Before the project is read: a step called nothing would sit in every
+    // Before the work package is read: a step called nothing would sit in every
     // header and every estimate row with no way to tell it from the next one.
     if (clean === null) return { ok: false, reason: 'name_required' };
     if (code !== undefined && !isStepCode(code)) return { ok: false, reason: 'invalid_code' };
     if (code !== undefined && isReservedStepCode(code)) {
       return { ok: false, reason: 'reserved_code' };
     }
-    const project = await findProjectWithin(this.opts.projects, projectId, access);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    const decision = await this.authorizeWrite(project, actorId, access);
+    const workPackage = await findWorkPackageWithin(this.opts.workPackages, workPackageId, access);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    const decision = await this.authorizeWrite(workPackage, actorId, access);
     if (!decision.ok) return decision;
 
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (dependencyContext) => {
         const proposed = {
           id: this.clock.newId(),
-          projectId,
+          workPackageId,
           name: clean,
           allowancePercent,
           estimateUnit,
           ...(code === undefined ? {} : { code }),
         };
-        const steps = await this.opts.projects.stepsOf(projectId);
+        const steps = await this.opts.workPackages.stepsOf(workPackageId);
         // Proof: bypassing this consumer failed `connected step-add refuses an injected failed graph read`
         // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-        const cycle = await dependencyContext.graph.findCycle(projectId, {
+        const cycle = await dependencyContext.graph.findCycle(workPackageId, {
           steps: [
             ...steps,
             {
@@ -277,16 +285,19 @@ export class StepService {
           ],
         });
         if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
-        dependencyContext.assertUsable(projectId, actorId);
+        dependencyContext.assertUsable(workPackageId, actorId);
         // Proof: disabling only this add capture left B/C without events in both
         // mounted bare-step-add modes (2 failures, 2026-10-23).
         if (this.opts.beforeWrite !== undefined) {
-          const observed = await this.opts.beforeWrite(projectId, actorId, access);
+          const observed = await this.opts.beforeWrite(workPackageId, actorId, access);
           if (!observed.ok) return observed;
         }
         const written = await this.opts.steps.add(proposed, this.clock.stampFor(actorId));
         if (!written.ok) return { ok: false, reason: written.reason };
-        await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
+        await this.opts.broadcast.publish(workPackageId, {
+          type: 'step_added',
+          step: written.step,
+        });
         return { ok: true, value: written.step };
       },
     );
@@ -294,36 +305,41 @@ export class StepService {
 
   /** Changes an empty step's unit through the store's count-and-write transaction (ADR 0042). */
   async patchUnitWithin(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     actorId: string,
     unit: string,
     access: ResourceAccess,
   ): Promise<StepUnitOutcome> {
     if (!isEstimateUnit(unit)) return { ok: false, reason: 'invalid_estimate_unit' };
-    const admitted = await this.gate(projectId, stepId, actorId, access);
+    const admitted = await this.gate(workPackageId, stepId, actorId, access);
     if (!admitted.ok) return admitted;
     const written = await this.opts.steps.patchUnit(
-      projectId,
+      workPackageId,
       stepId,
       unit,
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return written;
-    await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
+    await this.opts.broadcast.publish(workPackageId, { type: 'step_renamed', step: written.step });
     return { ok: true, value: written.step };
   }
 
-  rename(projectId: string, stepId: string, actorId: string, name: string): Promise<StepOutcome> {
-    return this.renameWithin(projectId, stepId, actorId, name, LEGACY_ACCESS);
+  rename(
+    workPackageId: string,
+    stepId: string,
+    actorId: string,
+    name: string,
+  ): Promise<StepOutcome> {
+    return this.renameWithin(workPackageId, stepId, actorId, name, LEGACY_ACCESS);
   }
 
   /**
    * {@link rename} through the caller's access. Scoped observation follows
-   * clean-name and project/step authority preflights, before storage.
+   * clean-name and work-package/step authority preflights, before storage.
    */
   async renameWithin(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     actorId: string,
     name: string,
@@ -331,7 +347,7 @@ export class StepService {
   ): Promise<StepOutcome> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const gate = await this.gate(projectId, stepId, actorId, access);
+    const gate = await this.gate(workPackageId, stepId, actorId, access);
     if (!gate.ok) return gate;
 
     // Proof: disabling only this rename capture left B/C without events in both
@@ -339,17 +355,17 @@ export class StepService {
     // Moving observation before service preflights instead changed blank add/
     // rename refusals from 422 to 500 with broken capture (2 failures).
     if (this.opts.beforeWrite !== undefined) {
-      const observed = await this.opts.beforeWrite(projectId, actorId, access);
+      const observed = await this.opts.beforeWrite(workPackageId, actorId, access);
       if (!observed.ok) return observed;
     }
     const written = await this.opts.steps.rename(
-      projectId,
+      workPackageId,
       stepId,
       clean,
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };
-    await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
+    await this.opts.broadcast.publish(workPackageId, { type: 'step_renamed', step: written.step });
     return { ok: true, value: written.step };
   }
 
@@ -382,28 +398,28 @@ export class StepService {
    * removals, bumping and announcing nothing` sees a phantom event (2026-08-09).
    */
   remove(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     actorId: string,
     cascade: boolean,
   ): Promise<RemoveStepOutcome> {
-    return this.removeWithin(projectId, stepId, actorId, cascade, LEGACY_ACCESS);
+    return this.removeWithin(workPackageId, stepId, actorId, cascade, LEGACY_ACCESS);
   }
 
   /** {@link remove} through the caller's access. */
   async removeWithin(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     actorId: string,
     cascade: boolean,
     access: ResourceAccess,
   ): Promise<RemoveStepOutcome> {
-    const gate = await this.gate(projectId, stepId, actorId, access);
+    const gate = await this.gate(workPackageId, stepId, actorId, access);
     // Proof: skipping this gate disclosed the sparse policy to a forbidden actor, 2026-10-17.
     if (!gate.ok) return gate;
     return withDependencyContext(
       this.opts.dependencyContext,
-      projectId,
+      workPackageId,
       actorId,
       async (dependencyContext) => {
         // Proof: this refusal skipped made the mounted `refuses removing a step a
@@ -411,7 +427,10 @@ export class StepService {
         // step's foreign key refused the delete underneath; watched 2026-09-27.
         // Proof: bypassing this consumer failed `connected step-references refuses an injected failed graph read`
         // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-        const dependencyIds = await dependencyContext.graph.findStepReferences(projectId, stepId);
+        const dependencyIds = await dependencyContext.graph.findStepReferences(
+          workPackageId,
+          stepId,
+        );
         if (dependencyIds.length > 0) {
           return { ok: false, reason: 'referenced_by_dependency', dependencyIds };
         }
@@ -421,23 +440,24 @@ export class StepService {
         if (
           // Proof: bypassing this consumer failed `connected step-remove refuses an injected failed graph read`
           // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
-          (await dependencyContext.graph.findCycle(projectId, { withoutStepId: stepId })) !== null
+          (await dependencyContext.graph.findCycle(workPackageId, { withoutStepId: stepId })) !==
+          null
         ) {
           return { ok: false, reason: 'dependency_cycle' };
         }
         if (!cascade) {
-          const seen = inUseFrom(await this.opts.steps.usageOf(projectId, stepId), stepId);
+          const seen = inUseFrom(await this.opts.steps.usageOf(workPackageId, stepId), stepId);
           if (stepIsInUse(seen)) {
             return { ok: false, reason: 'in_use', inUse: seen };
           }
         }
         if (this.opts.beforeRemove !== undefined) {
-          const observed = await this.opts.beforeRemove(projectId, actorId, access);
+          const observed = await this.opts.beforeRemove(workPackageId, actorId, access);
           if (!observed.ok) return observed;
         }
-        dependencyContext.assertUsable(projectId, actorId);
+        dependencyContext.assertUsable(workPackageId, actorId);
         const removed = await this.opts.steps.remove(
-          projectId,
+          workPackageId,
           stepId,
           cascade,
           this.clock.stampFor(actorId),
@@ -450,72 +470,132 @@ export class StepService {
           // that was still true at the moment the deletes would have run.
           return { ok: false, reason: 'in_use', inUse: inUseFrom(removed.usage, stepId) };
         }
-        await this.opts.broadcast.publish(projectId, { type: 'step_removed', stepId });
+        await this.opts.broadcast.publish(workPackageId, { type: 'step_removed', stepId });
         return { ok: true };
       },
     );
   }
 
   /**
-   * The step as it is now, when it is this project's and the caller may edit
+   * The step as it is now, when it is this work package's and the caller may edit
    * or recover it. The allowance command makes the final write decision.
    */
-  find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
-    return this.findWithin(projectId, stepId, actorId, LEGACY_ACCESS);
+  find(workPackageId: string, stepId: string, actorId: string): Promise<StepOutcome> {
+    return this.findWithin(workPackageId, stepId, actorId, LEGACY_ACCESS);
   }
 
   /**
-   * {@link find} through the caller's access: a foreign project, or a step of
-   * another project, is `not_found`. The allowance route uses this read before
-   * its command. Scoped lookup requires current package.write in the same
-   * admitted transaction; allowance commands additionally require
+   * {@link find} resolves the addressed package's current catalogue projection,
+   * including its explicit unit and allowance. Shared definitions do not belong to
+   * one package; foreign, absent and no-longer-bound steps are `not_found` here.
+   * Package visibility and current package.write are checked before catalogue
+   * lookup in the admitted transaction. Allowance commands additionally require
    * package.manage_settings through their registered command permission.
+   * Legacy definition mutations retain their separate gate until route retirement.
    */
   async findWithin(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     actorId: string,
     access: ResourceAccess,
   ): Promise<StepOutcome> {
-    const gate = await this.gate(projectId, stepId, actorId, access);
-    if (!gate.ok) return gate;
-    const found = await this.opts.steps.findById(stepId);
-    if (found === null) return { ok: false, reason: 'not_found' };
+    const workPackage = await findWorkPackageWithin(this.opts.workPackages, workPackageId, access);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    const decision = await this.authorizeWrite(workPackage, actorId, access);
+    if (!decision.ok) return decision;
+    const found = (await this.opts.workPackages.stepsOf(workPackageId)).find(
+      (step) => step.id === stepId,
+    );
+    if (found === undefined) return { ok: false, reason: 'not_found' };
     return { ok: true, value: found };
   }
 
   /**
-   * The project this step belongs to, and whether the caller may write to it.
+   * Resolves current package values under package.manage_settings in the caller's
+   * actual writer. This does not grant the legacy definition mutation gate access
+   * to shared definitions. Missing package visibility and missing addressed
+   * membership are both not_found; a visible viewer receives the named permission.
+   */
+  async findPackageValuesWithin(
+    workPackageId: string,
+    stepId: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<PackageStepValuesOutcome> {
+    const workPackage = await findWorkPackageWithin(this.opts.workPackages, workPackageId, access);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    if (access.kind === 'scoped') {
+      const decision = await authorizePackage(
+        this.opts.accessDecisions, access, workPackage, actorId, 'package.manage_settings',
+      );
+      if (!decision.ok) return decision;
+    } else if (!canEditLegacyWorkPackage(workPackage)) {
+      return { ok: false, reason: 'forbidden' };
+    }
+    const found = (await this.opts.workPackages.stepsOf(workPackageId)).find(step => step.id === stepId);
+    return found === undefined ? { ok: false, reason: 'not_found' } : { ok: true, value: found };
+  }
+
+  /**
+   * Changes only this package's explicit unit through its current values store.
+   * Its same-writer count excludes sibling packages sharing the definition.
+   * The caller owns the UoW: a combined allowance command can roll the unit and
+   * queued announcement back together. An unchanged unit remains a successful no-op.
+   */
+  async setPackageUnitWithin(
+    workPackageId: string,
+    stepId: string,
+    actorId: string,
+    unit: EstimateUnit,
+    access: ResourceAccess,
+  ): Promise<PackageStepUnitOutcome> {
+    const found = await this.findPackageValuesWithin(workPackageId, stepId, actorId, access);
+    if (!found.ok) return found;
+    const changes = found.value.estimateUnit !== unit;
+    if (changes && this.opts.beforeWrite !== undefined) {
+      const observed = await this.opts.beforeWrite(workPackageId, actorId, access);
+      if (!observed.ok) return observed;
+    }
+    const written = await this.opts.workPackages.setStepUnit(
+      workPackageId, stepId, unit, this.clock.stampFor(actorId),
+    );
+    if (!written.ok) return written;
+    if (changes) await this.opts.broadcast.publish(workPackageId, { type: 'step_renamed', step: written.step });
+    return { ok: true, value: written.step };
+  }
+
+  /**
+   * The work package this step belongs to, and whether the caller may write to it.
    *
-   * A step of another project is `not_found` rather than `forbidden`: it is not
-   * this project's step, and saying "you may not" would tell the caller it is.
+   * A step of another work package is `not_found` rather than `forbidden`: it is not
+   * this work package's step, and saying "you may not" would tell the caller it is.
    *
-   * Proof: with the `projectId` comparison dropped, `refuses a step that belongs
-   * to another project` fails — one project's route renamed another project's
+   * Proof: with the `workPackageId` comparison dropped, `refuses a step that belongs
+   * to another workPackage` fails — one work package's route renamed another work package's
    * step; watched 2026-08-08.
    */
   private async gate(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     actorId: string,
     access: ResourceAccess,
   ): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }> {
-    // Proof: finding the project unscoped here, and separately in `addWithin`,
-    // failed `answers 404 alike for a foreign and an absent project on every
+    // Proof: finding the work package unscoped here, and separately in `addWithin`,
+    // failed `answers 404 alike for a foreign and an absent workPackage on every
     // step and marker route` in `step-marker-organization.controller.db.test.ts`;
     // watched 2026-09-27.
-    const project = await findProjectWithin(this.opts.projects, projectId, access);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    const decision = await this.authorizeWrite(project, actorId, access);
+    const workPackage = await findWorkPackageWithin(this.opts.workPackages, workPackageId, access);
+    if (workPackage === null) return { ok: false, reason: 'not_found' };
+    const decision = await this.authorizeWrite(workPackage, actorId, access);
     if (!decision.ok) return decision;
     const step = await this.opts.steps.findById(stepId);
-    if (step?.projectId !== projectId) return { ok: false, reason: 'not_found' };
+    if (step?.workPackageId !== workPackageId) return { ok: false, reason: 'not_found' };
     return { ok: true };
   }
 
   /** Preserves concealed-package and named permission decisions; step recovery has no role exception. */
   private async authorizeWrite(
-    project: Project,
+    workPackage: WorkPackage,
     actorId: string,
     access: ResourceAccess,
   ): Promise<
@@ -523,9 +603,17 @@ export class StepService {
   > {
     // Proof: step-resource-grant fault failed 'named write refusal in the actual borrowed step resource' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
     if (access.kind === 'scoped')
-      return authorizePackage(this.opts.accessDecisions, access, project, actorId, 'package.write');
+      return authorizePackage(
+        this.opts.accessDecisions,
+        access,
+        workPackage,
+        actorId,
+        'package.write',
+      );
     // Proof: legacy-step; bypassed the legacy creator refusal.
     // 'retains the legacy restricted creator refusal at step' (admission.test.ts) failed; restored GREEN, 2026-11-10.
-    return canEditProject(project, actorId) ? { ok: true } : { ok: false, reason: 'forbidden' };
+    return canEditLegacyWorkPackage(workPackage)
+      ? { ok: true }
+      : { ok: false, reason: 'forbidden' };
   }
 }

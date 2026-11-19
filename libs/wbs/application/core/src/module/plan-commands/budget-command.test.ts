@@ -2,7 +2,7 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import { normalizeCommand, type PlanCommand } from '../../service/command-normalizers';
@@ -20,7 +20,7 @@ const MINUTE = 60_000;
 const LEGACY = { kind: 'legacy' } as const;
 
 /**
- * A project owned by the legacy organization `org-a`, which defines the
+ * A work package owned by the legacy organization `org-a`, which defines the
  * three-point `kwh` (real) beside the five seeds, holding parent `P` over
  * leaves `A`, `B` and `C` (`wbs-measure-budgets` tasks 3.1–3.3).
  */
@@ -30,7 +30,7 @@ async function seeded() {
   fixture.addOrganization(ORG, { legacy: true });
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -40,19 +40,36 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Budgets', F));
-  const projectId = created.project.id;
-  fixture.ownProjectInOrganization(projectId, ORG);
+  fixture.seedPackageParent({
+    spaceId: null,
+    spacePosition: null,
+    id: 'fixture-project',
+    organizationId: ORG,
+    name: 'Fixture project',
+    createdBy: F,
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
+  });
+  const created = expectCreated(await graph.workPackages.create('Budgets', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+  fixture.ownWorkPackageInOrganization(workPackageId, ORG);
   for (const step of created.steps) {
     await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+      {
+        id: step.id,
+        workPackageId,
+        name: step.name,
+        allowancePercent: 0,
+        estimateUnit: 'workdays',
+      },
       { at: 1, by: F },
     );
   }
   const stepIds = created.steps.map(({ id }) => id);
   const [dev, qa] = [stepIds.at(0), stepIds.at(1)];
   if (dev === undefined || qa === undefined)
-    throw new Error('the project has fewer than two steps');
+    throw new Error('the work package has fewer than two steps');
   const runner = createPlanCommandRunner({
     uow: source.uow,
     commandAccess: localCommandAccess,
@@ -77,7 +94,7 @@ async function seeded() {
     },
   ]);
   if (!defined.ok) throw new Error(`kwh was refused: ${JSON.stringify(defined)}`);
-  const built = await runner.run(projectId, F, [
+  const built = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: null, parentRef: 'P', afterId: null },
     {
@@ -106,20 +123,22 @@ async function seeded() {
       throw new Error(`no work item ${ref}`);
     return found.id;
   };
-  const run = (commands: readonly PlanCommand[]) => runner.run(projectId, F, commands);
+  const run = (commands: readonly PlanCommand[]) => runner.run(workPackageId, F, commands);
   const budgets = async () =>
-    (await source.stores.budgets.listByProject(projectId)).map(({ workItemId, key, cap }) => ({
-      workItemId,
-      key,
-      cap,
-    }));
+    (await source.stores.budgets.listByWorkPackage(workPackageId)).map(
+      ({ workItemId, key, cap }) => ({
+        workItemId,
+        key,
+        cap,
+      }),
+    );
   const kwhId = async () => {
     const found = (await source.stores.directory.listMeasures(ORG)).find((m) => m.key === 'kwh');
     if (found === undefined) throw new Error('no kwh');
     return found.id;
   };
   const tree = async (): Promise<PlanTree> => {
-    const read = await graph.workItems.tree(projectId);
+    const read = await graph.workItems.tree(workPackageId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
     return read;
   };
@@ -139,7 +158,7 @@ async function seeded() {
     source,
     graph,
     runner,
-    projectId,
+    workPackageId,
     dev,
     qa,
     idOf,
@@ -174,7 +193,7 @@ const trio = (workItemId: string, stepId: string, measure: string, pessimistic: 
 
 describe('budgets as plan commands', () => {
   it('sets, replaces and clears a budget, undoably', async () => {
-    const { source, runner, projectId, idOf, run, budgets, rowOf } = await seeded();
+    const { source, runner, workPackageId, idOf, run, budgets, rowOf } = await seeded();
     try {
       const P = idOf('P');
       expect(await run([setBudget(P, 'tokens', 1000)])).toMatchObject({ ok: true });
@@ -183,17 +202,17 @@ describe('budgets as plan commands', () => {
         tokens: { cap: 1000, policy: 'strict', source: 'stated', remaining: 1000, exceeded: false },
       });
       expect(await run([setBudget(P, 'tokens', 800, 'advisory')])).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toEqual([{ workItemId: P, key: 'tokens', cap: 1000 }]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toEqual([]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await run([{ kind: 'clearBudget', workItemId: P, measure: 'tokens' }])).toMatchObject({
         ok: true,
       });
       expect(await budgets()).toEqual([]);
       expect((await rowOf(P)).budgets).toBeUndefined();
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toEqual([{ workItemId: P, key: 'tokens', cap: 1000 }]);
       // A budget on a derived measure and on a defined one, a hold beside it.
       expect(
@@ -278,20 +297,40 @@ describe('budgets as plan commands', () => {
     }
   });
 
-  it('refuses a budget factor of 0 and keeps the one it had', async () => {
-    const { source, graph, projectId } = await seeded();
+  it('refuses invalid project factors and package-level overrides while keeping the inherited factor', async () => {
+    const { source, graph, workPackageId } = await seeded();
     try {
-      expect(await graph.projects.updateWithin(projectId, F, { budgetFactor: 0 }, LEGACY)).toEqual({
-        ok: false,
-        reason: 'bad_budget_factor',
-      });
+      const project = await source.stores.settings.readTarget(
+        { level: 'project', id: 'fixture-project' },
+        ORG,
+      );
+      if (project === null) throw new Error('budget fixture project is absent');
+      for (const value of [0, 1001])
+        expect(
+          await source.stores.settings.write(
+            project,
+            { key: 'budgetFactor', value },
+            { by: F, at: 1 },
+          ),
+        ).toEqual({ ok: false, reason: 'invalid_value', key: 'budgetFactor' });
+      for (const budgetFactor of [0, 1001, 1.5])
+        expect(
+          await graph.workPackages.updateWithin(workPackageId, F, { budgetFactor }, LEGACY),
+        ).toEqual({
+          ok: false,
+          reason: 'not_overridable_here',
+          key: 'budgetFactor',
+          level: 'work_package',
+        });
+      expect((await source.stores.workPackages.findById(workPackageId))?.budgetFactor).toBe(1);
       expect(
-        await graph.projects.updateWithin(projectId, F, { budgetFactor: 1001 }, LEGACY),
-      ).toEqual({ ok: false, reason: 'bad_budget_factor' });
-      expect(
-        await graph.projects.updateWithin(projectId, F, { budgetFactor: 1.5 }, LEGACY),
-      ).toMatchObject({ ok: true, value: { budgetFactor: 1.5 } });
-      expect((await source.stores.projects.findById(projectId))?.budgetFactor).toBe(1.5);
+        await source.stores.settings.write(
+          project,
+          { key: 'budgetFactor', value: 1.5 },
+          { by: F, at: 1 },
+        ),
+      ).toEqual({ ok: true });
+      expect((await source.stores.workPackages.findById(workPackageId))?.budgetFactor).toBe(1.5);
     } finally {
       await source.close();
     }
@@ -325,8 +364,8 @@ describe('budgets on the row read', () => {
     }
   });
 
-  it("derives a budget from the pessimistic points times the project's budget factor", async () => {
-    const { source, graph, projectId, dev, qa, idOf, run, rowOf } = await seeded();
+  it("derives a budget from the pessimistic points times the work package's budget factor", async () => {
+    const { source, dev, qa, idOf, run, rowOf } = await seeded();
     try {
       const [P, A, B] = ['P', 'A', 'B'].map(idOf);
       await run([
@@ -345,7 +384,18 @@ describe('budgets on the row read', () => {
         },
       });
       expect((await rowOf(P)).budgets?.['tokens']?.cap).toBe(600);
-      await graph.projects.updateWithin(projectId, F, { budgetFactor: 1.5 }, LEGACY);
+      const project = await source.stores.settings.readTarget(
+        { level: 'project', id: 'fixture-project' },
+        ORG,
+      );
+      if (project === null) throw new Error('budget fixture project is absent');
+      expect(
+        await source.stores.settings.write(
+          project,
+          { key: 'budgetFactor', value: 1.5 },
+          { by: F, at: 1 },
+        ),
+      ).toEqual({ ok: true });
       expect((await rowOf(P)).budgets?.['tokens']?.cap).toBe(900);
       // A stated budget overrides the derived one; clearing it brings it back.
       await run([setBudget(A, 'tokens', 100)]);
@@ -445,7 +495,8 @@ describe('budgets on the row read', () => {
 
 describe('budgets stay on their work item', () => {
   it('keeps a leaf budget on the leaf when it gains a first child, and bounds the child', async () => {
-    const { source, runner, projectId, dev, idOf, run, budgets, childOf, rowOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, budgets, childOf, rowOf } =
+      await seeded();
     try {
       const A = idOf('A');
       await run([setBudget(A, 'tokens', 100), fact(A, dev, 'tokens', 60)]);
@@ -457,7 +508,7 @@ describe('budgets stay on their work item', () => {
       // The fact went down to D; A's budget now bounds it.
       expect((await rowOf(A)).budgets?.['tokens']).toMatchObject({ remaining: 40 });
       expect((await rowOf(D)).budgets).toBeUndefined();
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toEqual([{ workItemId: A, key: 'tokens', cap: 100 }]);
     } finally {
       await source.close();
@@ -465,7 +516,7 @@ describe('budgets stay on their work item', () => {
   });
 
   it("does not hand a deleted last child's budget up, and puts it back on undo", async () => {
-    const { source, runner, projectId, idOf, run, budgets, childOf } = await seeded();
+    const { source, runner, workPackageId, idOf, run, budgets, childOf } = await seeded();
     try {
       const A = idOf('A');
       const D = childOf(
@@ -475,7 +526,7 @@ describe('budgets stay on their work item', () => {
       await run([setBudget(D, 'tokens', 7), setBudget(A, 'tokens', 9)]);
       expect(await run([{ kind: 'deleteWorkItem', workItemId: D }])).toMatchObject({ ok: true });
       expect(await budgets()).toEqual([{ workItemId: A, key: 'tokens', cap: 9 }]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toContainEqual({ workItemId: D, key: 'tokens', cap: 7 });
       expect(await budgets()).toHaveLength(2);
     } finally {
@@ -484,7 +535,7 @@ describe('budgets stay on their work item', () => {
   });
 
   it("puts a deleted branch's budgets back on undo", async () => {
-    const { source, runner, projectId, idOf, run, budgets } = await seeded();
+    const { source, runner, workPackageId, idOf, run, budgets } = await seeded();
     try {
       const [P, A] = [idOf('P'), idOf('A')];
       await run([setBudget(P, 'tokens', 10), setBudget(A, 'kwh', 2)]);
@@ -492,7 +543,7 @@ describe('budgets stay on their work item', () => {
         await run([{ kind: 'deleteWorkItem', workItemId: P, strategy: 'cascade' }]),
       ).toMatchObject({ ok: true });
       expect(await budgets()).toEqual([]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toHaveLength(2);
     } finally {
       await source.close();
@@ -500,7 +551,7 @@ describe('budgets stay on their work item', () => {
   });
 
   it("copies a duplicated branch's budgets and takes them with the copy on undo", async () => {
-    const { source, runner, projectId, idOf, run, budgets, childOf } = await seeded();
+    const { source, runner, workPackageId, idOf, run, budgets, childOf } = await seeded();
     try {
       const A = idOf('A');
       await run([setBudget(A, 'tokens', 11)]);
@@ -509,9 +560,9 @@ describe('budgets stay on their work item', () => {
         'copy',
       );
       expect(await budgets()).toContainEqual({ workItemId: copy, key: 'tokens', cap: 11 });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toEqual([{ workItemId: A, key: 'tokens', cap: 11 }]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await budgets()).toHaveLength(2);
     } finally {
       await source.close();
@@ -519,7 +570,7 @@ describe('budgets stay on their work item', () => {
   });
 
   it('refuses an undo that would put a budget back in a measure deleted since', async () => {
-    const { source, runner, projectId, idOf, run, budgets, kwhId } = await seeded();
+    const { source, runner, workPackageId, idOf, run, budgets, kwhId } = await seeded();
     try {
       const A = idOf('A');
       await run([setBudget(A, 'kwh', 3)]);
@@ -527,7 +578,7 @@ describe('budgets stay on their work item', () => {
       expect(
         await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await kwhId() }]),
       ).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await budgets()).toEqual([]);
     } finally {
       await source.close();
@@ -535,7 +586,7 @@ describe('budgets stay on their work item', () => {
   });
 
   it('refuses an undo of a delete whose budget is in a measure deleted since', async () => {
-    const { source, runner, projectId, idOf, run, budgets, kwhId } = await seeded();
+    const { source, runner, workPackageId, idOf, run, budgets, kwhId } = await seeded();
     try {
       const A = idOf('A');
       await run([setBudget(A, 'kwh', 3)]);
@@ -543,7 +594,7 @@ describe('budgets stay on their work item', () => {
       expect(
         await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await kwhId() }]),
       ).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await budgets()).toEqual([]);
     } finally {
       await source.close();
@@ -553,7 +604,7 @@ describe('budgets stay on their work item', () => {
 
 describe('the headroom read', () => {
   it('reports each startable and claimed step with its tightest budget, holds taken off', async () => {
-    const { source, graph, projectId, dev, qa, idOf, run } = await seeded();
+    const { source, graph, workPackageId, dev, qa, idOf, run } = await seeded();
     try {
       const [P, A, B] = ['P', 'A', 'B'].map(idOf);
       const start = Date.now() - 60 * MINUTE;
@@ -562,7 +613,7 @@ describe('the headroom read', () => {
         setBudget(A, 'tokens', 1000),
         { kind: 'startAttempt', workItemId: A, stepId: dev, at: start },
       ]);
-      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY, null);
+      const read = await graph.workItems.budgetHeadroomWithin(workPackageId, LEGACY, null);
       if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
       const stepOf = (workItemId: string, stepId: string) =>
         read.steps.find((each) => each.workItemId === workItemId && each.stepId === stepId);
@@ -599,7 +650,7 @@ describe('the headroom read', () => {
   it('names a mix on the blocked step and key only, the read itself never refused', async () => {
     // The reviewer's repro: sibling B mixes cost (unpriced and card x), leaf A
     // holds a tokens budget alone.
-    const { source, graph, projectId, dev, qa, idOf, run } = await seeded();
+    const { source, graph, workPackageId, dev, qa, idOf, run } = await seeded();
     try {
       const [P, A, B] = ['P', 'A', 'B'].map(idOf);
       await run([
@@ -612,7 +663,7 @@ describe('the headroom read', () => {
         { workItemId: B, stepId: qa, metric: 'cost', value: 4, recordedAt: 1 },
         { at: 1, by: F },
       );
-      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY, null);
+      const read = await graph.workItems.budgetHeadroomWithin(workPackageId, LEGACY, null);
       if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
       const onA = read.steps.find((each) => each.workItemId === A && each.stepId === dev);
       // Proof: with `findBudgetHeadroom` answering no steps whenever any budget
@@ -636,7 +687,7 @@ describe('the headroom read', () => {
 
   it('keeps an exhausted strict budget beside a looser advisory one', async () => {
     // The reviewer's fixture: P strict tokens 1000 spent 1000, A derived 300 spent 500.
-    const { source, graph, projectId, dev, qa, idOf, run } = await seeded();
+    const { source, graph, workPackageId, dev, qa, idOf, run } = await seeded();
     try {
       const [P, A, B] = ['P', 'A', 'B'].map(idOf);
       await run([
@@ -645,7 +696,7 @@ describe('the headroom read', () => {
         fact(A, dev, 'tokens', 500),
         fact(B, dev, 'tokens', 500),
       ]);
-      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY, null);
+      const read = await graph.workItems.budgetHeadroomWithin(workPackageId, LEGACY, null);
       if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
       const onA = read.steps.find((each) => each.workItemId === A && each.stepId === dev);
       expect(
@@ -663,7 +714,7 @@ describe('the headroom read', () => {
 
 describe('money carries its basis', () => {
   it('requires a rate card on a cost fact and refuses one on tokens', async () => {
-    const { source, projectId, dev, idOf, run } = await seeded();
+    const { source, workPackageId, dev, idOf, run } = await seeded();
     try {
       const A = idOf('A');
       expect(await run([fact(A, dev, 'cost', 10)])).toMatchObject({
@@ -680,10 +731,12 @@ describe('money carries its basis', () => {
         ok: true,
       });
       expect(
-        (await source.stores.measures.listByProject(projectId)).map(({ metric, basis }) => ({
-          metric,
-          basis,
-        })),
+        (await source.stores.measures.listByWorkPackage(workPackageId)).map(
+          ({ metric, basis }) => ({
+            metric,
+            basis,
+          }),
+        ),
       ).toEqual([{ metric: 'cost', basis: { currency: 'USD', rateCardDigest: 'card-a' } }]);
     } finally {
       await source.close();
@@ -691,7 +744,7 @@ describe('money carries its basis', () => {
   });
 
   it('requires a rate card on a cost trio and refuses one on tokens', async () => {
-    const { source, projectId, dev, idOf, run } = await seeded();
+    const { source, workPackageId, dev, idOf, run } = await seeded();
     try {
       const A = idOf('A');
       expect(await run([trio(A, dev, 'cost', 9)])).toMatchObject({
@@ -705,10 +758,12 @@ describe('money carries its basis', () => {
         ok: true,
       });
       expect(
-        (await source.stores.measureEstimates.listByProject(projectId)).map(({ key, basis }) => ({
-          key,
-          basis,
-        })),
+        (await source.stores.measureEstimates.listByWorkPackage(workPackageId)).map(
+          ({ key, basis }) => ({
+            key,
+            basis,
+          }),
+        ),
       ).toEqual([{ key: 'cost', basis: { currency: 'USD', rateCardDigest: 'card-a' } }]);
     } finally {
       await source.close();
@@ -729,14 +784,14 @@ describe('money carries its basis', () => {
   });
 
   it('undoes a cost fact back to the figure and rate card it replaced', async () => {
-    const { source, runner, projectId, dev, idOf, run } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run } = await seeded();
     try {
       const A = idOf('A');
       await run([{ ...fact(A, dev, 'cost', 10), rateCardDigest: 'card-a' }]);
       await run([{ ...fact(A, dev, 'cost', 20), rateCardDigest: 'card-b' }]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(
-        (await source.stores.measures.listByProject(projectId)).map(({ value, basis }) => ({
+        (await source.stores.measures.listByWorkPackage(workPackageId)).map(({ value, basis }) => ({
           value,
           basis,
         })),
@@ -818,7 +873,7 @@ describe('money carries its basis', () => {
   });
 
   it('hands up a fact on one card beside a trio on another', async () => {
-    const { source, projectId, dev, idOf, run, childOf } = await seeded();
+    const { source, workPackageId, dev, idOf, run, childOf } = await seeded();
     try {
       const A = idOf('A');
       const D = childOf(
@@ -831,7 +886,7 @@ describe('money carries its basis', () => {
       ]);
       expect(await run([{ kind: 'deleteWorkItem', workItemId: D }])).toMatchObject({ ok: true });
       expect(
-        (await source.stores.measures.listByProject(projectId)).map((each) => each.basis),
+        (await source.stores.measures.listByWorkPackage(workPackageId)).map((each) => each.basis),
       ).toEqual([{ currency: 'USD', rateCardDigest: 'card-a' }]);
     } finally {
       await source.close();
@@ -895,7 +950,7 @@ describe('money carries its basis', () => {
   });
 
   it('refuses an undo that would put an unpriced cost fact back', async () => {
-    const { source, runner, projectId, dev, idOf, run } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run } = await seeded();
     try {
       const A = idOf('A');
       await source.stores.measures.set(
@@ -903,17 +958,17 @@ describe('money carries its basis', () => {
         { at: 1, by: F },
       );
       await run([{ ...fact(A, dev, 'cost', 10), rateCardDigest: 'card-a' }]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
-      expect((await source.stores.measures.listByProject(projectId)).map((m) => m.value)).toEqual([
-        10,
-      ]);
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
+      expect(
+        (await source.stores.measures.listByWorkPackage(workPackageId)).map((m) => m.value),
+      ).toEqual([10]);
     } finally {
       await source.close();
     }
   });
 
   it('refuses an undo that would put an unpriced cost trio back', async () => {
-    const { source, runner, projectId, dev, idOf, run } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run } = await seeded();
     try {
       const A = idOf('A');
       await source.stores.measureEstimates.set(
@@ -929,9 +984,11 @@ describe('money carries its basis', () => {
         { at: 1, by: F },
       );
       await run([{ ...trio(A, dev, 'cost', 9), rateCardDigest: 'card-a' }]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(
-        (await source.stores.measureEstimates.listByProject(projectId)).map((m) => m.pessimistic),
+        (await source.stores.measureEstimates.listByWorkPackage(workPackageId)).map(
+          (m) => m.pessimistic,
+        ),
       ).toEqual([9]);
     } finally {
       await source.close();
@@ -939,7 +996,7 @@ describe('money carries its basis', () => {
   });
 
   it('hands a branch’s priced figures up under their one rate card', async () => {
-    const { source, projectId, dev, idOf, run, childOf } = await seeded();
+    const { source, workPackageId, dev, idOf, run, childOf } = await seeded();
     try {
       const A = idOf('A');
       const D = childOf(
@@ -953,13 +1010,13 @@ describe('money carries its basis', () => {
       expect(await run([{ kind: 'deleteWorkItem', workItemId: D }])).toMatchObject({ ok: true });
       const basis = { currency: 'USD', rateCardDigest: 'card-a' };
       expect(
-        (await source.stores.measures.listByProject(projectId)).map((each) => [
+        (await source.stores.measures.listByWorkPackage(workPackageId)).map((each) => [
           each.workItemId,
           each.basis,
         ]),
       ).toEqual([[A, basis]]);
       expect(
-        (await source.stores.measureEstimates.listByProject(projectId)).map((each) => [
+        (await source.stores.measureEstimates.listByWorkPackage(workPackageId)).map((each) => [
           each.workItemId,
           each.basis,
         ]),

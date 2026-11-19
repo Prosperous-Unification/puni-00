@@ -11,7 +11,7 @@ import { readGeneration } from './optimization-generation';
 import { toSolverQueueRow } from './optimizer-rows';
 import {
   type OptimizationGenerationRow,
-  project,
+  workPackage,
   type SolverObjectiveName,
   solverQueue,
   type SolverQueueRow,
@@ -23,7 +23,7 @@ interface QueueEntry extends Omit<SolverQueueRow, 'objective'> {
 }
 
 export interface SolverQueueRequest {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly objective: SolverObjectiveName;
@@ -53,7 +53,7 @@ export type SolverQueueDequeue =
 
 const queueIdentity = (entry: SolverQueueRequest) =>
   and(
-    eq(solverQueue.projectId, entry.projectId),
+    eq(solverQueue.workPackageId, entry.workPackageId),
     eq(solverQueue.contractVersion, entry.contractVersion),
     eq(solverQueue.objective, entry.objective),
     eq(solverQueue.budgetMs, entry.budgetMs),
@@ -71,7 +71,10 @@ export function currentQueueInputHash(
 }
 
 function currentInputHash(tx: Transaction, entry: QueueEntry): string | null {
-  return currentQueueInputHash(readGeneration(tx, entry.projectId, entry.contractVersion), entry);
+  return currentQueueInputHash(
+    readGeneration(tx, entry.workPackageId, entry.contractVersion),
+    entry,
+  );
 }
 
 /** Persist one capacity-blocked solve under the generation and cancel epoch observed now. */
@@ -80,14 +83,14 @@ export function enqueueSolverRequestIn(
   tx: Transaction,
   request: SolverQueueRequest,
 ): SolverQueueEnqueue {
-  const generation = readGeneration(tx, request.projectId, request.contractVersion);
+  const generation = readGeneration(tx, request.workPackageId, request.contractVersion);
   const state = tx
     .select({
-      enabled: project.optimizationEnabled,
-      deletePendingAt: project.optimizationDeletePendingAt,
+      enabled: workPackage.optimizationEnabled,
+      deletePendingAt: workPackage.optimizationDeletePendingAt,
     })
-    .from(project)
-    .where(eq(project.id, request.projectId))
+    .from(workPackage)
+    .where(eq(workPackage.id, request.workPackageId))
     .get();
   if (
     generation?.generation !== request.generation ||
@@ -101,7 +104,7 @@ export function enqueueSolverRequestIn(
     .insert(solverQueue)
     .values({ ...request, admittedCancelEpoch: generation.cancelEpoch })
     .onConflictDoNothing()
-    .returning({ projectId: solverQueue.projectId })
+    .returning({ workPackageId: solverQueue.workPackageId })
     .all();
   return { kind: inserted.length === 1 ? 'queued' : 'already-present' };
 }
@@ -117,7 +120,10 @@ export function enqueueSolverRequest(db: Drizzle, request: SolverQueueRequest): 
 export function dequeueSolverRequest(
   db: Drizzle,
   request: SolverQueueDequeueRequest,
-  onFinished?: (target: { readonly projectId: string; readonly contractVersion?: string }) => void,
+  onFinished?: (target: {
+    readonly workPackageId: string;
+    readonly contractVersion?: string;
+  }) => void,
 ): SolverQueueDequeue {
   return db.transaction((tx) => {
     for (;;) {
@@ -126,7 +132,7 @@ export function dequeueSolverRequest(
         .from(solverQueue)
         .orderBy(
           asc(solverQueue.enqueuedAt),
-          asc(solverQueue.projectId),
+          asc(solverQueue.workPackageId),
           asc(solverQueue.contractVersion),
           asc(solverQueue.objective),
           asc(solverQueue.budgetMs),
@@ -142,7 +148,7 @@ export function dequeueSolverRequest(
       }
 
       const slot: SolverSlotRequest = {
-        projectId: entry.projectId,
+        workPackageId: entry.workPackageId,
         contractVersion: entry.contractVersion,
         generation: entry.generation,
         objective: entry.objective,
@@ -160,7 +166,7 @@ export function dequeueSolverRequest(
       // when selected A retired without a scheduling-input hash change.
       const admission = reserveSolverSlotIn(tx, slot, onFinished);
       if (
-        admission.kind === 'project-full' ||
+        admission.kind === 'work-package-full' ||
         admission.kind === 'global-full' ||
         admission.kind === 'already-present'
       ) {

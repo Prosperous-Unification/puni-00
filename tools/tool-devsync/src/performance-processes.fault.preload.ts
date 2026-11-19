@@ -94,9 +94,25 @@ if (fault === 'unresolved-direct') {
 
 if (fault === 'selection-mutate') {
   const nativeSpawn = Bun.spawn;
+  const tracePath = process.env['PUNI_SELECTION_SPAWN_TRACE'];
+  if (tracePath === undefined || tracePath === '')
+    throw new Error('Selection observation requires its private spawn trace');
   let mutated = false;
-  // Test-only launch boundary: change the supervisor environment after setup starts.
+  // Test-only owned array launches: retain actual argv and only public selection/runtime-custody fields before the existing mutation.
   Bun.spawn = ((...args: Parameters<typeof Bun.spawn>) => {
+    const options = args[1];
+    fs.appendFileSync(
+      tracePath,
+      JSON.stringify({
+        argv: args[0],
+        cwd: options?.cwd ?? null,
+        environment: {
+          CI: options?.env?.['CI'] ?? null,
+          E2E_PORT_SHIFT: options?.env?.['E2E_PORT_SHIFT'] ?? null,
+          E2E_TEST_DATABASE: options?.env?.['E2E_TEST_DATABASE'] ?? null,
+        },
+      }) + '\n',
+    );
     const child = nativeSpawn(...args);
     if (!mutated) {
       mutated = true;

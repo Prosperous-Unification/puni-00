@@ -2043,3 +2043,47 @@ Only the existing production profile, fixture profile, fixture producer, profile
 Both test-only historical reconstruction owners first validate complete original fifth identity, remove one exact uniquely occurring package S3 line and four complete lock hunks (root declaration, AWS, Smithy, bowser), then validate the full fourth intermediate before existing0.13/20261104/0.12/before-CTT reversals. They retain all older intermediate and unique-hunk checks. Malformed/duplicate/missing inputs must reach the new reversal checks; omission evidence distinguishes invalid acceptance from redundant diagnostic refusal.
 
 The real producer captures HEAD. A normal clean candidate commit therefore precedes actual current Vite qualification. Preserve original actual captured byte strings/Git blobs, distinct canonical fixture, selected opening/closing observations, complete response inspectors and child/pipe/server/watcher settlement. Record the original G six-leaf77pass/152reported-fail prerequisite failure separately; those reports do not show152 executed safety negatives. Scoped local review and final exact published-head hosted leaves/other gates remain mandatory, with no local full-leaf replay or native/provider/runtime/adoption authority.
+
+## Coupled frontend configuration amendment — 2026-11-12
+
+The original common16 descriptions and their evidence above record the earlier
+input epoch. Current admission is fourteen unchanged shared tuples AND one whole
+reviewed Vite/project member AND one whole existing package/lock member. The five
+package/lock members retain their exact identities. The configuration members are:
+
+| Member   | Vite config bytes / SHA256                                               | Frontend project bytes / SHA256                                         |
+| -------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Original | 19302 / 0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b | 8117 / 9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e |
+| Current  | 19552 / d45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6 | 8132 / a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762 |
+
+The current Vite file retains the access-role and work-package-address aliases
+and restores only the two August incident quotes. The project corrects three
+Playwright configuration references to the existing cross-work-package file.
+Each independent selector, materializer and producer owns a literal two-member
+configuration table. Both files' complete size/hash identities must match the
+same member; individually recognized off-diagonals refuse. No shared expected-pin
+service, runtime fallback, version bypass or generic variant mechanism is added.
+
+Splitting the common table preserves the exact eighteen-path census: fourteen
+shared files, both configuration files and both root manifests are retained,
+validated and copied/observed. The producer continues comparing all eighteen
+original observed tuples through initial live, Git snapshot and closing live /
+snapshot checks. The package epoch label does not replace configuration identity;
+a switch between supported configuration members must refuse even with an
+unchanged package/lock pair. Source inputs remain bound to actual Git blobs.
+
+Tests independently compare all eighteen current copied files with decoded
+canonical entries, model both complete configurations with all five package/lock
+members, and exercise mixed/unknown configuration refusal at each actual owner.
+Modeled selection and reconstructed original configuration input bytes are not
+historical response production. New guard refusal and valid-member necessity
+require separate finite proof review; no proof follows from this design text.
+
+Ten complete configuration/package combinations are intentionally selectable;
+their response qualification is not automatic. A current committed producer must
+still emit both unchanged complete wire-v1 responses, capture its actual selected
+inputs, compose an independent canonical manifest, and join its child, pipes,
+server and watcher under the existing bounds. Preserve historical evidence,
+response/program bytes, private resolver and readiness/startup limits. A private
+committed source capsule may carry actual current source bytes when coordinated;
+fake Git observations, dirty substitutions and guard relaxation are forbidden.

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 import { createRenderingEvidence } from './rendering-evidence';
 

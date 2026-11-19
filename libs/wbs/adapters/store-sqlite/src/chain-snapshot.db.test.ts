@@ -29,8 +29,8 @@ import { reserveSolverSlot } from './optimization-admission';
 import { allocateGeneration } from './optimization-generation';
 import { readGeneration } from './optimization-generation';
 import { storeOptimizedOutcomeAndRecord } from './optimized-outcome';
-import { ProjectRepository } from './project';
-import { ProjectRankRepository } from './project-rank';
+import { WorkPackageRepository } from './work-package';
+import { WorkPackageRankRepository } from './work-package-rank';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
@@ -86,27 +86,27 @@ beforeEach(async () => {
       `INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('${personId}', 'org-a', '${personId}')`,
     );
   }
-  for (const [projectId, people] of [
+  for (const [workPackageId, people] of [
     ['a1', ['ana']],
     ['a2', ['ana', 'ben']],
     ['a3', ['ben']],
   ] as const) {
     write(
-      `UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${projectId}'`,
+      `UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${workPackageId}'`,
     );
     write(
-      `INSERT INTO work_item (id, project_id, position, name) VALUES ('${projectId}', '${projectId}', 10, '${projectId}')`,
+      `INSERT INTO work_item (id, work_package_id, position, name) VALUES ('${workPackageId}', '${workPackageId}', 10, '${workPackageId}')`,
     );
     for (const [index, personId] of people.entries()) {
-      const stepId = `${projectId}-s${String(index)}`;
+      const stepId = `${workPackageId}-s${String(index)}`;
       write(
-        `INSERT INTO step (id, project_id, name, position) VALUES ('${stepId}', '${projectId}', '${stepId}', ${String(index)})`,
+        `INSERT INTO step (id, work_package_id, name, position) VALUES ('${stepId}', '${workPackageId}', '${stepId}', ${String(index)})`,
       );
       write(
-        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${projectId}', '${stepId}', 1, 1, 1)`,
+        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${workPackageId}', '${stepId}', 1, 1, 1)`,
       );
       write(
-        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${projectId}', '${stepId}', '${personId}')`,
+        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${workPackageId}', '${stepId}', '${personId}')`,
       );
     }
   }
@@ -193,8 +193,8 @@ function savedService(chain: SharedPeopleReader) {
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
     }),
     scheduler: fast,
-    captureSharedPlan: async (projectId) => {
-      const answer = await chain.read(projectId, principal);
+    captureSharedPlan: async (workPackageId) => {
+      const answer = await chain.read(workPackageId, principal);
       if (!answer.ok) throw new Error(answer.refusal);
       return answer.value;
     },
@@ -237,21 +237,25 @@ describe('the chain snapshot', () => {
     const reader = new SharedPeopleReader(snapshots());
     write("DELETE FROM organization_membership WHERE user_id = 'ada'");
     expect(await reader.read('a3', principal)).toEqual({ ok: false, refusal: 'not_a_member' });
-    const shared = await reader.readProject('a3');
+    const shared = await reader.readWorkPackage('a3');
     if (shared.kind !== 'scheduled' || shared.scheduled.kind !== 'scheduled')
       throw new Error('expected shared');
-    expect(shared.influencers.map((each) => each.projectId)).toEqual(['a1', 'a2']);
-    expect(await reader.readProject('absent')).toEqual({ kind: 'not_found' });
-    write('DROP TRIGGER project_organization_frozen_update');
-    write("UPDATE project_organization SET organization_id = 'org-b' WHERE resource_id = 'a3'");
+    expect(shared.influencers.map((each) => each.workPackageId)).toEqual(['a1', 'a2']);
+    expect(await reader.readWorkPackage('absent')).toEqual({ kind: 'not_found' });
+    write('DROP TRIGGER work_package_organization_frozen_update');
+    write(
+      "UPDATE work_package_organization SET organization_id = 'org-b' WHERE resource_id = 'a3'",
+    );
     // Keep abbreviation metadata coherent so this fault reaches the reference guard.
-    write("UPDATE project_abbreviation SET namespace = 'org:org-b' WHERE project_id = 'a3'");
-    expect((await failureOf(reader.readProject('a3'))).message).toContain(
+    write(
+      "UPDATE work_package_abbreviation SET namespace = 'org:org-b' WHERE work_package_id = 'a3'",
+    );
+    expect((await failureOf(reader.readWorkPackage('a3'))).message).toContain(
       'references outside its organization',
     );
     write('DROP TRIGGER organization_activation_no_revert');
     write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
-    const legacy = await reader.readProject('a3');
+    const legacy = await reader.readWorkPackage('a3');
     if (legacy.kind !== 'scheduled') throw new Error('expected legacy');
     expect(legacy.influencers).toEqual([]);
     expect(canonicalScheduleInput(legacy.input)).toBe(
@@ -272,16 +276,16 @@ describe('the chain snapshot', () => {
     expect((await failureOf(reader.read('a3', principal))).message).toContain(
       'invalid stored shared_people',
     );
-    expect((await failureOf(reader.readProject('a3'))).message).toContain(
+    expect((await failureOf(reader.readWorkPackage('a3'))).message).toContain(
       'invalid stored shared_people',
     );
     write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    write('DROP TRIGGER project_organization_frozen_delete');
-    write("DELETE FROM project_organization WHERE resource_id = 'a3'");
+    write('DROP TRIGGER work_package_organization_frozen_delete');
+    write("DELETE FROM work_package_organization WHERE resource_id = 'a3'");
     // An unmapped root uses the legacy namespace; ownership itself is the injected fault.
-    write("UPDATE project_abbreviation SET namespace = 'legacy' WHERE project_id = 'a3'");
-    expect((await failureOf(reader.readProject('a3'))).message).toContain(
-      'project ownership is absent',
+    write("UPDATE work_package_abbreviation SET namespace = 'legacy' WHERE work_package_id = 'a3'");
+    expect((await failureOf(reader.readWorkPackage('a3'))).message).toContain(
+      'work package ownership is absent',
     );
   });
 
@@ -292,7 +296,7 @@ describe('the chain snapshot', () => {
     transaction.begin();
     try {
       connection.db.run(sql`UPDATE organization SET shared_people = 0 WHERE id = 'org-a'`);
-      const readable = await new ProjectRepository(connection.db, OPEN).listForInOrganization(
+      const readable = await new WorkPackageRepository(connection.db, OPEN).listForInOrganization(
         'ada',
         'org-a',
       );
@@ -319,12 +323,14 @@ describe('the chain snapshot', () => {
     }
   });
 
-  it('refuses a broken project-owned readable dependency', async () => {
-    const broken = spyOn(ProjectRepository.prototype, 'findInOrganization').mockResolvedValue(null);
+  it('refuses a broken work-package-owned readable dependency', async () => {
+    const broken = spyOn(WorkPackageRepository.prototype, 'findInOrganization').mockResolvedValue(
+      null,
+    );
     try {
       expect(
-        (await failureOf(new SharedPeopleReader(snapshots()).readProject('a3'))).message,
-      ).toContain('rank names an unreadable project');
+        (await failureOf(new SharedPeopleReader(snapshots()).readWorkPackage('a3'))).message,
+      ).toContain('rank names an unreadable work package');
       expect(closed).toBe(1);
     } finally {
       broken.mockRestore();
@@ -335,44 +341,51 @@ describe('the chain snapshot', () => {
     write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
     const original = Object.getOwnPropertyDescriptor(
       DirectoryRepository.prototype,
-      'assignmentsInProject',
-    )?.value as DirectoryRepository['assignmentsInProject'];
-    const blocked = spyOn(DirectoryRepository.prototype, 'assignmentsInProject').mockImplementation(
-      function (this: DirectoryRepository, projectId) {
-        if (projectId !== 'a3') throw new Error('upstream isolated assignment read');
-        return original.call(this, projectId);
-      },
-    );
+      'assignmentsInWorkPackage',
+    )?.value as DirectoryRepository['assignmentsInWorkPackage'];
+    const blocked = spyOn(
+      DirectoryRepository.prototype,
+      'assignmentsInWorkPackage',
+    ).mockImplementation(function (this: DirectoryRepository, workPackageId) {
+      if (workPackageId !== 'a3') throw new Error('upstream isolated assignment read');
+      return original.call(this, workPackageId);
+    });
     try {
       expect(await start()).toBe(2);
-      const background = await new SharedPeopleReader(snapshots()).readProject('a3');
+      const background = await new SharedPeopleReader(snapshots()).readWorkPackage('a3');
       expect(background.kind).toBe('scheduled');
       write('DROP TRIGGER organization_activation_no_revert');
       write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
       expect(await start()).toBe(2);
-      expect((await new SharedPeopleReader(snapshots()).readProject('a3')).kind).toBe('scheduled');
+      expect((await new SharedPeopleReader(snapshots()).readWorkPackage('a3')).kind).toBe(
+        'scheduled',
+      );
     } finally {
       blocked.mockRestore();
     }
   });
 
-  it('never lists organization projects or ranks for isolated or legacy targets', async () => {
+  it('never lists organization work packages or ranks for isolated or legacy targets', async () => {
     write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
     const blocked = ['list', 'listFor', 'listForInOrganization'].map((method) =>
-      spyOn(ProjectRepository.prototype, method as 'list').mockImplementation(() => {
-        throw new Error('isolated project list');
+      spyOn(WorkPackageRepository.prototype, method as 'list').mockImplementation(() => {
+        throw new Error('isolated work package list');
       }),
     );
-    const rank = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(() => {
+    const rank = spyOn(WorkPackageRankRepository.prototype, 'orderIn').mockImplementation(() => {
       throw new Error('isolated rank list');
     });
     try {
       expect(await start()).toBe(2);
-      expect((await new SharedPeopleReader(snapshots()).readProject('a3')).kind).toBe('scheduled');
+      expect((await new SharedPeopleReader(snapshots()).readWorkPackage('a3')).kind).toBe(
+        'scheduled',
+      );
       write('DROP TRIGGER organization_activation_no_revert');
       write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
       expect(await start()).toBe(2);
-      expect((await new SharedPeopleReader(snapshots()).readProject('a3')).kind).toBe('scheduled');
+      expect((await new SharedPeopleReader(snapshots()).readWorkPackage('a3')).kind).toBe(
+        'scheduled',
+      );
     } finally {
       for (const blockedList of blocked) blockedList.mockRestore();
       rank.mockRestore();
@@ -402,12 +415,12 @@ describe('the chain snapshot', () => {
           edited = true;
           write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
           write("UPDATE assignment SET person_id = 'ben' WHERE work_item_id = 'a1'");
-          write("UPDATE project SET start_date = '2026-10-12' WHERE id = 'a2'");
+          write("UPDATE work_package SET start_date = '2026-10-12' WHERE id = 'a2'");
         }
         return Promise.resolve();
       }),
     );
-    const shared = await reader.readProject('a3');
+    const shared = await reader.readWorkPackage('a3');
     if (shared.kind !== 'scheduled' || shared.scheduled.kind !== 'scheduled')
       throw new Error('expected shared background');
     expect(shared.scheduled.fast.slices.get(sliceKey('a3', 'a3-s0'))?.earliestStart).toBe(3);
@@ -417,7 +430,7 @@ describe('the chain snapshot', () => {
         throw new Error('background capture fault');
       }),
     );
-    expect((await failureOf(broken.readProject('a3'))).message).toContain(
+    expect((await failureOf(broken.readWorkPackage('a3'))).message).toContain(
       'background capture fault',
     );
     expect(closed).toBe(2);
@@ -429,7 +442,7 @@ describe('the chain snapshot', () => {
       schedulerOf: () => fast,
       now: Date.now,
       activeOrganizationOf: (db) => async () => {
-        db.run(sql`UPDATE project SET name = 'unsafe' WHERE id = 'a4'`);
+        db.run(sql`UPDATE work_package SET name = 'unsafe' WHERE id = 'a4'`);
         return Promise.resolve('org-a');
       },
     });
@@ -438,7 +451,7 @@ describe('the chain snapshot', () => {
     ).toMatchObject({ code: 'SQLITE_READONLY' });
     const client = openDatabase(path);
     try {
-      expect(client.query("SELECT name FROM project WHERE id = 'a4'").get()).toEqual({
+      expect(client.query("SELECT name FROM work_package WHERE id = 'a4'").get()).toEqual({
         name: 'a4',
       });
     } finally {
@@ -446,7 +459,7 @@ describe('the chain snapshot', () => {
     }
   });
 
-  it('refuses a borrowed capture capability outside its readable project list', async () => {
+  it('refuses a borrowed capture capability outside its readable work package list', async () => {
     expect(
       (
         await failureOf(
@@ -455,31 +468,34 @@ describe('the chain snapshot', () => {
           ),
         )
       ).message,
-    ).toContain('chain capture names an unreadable project');
+    ).toContain('chain capture names an unreadable work package');
     expect(closed).toBe(1);
   });
 
   it('throws when rank and its trusted readable-list dependency disagree', async () => {
-    const broken = spyOn(ProjectRepository.prototype, 'listForInOrganization').mockResolvedValue(
-      [],
-    );
+    const broken = spyOn(
+      WorkPackageRepository.prototype,
+      'listForInOrganization',
+    ).mockResolvedValue([]);
     try {
       expect(
         (await failureOf(snapshots().withSnapshot(principal, 'a3', () => ({ kind: 'not_found' }))))
           .message,
-      ).toContain('rank names an unreadable project');
+      ).toContain('rank names an unreadable work package');
       expect(closed).toBe(1);
     } finally {
       broken.mockRestore();
     }
   });
 
-  it('throws when its trusted capture dependency loses a ranked project', async () => {
-    const broken = spyOn(ProjectRepository.prototype, 'findInOrganization').mockResolvedValue(null);
+  it('throws when its trusted capture dependency loses a ranked work package', async () => {
+    const broken = spyOn(WorkPackageRepository.prototype, 'findInOrganization').mockResolvedValue(
+      null,
+    );
     try {
       expect(
         (await failureOf(new SharedPeopleReader(snapshots()).read('a3', principal))).message,
-      ).toContain('ranked project disappeared inside its snapshot');
+      ).toContain('ranked work package disappeared inside its snapshot');
       expect(closed).toBe(1);
     } finally {
       broken.mockRestore();
@@ -506,9 +522,9 @@ describe('the chain snapshot', () => {
         edited = true;
         write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
         write("UPDATE assignment SET person_id = 'ben' WHERE work_item_id = 'a1'");
-        write("UPDATE project SET start_date = '2026-10-12' WHERE id = 'a2'");
+        write("UPDATE work_package SET start_date = '2026-10-12' WHERE id = 'a2'");
         write(
-          "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a3', 'org-a', 1, 1, 'ada')",
+          "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES ('a3', 'org-a', 1, 1, 'ada')",
         );
         return Promise.resolve();
       }),
@@ -520,7 +536,7 @@ describe('the chain snapshot', () => {
 
   it('selects cache publication from the same snapshot and never calls live admission', async () => {
     write(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a1'",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a1'",
     );
     write("UPDATE work_item SET start_no_earlier_than = '2026-10-06' WHERE id = 'a2'");
     write("UPDATE work_item SET start_no_earlier_than = '2026-10-08' WHERE id = 'a3'");
@@ -550,7 +566,7 @@ describe('the chain snapshot', () => {
           connection.db
             .insert(optimizedScheduleCache)
             .values({
-              projectId: 'a1',
+              workPackageId: 'a1',
               inputHash,
               generation,
               contractVersion: '17+0.3.0',
@@ -582,14 +598,14 @@ describe('the chain snapshot', () => {
     expect(await start()).toBe(4);
     expect(closed).toBe(2);
     write(
-      "UPDATE optimized_schedule_cache SET status = 'failed', failure_reason = 'timeout', result_json = NULL WHERE project_id = 'a1'",
+      "UPDATE optimized_schedule_cache SET status = 'failed', failure_reason = 'timeout', result_json = NULL WHERE work_package_id = 'a1'",
     );
     expect(await start()).toBe(3);
   });
 
   it('stores an eligible old shared result only at H1 and never serves it for captured H2', async () => {
     write(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a3'",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a3'",
     );
     const chain = new SharedPeopleReader(snapshots());
     const capture = async () => {
@@ -609,7 +625,7 @@ describe('the chain snapshot', () => {
       const db = connection.db;
       const generation = allocateGeneration(db, 'a3', '17+0.3.0', h1, 1);
       const admission = reserveSolverSlot(db, {
-        projectId: 'a3',
+        workPackageId: 'a3',
         contractVersion: '17+0.3.0',
         generation,
         objective: 'pri',
@@ -644,7 +660,7 @@ describe('the chain snapshot', () => {
 
       const outcome = {
         claim: {
-          projectId: 'a3',
+          workPackageId: 'a3',
           contractVersion: '17+0.3.0',
           generation,
           objective: 'pri' as const,
@@ -675,7 +691,7 @@ describe('the chain snapshot', () => {
       expect(published.result).toBe('stored');
       expect(published.event).toEqual({
         type: 'schedule_optimized',
-        projectId: 'a3',
+        workPackageId: 'a3',
         generation,
         inputHash: h1,
         objective: 'pri',
@@ -686,7 +702,7 @@ describe('the chain snapshot', () => {
       const afterPublication = state();
       expect(afterPublication.cache.map((row) => row.inputHash)).toEqual([h1]);
       expect(afterPublication.events).toHaveLength(1);
-      expect(await events.rangeSince('project:a3', -1)).toEqual([published.recorded]);
+      expect(await events.rangeSince('work-package:a3', -1)).toEqual([published.recorded]);
       expect(readGeneration(db, 'a3', '17+0.3.0')).toMatchObject({ generation, inputHash: h1 });
       const lookup = capturedOptimizationReaderOf(db, {
         contractVersion: '17+0.3.0',
@@ -694,7 +710,7 @@ describe('the chain snapshot', () => {
         now: () => 100,
       });
       const oldKey = lookup({
-        projectId: 'a3',
+        workPackageId: 'a3',
         objective: 'pri',
         input: first.input,
         enabled: true,
@@ -729,11 +745,11 @@ describe('the chain snapshot', () => {
 
   it('keeps pending target optimization absent under the saved S4 policy', async () => {
     write(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a3'",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a3'",
     );
     const saved = savedService(new SharedPeopleReader(snapshots()));
     const written = await saved.save({
-      projectId: 'a3',
+      workPackageId: 'a3',
       createdBy: 'Ada',
       createdById: 'ada',
       access: admitted,
@@ -755,7 +771,7 @@ describe('the chain snapshot', () => {
       "UPDATE estimate SET optimistic = 80000000, realistic = 80000000, pessimistic = 80000000 WHERE work_item_id = 'a3'",
     );
     const written = await savedService(new SharedPeopleReader(snapshots())).save({
-      projectId: 'a3',
+      workPackageId: 'a3',
       createdBy: 'Ada',
       createdById: 'ada',
       access: admitted,
@@ -766,11 +782,11 @@ describe('the chain snapshot', () => {
 
   it('uses ranked ties before the unranked tail', async () => {
     write(
-      "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a2', 'org-a', 10, 1, 'ada'), ('a1', 'org-a', 10, 1, 'ada')",
+      "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES ('a2', 'org-a', 10, 1, 'ada'), ('a1', 'org-a', 10, 1, 'ada')",
     );
     const answer = await new SharedPeopleReader(snapshots()).read('a3', principal);
     if (!answer.ok || answer.value.kind !== 'scheduled') throw new Error('expected target');
-    expect(answer.value.influencers.map((each) => each.projectId)).toEqual(['a1', 'a2']);
+    expect(answer.value.influencers.map((each) => each.workPackageId)).toEqual(['a1', 'a2']);
     expect(await start()).toBe(3);
   });
 
@@ -793,7 +809,7 @@ describe('the chain snapshot', () => {
     const chain = new SharedPeopleReader(snapshots());
     const saved = savedService(chain);
     const written = await saved.save({
-      projectId: 'a3',
+      workPackageId: 'a3',
       createdBy: 'Ada',
       createdById: 'ada',
       access: admitted,
@@ -802,16 +818,16 @@ describe('the chain snapshot', () => {
     if (written.outcome !== 'saved' || !written.record.schedule.present)
       throw new Error('expected saved dates');
     expect(written.record.schedule.body.bytes).toContain('"earliestStart":3');
-    const current = await saved.projectCurrentPlan('a3', admitted);
+    const current = await saved.workPackageCurrentPlan('a3', admitted);
     if (!current?.schedule.present) throw new Error('expected current dates');
     expect(JSON.stringify(current.schedule.body)).toContain('"earliestStart":3');
     const bytes = written.record.schedule.body.bytes;
     write("UPDATE estimate SET realistic = 9 WHERE work_item_id = 'a1'");
     write("DELETE FROM assignment WHERE work_item_id = 'a1'");
     write("DELETE FROM estimate WHERE work_item_id = 'a1'");
-    write("DELETE FROM work_item WHERE project_id = 'a1'");
-    write("DELETE FROM step WHERE project_id = 'a1'");
-    write("DELETE FROM project WHERE id = 'a1'");
+    write("DELETE FROM work_item WHERE work_package_id = 'a1'");
+    write("DELETE FROM step WHERE work_package_id = 'a1'");
+    write("DELETE FROM work_package WHERE id = 'a1'");
     const read = await saved.read('saved-chain');
     expect(read.outcome).toBe('read');
     if (read.outcome !== 'read' || !read.plan.schedule.present)
@@ -822,7 +838,7 @@ describe('the chain snapshot', () => {
   it('closes and preserves a concurrent committed edit when capture throws', async () => {
     const reader = new SharedPeopleReader(
       snapshots(() => {
-        write("UPDATE project SET name = 'survives' WHERE id = 'a4'");
+        write("UPDATE work_package SET name = 'survives' WHERE id = 'a4'");
         throw new Error('injected capture failure');
       }),
     );
@@ -832,7 +848,7 @@ describe('the chain snapshot', () => {
     expect(closed).toBe(1);
     const client = openDatabase(path);
     try {
-      expect(client.query("SELECT name FROM project WHERE id = 'a4'").get()).toEqual({
+      expect(client.query("SELECT name FROM work_package WHERE id = 'a4'").get()).toEqual({
         name: 'survives',
       });
     } finally {
@@ -894,7 +910,12 @@ describe('detached live snapshot guards', () => {
     const observed = await store.readAggregate('ada', access);
     expect(observed.kind).toBe('shared');
     if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-    expect(observed.entries.map(({ projectId }) => projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
+    expect(observed.entries.map(({ workPackageId }) => workPackageId)).toEqual([
+      'a1',
+      'a2',
+      'a3',
+      'a4',
+    ]);
     expect(schedules).toBe(4);
   });
   it('captures persisted blockage facts in the aggregate entry from its snapshot', async () => {
@@ -904,8 +925,8 @@ describe('detached live snapshot guards', () => {
     );
     const observed = await livePlans().readAggregate('ada', access);
     if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-    const upstream = observed.entries.find(({ projectId }) => projectId === 'a1');
-    const target = observed.entries.find(({ projectId }) => projectId === 'a2');
+    const upstream = observed.entries.find(({ workPackageId }) => workPackageId === 'a1');
+    const target = observed.entries.find(({ workPackageId }) => workPackageId === 'a2');
     if (upstream?.plan.kind !== 'shared' || target?.plan.kind !== 'shared')
       throw new Error('expected ordinary shared members');
     expect(target.plan.blockages).toEqual([
@@ -918,16 +939,16 @@ describe('detached live snapshot guards', () => {
     const target = async () => {
       const observed = await store.readAggregate('ada', access);
       if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-      const entry = observed.entries.find(({ projectId }) => projectId === 'a3');
+      const entry = observed.entries.find(({ workPackageId }) => workPackageId === 'a3');
       if (entry?.plan.kind !== 'shared' || entry.plan.chain.kind !== 'scheduled')
         throw new Error('target schedule unavailable');
       return { basis: entry.basis, inputHash: scheduleInputHash(entry.plan.chain.input) };
     };
     const before = await target();
-    write("UPDATE project SET name = 'Renamed A' WHERE id = 'a1'");
-    write("UPDATE project_rank SET position = 25 WHERE project_id = 'a4'");
+    write("UPDATE work_package SET name = 'Renamed A' WHERE id = 'a1'");
+    write("UPDATE work_package_rank SET position = 25 WHERE work_package_id = 'a4'");
     expect(await target()).toEqual(before);
-    write("UPDATE project SET start_date = '2026-10-06' WHERE id = 'a1'");
+    write("UPDATE work_package SET start_date = '2026-10-06' WHERE id = 'a1'");
     const moved = await target();
     expect(moved.basis).not.toBe(before.basis);
     expect(moved.inputHash).not.toBe(before.inputHash);
@@ -937,15 +958,16 @@ describe('detached live snapshot guards', () => {
       "INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES ('a2', 'a2-s0', 1)",
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method -- invokes the real repository with its original receiver.
-    const list = StepParallelRepository.prototype.listByProject;
+    const list = StepParallelRepository.prototype.listByWorkPackage;
     const retained: Awaited<ReturnType<typeof list>>[] = [];
-    const borrowing = spyOn(StepParallelRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: StepParallelRepository, projectId) {
-        const rows = await list.call(this, projectId);
-        retained.push(rows);
-        return rows;
-      },
-    );
+    const borrowing = spyOn(
+      StepParallelRepository.prototype,
+      'listByWorkPackage',
+    ).mockImplementation(async function (this: StepParallelRepository, workPackageId) {
+      const rows = await list.call(this, workPackageId);
+      retained.push(rows);
+      return rows;
+    });
     try {
       const observed = await livePlans().readExport('a2', access);
       if (observed.kind !== 'shared') throw new Error('shared export observation unavailable');
@@ -988,7 +1010,7 @@ describe('detached live snapshot guards', () => {
     expect(closed).toBe(1);
   });
   it('closes its owned connection after dependency failure', async () => {
-    const broken = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(() =>
+    const broken = spyOn(WorkPackageRankRepository.prototype, 'orderIn').mockImplementation(() =>
       Promise.reject(new Error('injected rank failure')),
     );
     try {
@@ -1000,19 +1022,19 @@ describe('detached live snapshot guards', () => {
       broken.mockRestore();
     }
   });
-  it('rejects an unreadable ranked live project', async () => {
+  it('rejects an unreadable ranked live work package', async () => {
     // eslint-disable-next-line @typescript-eslint/unbound-method -- fault calls original with the actual repository receiver.
-    const original = ProjectRepository.prototype.findInOrganization;
-    const broken = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-      function (this: ProjectRepository, projectId, organizationId) {
-        return projectId === 'a1'
+    const original = WorkPackageRepository.prototype.findInOrganization;
+    const broken = spyOn(WorkPackageRepository.prototype, 'findInOrganization').mockImplementation(
+      function (this: WorkPackageRepository, workPackageId, organizationId) {
+        return workPackageId === 'a1'
           ? Promise.resolve(null)
-          : original.call(this, projectId, organizationId);
+          : original.call(this, workPackageId, organizationId);
       },
     );
     try {
       expect((await failureOf(livePlans().read('a3', access))).message).toBe(
-        'rank names an unreadable project',
+        'rank names an unreadable work package',
       );
     } finally {
       broken.mockRestore();
@@ -1020,11 +1042,11 @@ describe('detached live snapshot guards', () => {
   });
   it('rejects a live target omitted by its rank dependency', async () => {
     // eslint-disable-next-line @typescript-eslint/unbound-method -- fault calls original with the actual repository receiver.
-    const original = ProjectRankRepository.prototype.orderIn;
-    const broken = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(
-      async function (this: ProjectRankRepository, organizationId) {
+    const original = WorkPackageRankRepository.prototype.orderIn;
+    const broken = spyOn(WorkPackageRankRepository.prototype, 'orderIn').mockImplementation(
+      async function (this: WorkPackageRankRepository, organizationId) {
         return (await original.call(this, organizationId)).filter(
-          (ranked) => ranked.projectId !== 'a3',
+          (ranked) => ranked.workPackageId !== 'a3',
         );
       },
     );

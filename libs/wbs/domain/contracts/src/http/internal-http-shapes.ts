@@ -87,7 +87,7 @@ export const resumeInternal = defineEndpointShape({
   path: '/internal/resume',
   operationId: 'postInternalResume',
   // Replay is a read for the socket's own principal: the gateway forwards that
-  // browser credential and be-01 checks every named project before replaying.
+  // browser credential and be-01 checks current package.read for every named package before replaying.
   policies: [...gatewayBrowserPolicies, { kind: 'organization-control' }],
   body: requestSchema(type({ resume_points: resumePoints, trace_id: 'string' })),
   bodyMedia,
@@ -101,18 +101,18 @@ export const resumeInternal = defineEndpointShape({
   document: { summary: 'Replay recorded events to one reconnecting gateway socket.' },
 });
 
-/** Checks one project for a gateway's single-use, read-scoped delegation. */
-export const gatewayProjectAccess = defineEndpointShape({
+/** Checks current package.read for a gateway's single-use, read-scoped delegation. */
+export const gatewayWorkPackageAccess = defineEndpointShape({
   method: 'POST',
-  path: '/internal/gateway/projects/:projectId/access',
-  operationId: 'postInternalGatewayProjectAccess',
+  path: '/internal/gateway/work-packages/:workPackageId/access',
+  operationId: 'postInternalGatewayWorkPackageAccess',
   policies: [{ kind: 'organization-control' }, { kind: 'identity', require: 'gateway-delegation' }],
-  params: requestSchema(type({ projectId: 'string' })),
+  params: requestSchema(type({ workPackageId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     // Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
     // request-boundary failure the mount can raise with a declared 4xx` listed
-    // both gateway project-access routes `invalid_query` (watched 2026-10-24); it guards each widened 400 here.
+    // both gateway work-package-access routes `invalid_query` (watched 2026-10-24); it guards each widened 400 here.
     {
       status: 400,
       schema: responseSchema(
@@ -125,20 +125,20 @@ export const gatewayProjectAccess = defineEndpointShape({
     organizationContextRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
-  document: { summary: 'Check a gateway delegation against current project access.' },
+  document: { summary: 'Check a gateway delegation against current work package access.' },
 });
 
 /**
- * Checks one project for the browser principal behind one gateway socket:
- * current membership and an organization-scoped project, as `gatewayProjectAccess`,
+ * Checks one work package for the browser principal behind one gateway socket:
+ * current membership and package.read, as {@link gatewayWorkPackageAccess},
  * but proved by the forwarded browser credential rather than a signed delegation.
  */
-export const gatewayBrowserProjectAccess = defineEndpointShape({
+export const gatewayBrowserWorkPackageAccess = defineEndpointShape({
   method: 'POST',
-  path: '/internal/gateway/projects/:projectId/browser-access',
-  operationId: 'postInternalGatewayProjectBrowserAccess',
+  path: '/internal/gateway/work-packages/:workPackageId/browser-access',
+  operationId: 'postInternalGatewayWorkPackageBrowserAccess',
   policies: [...gatewayBrowserPolicies, { kind: 'organization-control' }],
-  params: requestSchema(type({ projectId: 'string' })),
+  params: requestSchema(type({ workPackageId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     {
@@ -153,5 +153,5 @@ export const gatewayBrowserProjectAccess = defineEndpointShape({
     organizationContextRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
-  document: { summary: 'Check a gateway socket principal against current project access.' },
+  document: { summary: 'Check a gateway socket principal against current work package access.' },
 });

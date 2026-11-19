@@ -86,7 +86,7 @@ export type SavedPlanComparisonState =
   | { readonly kind: 'loading' }
   /**
    * be-01 has no such saved plan. The id is `null` when the refusal named no
-   * plan — the project itself was the thing not found — and that is a different
+   * plan — the work package itself was the thing not found — and that is a different
    * sentence rather than the same one with a gap in it.
    *
    * A state of its own and not `error` with a code in it (8.5). A refusal the
@@ -124,7 +124,7 @@ export type SavedPlanComparisonState =
  * Two sentences and not one with a hole in it. With an id, the plan named on a
  * picker is the thing that went — deleted by a collaborator between the pick
  * and the compare — and the next move is to pick another. With no id, be-01
- * refused the *project*, which no choice on this panel can fix, so offering one
+ * refused the *work package*, which no choice on this panel can fix, so offering one
  * would send the reader round a loop.
  *
  * A function so both branches can be held against their input without a
@@ -132,7 +132,7 @@ export type SavedPlanComparisonState =
  * goes green while the surface says something else.
  */
 export function compareGoneWords(savedPlanId: string | null): string {
-  if (savedPlanId === null) return 'This project no longer has any saved plans to compare.';
+  if (savedPlanId === null) return 'This work package no longer has any saved plans to compare.';
   return `That saved plan (${savedPlanId}) is no longer here — it has been deleted. Pick another to compare.`;
 }
 

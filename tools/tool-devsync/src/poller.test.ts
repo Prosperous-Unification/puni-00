@@ -1,4 +1,16 @@
-import { chmod, mkdir, readdir, readFile, rename, utimes, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  symlink,
+  unlink,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
@@ -11,6 +23,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 import { STALE_BOOT_EXIT_CODE } from './boot-convergence';
+import { stageDevPoller } from './stage-dev-poller';
 
 const ownedStateAnchor = '/__owned_poller_edge_state__';
 const readerCompilation = await Bun.build({
@@ -50,7 +63,12 @@ const readerProgram = await readerOutput.text();
 if (readerProgram.split(JSON.stringify(ownedStateAnchor)).length !== 2)
   throw new Error('compiled owned reader state anchor differs');
 
-async function preparePollerCommand(argv: string[], state: string): Promise<string[]> {
+async function preparePollerCommand(
+  argv: string[],
+  state: string,
+  env: Record<string, string>,
+  reviewedTemplate?: string,
+): Promise<string[]> {
   const sources = [
     new URL('../../../bin/dev-poll.sh', import.meta.url).pathname,
     new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname,
@@ -66,9 +84,68 @@ async function preparePollerCommand(argv: string[], state: string): Promise<stri
     { mode: 0o755 },
   );
   verifyControllerFile(reader);
+  let stagedPoller: string | undefined;
+  const installed = new Map(Object.entries(env)).get('WBS_DEV_BIN');
+  if (installed !== undefined && argv.some((argument) => argument.includes(sources[0]))) {
+    const generation = join(state, 'poller-generation');
+    await stageDevPoller(generation);
+    stagedPoller = await readFile(join(generation, 'poll.sh'), 'utf8');
+    if (reviewedTemplate !== undefined) {
+      const identity = new Bun.CryptoHasher('sha256').update(reviewedTemplate).digest('hex');
+      if (identity !== 'f4b1a846118d78a45a05acac947454c1c95ebcb2a229798c29df1b5565d1c5b8')
+        throw new Error('reviewed v1 poller fixture identity differs');
+      const anchor = '__INITIAL_ACCESS_ADMISSION_SHA256__';
+      if (reviewedTemplate.split(anchor).length !== 2)
+        throw new Error('reviewed v1 digest anchor differs');
+      const artifact = await readFile(join(generation, 'initial-access-admission.js'));
+      const digest = new Bun.CryptoHasher('sha256').update(artifact).digest('hex');
+      stagedPoller = reviewedTemplate.replace(anchor, digest);
+    }
+
+    await copyFile(
+      join(generation, 'initial-access-admission.js'),
+      join(installed, 'initial-access-admission.js'),
+    );
+    await copyFile(join(generation, 'bun'), join(installed, 'bun'));
+    await chmod(join(installed, 'bun'), 0o755);
+    await writeFile(
+      env['WBS_DEV_BUN_VERSION_FILE'] ?? join(installed, 'bun-version'),
+      Bun.version + '\n',
+    );
+    env['WBS_DEV_BUN'] = join(installed, 'bun');
+    // Historical marker-machine fixtures emulate Git. Their admission inventory is
+    // explicitly a dependency projection; the new installed-admission cases use real Git.
+    if (!(await Bun.file(join(env['WBS_DEV_SRC'], '.git/HEAD')).exists())) {
+      const originalGit = join(env['PATH'].split(':')[0], 'git');
+      await writeFile(
+        join(state, 'git'),
+        `#!${process.execPath}
+const args = process.argv.slice(2);
+if (args[0] === '-C') {
+  const root = 'c'.repeat(40), folder = 'd'.repeat(40), sql = 'e'.repeat(40);
+  let output;
+  if (args[2] === 'rev-parse' && args[3] === '--verify') output = args[4].slice(0, 40) + '\\n';
+  else if (args[2] === 'ls-tree' && args[6] === 'apps/be-01/drizzle') output = '';
+  else if (args[2] === 'ls-tree' && args[6] === 'apps/wbs/be-01/drizzle') output = '040000 tree ' + root + '\\tapps/wbs/be-01/drizzle\\0';
+  else if (args[2] === 'ls-tree' && args[4] === root) output = '040000 tree ' + folder + '\\t0001_init\\0';
+  else if (args[2] === 'ls-tree' && args[4] === folder) output = '100644 blob ' + sql + '\\tmigration.sql\\0';
+  else if (args[2] === 'cat-file' && args[3] === 'blob' && args[4] === sql) output = 'CREATE TABLE historical_fixture (id TEXT);\\n';
+  if (output !== undefined) { process.stdout.write(output); process.exit(0); }
+}
+const child = Bun.spawnSync([${JSON.stringify(originalGit)}, ...args], { stdout: 'inherit', stderr: 'inherit' });
+process.exit(child.exitCode);
+`,
+      );
+      await chmod(join(state, 'git'), 0o755);
+      env['PATH'] = state + ':' + env['PATH'];
+    }
+  }
   const relocated = new Map<string, string>();
   for (const source of sources) {
-    const body = await readFile(source, 'utf8');
+    const body =
+      source === sources[0] && stagedPoller !== undefined
+        ? stagedPoller
+        : await readFile(source, 'utf8');
     for (const anchor of [
       '/home/puni1/.local/lib/wbs-solver/bun',
       '/home/puni1/.local/lib/wbs-solver/solver-supervisor.js',
@@ -97,7 +174,7 @@ interface CommandResult {
 
 async function command(argv: string[], env: Record<string, string> = {}): Promise<CommandResult> {
   const state = await scratchAsync('edge-state-');
-  const child = Bun.spawn(await preparePollerCommand(argv, state), {
+  const child = Bun.spawn(await preparePollerCommand(argv, state, env), {
     env: { ...process.env, WBS_EDGE_STATE: state, ...env },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -152,7 +229,7 @@ async function requireOverlappingRuns(
   // is exercised through the actual writer entrypoints in edge-admission.test.ts.
   const edgeStates = await Promise.all(argvs.map(() => scratchAsync('edge-state-')));
   const prepared = await Promise.all(
-    argvs.map((argv, index) => preparePollerCommand(argv, edgeStates[index])),
+    argvs.map((argv, index) => preparePollerCommand(argv, edgeStates[index], { ...env })),
   );
   const children = prepared.map((argv, index) =>
     Bun.spawn(argv, {
@@ -1486,3 +1563,380 @@ CONTENT=NEVER`),
     expect(steps).toContain('bunx nx run wbs-be-01:solver-image-smoke');
   });
 });
+
+export function registerInstalledAdmissionCases(version: 'v1' | 'current'): void {
+  describe(
+    version === 'v1'
+      ? 'reviewed v1 installed initial-access admission'
+      : 'installed initial-access admission',
+    () => {
+      async function fixture() {
+        const root = await scratchAsync('installed-initial-access-');
+        const source = join(root, 'source');
+        const state = join(root, 'state');
+        const installed = join(root, 'bin');
+        const commands = join(root, 'commands');
+        await mkdir(state, { recursive: true });
+        await mkdir(installed);
+        await mkdir(commands);
+        await initFixtureRepository(source);
+        const migration = join(source, 'apps/wbs/be-01/drizzle/0001_init');
+        await mkdir(migration, { recursive: true });
+        await writeFile(join(migration, 'migration.sql'), 'CREATE TABLE baseline (id TEXT);\n');
+        const loader = join(root, 'loader.ts');
+        await writeFile(
+          loader,
+          `import { appendFileSync, writeFileSync } from 'node:fs';
+const [source, , , target] = process.argv.slice(2);
+appendFileSync(${JSON.stringify(join(root, 'effects'))}, 'loader\\n');
+const child = Bun.spawnSync(['/usr/bin/git', '-C', source, 'reset', '--hard', '--quiet', target]);
+if (child.exitCode !== 0) throw new Error(child.stderr.toString());
+`,
+        );
+        await mkdir(join(source, 'bin'));
+        await writeFile(
+          join(source, 'bin/dev-poll-sync.sh'),
+          `#!/usr/bin/env bash\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(loader)} "$@"\n`,
+        );
+        const baseline = await commitAll(source, 'supported initial inventory');
+        await writeFile(join(source, 'ordinary-change'), 'target\n');
+        const ordinary = await commitAll(source, 'ordinary target');
+        const protectedRevision = async (name: string) => {
+          const path = join(source, 'apps/wbs/be-01/drizzle', name);
+          await mkdir(path, { recursive: true });
+          await writeFile(
+            join(path, 'migration.sql'),
+            'CREATE TABLE protected_writer (id TEXT);\n',
+          );
+          return await commitAll(source, 'protected inventory');
+        };
+        const realGit = (await requireCommand(['which', 'git'])).trim();
+        await writeFile(
+          join(commands, 'git'),
+          `#!/usr/bin/env -S ${process.execPath} --no-env-file --config=/dev/null
+import { appendFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+if (args[0] === 'fetch') process.exit(0);
+if (args[0] === 'reset') appendFileSync(${JSON.stringify(join(root, 'effects'))}, 'recovery-reset\\n');
+const child = Bun.spawnSync([${JSON.stringify(realGit)}, ...args], { stdout: 'inherit', stderr: 'inherit' });
+process.exit(child.exitCode);
+`,
+        );
+        await writeFile(
+          join(commands, 'docker'),
+          `#!/usr/bin/env -S ${process.execPath} --no-env-file --config=/dev/null
+const child = Bun.spawnSync([${JSON.stringify(realGit)}, '-C', ${JSON.stringify(source)}, 'rev-parse', 'HEAD']);
+if (child.exitCode !== 0) throw new Error(child.stderr.toString());
+console.log(JSON.stringify({ status: 'ok', bootCommit: child.stdout.toString().trim() }) + '\\n200');
+`,
+        );
+        await chmod(join(commands, 'git'), 0o755);
+        await chmod(join(commands, 'docker'), 0o755);
+        await writeFile(join(installed, 'bun-version'), Bun.version + '\n');
+        await requireCommand([
+          'git',
+          '-C',
+          source,
+          'remote',
+          'add',
+          'origin',
+          'https://example.invalid/initial-access.git',
+        ]);
+        const run = async (
+          current: string,
+          target: string,
+          inspect?: (entry: string) => Promise<void>,
+        ) => {
+          await requireCommand(['git', '-C', source, 'reset', '--hard', '--quiet', current]);
+          await requireCommand([
+            'git',
+            '-C',
+            source,
+            'update-ref',
+            'refs/remotes/origin/main',
+            target,
+          ]);
+          const inheritedPath = process.env['PATH'];
+          if (inheritedPath === undefined) throw new Error('poller fixture requires PATH');
+          const env = {
+            PATH: commands + ':' + inheritedPath,
+            WBS_DEV_SRC: source,
+            WBS_DEV_STATE: state,
+            WBS_DEV_BIN: installed,
+            WBS_DEV_BUN: process.execPath,
+            WBS_DEV_BUN_VERSION_FILE: join(installed, 'bun-version'),
+            WBS_DEV_EXPECTED_ORIGIN: 'https://example.invalid/initial-access.git',
+            WBS_DEV_LOG: join(root, 'poll.log'),
+            WBS_DEV_PROOF_RETRY_SECONDS: '0',
+          };
+          const edge = await scratchAsync('initial-access-edge-');
+          const argv = await preparePollerCommand(
+            ['bash', new URL('../../../bin/dev-poll.sh', import.meta.url).pathname],
+            edge,
+            env,
+            version === 'v1'
+              ? await readFile(new URL('./fixtures/poller-v1.fixture', import.meta.url), 'utf8')
+              : undefined,
+          );
+          await inspect?.(argv[1]);
+          return await command(argv, { ...env, WBS_EDGE_STATE: edge });
+        };
+        const head = () => requireCommand(['git', '-C', source, 'rev-parse', 'HEAD']);
+        return { root, source, state, installed, baseline, ordinary, protectedRevision, run, head };
+      }
+
+      it.each(['20261102120000_add_access_grants', '20261103110000_add_initial_access_offers'])(
+        'refuses installed protected target %s before marker initialization or loader',
+        async (name) => {
+          const owned = await fixture();
+          const protectedTarget = await owned.protectedRevision(name);
+          const invocation = await owned.run(owned.baseline, protectedTarget);
+          expect(invocation.code).not.toBe(0);
+          expect(await owned.head()).toBe(owned.baseline);
+          expect(await Bun.file(join(owned.state, 'last-synced')).exists()).toBe(false);
+          expect(await Bun.file(join(owned.state, 'last-proven')).exists()).toBe(false);
+          expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+          expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+            'initial-access source transition requires an attended cutover',
+          );
+        },
+      );
+
+      it('refuses an already-proven protected current before the fast return', async () => {
+        const owned = await fixture();
+        const protectedCurrent = await owned.protectedRevision(
+          '20261103110000_add_initial_access_offers',
+        );
+        for (const name of ['last-synced', 'last-proven'])
+          await writeFile(join(owned.state, name), protectedCurrent + '\n');
+        const invocation = await owned.run(protectedCurrent, protectedCurrent);
+        expect(invocation.code).not.toBe(0);
+        expect(await owned.head()).toBe(protectedCurrent);
+        expect(await readFile(join(owned.state, 'last-synced'), 'utf8')).toBe(
+          protectedCurrent + '\n',
+        );
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+      });
+
+      it('refuses a protected recovery revision even when current and target delete it', async () => {
+        const owned = await fixture();
+        const recovery = await owned.protectedRevision('20261102120000_add_access_grants');
+        await writeFile(join(owned.state, 'last-synced'), recovery + '\n');
+        const invocation = await owned.run(owned.baseline, owned.ordinary);
+        expect(invocation.code).not.toBe(0);
+        expect(await owned.head()).toBe(owned.baseline);
+        expect(await readFile(join(owned.state, 'last-synced'), 'utf8')).toBe(recovery + '\n');
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+      });
+
+      it('initializes absent markers only after supported installed admission', async () => {
+        const owned = await fixture();
+        const invocation = await owned.run(owned.baseline, owned.ordinary);
+        expect(invocation.code).toBe(0);
+        expect(await owned.head()).toBe(owned.ordinary);
+        expect(await readFile(join(owned.state, 'last-synced'), 'utf8')).toBe(
+          owned.ordinary + '\n',
+        );
+        expect(await readFile(join(owned.root, 'effects'), 'utf8')).toBe('loader\n');
+      });
+
+      it('retains ordinary pre-transition incomplete-sync backward recovery', async () => {
+        const owned = await fixture();
+        await writeFile(join(owned.state, 'last-synced'), owned.baseline + '\n');
+        const invocation = await owned.run(owned.ordinary, owned.ordinary);
+        expect(invocation.code).toBe(0);
+        expect(await owned.head()).toBe(owned.ordinary);
+        expect(await readFile(join(owned.root, 'effects'), 'utf8')).toBe(
+          'recovery-reset\nloader\n',
+        );
+      });
+      it.each(['last-proven', 'last-synced', 'awaiting-recreate'])(
+        'refuses malformed %s without repairing markers or reaching reset',
+        async (name) => {
+          const owned = await fixture();
+          await writeFile(join(owned.state, name), 'not-an-immutable-revision\n');
+          const invocation = await owned.run(owned.baseline, owned.ordinary);
+          expect(invocation.code).not.toBe(0);
+          expect(await owned.head()).toBe(owned.baseline);
+          expect(await readFile(join(owned.state, name), 'utf8')).toBe(
+            'not-an-immutable-revision\n',
+          );
+          expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+          expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+            'malformed initial-access marker',
+          );
+        },
+      );
+
+      it.each(['last-proven', 'last-synced', 'awaiting-recreate'])(
+        'distinguishes unreadable %s from legitimate absence',
+        async (name) => {
+          const owned = await fixture();
+          const path = join(owned.state, name);
+          await writeFile(path, owned.baseline + '\n');
+          await chmod(path, 0);
+          try {
+            const invocation = await owned.run(owned.baseline, owned.ordinary);
+            expect(invocation.code).not.toBe(0);
+            expect(await owned.head()).toBe(owned.baseline);
+            expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+            expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+              'unreadable initial-access marker',
+            );
+          } finally {
+            await chmod(path, 0o600);
+          }
+        },
+      );
+
+      it.each(['missing', 'unreadable', 'changed', 'symlink'] as const)(
+        'refuses %s installed admission instead of borrowing the candidate',
+        async (kind) => {
+          const owned = await fixture();
+          const invocation = await owned.run(owned.baseline, owned.ordinary, async () => {
+            const path = join(owned.installed, 'initial-access-admission.js');
+            if (kind === 'missing') await unlink(path);
+            else if (kind === 'unreadable') await chmod(path, 0);
+            else if (kind === 'changed') await writeFile(path, 'console.log("- - -");\n');
+            else {
+              const alias = join(owned.root, 'same-bundle.js');
+              await writeFile(alias, await readFile(path), { mode: 0o644 });
+              await unlink(path);
+              await symlink(alias, path);
+            }
+          });
+          expect(invocation.code).not.toBe(0);
+          expect(await owned.head()).toBe(owned.baseline);
+          expect(await Bun.file(join(owned.state, 'last-synced')).exists()).toBe(false);
+          expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+          expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+            kind === 'changed'
+              ? 'differs from this poller generation'
+              : 'pinned installed initial-access admission unavailable',
+          );
+        },
+      );
+
+      it('refuses a mismatched managed interpreter generation before loader or markers', async () => {
+        const owned = await fixture();
+        const invocation = await owned.run(owned.baseline, owned.ordinary, async () => {
+          await writeFile(join(owned.installed, 'bun-version'), '0.0.0\n');
+        });
+        expect(invocation.code).not.toBe(0);
+        expect(await owned.head()).toBe(owned.baseline);
+        expect(await Bun.file(join(owned.state, 'last-synced')).exists()).toBe(false);
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+        expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+          'managed Bun differs from the installed poller generation',
+        );
+      });
+
+      it('refuses a protected folder with missing SQL before marker initialization', async () => {
+        const owned = await fixture();
+        const name = '20261103110000_add_initial_access_offers';
+        await owned.protectedRevision(name);
+        const path = join(owned.source, 'apps/wbs/be-01/drizzle', name);
+        await writeFile(join(path, 'retained-folder'), 'malformed inventory\n');
+        await unlink(join(path, 'migration.sql'));
+        const target = await commitAll(owned.source, 'missing protected SQL');
+        const invocation = await owned.run(owned.baseline, target);
+        expect(invocation.code).not.toBe(0);
+        expect(await owned.head()).toBe(owned.baseline);
+        expect(await Bun.file(join(owned.state, 'last-synced')).exists()).toBe(false);
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+        expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+          'unsupported initial-access migration SQL',
+        );
+      });
+
+      it('stages one owned bundle pinned by installed poller bytes outside the watched checkout', async () => {
+        const owned = await fixture();
+        const invocation = await owned.run(owned.baseline, owned.ordinary, async (entry) => {
+          const bytes = await readFile(join(owned.installed, 'initial-access-admission.js'));
+          const digest = new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
+          expect(await readFile(entry, 'utf8')).toContain("INITIAL_ACCESS_SHA256='" + digest + "'");
+          const metadata = await stat(join(owned.installed, 'initial-access-admission.js'));
+          expect(metadata.mode & 0o777).toBe(0o644);
+          expect(metadata.uid).toBe(process.getuid!());
+          expect(metadata.gid).toBe(process.getgid!());
+          expect(entry.startsWith(owned.source + '/')).toBe(false);
+          expect(
+            await Bun.file(
+              join(owned.source, 'tools/tool-devsync/src/initial-access-cli.ts'),
+            ).exists(),
+          ).toBe(false);
+        });
+        expect(invocation.code).toBe(0);
+      });
+      it('ignores watched Bun config preload before the pinned installed admission', async () => {
+        const owned = await fixture();
+        const sentinel = join(owned.root, 'watched-startup-ran');
+        await writeFile(join(owned.source, 'bunfig.toml'), 'preload = ["./watched-preload.ts"]\n');
+        await writeFile(
+          join(owned.source, 'watched-preload.ts'),
+          `import { appendFileSync } from 'node:fs'; appendFileSync(${JSON.stringify(sentinel)}, JSON.stringify({ argv: process.argv, cwd: process.cwd() }) + '\\n');\n`,
+        );
+        const current = await commitAll(owned.source, 'watched startup configuration');
+        const target = await owned.protectedRevision('20261103110000_add_initial_access_offers');
+        const invocation = await owned.run(current, target);
+        const observedStartup = (await Bun.file(sentinel).exists())
+          ? await Bun.file(sentinel).text()
+          : null;
+        expect(observedStartup).toBeNull();
+        expect(invocation.code).not.toBe(0);
+        expect(await owned.head()).toBe(current);
+        expect(await Bun.file(join(owned.state, 'last-synced')).exists()).toBe(false);
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+        expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+          'initial-access source transition requires an attended cutover',
+        );
+      });
+
+      it('ignores watched dotenv Git pollution during ordinary installed admission', async () => {
+        const owned = await fixture();
+        await writeFile(join(owned.source, '.env'), 'GIT_CONFIG_COUNT=not-a-count\n');
+        const current = await commitAll(owned.source, 'watched dotenv Git pollution');
+        const invocation = await owned.run(current, current);
+        expect(invocation.code).toBe(0);
+        expect(await owned.head()).toBe(current);
+        expect(await readFile(join(owned.state, 'last-synced'), 'utf8')).toBe(current + '\n');
+        expect(await readFile(join(owned.state, 'last-proven'), 'utf8')).toBe(current + '\n');
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+      });
+
+      it.each([
+        ['double LF', '\n\n'],
+        ['final CR', '\r'],
+        ['LF then CR', '\n\r'],
+      ])('already refuses marker %s terminators without parser changes', async (_name, suffix) => {
+        const owned = await fixture();
+        const path = join(owned.state, 'last-proven');
+        const bytes = owned.baseline + suffix;
+        await writeFile(path, bytes);
+        const invocation = await owned.run(owned.baseline, owned.ordinary);
+        expect(invocation.code).not.toBe(0);
+        expect(await owned.head()).toBe(owned.baseline);
+        expect(await readFile(path, 'utf8')).toBe(bytes);
+        expect(await Bun.file(join(owned.state, 'last-synced')).exists()).toBe(false);
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+        expect(await readFile(join(owned.root, 'poll.log'), 'utf8')).toContain(
+          'malformed initial-access marker',
+        );
+      });
+
+      it('already accepts exact40-byte markers without an LF', async () => {
+        const owned = await fixture();
+        for (const name of ['last-proven', 'last-synced'])
+          await writeFile(join(owned.state, name), owned.ordinary);
+        const invocation = await owned.run(owned.ordinary, owned.ordinary);
+        expect(invocation.code).toBe(0);
+        expect(await owned.head()).toBe(owned.ordinary);
+        expect(await readFile(join(owned.state, 'last-synced'), 'utf8')).toBe(owned.ordinary);
+        expect(await readFile(join(owned.state, 'last-proven'), 'utf8')).toBe(owned.ordinary);
+        expect(await Bun.file(join(owned.root, 'effects')).exists()).toBe(false);
+      });
+    },
+  );
+}
+
+registerInstalledAdmissionCases('current');

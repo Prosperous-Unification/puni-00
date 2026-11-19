@@ -1,8 +1,8 @@
 import {
   createPlanDocumentV10,
-  type PlanDocument,
-  planDocumentResponse,
-  planDocumentV12,
+  type PlanDocumentV13 as PlanDocument,
+  planDocumentV13,
+  planDocumentV14,
   requestSchema,
   responseSchema,
   validateSchema,
@@ -11,36 +11,46 @@ import {
 import { isLegacyMetric, SEEDED_MEASURE_DEFINITIONS } from '@wbs/domain';
 import { expect, test } from 'bun:test';
 
-import type { CalendarMarker, DirectoryStore, Project } from '../../index';
+import type { CalendarMarker, DirectoryStore, WorkPackage } from '../../index';
+import type { PlanDocumentReads } from '../../ports/shared-people-values';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import { createConnectedBlockageRead } from '../../testing/connected-blockage.fixture';
-import { projectConnectedDocument } from './connected-document';
+import { workPackageConnectedDocument } from './connected-document';
 import { classifyPlanDocument, PlanDocumentService } from './plan-document.resource';
 
+const planDocumentV13Response = responseSchema(planDocumentV13);
 const planDocumentV10Response = responseSchema(createPlanDocumentV10());
-const planDocumentV12Response = responseSchema(planDocumentV12);
+const planDocumentV14Response = responseSchema(planDocumentV14);
 
-const PROJECT: Project & { timezone: string } = {
-  id: 'project-1',
-  abbreviation: 'PLAN',
-  name: 'Release plan',
-  ownerId: 'owner-1',
-  restricted: true,
-  estimateMethod: 'realistic',
-  depReach: 'anchor-slice',
-  pertWeights: { optimistic: 2, realistic: 5, pessimistic: 2 },
-  estimateRounding: 'round',
-  startDate: '2026-09-14',
-  solutionRef: { slug: 'release-plan', url: 'https://example.test/release-plan' },
-  revision: 7,
-  createdAt: 1_000,
-  optimizationEnabled: true,
-  scheduleEngine: 'optimized',
-  scheduleObjective: 'time',
-  // The default factor; the measure cases below state 1.5 (design D67).
-  budgetFactor: 1,
-  timezone: 'Europe/Kyiv',
+/** Original owner-bearing constructed control, not a released binary capture. */
+const LEGACY_WORK_PACKAGE: Omit<WorkPackage, 'projectId'> & { ownerId: string; timezone: string } =
+  {
+    id: 'work-package-1',
+    abbreviation: 'PLAN',
+    name: 'Release plan',
+    ownerId: 'owner-1',
+    restricted: true,
+    estimateMethod: 'realistic',
+    depReach: 'anchor-slice',
+    pertWeights: { optimistic: 2, realistic: 5, pessimistic: 2 },
+    estimateRounding: 'round',
+    startDate: '2026-09-14',
+    solutionRef: { slug: 'release-plan', url: 'https://example.test/release-plan' },
+    revision: 7,
+    createdAt: 1_000,
+    optimizationEnabled: true,
+    scheduleEngine: 'optimized',
+    scheduleObjective: 'time',
+    // The default factor; the measure cases below state 1.5 (design D67).
+    budgetFactor: 1,
+    timezone: 'Europe/Kyiv',
+  };
+const { ownerId: _retiredOwner, ...CURRENT_WORK_PACKAGE } = LEGACY_WORK_PACKAGE;
+const WORK_PACKAGE: WorkPackage & { timezone: string } = {
+  ...CURRENT_WORK_PACKAGE,
+  projectId: 'fixture-project',
 };
+const PROJECT = { id: WORK_PACKAGE.projectId, name: 'Fixture parent' };
 
 const TREE: WorkItemTree = {
   typedDependencies: [],
@@ -49,7 +59,7 @@ const TREE: WorkItemTree = {
       charged: {},
       blockages: {},
       id: 'row-1',
-      projectId: PROJECT.id,
+      workPackageId: WORK_PACKAGE.id,
       parentId: null,
       position: 10,
       name: 'Ship',
@@ -138,7 +148,7 @@ const TREE: WorkItemTree = {
   steps: [
     {
       id: 'step-1',
-      projectId: PROJECT.id,
+      workPackageId: WORK_PACKAGE.id,
       name: 'Build',
       position: 10,
       code: 'build',
@@ -155,12 +165,12 @@ const TREE: WorkItemTree = {
     { startsAt: 4, defaultValue: 4, label: 'Low' },
     { startsAt: 5, defaultValue: 5, label: 'Someday' },
   ],
-  estimateMethod: PROJECT.estimateMethod,
-  pertWeights: PROJECT.pertWeights,
-  estimateRounding: PROJECT.estimateRounding,
-  depReach: PROJECT.depReach,
-  startDate: PROJECT.startDate,
-  projectRevision: PROJECT.revision,
+  estimateMethod: WORK_PACKAGE.estimateMethod,
+  pertWeights: WORK_PACKAGE.pertWeights,
+  estimateRounding: WORK_PACKAGE.estimateRounding,
+  depReach: WORK_PACKAGE.depReach,
+  startDate: WORK_PACKAGE.startDate,
+  workPackageRevision: WORK_PACKAGE.revision,
   optimization: {
     enabled: true,
     engine: 'optimized',
@@ -182,7 +192,7 @@ const TREE: WorkItemTree = {
 const MARKERS: CalendarMarker[] = [
   {
     id: 'marker-1',
-    projectId: PROJECT.id,
+    workPackageId: WORK_PACKAGE.id,
     date: '2026-09-17',
     name: 'Launch',
     color: null,
@@ -271,34 +281,86 @@ const NO_RESOURCE_FACTS = {
   demandsOf: () => Promise.resolve([]),
 };
 
+type FixtureResourceFacts = {
+  resourceCapacitiesOf: () => Promise<PlanDocumentReads['resources']['capacities']>;
+  demandsOf: () => Promise<PlanDocumentReads['resources']['demands']>;
+};
+type FixtureMeasureFacts = {
+  measureDefinitionsOf: () => Promise<PlanDocumentReads['measures']['definitions']>;
+  measuresOf: () => Promise<PlanDocumentReads['measures']['facts']>;
+  measureEstimatesOf: () => Promise<PlanDocumentReads['measures']['estimates']>;
+  budgetsOf: () => Promise<PlanDocumentReads['measures']['budgets']>;
+};
+
+/** Pure unit controls assembled from literal rows; these functions never read a Source. */
 function service(
   directorySource = directory(),
-  resourceFacts: ConstructorParameters<
-    typeof PlanDocumentService
-  >[0]['resourceFacts'] = NO_RESOURCE_FACTS,
-  measureFacts: ConstructorParameters<
-    typeof PlanDocumentService
-  >[0]['measureFacts'] = NO_MEASURE_FACTS,
+  resourceFacts: FixtureResourceFacts = NO_RESOURCE_FACTS,
+  measureFacts: FixtureMeasureFacts = NO_MEASURE_FACTS,
 ) {
-  return new PlanDocumentService({
-    directory: directorySource,
-    stepParallels: { listByProject: () => Promise.resolve([]) },
-    markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
+  const serializer = new PlanDocumentService({
     clock: { now: () => Date.parse('2026-09-13T12:30:00.000Z') },
-    resourceFacts,
-    measureFacts,
   });
+  return {
+    exportCaptured: serializer.exportCaptured.bind(serializer),
+    /** Builds a historical constructed control from the original owner-bearing fixture. No runtime exporter emits this shape. */
+    async serializeFixture(
+      workPackage: typeof WORK_PACKAGE,
+      tree: WorkItemTree,
+      _access: typeof LEGACY_ACCESS,
+    ) {
+      const captured = serializer.exportCaptured(workPackage, tree, {
+        project: PROJECT,
+        directory: {
+          teams: await directorySource.listTeams(),
+          people: await directorySource.listPeople(),
+          tags: await directorySource.listTags(),
+          services: await directorySource.listServices(),
+          types: await directorySource.listWorkItemTypes(),
+          externalSystems: await directorySource.listExternalSystems(),
+        },
+        markers: MARKERS,
+        stepParallels: [],
+        resources: {
+          resources: await directorySource.listResources(),
+          capacities: await resourceFacts.resourceCapacitiesOf(),
+          demands: await resourceFacts.demandsOf(),
+        },
+        measures: {
+          definitions: await measureFacts.measureDefinitionsOf(),
+          facts: await measureFacts.measuresOf(),
+          estimates: await measureFacts.measureEstimatesOf(),
+          budgets: await measureFacts.budgetsOf(),
+        },
+      });
+      if (!captured.ok) return captured;
+      const { project: _parent, ...historical } = captured.value;
+      const { projectId: _projectId, budgetFactor: _budgetFactor, ...legacySettings } = workPackage;
+      const control = {
+        ...historical,
+        document: { ...historical.document, version: 13 },
+        workPackage: { ...LEGACY_WORK_PACKAGE, ...legacySettings },
+      };
+      Reflect.deleteProperty(control.workPackage, 'budgetFactor');
+      const validated = await validateSchema(planDocumentV13Response, control);
+      if (validated.issues !== undefined)
+        throw new Error(
+          'historical constructed control is invalid: ' + JSON.stringify(validated.issues),
+        );
+      return { ok: true as const, value: validated.value };
+    },
+  };
 }
 
 async function exportDocument(tree: WorkItemTree = TREE): Promise<PlanDocument> {
-  const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
+  const exported = await service().serializeFixture(WORK_PACKAGE, tree, LEGACY_ACCESS);
   if (!exported.ok) throw new Error(`export refused: ${exported.error}`);
   return exported.value;
 }
 
 async function exportError(tree: WorkItemTree): Promise<string> {
   const outcome = await service()
-    .export(PROJECT, tree, LEGACY_ACCESS)
+    .serializeFixture(WORK_PACKAGE, tree, LEGACY_ACCESS)
     .catch((caught: unknown) => caught);
   if (!(outcome instanceof Error)) throw new Error('malformed tree did not throw');
   return outcome.message;
@@ -340,10 +402,10 @@ test('preserves the existing JSON export fields', async () => {
     budgets,
     ...existing
   } = exported;
-  // The budget factor travels in `settings`, never in the embedded project (design D63, D71).
-  const { budgetFactor: _factor, ...exportedProject } = PROJECT;
+  // The budget factor travels in `settings`, never in the embedded work package (design D63, D71).
+  const { budgetFactor: _factor, ...exportedWorkPackage } = LEGACY_WORK_PACKAGE;
   expect(existing).toEqual<unknown>({
-    project: exportedProject,
+    workPackage: exportedWorkPackage,
     ...TREE,
     workItems: TREE.workItems.map(({ blockages: _blockages, ...row }) => row),
   });
@@ -361,28 +423,28 @@ test('preserves the existing JSON export fields', async () => {
   expect({ document, settings, capacity, calendarMarkers, names, stepNodes }).toBeDefined();
 });
 
-test('JSON export is a versioned plan document and settings says what project says', async () => {
+test('JSON export is a versioned plan document and settings says what work package says', async () => {
   const exported = await exportDocument();
-  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV13Response, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 11,
+    version: 13,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
-    name: PROJECT.name,
-    restricted: PROJECT.restricted,
-    estimateMethod: PROJECT.estimateMethod,
-    depReach: PROJECT.depReach,
-    pertWeights: PROJECT.pertWeights,
-    estimateRounding: PROJECT.estimateRounding,
-    startDate: PROJECT.startDate,
-    solutionRef: PROJECT.solutionRef,
-    optimizationEnabled: PROJECT.optimizationEnabled,
-    scheduleEngine: PROJECT.scheduleEngine,
-    scheduleObjective: PROJECT.scheduleObjective,
+    name: WORK_PACKAGE.name,
+    restricted: WORK_PACKAGE.restricted,
+    estimateMethod: WORK_PACKAGE.estimateMethod,
+    depReach: WORK_PACKAGE.depReach,
+    pertWeights: WORK_PACKAGE.pertWeights,
+    estimateRounding: WORK_PACKAGE.estimateRounding,
+    startDate: WORK_PACKAGE.startDate,
+    solutionRef: WORK_PACKAGE.solutionRef,
+    optimizationEnabled: WORK_PACKAGE.optimizationEnabled,
+    scheduleEngine: WORK_PACKAGE.scheduleEngine,
+    scheduleObjective: WORK_PACKAGE.scheduleObjective,
     timezone: 'Europe/Kyiv',
-    budgetFactor: PROJECT.budgetFactor,
+    budgetFactor: WORK_PACKAGE.budgetFactor,
   });
   expect(exported.capacity).toEqual([{ teamId: 'team-capacity', size: 4 }]);
   expect(exported.calendarMarkers).toEqual([
@@ -417,7 +479,7 @@ test('missing referenced entry throws', async () => {
   const missingTag = directory();
   missingTag.listTags = () => Promise.resolve([]);
   const cause = await service(missingTag)
-    .export(PROJECT, TREE, LEGACY_ACCESS)
+    .serializeFixture(WORK_PACKAGE, TREE, LEGACY_ACCESS)
     .catch((caught: unknown) => caught);
   expect(cause).toBeInstanceOf(Error);
   expect((cause as Error).message).toContain('tag "tag-used"');
@@ -437,7 +499,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 13);
+  Reflect.set(future.document, 'version', 99);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -448,13 +510,13 @@ test('unknown version precedes version-specific validation', async () => {
   });
 });
 
-test('v12 classifies a stable external predecessor and refuses its v10 disguise', async () => {
+test('v14 classifies a stable external predecessor and refuses its v10 disguise', async () => {
   const document = structuredClone(await exportDocument());
-  Reflect.set(document.document, 'version', 12);
+  Reflect.set(document.document, 'version', 14);
   Reflect.set(
     document,
     'connected',
-    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+    workPackageConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
   );
   Reflect.set(document, 'typedDependencies', [
     {
@@ -463,10 +525,10 @@ test('v12 classifies a stable external predecessor and refuses its v10 disguise'
       predecessor: {
         kind: 'external',
         scope: 'whole',
-        projectId: 'other-project',
+        workPackageId: 'other-work-package',
         workItemId: 'stable-row',
         display: {
-          projectName: 'Other',
+          workPackageName: 'Other',
           abbreviation: 'OTHER',
           workItemName: 'Prerequisite',
           address: 'OTHER.1',
@@ -479,7 +541,7 @@ test('v12 classifies a stable external predecessor and refuses its v10 disguise'
     ok: true,
     value: {
       typedDependencies: [
-        { predecessor: { projectId: 'other-project', workItemId: 'stable-row' } },
+        { predecessor: { workPackageId: 'other-work-package', workItemId: 'stable-row' } },
       ],
     },
   });
@@ -493,13 +555,13 @@ test('v12 classifies a stable external predecessor and refuses its v10 disguise'
   });
 });
 
-test('v12 mapping binds only the declared stable source tuple', async () => {
+test('v14 mapping binds only the declared stable source tuple', async () => {
   const document = structuredClone(await exportDocument());
-  Reflect.set(document.document, 'version', 12);
+  Reflect.set(document.document, 'version', 14);
   Reflect.set(
     document,
     'connected',
-    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+    workPackageConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
   );
   Reflect.set(document, 'typedDependencies', [
     {
@@ -508,10 +570,10 @@ test('v12 mapping binds only the declared stable source tuple', async () => {
       predecessor: {
         kind: 'external',
         scope: 'whole',
-        projectId: 'other-project',
+        workPackageId: 'other-work-package',
         workItemId: 'stable-row',
         display: {
-          projectName: 'Other',
+          workPackageName: 'Other',
           abbreviation: 'OTHER',
           workItemName: 'Prerequisite',
           address: 'OTHER.1',
@@ -522,10 +584,10 @@ test('v12 mapping binds only the declared stable source tuple', async () => {
   ]);
   Reflect.set(document, 'externalMappings', [
     {
-      source: { scope: 'whole', projectId: 'other-project', workItemId: 'stable-row' },
+      source: { scope: 'whole', workPackageId: 'other-work-package', workItemId: 'stable-row' },
       destination: {
         scope: 'whole',
-        projectId: 'destination-project',
+        workPackageId: 'destination-work-package',
         workItemId: 'destination-row',
       },
     },
@@ -536,10 +598,10 @@ test('v12 mapping binds only the declared stable source tuple', async () => {
   });
   Reflect.set(document, 'externalMappings', [
     {
-      source: { scope: 'whole', projectId: 'other-project', workItemId: 'different-row' },
+      source: { scope: 'whole', workPackageId: 'other-work-package', workItemId: 'different-row' },
       destination: {
         scope: 'whole',
-        projectId: 'destination-project',
+        workPackageId: 'destination-work-package',
         workItemId: 'destination-row',
       },
     },
@@ -549,10 +611,10 @@ test('v12 mapping binds only the declared stable source tuple', async () => {
     code: 'invalid_typed_dependency',
     path: 'externalMappings[0].source',
   });
-  const source = { scope: 'whole', projectId: 'other-project', workItemId: 'stable-row' };
+  const source = { scope: 'whole', workPackageId: 'other-work-package', workItemId: 'stable-row' };
   const destination = {
     scope: 'whole',
-    projectId: 'destination-project',
+    workPackageId: 'destination-work-package',
     workItemId: 'destination-row',
   };
   Reflect.set(document, 'externalMappings', [
@@ -574,13 +636,13 @@ test('v12 mapping binds only the declared stable source tuple', async () => {
   });
 });
 
-test('v12 internal endpoint cannot carry a contradictory external identity', async () => {
+test('v14 internal endpoint cannot carry a contradictory external identity', async () => {
   const document = structuredClone(await exportDocument());
-  Reflect.set(document.document, 'version', 12);
+  Reflect.set(document.document, 'version', 14);
   Reflect.set(
     document,
     'connected',
-    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+    workPackageConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
   );
   Reflect.set(document, 'typedDependencies', [
     {
@@ -590,7 +652,7 @@ test('v12 internal endpoint cannot carry a contradictory external identity', asy
         kind: 'internal',
         scope: 'whole',
         workItem: 'row-1',
-        projectId: 'foreign-project',
+        workPackageId: 'foreign-work-package',
         workItemId: 'foreign-row',
       },
       successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
@@ -693,11 +755,11 @@ test('the current export keeps SS and FF types from the trusted tree', async () 
       type: 'FF',
     },
   ];
-  const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
+  const exported = await service().serializeFixture(WORK_PACKAGE, tree, LEGACY_ACCESS);
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 11 },
+      document: { version: 13 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -706,16 +768,16 @@ test('the current export keeps SS and FF types from the trusted tree', async () 
   });
 });
 
-test('archival validation projects derived fields away', async () => {
+test('archival validation work packages derived fields away', async () => {
   const exported = await exportDocument();
   const classified = await classifyPlanDocument({ ...exported, audit: { importedBy: 'future' } });
   if (!classified.ok) throw new Error(`fixture document refused at ${classified.path}`);
   expect(classified.value).not.toHaveProperty('audit');
-  expect(classified.value.workItems[0]).not.toHaveProperty('projectId');
+  expect(classified.value.workItems[0]).not.toHaveProperty('workPackageId');
   expect(classified.value.workItems[0]).not.toHaveProperty('number');
   expect(classified.value.workItems[0]).not.toHaveProperty('rolledUp');
   expect(classified.value.workItems[0]).not.toHaveProperty('schedule');
-  expect(classified.value.steps[0]).not.toHaveProperty('projectId');
+  expect(classified.value.steps[0]).not.toHaveProperty('workPackageId');
   expect(classified.value.workItems[0]?.estimates).toEqual(TREE.workItems[0]?.estimates);
 });
 
@@ -776,13 +838,13 @@ test('exports each step’s code and reads it back from a version-3 file', async
 });
 
 /** Proof: see `PlanDocumentService.export`. */
-test('refuses to export a project holding an uncoded step, naming it', async () => {
+test('refuses to export a work package holding an uncoded step, naming it', async () => {
   const uncoded = structuredClone(TREE);
   const step = uncoded.steps.at(0);
   if (step === undefined) throw new Error('fixture has no step');
   step.code = null;
 
-  expect(await service().export(PROJECT, uncoded, LEGACY_ACCESS)).toEqual({
+  expect(await service().serializeFixture(WORK_PACKAGE, uncoded, LEGACY_ACCESS)).toEqual({
     ok: false,
     error: 'uncoded_steps',
     steps: [{ id: step.id, name: step.name }],
@@ -795,7 +857,7 @@ test('throws on a step read without a code key', async () => {
   Reflect.deleteProperty(keyless.steps[0] ?? {}, 'code');
 
   const cause = await service()
-    .export(PROJECT, keyless, LEGACY_ACCESS)
+    .serializeFixture(WORK_PACKAGE, keyless, LEGACY_ACCESS)
     .catch((caught: unknown) => caught);
   expect(cause).toBeInstanceOf(Error);
   expect((cause as Error).message).toContain('was read without a code');
@@ -888,7 +950,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
 
 test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
   const exported = structuredClone(await exportDocument());
-  expect(exported.document.version).toBe(11);
+  expect(exported.document.version).toBe(13);
   const row = exported.workItems.find(
     (each) => !exported.workItems.some((c) => c.parentId === each.id),
   );
@@ -994,9 +1056,9 @@ function attemptedTree(): WorkItemTree {
   return tree;
 }
 
-test('exports a Kyiv project’s zone and each leaf’s attempts by step code, executors by name', async () => {
+test('exports a Kyiv work package’s zone and each leaf’s attempts by step code, executors by name', async () => {
   const exported = await exportDocument(attemptedTree());
-  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV13Response, exported)).issues).toBeUndefined();
   expect(exported.settings.timezone).toBe('Europe/Kyiv');
   const [row] = exported.workItems;
   expect(row).not.toHaveProperty('spans');
@@ -1121,7 +1183,7 @@ test('version 8 keeps minute step units and refuses missing or unknown written u
   const tree = structuredClone(TREE);
   tree.steps = tree.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
   const document = await exportDocument(tree);
-  expect(document.document.version).toBe(11);
+  expect(document.document.version).toBe(13);
   const classified = await classifyPlanDocument(document);
   expect(classified.ok).toBe(true);
   if (!classified.ok) throw new Error('minute document refused');
@@ -1152,10 +1214,10 @@ test('v9 exports detached direct blockage facts and excludes row aliases', async
   const row = tree.workItems.at(0);
   if (row === undefined) throw new Error('missing fixture row');
   row.blockages = { 'step-1': { blockedAt: -17 } };
-  const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
+  const exported = await service().serializeFixture(WORK_PACKAGE, tree, LEGACY_ACCESS);
   expect(exported.ok).toBe(true);
   if (!exported.ok) return;
-  expect(exported.value.document.version).toBe(11);
+  expect(exported.value.document.version).toBe(13);
   expect(Reflect.get(exported.value, 'stepBlockages')).toEqual([
     { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
   ]);
@@ -1197,7 +1259,8 @@ test('v9 excludes derived blockage causes and captured exports retain the same f
   row.blockageCauses = { 'step-1': [{ kind: 'work-item', workItemId: row.id }] };
   const exported = await exportDocument(tree);
   expect(exported.workItems[0]).not.toHaveProperty('blockageCauses');
-  const captured = service().exportCaptured(PROJECT, tree, {
+  const captured = service().exportCaptured(WORK_PACKAGE, tree, {
+    project: PROJECT,
     directory: {
       teams: await directory().listTeams(),
       people: await directory().listPeople(),
@@ -1211,7 +1274,11 @@ test('v9 excludes derived blockage causes and captured exports retain the same f
     resources: { resources: await directory().listResources(), capacities: [], demands: [] },
     measures: NO_MEASURE_READS,
   });
-  expect(captured).toEqual({ ok: true, value: exported });
+  expect(captured.ok).toBe(true);
+  if (!captured.ok) throw new Error('captured serialization refused');
+  expect(captured.value.stepBlockages).toEqual(exported.stepBlockages);
+  expect(captured.value.document.version).toBe(15);
+  expect(captured.value.project).toEqual(PROJECT);
 });
 
 for (const [name, mutate, message] of [
@@ -1312,27 +1379,12 @@ test('plan document excludes derived node resources from isolated and captured e
   expect(exported.workItems[0]).not.toHaveProperty('nodeResources');
 });
 
-test('v9 refuses authored sparse parallelism on direct and captured JSON exports', async () => {
+test('v9 refuses authored sparse parallelism on captured JSON exports', async () => {
   const parallel = { workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 };
-  const writer = new PlanDocumentService({
-    directory: directory(),
-    markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
-    clock: { now: () => 0 },
-    resourceFacts: NO_RESOURCE_FACTS,
-    measureFacts: NO_MEASURE_FACTS,
-    stepParallels: {
-      listByProject: (projectId) => {
-        if (projectId !== PROJECT.id) throw new Error('wrong sparse project');
-        return Promise.resolve([parallel]);
-      },
-    },
-  });
-  expect(await writer.export(PROJECT, TREE, LEGACY_ACCESS)).toEqual({
-    ok: false,
-    error: 'unsupported_step_parallelism',
-  });
+  const writer = new PlanDocumentService({ clock: { now: () => 0 } });
   expect(
-    writer.exportCaptured(PROJECT, TREE, {
+    writer.exportCaptured(WORK_PACKAGE, TREE, {
+      project: PROJECT,
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
@@ -1389,55 +1441,35 @@ for (const [name, sparse, message] of [
 ] as const) {
   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
     const reads = {
+      project: PROJECT,
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
       measures: NO_MEASURE_READS,
       stepParallels: sparse,
     };
-    expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+    expect(() => service().exportCaptured(WORK_PACKAGE, TREE, reads as never)).toThrow(message);
   });
 }
 
-test('v9 direct export propagates unreadable sparse state', async () => {
-  const failure = new Error('sparse state unreadable');
-  const writer = new PlanDocumentService({
-    directory: directory(),
-    markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
-    clock: { now: () => 0 },
-    resourceFacts: NO_RESOURCE_FACTS,
-    measureFacts: NO_MEASURE_FACTS,
-    stepParallels: { listByProject: () => Promise.reject(failure) },
-  });
-  const caught = await writer.export(PROJECT, TREE, LEGACY_ACCESS).catch((cause: unknown) => cause);
-  expect(caught).toBe(failure);
-});
-
-test('v9 refuses construction without its sparse read capability', () => {
-  expect(
-    () =>
-      new PlanDocumentService({
-        directory: directory(),
-        markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
-        clock: { now: () => 0 },
-        resourceFacts: NO_RESOURCE_FACTS,
-        measureFacts: NO_MEASURE_FACTS,
-      } as never),
-  ).toThrow(/step parallelism reader/);
+test('pure serializer exposes no live sparse reader or independent IO exporter', () => {
+  const writer = new PlanDocumentService({ clock: { now: () => 0 } });
+  expect('export' in writer).toBe(false);
+  expect('readDocumentReads' in writer).toBe(false);
 });
 
 for (const [name, mutate, message] of [
   [
     'foreign owner',
     (tree: WorkItemTree) => {
-      Reflect.set(tree.workItems[0] ?? {}, 'projectId', 'foreign');
+      Reflect.set(tree.workItems[0] ?? {}, 'workPackageId', 'foreign');
     },
     /foreign work item/,
   ],
   [
     'foreign step',
     (tree: WorkItemTree) => {
-      Reflect.set(tree.steps[0] ?? {}, 'projectId', 'foreign');
+      Reflect.set(tree.steps[0] ?? {}, 'workPackageId', 'foreign');
     },
     /foreign step/,
   ],
@@ -1453,7 +1485,8 @@ for (const [name, mutate, message] of [
     const tree = structuredClone(TREE);
     mutate(tree);
     expect(() =>
-      service().exportCaptured(PROJECT, tree, {
+      service().exportCaptured(WORK_PACKAGE, tree, {
+        project: PROJECT,
         directory: {
           teams: [],
           people: [],
@@ -1485,7 +1518,8 @@ test('v9 sparse pair identities never alias at colons', () => {
     { ...step, id: 'c' },
   ];
   expect(
-    service().exportCaptured(PROJECT, tree, {
+    service().exportCaptured(WORK_PACKAGE, tree, {
+      project: PROJECT,
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
@@ -1499,11 +1533,11 @@ test('v9 sparse pair identities never alias at colons', () => {
 });
 
 /**
- * A version-11 export with what version 11 adds taken off (the factor in
+ * A current export projected without the fields version 11 added (the factor in
  * `settings` and the four measure lists, each empty here) and its version read
- * as `version`: what the export wrote before design D71 for a plan without
- * measures. The v9 and v10 goldens hash this, so they now pin that version 11
- * changed nothing else.
+ * as `version`, for focused feature-era classifier controls on a plan without
+ * measures. These are current renamed projections; genuine historical writer
+ * bytes and strict historical readers are covered by plan-document-rename.test.ts.
  */
 function withoutVersion11(exported: PlanDocument, version: number): Record<string, unknown> {
   const { budgetFactor, ...settings } = exported.settings;
@@ -1529,12 +1563,11 @@ function withoutVersion11(exported: PlanDocument, version: number): Record<strin
   );
 }
 
-test('v9 zero-fact export retains canonical bytes', async () => {
-  // Versions 10 and 11 add lists and the factor and change nothing else: a
-  // plan that states no resource facts and no measures, with those taken off
-  // and its version read as 9, is the v9 golden byte for byte.
+test('current zero-fact pre-resource projection has canonical renamed bytes', async () => {
+  // Pin the current renamed zero-fact projection after removing later feature
+  // fields. Historical writer bytes remain separately frozen in legacy captures.
   const exported = withoutVersion11(structuredClone(await exportDocument()), 9);
-  Reflect.deleteProperty(exported['project'] as object, 'abbreviation');
+  Reflect.deleteProperty(exported['workPackage'] as object, 'abbreviation');
   const { resources, ...directoryBefore } = exported['directory'] as PlanDocument['directory'];
   const { resourceCapacities, demands, ...rest } = exported;
   expect({ resources, resourceCapacities, demands }).toEqual({
@@ -1544,33 +1577,19 @@ test('v9 zero-fact export retains canonical bytes', async () => {
   });
   const bytes = JSON.stringify({ ...rest, directory: directoryBefore });
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    '016181aa4021ca4b8b400feac0780e135635c49d149f2fd13e655015ceb1e6e5',
+    '264f0f7a91b275206f64aeaa27dc8dae46bfb5cc33534d7d7f6b0858b6cc8016',
   );
 });
 
-test('uncoded steps retain precedence over unreadable sparse export evidence', async () => {
+test('uncoded steps retain precedence over modeled sparse refusal in captured evidence', async () => {
   const tree = structuredClone(TREE);
   const step = tree.steps.at(0);
   if (step === undefined) throw new Error('missing uncoded fixture');
   step.code = null;
-  const writer = new PlanDocumentService({
-    directory: directory(),
-    markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
-    clock: { now: () => 0 },
-    resourceFacts: NO_RESOURCE_FACTS,
-    measureFacts: NO_MEASURE_FACTS,
-    stepParallels: {
-      listByProject: () => Promise.reject(new Error('must not read before uncoded refusal')),
-    },
-  });
-  expect(await writer.export(PROJECT, tree, LEGACY_ACCESS)).toEqual({
-    ok: false,
-    error: 'uncoded_steps',
-    steps: [{ id: 'step-1', name: 'Build' }],
-    command: 'bun run src/backfill-step-codes-cli.ts',
-  });
+  const writer = new PlanDocumentService({ clock: { now: () => 0 } });
   expect(
-    writer.exportCaptured(PROJECT, tree, {
+    writer.exportCaptured(WORK_PACKAGE, tree, {
+      project: PROJECT,
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
@@ -1585,7 +1604,7 @@ test('uncoded steps retain precedence over unreadable sparse export evidence', a
   });
 });
 
-/** The project states a capacity of RAM and staging, and its row demands both. */
+/** The work package states a capacity of RAM and staging, and its row demands both. */
 const RESOURCE_FACTS = {
   resourceCapacitiesOf: () =>
     Promise.resolve([
@@ -1600,15 +1619,19 @@ const RESOURCE_FACTS = {
 };
 
 async function exportWithResources(): Promise<PlanDocument> {
-  const exported = await service(directory(), RESOURCE_FACTS).export(PROJECT, TREE, LEGACY_ACCESS);
+  const exported = await service(directory(), RESOURCE_FACTS).serializeFixture(
+    WORK_PACKAGE,
+    TREE,
+    LEGACY_ACCESS,
+  );
   if (!exported.ok) throw new Error(`export refused: ${exported.error}`);
   return exported.value;
 }
 
 test('exports only the resources its capacities and demands name (wbs-resources)', async () => {
   const exported = await exportWithResources();
-  expect(exported.document.version).toBe(11);
-  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect(exported.document.version).toBe(13);
+  expect((await validateSchema(planDocumentV13Response, exported)).issues).toBeUndefined();
   expect(exported.directory.resources).toEqual([
     { id: 'resource-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
     { id: 'resource-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
@@ -1623,12 +1646,12 @@ test('exports only the resources its capacities and demands name (wbs-resources)
   ]);
 });
 
-test('v10 resources export retains canonical published bytes', async () => {
+test('current resource projection has canonical renamed bytes', async () => {
   const exported = await exportWithResources();
-  Reflect.deleteProperty(exported.project, 'abbreviation');
+  Reflect.deleteProperty(exported.workPackage, 'abbreviation');
   const bytes = JSON.stringify(withoutVersion11(exported, 10));
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    'f2308a55167653345d85178e2253675097c1ee00956f34c4df933da06163fa4a',
+    '6728707f4e5e700e663fd1add9af617a71452152180fa9b5a588c2092f628716',
   );
 });
 
@@ -1718,19 +1741,19 @@ test('refuses resources in a file older than version 10', async () => {
   }).toEqual({ resources: [], capacities: [], demands: [] });
 });
 
-test('versioned response admits explicit v12 links while v10 remains frozen', async () => {
+test('versioned response admits explicit v14 links while v10 remains frozen', async () => {
   const document = await exportDocument();
-  expect((await validateSchema(planDocumentResponse, document)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV13Response, document)).issues).toBeUndefined();
   const external = {
     id: 'cross',
     type: 'FS',
     predecessor: {
       kind: 'external',
       scope: 'whole',
-      projectId: 'remote',
+      workPackageId: 'remote',
       workItemId: 'stable',
       display: {
-        projectName: 'Remote',
+        workPackageName: 'Remote',
         abbreviation: 'REM',
         workItemName: 'Build',
         address: 'REM.1',
@@ -1740,36 +1763,37 @@ test('versioned response admits explicit v12 links while v10 remains frozen', as
   };
   const next = {
     ...document,
-    document: { ...document.document, version: 12 },
+    document: { ...document.document, version: 14 },
     typedDependencies: [external],
     connected: {
       kind: 'connected',
-      projectId: document.project.id,
+      workPackageId: document.workPackage.id,
       mode: 'isolated',
-      projects: [],
+      workPackages: [],
       relationships: [],
       placement: { kind: 'unavailable', reason: 'cycle' },
     },
   };
   const incomplete = { ...next };
   Reflect.deleteProperty(incomplete, 'connected');
-  expect((await validateSchema(planDocumentV12Response, incomplete)).issues).toBeDefined();
+  expect((await validateSchema(planDocumentV14Response, incomplete)).issues).toBeDefined();
   expect((await classifyPlanDocument(incomplete)).ok).toBe(true);
-  expect((await validateSchema(planDocumentV12Response, next)).issues).toBeUndefined();
-  expect((await validateSchema(planDocumentResponse, next)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV14Response, next)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV14Response, next)).issues).toBeUndefined();
   expect((await validateSchema(planDocumentV10Response, next)).issues).toBeDefined();
   expect(
-    (await validateSchema(planDocumentResponse, { ...next, document: document.document })).issues,
+    (await validateSchema(planDocumentV14Response, { ...next, document: document.document }))
+      .issues,
   ).toBeDefined();
 });
 
-test('v12 step endpoint requires its descriptive step label', async () => {
+test('v14 step endpoint requires its descriptive step label', async () => {
   const document = await exportDocument();
-  Reflect.set(document.document, 'version', 12);
+  Reflect.set(document.document, 'version', 14);
   Reflect.set(
     document,
     'connected',
-    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+    workPackageConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
   );
   Reflect.set(document, 'typedDependencies', [
     {
@@ -1778,11 +1802,11 @@ test('v12 step endpoint requires its descriptive step label', async () => {
       predecessor: {
         kind: 'external',
         scope: 'node',
-        projectId: 'remote',
+        workPackageId: 'remote',
         workItemId: 'stable',
         stepId: 'remote-step',
         display: {
-          projectName: 'Remote',
+          workPackageName: 'Remote',
           abbreviation: 'REM',
           workItemName: 'Build',
           address: 'REM.1',
@@ -1903,21 +1927,19 @@ const MEASURE_FACTS = {
     ]),
 };
 
-const FACTORED: typeof PROJECT = { ...PROJECT, budgetFactor: 1.5 };
+const FACTORED: typeof WORK_PACKAGE = { ...WORK_PACKAGE, budgetFactor: 1.5 };
 
 async function exportWithMeasures(
-  project: typeof PROJECT = FACTORED,
-  measureFacts: ConstructorParameters<
-    typeof PlanDocumentService
-  >[0]['measureFacts'] = MEASURE_FACTS,
+  workPackage: typeof WORK_PACKAGE = FACTORED,
+  measureFacts: FixtureMeasureFacts = MEASURE_FACTS,
 ): Promise<PlanDocument> {
   const tree = structuredClone(TREE);
   tree.workItems = tree.workItems.map((row) => ({
     ...row,
     measures: { hours_actual: { 'step-1': 4 }, token_estimate: { 'step-1': 500 } },
   }));
-  const exported = await service(directory(), NO_RESOURCE_FACTS, measureFacts).export(
-    project,
+  const exported = await service(directory(), NO_RESOURCE_FACTS, measureFacts).serializeFixture(
+    workPackage,
     tree,
     LEGACY_ACCESS,
   );
@@ -1925,9 +1947,9 @@ async function exportWithMeasures(
   return exported.value;
 }
 
-test('exports version 11 with every measure the plan holds', async () => {
+test('exports version 13 with every measure the plan holds', async () => {
   const exported = await exportWithMeasures();
-  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV13Response, exported)).issues).toBeUndefined();
   expect({
     version: exported.document.version,
     factor: exported.settings.budgetFactor,
@@ -1937,7 +1959,7 @@ test('exports version 11 with every measure the plan holds', async () => {
     estimates: exported.measureEstimates,
     budgets: exported.budgets,
   }).toEqual({
-    version: 11,
+    version: 13,
     factor: 1.5,
     // The legacy fact and the single-point tokens trio stay the row's legacy names.
     rowMeasures: { hours_actual: { 'step-1': 4 }, token_estimate: { 'step-1': 500 } },
@@ -1999,16 +2021,16 @@ test('exports version 11 with every measure the plan holds', async () => {
   });
 });
 
-test('v11 measures export retains canonical bytes', async () => {
+test('v13 measures export has canonical current bytes', async () => {
   const exported = await exportWithMeasures();
-  Reflect.deleteProperty(exported.project, 'abbreviation');
+  Reflect.deleteProperty(exported.workPackage, 'abbreviation');
   const bytes = JSON.stringify(exported);
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    '62708699bd8f40d78f3f4f6e30ee80aa976adba58c24b8a84cace87747cc25e4',
+    'c66f9a348578df7d1c19a9a27accd8cfd3de244d6b0770bb235e549bf7d30db6',
   );
 });
 
-test('a factor other than 1 alone exports version 11 with empty measure lists', async () => {
+test('a factor other than 1 alone exports version 13 with empty measure lists', async () => {
   const exported = await exportWithMeasures(FACTORED, NO_MEASURE_FACTS);
   expect({
     version: exported.document.version,
@@ -2019,13 +2041,13 @@ test('a factor other than 1 alone exports version 11 with empty measure lists', 
       exported.measureEstimates,
       exported.budgets,
     ],
-  }).toEqual({ version: 11, factor: 1.5, lists: [[], [], [], []] });
+  }).toEqual({ version: 13, factor: 1.5, lists: [[], [], [], []] });
 });
 
 // Proof: with the export's version put back on `measures !== null ||
 // budgetFactor !== 1 ? 11 : 10` (design D63's dual rule), this case and eight
 // more read version 10 (80 pass, 9 fail); watched 2026-10-24.
-test('a plan whose measures are all legacy exports version 11 with empty lists (design D71)', async () => {
+test('a plan whose measures are all legacy exports version 13 with empty lists (design D71)', async () => {
   const legacyOnly = {
     ...MEASURE_FACTS,
     measureEstimatesOf: async () =>
@@ -2034,8 +2056,8 @@ test('a plan whose measures are all legacy exports version 11 with empty lists (
       (await MEASURE_FACTS.measuresOf()).filter(({ metric }) => isLegacyMetric(metric)),
     budgetsOf: () => Promise.resolve([]),
   };
-  const exported = await exportWithMeasures(PROJECT, legacyOnly);
-  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  const exported = await exportWithMeasures(WORK_PACKAGE, legacyOnly);
+  expect((await validateSchema(planDocumentV13Response, exported)).issues).toBeUndefined();
   expect({
     version: exported.document.version,
     factor: exported.settings.budgetFactor,
@@ -2045,15 +2067,15 @@ test('a plan whose measures are all legacy exports version 11 with empty lists (
       exported.measureEstimates,
       exported.budgets,
     ],
-  }).toEqual({ version: 11, factor: 1, lists: [[], [], [], []] });
+  }).toEqual({ version: 13, factor: 1, lists: [[], [], [], []] });
 });
 
-test('a plan without measures exports canonical version-11 bytes', async () => {
+test('a plan without measures exports canonical version-13 bytes', async () => {
   const exported = await exportDocument();
-  Reflect.deleteProperty(exported.project, 'abbreviation');
+  Reflect.deleteProperty(exported.workPackage, 'abbreviation');
   const bytes = JSON.stringify(exported);
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    'f8ed917417cae0509dc4fb4d1f5faacc49c246a2e108ebee04b638e045590a64',
+    'cb757038838bc7c1744176c5b4d02e1e50e371a973ac7f3280ba8c0862b75fb1',
   );
 });
 
@@ -2201,33 +2223,50 @@ test('throws when a stored figure names a measure, row or step the reads do not 
   }
 });
 
-test('v12 export requires captured evidence while import discards untrusted read-only history', async () => {
+test('v14 export requires captured evidence while import discards untrusted read-only history', async () => {
   const captured = createConnectedBlockageRead('clear');
-  const evidence = projectConnectedDocument(captured, 'C').connected;
+  const evidence = workPackageConnectedDocument(captured, 'C').connected;
   const ordinary = await exportDocument();
   const next = {
     ...ordinary,
-    document: { ...ordinary.document, version: 12 },
+    document: { ...ordinary.document, version: 14 },
     connected: evidence,
   };
   expect((await classifyPlanDocument(next)).ok).toBe(true);
   const { connected: omitted, ...missing } = next;
   expect(omitted).toBe(evidence);
-  expect((await validateSchema(planDocumentV12Response, missing)).issues).toBeDefined();
+  expect((await validateSchema(planDocumentV14Response, missing)).issues).toBeDefined();
   expect((await classifyPlanDocument(missing)).ok).toBe(true);
   expect(
-    (await validateSchema(planDocumentV12Response, { ...next, connected: null })).issues,
+    (await validateSchema(planDocumentV14Response, { ...next, connected: null })).issues,
   ).toBeDefined();
   expect((await classifyPlanDocument({ ...next, connected: null })).ok).toBe(true);
   expect((await classifyPlanDocument({ ...next, document: ordinary.document })).ok).toBe(true);
 });
 
-test('frozen v10 strict consumers refuse the newer embedded project factor', async () => {
-  const document = withoutVersion11(await exportDocument(), 10);
+test('frozen v10 strict consumers refuse the newer embedded work package factor', async () => {
+  const document = JSON.parse(
+    await Bun.file(
+      new URL(
+        '../../../../../../../openspec/changes/wbs-work-packages/fixtures/legacy-document11-ordinary.txt',
+        import.meta.url,
+      ),
+    ).text(),
+  ) as {
+    document: { version: number };
+    settings: Record<string, unknown>;
+    project: object;
+    [key: string]: unknown;
+  };
+  document.document.version = 10;
+  Reflect.deleteProperty(document.settings, 'budgetFactor');
+  for (const key of ['measureDefinitions', 'measureFacts', 'measureEstimates', 'budgets'])
+    Reflect.deleteProperty(document, key);
   const strict = requestSchema(createPlanDocumentV10());
   expect((await validateSchema(strict, document)).issues).toBeUndefined();
-  const project: unknown = document['project'];
-  if (typeof project !== 'object' || project === null) throw new Error('fixture project missing');
-  Reflect.set(project, 'budgetFactor', 2);
+  const workPackage: unknown = document.project;
+  if (typeof workPackage !== 'object' || workPackage === null)
+    throw new Error('fixture work package missing');
+  Reflect.set(workPackage, 'budgetFactor', 2);
   expect((await validateSchema(strict, document)).issues).toBeDefined();
 });

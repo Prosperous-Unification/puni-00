@@ -94,7 +94,7 @@ function protectCommentTokens(
  * E11/E12's shared interpretation for apply, check and collision evidence. Exact catalogue
  * literals and known parent-chain tokens are distinct from old planning tokens beside them.
  * Syntax is parsed only for reviewed named enclosures; no checker infers authority or meaning.
- * @throws on malformed syntax or a missing/ambiguous required parent-chain witness.
+ * @throws on malformed syntax or a missing/ambiguous required owner/member witness.
  */
 export function readProtectedSpans(text: string, path: string): readonly ProtectedSpan[] {
   const spans: ProtectedSpan[] = [];
@@ -104,6 +104,14 @@ export function readProtectedSpans(text: string, path: string): readonly Protect
       spans.push({ start: offset, end: offset + line.length, rule: 'whole-line-prose' });
     offset += line.length + 1;
   }
+  for (const match of text.matchAll(
+    /(?<![A-Za-z0-9_-])\[PROJECT-ASSIGNMENT-READS-00[123]\](?![A-Za-z0-9_-])/g,
+  ))
+    spans.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      rule: 'allocated-assignment-scenario-id',
+    });
   // Proof: span-catalogue removing closed catalogue literal spans failed "preserves a catalogue permission while renaming an old package argument on the same line" (allow-list.test.ts); restored GREEN.
   for (const literal of PROTECTED_LITERALS) {
     const escaped = literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -274,6 +282,12 @@ export function readProtectedSpans(text: string, path: string): readonly Protect
   // Proof: span-role-fixture dropping new role-kind fixture protection failed "keeps current role-model kind fixtures without giving the fixture file a generic project-kind exemption" (scope-conversions.test.ts); restored GREEN.
   if (path === 'libs/wbs/domain/domain/src/access-role.test.ts')
     protectRoleKindFixtures(parseProtectedSource(text, path), spans);
+  if (path === 'libs/wbs/adapters/store-sqlite/src/access-audit.ts')
+    protectGrantAuditParent(parseProtectedSource(text, path), spans);
+  if (path === 'libs/wbs/adapters/store-sqlite/src/initial-access.ts')
+    protectInitialRoleKind(parseProtectedSource(text, path), spans);
+  if (path === 'libs/wbs/domain/contracts/src/http/organization-shapes.ts')
+    protectMemberScopeKind(parseProtectedSource(text, path), spans);
   if (
     [
       'wire-types.ts',
@@ -1209,4 +1223,241 @@ function readLocalDeclaration(
     'producer-declaration-' + name,
   );
   return declaration;
+}
+
+/** The typed grant evidence owns only its scopeId ternary's engagement parent read. */
+function protectGrantAuditParent(source: ts.SourceFile, spans: ProtectedSpan[]): void {
+  const owner = requireDeclaration(source, 'appendGrantAudit', 'function');
+  requireWitness(
+    ts.isFunctionDeclaration(owner) && owner.body !== undefined,
+    source.fileName,
+    'appendGrantAudit',
+  );
+  const evidence = owner.parameters.at(1);
+  requireWitness(
+    owner.parameters.length === 2 &&
+      evidence !== undefined &&
+      ts.isIdentifier(evidence.name) &&
+      evidence.name.text === 'evidence' &&
+      evidence.type !== undefined &&
+      ts.isTypeLiteralNode(evidence.type),
+    source.fileName,
+    'appendGrantAudit-evidence',
+  );
+  const grants = evidence.type.members.filter(
+    (member): member is ts.PropertySignature =>
+      ts.isPropertySignature(member) &&
+      ts.isIdentifier(member.name) &&
+      member.name.text === 'grant',
+  );
+  const grant = grants.at(0);
+  requireWitness(
+    grants.length === 1 &&
+      grant?.type !== undefined &&
+      ts.isTypeReferenceNode(grant.type) &&
+      ts.isIdentifier(grant.type.typeName) &&
+      grant.type.typeName.text === 'AccessGrantRecord',
+    source.fileName,
+    'appendGrantAudit-grant-type',
+  );
+  const locals = owner.body.statements.flatMap((statement) =>
+    ts.isVariableStatement(statement) ? [...statement.declarationList.declarations] : [],
+  );
+  const bindings = locals
+    .flatMap<ts.BindingName>((local) => {
+      if (ts.isIdentifier(local.name)) return [local.name];
+      const names: ts.BindingName[] = [];
+      for (const element of local.name.elements)
+        if (ts.isBindingElement(element)) names.push(element.name);
+      return names;
+    })
+    .filter((name) => ts.isIdentifier(name) && name.text === 'grant');
+  const receivers = locals.filter(
+    (local) =>
+      ts.isObjectBindingPattern(local.name) &&
+      local.initializer?.getText(source) === 'evidence' &&
+      local.name.elements.some(
+        (element) =>
+          ts.isIdentifier(element.name) &&
+          element.name.text === 'grant' &&
+          element.propertyName === undefined &&
+          element.dotDotDotToken === undefined,
+      ),
+  );
+  requireWitness(
+    bindings.length === 1 && receivers.length === 1,
+    source.fileName,
+    'appendGrantAudit-grant-binding',
+  );
+  const scope = readLocalDeclaration(source, owner, 'scopeId');
+  const branch = scope.initializer;
+  requireWitness(
+    scope.parent.parent.parent === owner.body &&
+      branch !== undefined &&
+      ts.isConditionalExpression(branch) &&
+      branch.condition.getText(source) === "grant.scope.kind === 'organization'" &&
+      branch.whenTrue.getText(source) === 'grant.organizationId' &&
+      ts.isConditionalExpression(branch.whenFalse) &&
+      branch.whenFalse.condition.getText(source) === "grant.scope.kind === 'work_package'" &&
+      branch.whenFalse.whenTrue.getText(source) === 'grant.scope.workPackageId' &&
+      ts.isPropertyAccessExpression(branch.whenFalse.whenFalse) &&
+      branch.whenFalse.whenFalse.expression.getText(source) === 'grant.scope' &&
+      branch.whenFalse.whenFalse.name.text === 'projectId',
+    source.fileName,
+    'appendGrantAudit-scope-parent',
+  );
+  retainNodeSpan(source, branch.whenFalse.whenFalse.name, 'grant-audit-engagement-parent', spans);
+}
+
+/** The named initial-role catalogue comparison owns only its project-kind fallback literal. */
+function protectInitialRoleKind(source: ts.SourceFile, spans: ProtectedSpan[]): void {
+  const owner = requireDeclaration(source, 'readInitialRolePermissionsIn', 'function');
+  requireWitness(
+    ts.isFunctionDeclaration(owner) && owner.body !== undefined,
+    source.fileName,
+    'readInitialRolePermissionsIn',
+  );
+  const role = owner.parameters.at(1);
+  requireWitness(
+    role !== undefined &&
+      ts.isIdentifier(role.name) &&
+      role.name.text === 'roleId' &&
+      role.type !== undefined &&
+      ts.isTypeReferenceNode(role.type) &&
+      ts.isIdentifier(role.type.typeName) &&
+      role.type.typeName.text === 'InitialAccessRole',
+    source.fileName,
+    'readInitialRolePermissionsIn-role',
+  );
+  const kind = readLocalDeclaration(source, owner, 'kind');
+  const branch = kind.initializer;
+  requireWitness(
+    kind.parent.parent.parent === owner.body &&
+      branch !== undefined &&
+      ts.isConditionalExpression(branch) &&
+      branch.condition.getText(source) === "roleId === 'org-admin' || roleId === 'org-viewer'" &&
+      ts.isStringLiteral(branch.whenTrue) &&
+      branch.whenTrue.text === 'organization' &&
+      ts.isStringLiteral(branch.whenFalse) &&
+      branch.whenFalse.text === 'project',
+    source.fileName,
+    'readInitialRolePermissionsIn-kind',
+  );
+  retainNodeSpan(source, branch.whenFalse, 'initial-role-engagement-kind', spans);
+}
+
+/** Only listMembers' JSON members/effectiveRole/via/scopeKind owns this union token. */
+function protectMemberScopeKind(source: ts.SourceFile, spans: ProtectedSpan[]): void {
+  const owner = requireDeclaration(source, 'listMembers', 'variable');
+  requireWitness(
+    ts.isVariableDeclaration(owner) &&
+      owner.initializer !== undefined &&
+      ts.isCallExpression(owner.initializer) &&
+      owner.initializer.expression.getText(source) === 'defineEndpointShape' &&
+      owner.initializer.arguments.length === 1,
+    source.fileName,
+    'listMembers-endpoint',
+  );
+  const endpoint = owner.initializer.arguments.at(0);
+  requireWitness(
+    endpoint !== undefined && ts.isObjectLiteralExpression(endpoint),
+    source.fileName,
+    'listMembers-shape',
+  );
+  const responses = readObjectProperty(source, endpoint, 'responses').initializer;
+  requireWitness(
+    ts.isArrayLiteralExpression(responses) && responses.elements.length === 1,
+    source.fileName,
+    'listMembers-responses',
+  );
+  const response = responses.elements.at(0);
+  requireWitness(
+    response !== undefined && ts.isObjectLiteralExpression(response),
+    source.fileName,
+    'listMembers-response',
+  );
+  const schema = readObjectProperty(source, response, 'schema').initializer;
+  requireWitness(
+    ts.isCallExpression(schema) &&
+      schema.expression.getText(source) === 'responseSchema' &&
+      schema.arguments.length === 1,
+    source.fileName,
+    'listMembers-schema',
+  );
+  // Boundary: the parsed schema call above has exactly one argument.
+  const payload = schema.arguments[0];
+  const readTypeObject = (
+    expression: ts.Expression,
+    suffix: 'plain' | 'array' | 'or',
+    name: string,
+  ): ts.ObjectLiteralExpression => {
+    let factory = expression;
+    if (suffix !== 'plain') {
+      requireWitness(
+        ts.isCallExpression(factory) &&
+          ts.isPropertyAccessExpression(factory.expression) &&
+          factory.expression.name.text === suffix,
+        source.fileName,
+        name + '-wrapper',
+      );
+      const argument = factory.arguments.at(0);
+      requireWitness(
+        suffix === 'array'
+          ? factory.arguments.length === 0
+          : factory.arguments.length === 1 &&
+              argument !== undefined &&
+              ts.isStringLiteral(argument) &&
+              argument.text === 'null',
+        source.fileName,
+        name + '-arguments',
+      );
+      factory = factory.expression.expression;
+    }
+    requireWitness(
+      ts.isCallExpression(factory) &&
+        factory.expression.getText(source) === 'type' &&
+        factory.arguments.length === 1,
+      source.fileName,
+      name + '-type',
+    );
+    const object = factory.arguments.at(0);
+    requireWitness(
+      object !== undefined && ts.isObjectLiteralExpression(object),
+      source.fileName,
+      name + '-object',
+    );
+    return object;
+  };
+  const members = readObjectProperty(
+    source,
+    readTypeObject(payload, 'plain', 'listMembers-payload'),
+    'members',
+  );
+  const role = readObjectProperty(
+    source,
+    readTypeObject(members.initializer, 'array', 'listMembers-members'),
+    'effectiveRole',
+  );
+  const via = readObjectProperty(
+    source,
+    readTypeObject(role.initializer, 'or', 'listMembers-role'),
+    'via',
+  );
+  const kind = readObjectProperty(
+    source,
+    readTypeObject(via.initializer, 'array', 'listMembers-via'),
+    'scopeKind',
+  ).initializer;
+  requireWitness(
+    ts.isStringLiteral(kind) && kind.text === "'organization' | 'project' | 'work_package'",
+    source.fileName,
+    'listMembers-scope-kind',
+  );
+  const token = kind.getText(source).indexOf("'project'");
+  requireWitness(token >= 0, source.fileName, 'listMembers-scope-token');
+  spans.push({
+    start: kind.getStart(source) + token,
+    end: kind.getStart(source) + token + 9,
+    rule: 'member-response-engagement-kind',
+  });
 }

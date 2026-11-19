@@ -1,34 +1,37 @@
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { ProjectStore, WriteStamp } from '../../index';
+import type { WorkPackageStore, WriteStamp } from '../../index';
 import type { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
 import type { RecordingBroadcaster } from '../../testing/broadcast-fixture';
-import { inMemoryServices } from '../../testing/harness';
+import { createTestServices } from '../../testing/harness';
+import { createLegacyWorkPackageFixture } from '../../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 const PEER = 'peer-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
 const DEV = 'step-dev';
 const QA = 'step-qa';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let service: WorkItemService;
 let broadcast: RecordingBroadcaster;
-let projectId: string;
+let workPackageId: string;
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects } = harness.stores);
+  const harness = createTestServices((await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID)).source, {
+});
+  ({ workPackages } = harness.stores);
   ({ service, broadcast } = harness);
-  projectId = crypto.randomUUID();
-  await projects.create(
-    projectRow({ id: projectId, ownerId: OWNER }),
+  workPackageId = crypto.randomUUID();
+  await workPackages.create(
+    workPackageRow({ id: workPackageId, projectId: PROJECT_ID }),
     [
       {
         id: DEV,
-        projectId,
+        workPackageId,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -37,7 +40,7 @@ beforeEach(async () => {
       },
       {
         id: QA,
-        projectId,
+        workPackageId,
         name: 'QA',
         position: 20,
         code: 'qa',
@@ -50,7 +53,7 @@ beforeEach(async () => {
 });
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -65,16 +68,17 @@ async function estimate(id: string, stepId: string, days: number): Promise<void>
 }
 
 async function allowance(percent: number, actorId = OWNER): Promise<void> {
-  const outcome = await service.setStepAllowance(projectId, actorId, QA, percent);
+  const outcome = await service.setStepAllowance(workPackageId, actorId, QA, percent);
   if (!outcome.ok) throw new Error(`allowance refused: ${outcome.reason}`);
 }
 
 async function qaAllowance(): Promise<number | undefined> {
-  return (await projects.stepsOf(projectId)).find((step) => step.id === QA)?.allowancePercent;
+  return (await workPackages.stepsOf(workPackageId)).find((step) => step.id === QA)
+    ?.allowancePercent;
 }
 
 async function finalsOf(id: string): Promise<Record<string, number>> {
-  const tree = await service.tree(projectId);
+  const tree = await service.tree(workPackageId);
   if (tree === null || 'kind' in tree) throw new Error('the plan read failed');
   const row = tree.workItems.find((each) => each.id === id);
   if (row === undefined) throw new Error(`no row ${id}`);
@@ -82,14 +86,14 @@ async function finalsOf(id: string): Promise<Record<string, number>> {
 }
 
 async function qaSliceDays(id: string): Promise<number | null> {
-  const input = await service.scheduleInput(projectId);
+  const input = await service.scheduleInput(workPackageId);
   if (input === null) throw new Error('no schedule input');
   const slice = input.slices.find((each) => each.workItemId === id && each.stepId === QA);
   if (slice === undefined) throw new Error(`no QA slice for ${id}`);
   return slice.days;
 }
 
-describe('a project step allowance', () => {
+describe('a work package step allowance', () => {
   it('charges each estimated leaf once and parents the sum, leaving raw points alone', async () => {
     const parent = await add('Release');
     const one = await add('One', parent);
@@ -104,7 +108,7 @@ describe('a project step allowance', () => {
     expect((await finalsOf(two))[QA]).toBe(2);
     expect((await finalsOf(two))[DEV]).toBe(2);
     expect((await finalsOf(parent))[QA]).toBe(5);
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     if (tree === null || 'kind' in tree) throw new Error('the plan read failed');
     expect(tree.workItems.find((row) => row.id === one)?.estimates[QA]).toEqual({
       optimistic: 2,
@@ -117,13 +121,13 @@ describe('a project step allowance', () => {
   it('schedules charged effort, and the edit changes the canonical input', async () => {
     const leaf = await add('Leaf');
     await estimate(leaf, QA, 2);
-    const before = await service.scheduleInput(projectId);
+    const before = await service.scheduleInput(workPackageId);
     if (before === null) throw new Error('no schedule input');
 
     await allowance(30);
 
     expect(await qaSliceDays(leaf)).toBe(3);
-    const after = await service.scheduleInput(projectId);
+    const after = await service.scheduleInput(workPackageId);
     if (after === null) throw new Error('no schedule input');
     // What keys the optimized cache: an allowance edit is a different question,
     // so a row solved under the old policy is never read for the new one.
@@ -180,11 +184,11 @@ describe('undoing a step allowance edit', () => {
   it('undoes an allowance edit in one step', async () => {
     await allowance(30);
 
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
     expect(await qaAllowance()).toBe(0);
-    const redone = await service.redo(projectId, OWNER);
+    const redone = await service.redo(workPackageId, OWNER);
     expect(redone.ok).toBe(true);
     expect(await qaAllowance()).toBe(30);
   });
@@ -194,7 +198,7 @@ describe('undoing a step allowance edit', () => {
     await allowance(30);
     await allowance(50, PEER);
 
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone).toMatchObject({
       ok: false,
@@ -210,7 +214,7 @@ describe('undoing a step allowance edit', () => {
     await allowance(50, PEER);
     await allowance(30, PEER);
 
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
     expect(await qaAllowance()).toBe(30);
@@ -220,25 +224,25 @@ describe('undoing a step allowance edit', () => {
     await allowance(30);
     await allowance(50);
 
-    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
     expect(await qaAllowance()).toBe(30);
-    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
     expect(await qaAllowance()).toBe(0);
-    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    expect((await service.redo(workPackageId, OWNER)).ok).toBe(true);
     expect(await qaAllowance()).toBe(30);
   });
 
   it('journals nothing for an edit that leaves the allowance where it was', async () => {
     await allowance(0);
 
-    expect(await service.undo(projectId, OWNER)).toMatchObject({
+    expect(await service.undo(workPackageId, OWNER)).toMatchObject({
       ok: false,
       reason: 'nothing_to_undo',
     });
   });
 
-  it('refuses a step of another project as not found', async () => {
-    const outcome = await service.setStepAllowance(projectId, OWNER, 'elsewhere', 30);
+  it('refuses a step of another work package as not found', async () => {
+    const outcome = await service.setStepAllowance(workPackageId, OWNER, 'elsewhere', 30);
 
     expect(outcome).toEqual({ ok: false, reason: 'not_found' });
   });

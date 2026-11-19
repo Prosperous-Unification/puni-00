@@ -43,13 +43,13 @@ function run(sql: string, params: (string | number | null)[] = []): void {
   h.sqlite.run(sql, params);
 }
 
-function project(organizationId: string, id: string): void {
-  run('INSERT INTO project (id, name, owner_id, created_at) VALUES (?, ?, ?, 1)', [
+function workPackage(organizationId: string, id: string): void {
+  run('INSERT INTO work_package (id, name, owner_id, created_at) VALUES (?, ?, ?, 1)', [
     id,
     id,
     h.userId('sue'),
   ]);
-  run('INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)', [
+  run('INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, ?)', [
     id,
     organizationId,
   ]);
@@ -65,22 +65,25 @@ function personIn(organizationId: string, id: string, kind: 'person' | 'agent'):
 }
 
 let claims = 0;
-/** A leaf of `steps` steps in `projectId`, every step claimed by `personId` under `runId`. */
+/** A leaf of `steps` steps in `workPackageId`, every step claimed by `personId` under `runId`. */
 function claimedLeaf(
-  projectId: string,
+  workPackageId: string,
   id: string,
   personId: string,
   runId: string | null,
   steps = 1,
 ): void {
-  run('INSERT INTO work_item (id, project_id, name, position, revision) VALUES (?, ?, ?, 1, 0)', [
-    id,
-    projectId,
-    id,
-  ]);
+  run(
+    'INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES (?, ?, ?, 1, 0)',
+    [id, workPackageId, id],
+  );
   for (let n = 1; n <= steps; n++) {
     const stepId = `${id}-s${String(n)}`;
-    run('INSERT INTO step (id, project_id, name) VALUES (?, ?, ?)', [stepId, projectId, stepId]);
+    run('INSERT INTO step (id, work_package_id, name) VALUES (?, ?, ?)', [
+      stepId,
+      workPackageId,
+      stepId,
+    ]);
     claims += 1;
     run('INSERT INTO claim (id, work_item_id, step_id, person_id, run_id) VALUES (?, ?, ?, ?, ?)', [
       `c${String(claims)}`,
@@ -105,24 +108,23 @@ function resourceIn(organizationId: string, id: string, name: string, unitLabel:
   ]);
 }
 
-function state(projectId: string, resourceId: string, units: number): void {
-  run('INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, ?)', [
-    projectId,
-    resourceId,
-    units,
-  ]);
+function state(workPackageId: string, resourceId: string, units: number): void {
+  run(
+    'INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES (?, ?, ?)',
+    [workPackageId, resourceId, units],
+  );
 }
 
-/** A holds 7 agents, 12 bound claims over two projects and 48 GB stated; B holds more of each. */
+/** A holds 7 agents, 12 bound claims over two work packages and 48 GB stated; B holds more of each. */
 function seedSevenOfEight(): void {
-  project('org-a', 'pa1');
-  project('org-a', 'pa2');
-  project('org-b', 'pb');
+  workPackage('org-a', 'pa1');
+  workPackage('org-a', 'pa2');
+  workPackage('org-b', 'pb');
   for (let n = 1; n <= 7; n++) personIn('org-a', `agent-${String(n)}`, 'agent');
   personIn('org-a', 'kat', 'person');
   for (let n = 1; n <= 30; n++) personIn('org-b', `b-agent-${String(n)}`, 'agent');
   // One four-step leaf under one run is one bound claim; eleven more leaves
-  // across both projects make twelve.
+  // across both work packages make twelve.
   claimedLeaf('pa1', 'w0', 'agent-1', 'r1', 4);
   for (let n = 1; n <= 11; n++)
     claimedLeaf(

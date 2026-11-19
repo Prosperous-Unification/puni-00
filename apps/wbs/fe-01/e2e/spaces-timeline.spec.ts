@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 const names = [
-  'A very long project name with enough words to wrap across several lines',
+  'A very long work package name with enough words to wrap across several lines',
   'W'.repeat(80),
 ];
 
@@ -21,7 +21,7 @@ test('blank timeline lanes contain wrapped labels at a narrow viewport', async (
           id: 's',
           name: 'Q3',
           virtual: false,
-          projectCount: 2,
+          workPackageCount: 2,
           revision: 1,
           createdById: 'u',
           createdAt: 1,
@@ -29,11 +29,11 @@ test('blank timeline lanes contain wrapped labels at a narrow viewport', async (
         writable: false,
         rows: names.map((name, index) => ({
           position: index,
-          project: {
+          workPackage: {
             id: `p${String(index)}`,
             abbreviation: `P${String(index)}`,
             name,
-            ownerId: 'u',
+            projectId: 'fixture-project',
             restricted: false,
             estimateMethod: 'pert',
             depReach: 'whole-item',
@@ -46,7 +46,7 @@ test('blank timeline lanes contain wrapped labels at a narrow viewport', async (
             optimizationEnabled: false,
             scheduleEngine: 'fast',
             scheduleObjective: 'pri',
-            ownerName: 'ada',
+            createdByName: 'ada',
             lastOpenedAt: null,
           },
         })),
@@ -63,7 +63,7 @@ test('blank timeline lanes contain wrapped labels at a narrow viewport', async (
   );
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto('/spaces/s');
-  const timeline = page.getByRole('list', { name: 'Project timeline' });
+  const timeline = page.getByRole('list', { name: 'Work package timeline' });
   await expect(
     timeline.getByText(`${names[1]}: schedule unavailable`, { exact: true }),
   ).toBeVisible();

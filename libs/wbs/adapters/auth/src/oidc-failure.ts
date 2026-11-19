@@ -1,5 +1,5 @@
 /**
- * What this project calls a failed OIDC exchange, so a caller can answer one
+ * What this work package calls a failed OIDC exchange, so a caller can answer one
  * status for "you did not sign in" and another for "the provider is gone".
  *
  * Today every way out of `exchange` reaches the callback as the same rejected
@@ -31,7 +31,7 @@
 export type OidcFailureKind = 'refused' | 'unavailable' | 'defect' | 'indeterminate';
 
 /**
- * Every slug this module can produce, written by this project and closed on
+ * Every slug this module can produce, written by this work package and closed on
  * purpose: the doc comment on {@link OidcFailure.reason} promises the log line
  * never carries a library- or provider-controlled string, and a union is how
  * that promise is kept rather than asserted.
@@ -69,7 +69,7 @@ export interface OidcFailure {
    * failing, or did not answer as itself. Nobody's credentials were wrong;
    * retrying later is the move.
    *
-   * `defect` — this deployment is wrong, or the failure is one this project does
+   * `defect` — this deployment is wrong, or the failure is one this work package does
    * not recognise. Deliberately not folded into `refused`: an unknown failure is
    * not evidence that a person typed something wrong.
    *
@@ -82,7 +82,7 @@ export interface OidcFailure {
    */
   readonly kind: OidcFailureKind;
   /**
-   * A short slug this project owns, for the log line an outage is grepped by.
+   * A short slug this work package owns, for the log line an outage is grepped by.
    * Never a provider or library string and never sent to a browser — see
    * {@link OidcFailureReason}, which is closed so this cannot drift.
    */
@@ -282,7 +282,7 @@ const TRANSPORT_CODES: ReadonlySet<string> = new Set([
  *
  * Node builds `error.code` from OpenSSL's reason string by uppercasing it and
  * turning spaces into underscores, so the shape of the code is the shape of the
- * reason table. Read out of the exact runtime this project ships — Node 24.18.1
+ * reason table. Read out of the exact runtime this work package ships — Node 24.18.1
  * with OpenSSL 3.5.7 — every alert reason in the binary falls into four
  * spellings, and only two of them look alike:
  *
@@ -367,7 +367,7 @@ function alertNameOf(code: string): string | undefined {
  * `certificate_unobtainable` is the peer failing to fetch our certificate from
  * the URL we supplied, and `bad_certificate_hash_value` is that certificate not
  * matching the hash we supplied with it. Both are about a credential we offered,
- * neither can arrive unless a deployment enabled an extension this project does
+ * neither can arrive unless a deployment enabled an extension this work package does
  * not use, and an operator rather than time has to act on either.
  *
  * **`bad_certificate_status_response` is deliberately not here**, though it is

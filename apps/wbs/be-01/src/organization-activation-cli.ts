@@ -19,7 +19,7 @@
 // prints its plan and then the same refusal. be-01 refuses to boot an activated store without
 // them, so this is where an operator learns it, before the marker is written.
 //
-// `--prune-retained-streams` deletes the event streams of deleted projects that
+// `--prune-retained-streams` deletes the event streams of deleted work packages that
 // reconciliation would otherwise refuse (exit 6, `event_stream`); it is a usage
 // error without `--apply`, so a rehearsal always reports them first.
 //
@@ -84,7 +84,7 @@ if (
   superAdmin === undefined ||
   superAdmin === '' ||
   // Proof: 2026-10-20, without this clause `refuses pruning without --apply before opening the
-  // database` and `prunes a deleted project's retained stream only with --apply` exited 0.
+  // database` and `prunes a deleted work package's retained stream only with --apply` exited 0.
   (values['prune-retained-streams'] && !values.apply)
 )
   throw new Error(USAGE);

@@ -1,5 +1,7 @@
 import {
   chmodSync,
+  closeSync,
+  openSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -32,9 +34,46 @@ import { prepareRelocationActivationUsage } from './policy/prepare-relocation-ac
 import { checkUsage, explainUsage } from './rules/check';
 import { scenarioUsage } from './rules/scenario-command';
 import { templateUsage } from './templates/verify';
-import { workflowBindingUsage } from './workflow-binding';
 
 const repositories: string[] = [];
+const captures: string[] = [];
+
+/** Real subprocess outputs on exclusively owned files; Bun nested pipe writes are denied in this sandbox. */
+function spawnCaptured(
+  argv: readonly string[],
+  options: { cwd?: string; env?: Record<string, string | undefined> } = {},
+) {
+  const directory = mkdtempSync(join(tmpdir(), 'burokrat-cli-capture-'));
+  captures.push(directory);
+  const stdoutPath = join(directory, 'stdout'),
+    stderrPath = join(directory, 'stderr');
+  const stdout = openSync(stdoutPath, 'wx', 0o600);
+  let child: ReturnType<typeof Bun.spawnSync>;
+  try {
+    const stderr = openSync(stderrPath, 'wx', 0o600);
+    try {
+      child = Bun.spawnSync({
+        cmd: [...argv],
+        ...options,
+        stdin: 'ignore',
+        stdout,
+        stderr,
+        timeout: 30000,
+      });
+    } finally {
+      closeSync(stderr);
+    }
+  } finally {
+    closeSync(stdout);
+  }
+  if (child.signalCode !== undefined && child.signalCode !== null)
+    throw Error('Burokrat CLI child terminated by signal: ' + child.signalCode);
+  return {
+    exitCode: child.exitCode,
+    stdout: readFileSync(stdoutPath),
+    stderr: readFileSync(stderrPath),
+  };
+}
 const cliPath = join(import.meta.dir, 'cli.ts');
 
 interface GitEntry {
@@ -90,11 +129,9 @@ async function runCandidateCli(
 ): Promise<CliInvocation> {
   const argv = ['read-candidate', kind, repository, base];
   if (env === undefined) return invokeCli(argv);
-  const invocation = Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
+  const invocation = spawnCaptured([process.execPath, 'run', cliPath, ...argv], {
     cwd: import.meta.dir,
     env: { ...process.env, ...env },
-    stderr: 'pipe',
-    stdout: 'pipe',
   });
   return {
     exitCode: invocation.exitCode,
@@ -122,6 +159,7 @@ function expectCandidate(
 }
 
 afterEach(() => {
+  for (const directory of captures.splice(0)) rmSync(directory, { recursive: true });
   for (const repository of repositories.splice(0)) {
     rmSync(repository, { force: true, recursive: true });
   }
@@ -510,18 +548,15 @@ test('submit-admission is an unknown command', () => {
   // exit `null` instead of 1 (2026-10-11). Both entries now parse with `cli-parser.ts`, whose
   // refusal reads `Unsupported Burokrat command:` (twilight-cli-optique C3).
   for (const entry of [cliPath, join(import.meta.dir, 'bin.ts')]) {
-    const invocation = Bun.spawnSync(
-      [
-        process.execPath,
-        entry,
-        'submit-admission',
-        repository,
-        join(repository, 'packet.json'),
-        'staged',
-        base,
-      ],
-      { stderr: 'pipe', stdout: 'pipe' },
-    );
+    const invocation = spawnCaptured([
+      process.execPath,
+      entry,
+      'submit-admission',
+      repository,
+      join(repository, 'packet.json'),
+      'staged',
+      base,
+    ]);
     expect(invocation.exitCode, entry).toBe(1);
     expect(invocation.stderr.toString('utf8'), entry).toContain(
       'error: Unsupported Burokrat command: submit-admission',
@@ -539,10 +574,8 @@ function spawnEntry(
   argv: readonly string[],
   environment: Record<string, string> = {},
 ): { exitCode: number | null; stdout: string; stderr: string } {
-  const invocation = Bun.spawnSync([process.execPath, entry, ...argv], {
+  const invocation = spawnCaptured([process.execPath, entry, ...argv], {
     env: { ...process.env, ...environment },
-    stderr: 'pipe',
-    stdout: 'pipe',
   });
   return {
     exitCode: invocation.exitCode,
@@ -782,7 +815,6 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
       explain: explainUsage,
       scenario: scenarioUsage,
       template: templateUsage,
-      'validate workflow-binding': workflowBindingUsage,
       'prepare-activation': prepareActivationUsage,
       'prepare-relocation-activation': prepareRelocationActivationUsage,
     };
@@ -796,7 +828,6 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
   test('<delegated command> --help prints its help; other words reach the module', () => {
     for (const argv of [
       ['check', '--help'],
-      ['validate', 'workflow-binding', '--help'],
       ['template', '--help'],
     ]) {
       const words = argv.slice(0, -1).join(' ');
@@ -817,6 +848,14 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
         command: { command: 'check', argv: tail },
       });
     }
+  });
+
+  test('workflow binding help exposes both typed applicability sources', () => {
+    const printed = printedBy(installedGrammar, ['validate', 'workflow-binding', '--help']);
+    expect(printed).toContain('Usage: twilight-burokrat validate workflow-binding');
+    expect(printed).toContain('--manifest FILE');
+    expect(printed).toContain('--steps STEPS');
+    expect(printed).not.toContain('workflow-binding [...]');
   });
 
   test('completion scripts register twib beside twilight-burokrat', () => {

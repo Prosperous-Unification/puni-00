@@ -1,6 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 import { measureInk } from './measure-ink';
 
 /**
@@ -13,7 +13,7 @@ import { measureInk } from './measure-ink';
  *    the page it was reloaded from. A router held in a state variable passes
  *    every jsdom test and fails the reload.
  * 2. **A real 409 with a real usage in it.** The confirmation is drawn from
- *    be-01's own payload — the project by name, the work item by the number the
+ *    be-01's own payload — the work package by name, the work item by the number the
  *    plan shows — rather than from a fixture written to match the parser.
  * 3. **The phone.** Two panels side by side or stacked is a layout question,
  *    and 44px is a measured rectangle or it is nothing. The fourteenth and
@@ -97,8 +97,8 @@ test.describe('the directory has an address', () => {
       'aria-current',
       'page',
     );
-    // Off the project, the project controls are absent rather than dead.
-    await expect(page.getByRole('combobox', { name: 'Project' })).toHaveCount(0);
+    // Off the work package, the work package controls are absent rather than dead.
+    await expect(page.getByRole('combobox', { name: 'Work package' })).toHaveCount(0);
 
     // The whole reason this is a page and not a piece of state.
     await page.reload();
@@ -106,7 +106,7 @@ test.describe('the directory has an address', () => {
     expect(new URL(page.url()).pathname).toBe('/directory');
 
     await page.goBack();
-    await expect(page.getByRole('combobox', { name: 'Project' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Work package' })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe('/');
   });
 
@@ -152,14 +152,14 @@ test.describe('the directory, edited against be-01', () => {
    * The whole removal, through a real 409 and a real cascade.
    *
    * The team is put on a work item's label first, so be-01's refusal carries a
-   * **directory usage** with a project in it: the confirmation then names the
-   * project and the work item by the number the plan shows, which is the half
+   * **directory usage** with a work package in it: the confirmation then names the
+   * work package and the work item by the number the plan shows, which is the half
    * a fixture can never prove.
    */
   test('names what a removal would take, and takes it only once confirmed', async ({ page }) => {
     const platform = `Platform ${tag}`;
     const work = `Survey the site ${tag}`;
-    await createProject(page);
+    await createWorkPackage(page);
     await page.getByRole('button', { name: 'Add work item' }).click();
     await expect(page.getByLabel('Name of 010')).toBeVisible();
     await page.getByLabel('Name of 010').fill(work);
@@ -180,9 +180,9 @@ test.describe('the directory, edited against be-01', () => {
 
     const confirmation = page.getByRole('dialog');
     await expect(confirmation).toBeVisible();
-    // The project by name and the work item by its derived number and name,
+    // The work package by name and the work item by its derived number and name,
     // both out of be-01's own payload.
-    await expect(confirmation).toContainText('New project');
+    await expect(confirmation).toContainText('New work package');
     await expect(confirmation).toContainText(`010 ${work}`);
     await expect(confirmation).toContainText('team label is cleared');
     // Nothing has gone: the first request carried no cascade.

@@ -1,5 +1,5 @@
 /**
- * A one-way line from something a project owns to whoever is listening now.
+ * A one-way line from something a work package owns to whoever is listening now.
  *
  * The event counterpart of {@link Store}: a store says what **is**, and a
  * channel says what **happened** — a refusal to announce, a command that was

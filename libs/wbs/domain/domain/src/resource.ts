@@ -5,7 +5,7 @@ import { RESOURCE_KINDS, type ResourceKind } from './stored-vocabularies';
  * team (`wbs-resources` R1): unique by name, with a {@link ResourceKind} that
  * never changes and a free-text unit label shown beside every number of it.
  * It has no global size; how many units a plan may use is a
- * {@link ResourceCapacity} of one project.
+ * {@link ResourceCapacity} of one work package.
  */
 export interface Resource {
   readonly id: string;
@@ -15,7 +15,7 @@ export interface Resource {
 }
 
 /**
- * How many units of one resource one project's plan may use, when stated. An
+ * How many units of one resource one work package's plan may use, when stated. An
  * unstated pair is the absence of one of these and constrains nothing; a stated
  * 0 means the plan may use none.
  */
@@ -59,7 +59,7 @@ export function refuseDemand(kind: ResourceKind, units: number): 'exclusive_dema
 
 /**
  * Each leaf's demand vector as both engines charge it (`wbs-resources` R2 and
- * R5): its own demands only, on resources the project states a capacity for,
+ * R5): its own demands only, on resources the work package states a capacity for,
  * each in resource-id order with its units clamped to that capacity.
  *
  * Three rules, the team pool's three (`poolsFor`) restated for units:

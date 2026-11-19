@@ -7,17 +7,17 @@ import { SavedPlansPanelOver } from '../../testing/saved-plans-panel-over';
 import type { SavedPlanComparisonState } from './saved-plan-compare';
 import { SavedPlanComparison } from './saved-plan-compare';
 
-const project = { projectId: 'foreign', name: 'Captured upstream', abbreviation: 'OLD' };
+const workPackage = { workPackageId: 'foreign', name: 'Captured upstream', abbreviation: 'OLD' };
 const connected = {
   kind: 'connected',
-  targetProjectId: 'p1',
+  targetWorkPackageId: 'p1',
   mode: 'shared',
   placementState: { kind: 'scheduled' },
-  projects: [project],
-  idleProjects: [project],
+  workPackages: [workPackage],
+  idleWorkPackages: [workPackage],
   stages: [
     {
-      ...project,
+      ...workPackage,
       engine: 'optimized',
       objective: 'time',
       selected: 'pri',
@@ -38,15 +38,15 @@ const connected = {
       },
       boundary: {
         kind: 'connected-stage',
-        projectId: 'foreign',
+        workPackageId: 'foreign',
         format: 'connected-stage-v1',
         canonical: '{"frozen":true}',
         originOrdinal: 17,
         fixed: [
           {
-            projectId: project.projectId,
-            projectName: project.name,
-            projectAbbreviation: project.abbreviation,
+            workPackageId: workPackage.workPackageId,
+            workPackageName: workPackage.name,
+            workPackageAbbreviation: workPackage.abbreviation,
             workItemId: 'w-old',
             workItemName: 'Captured work',
             stepId: null,
@@ -63,11 +63,13 @@ const comparison = () => ({
   diff: { input: [], schedule: [] },
   left: {
     source: { kind: 'saved', savedPlanId: 'sp1' },
+    parent: { kind: 'unrecorded' },
     schedule: { present: true, algorithmId: 'historical' },
     provenance: structuredClone(connected),
   },
   right: {
     source: { kind: 'current' },
+    parent: { kind: 'recorded', projectId: 'captured-parent' },
     schedule: { present: false, absentReason: 'cycle' },
     provenance: { kind: 'local' },
   },
@@ -116,7 +118,7 @@ it('renders both frozen summaries through the HTTP client and panel even for an 
   serve(comparison());
   render(
     <SavedPlansPanelOver
-      projectId="p1"
+      workPackageId="p1"
       routes={{
         ...httpSavedPlanApi(),
         available: () => Promise.resolve(true),
@@ -140,21 +142,27 @@ it('renders both frozen summaries through the HTTP client and panel even for an 
     screen.queryByText(/contradictory-shelf/, { selector: '.saved-plan-compare__absent' }),
   ).toBeNull();
   expect(vi.mocked(fetch).mock.calls.map(([request]) => readRequestUrl(request))).toEqual([
-    '/api/projects/p1/saved-plans',
-    '/api/projects/p1/saved-plans/compare?left=sp1&right=current',
+    '/api/work-packages/p1/saved-plans',
+    '/api/work-packages/p1/saved-plans/compare?left=sp1&right=current',
   ]);
+  expect(within(left).getByText('Parent project unrecorded.')).toBeTruthy();
+  expect(
+    within(screen.getByRole('region', { name: 'Right frozen provenance' })).getByText(
+      'Captured parent project: captured-parent.',
+    ),
+  ).toBeTruthy();
 });
 
-it.each(['left-source', 'right-source', 'left-project', 'right-project'])(
+it.each(['left-source', 'right-source', 'left-work-package', 'right-work-package'])(
   'refuses post-decode evidence with wrong %s binding',
   async (fault) => {
     const body = comparison();
     if (fault === 'left-source') body.left.source.savedPlanId = 'other';
     if (fault === 'right-source')
       Object.assign(body.right.source, { kind: 'saved', savedPlanId: 'sp1' });
-    if (fault === 'left-project') body.left.provenance.targetProjectId = 'other';
-    if (fault === 'right-project')
-      Object.assign(body.right, { provenance: { ...connected, targetProjectId: 'other' } });
+    if (fault === 'left-work-package') body.left.provenance.targetWorkPackageId = 'other';
+    if (fault === 'right-work-package')
+      Object.assign(body.right, { provenance: { ...connected, targetWorkPackageId: 'other' } });
     serve(body);
     const reply = await httpSavedPlanApi().compare('p1', { saved: 'sp1' }, 'current');
     expect(reply.kind).toBe('failure');
@@ -163,12 +171,15 @@ it.each(['left-source', 'right-source', 'left-project', 'right-project'])(
 );
 
 it.each([
-  [{ kind: 'dependency_calendar_missing', projects: [project] }, 'dependency calendars missing'],
+  [
+    { kind: 'dependency_calendar_missing', workPackages: [workPackage] },
+    'dependency calendars missing',
+  ],
   [
     {
       kind: 'engine_unavailable',
       engine: 'optimized',
-      projects: ['foreign'],
+      workPackages: ['foreign'],
       reason: 'adapter_missing',
     },
     'engine unavailable',
@@ -181,7 +192,7 @@ it.each([
   serve(body);
   render(
     <SavedPlansPanelOver
-      projectId="p1"
+      workPackageId="p1"
       routes={{
         ...httpSavedPlanApi(),
         available: () => Promise.resolve(true),
@@ -215,7 +226,7 @@ it.each([
     serve(body);
     render(
       <SavedPlansPanelOver
-        projectId="p1"
+        workPackageId="p1"
         routes={{
           ...httpSavedPlanApi(),
           available: () => Promise.resolve(true),
@@ -245,11 +256,12 @@ class HistoryBoundary extends Component<{ children: ReactNode }, { failed: boole
   }
 }
 
-it.each(['provenance', 'placement', 'outcome', 'source'])(
+it.each(['provenance', 'placement', 'outcome', 'source', 'parent'])(
   'throws an impossible decoded %s union into the Error Boundary',
   (fault) => {
     const body = comparison();
     if (fault === 'source') Object.assign(body.left, { source: { kind: 'future' } });
+    if (fault === 'parent') Object.assign(body.left, { parent: { kind: 'future' } });
     if (fault === 'provenance') Object.assign(body.left, { provenance: { kind: 'future' } });
     if (fault === 'placement')
       Object.assign(body.left.provenance, { placementState: { kind: 'future' } });
@@ -292,7 +304,7 @@ it('keeps a stage’s earlier foreign interval apart from final schedule differe
   serve(body);
   render(
     <SavedPlansPanelOver
-      projectId="p1"
+      workPackageId="p1"
       routes={{
         ...httpSavedPlanApi(),
         available: () => Promise.resolve(true),
@@ -307,14 +319,14 @@ it('keeps a stage’s earlier foreign interval apart from final schedule differe
 
 it('renders a captured Fast stage without inventing optimization outcomes or foreign intervals', async () => {
   const body = comparison();
-  Object.assign(body.left.provenance, { idleProjects: [] });
+  Object.assign(body.left.provenance, { idleWorkPackages: [] });
   const stage = body.left.provenance.stages[0];
   Object.assign(stage, { engine: 'fast', observation: null, variants: null, selected: null });
   Object.assign(stage.boundary, { fixed: [] });
   serve(body);
   render(
     <SavedPlansPanelOver
-      projectId="p1"
+      workPackageId="p1"
       routes={{
         ...httpSavedPlanApi(),
         available: () => Promise.resolve(true),

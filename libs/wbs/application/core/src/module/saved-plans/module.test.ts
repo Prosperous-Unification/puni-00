@@ -1,10 +1,12 @@
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import { createLocalDependencyContext } from '../../service/dependency-context';
@@ -25,22 +27,32 @@ const lengthDigest: Digest = {
 
 const owner = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };
 
-/** One memory source, a project in it, and the requirements that save it. */
+/** One memory source, a work package in it, and the requirements that save it. */
 async function seeded() {
-  const source = openMemorySource();
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
+  await source.stores.users.create(
+    { id: owner.id, username: owner.id, passwordHash: null, createdAt: 1 },
+    { at: 1, by: owner.id },
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: owner.id,
+  });
   let next = 0;
   const clock = clockOf({ now: () => STAMP_AT, newId: () => `id-${String(++next)}` });
-  const { projects } = servicesOver(source.stores, {
+  const { workPackages } = servicesOver(source.stores, {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
   });
-  const created = expectCreated(await projects.create('Plan', owner.id));
+  const created = expectCreated(await workPackages.create('Plan', 'fixture-project', owner.id));
   return {
-    projects,
-    projectId: created.project.id,
+    workPackages,
+    workPackageId: created.workPackage.id,
     requirements: {
       digest: lengthDigest,
       capture: source.history.savedPlanCapture,
@@ -87,12 +99,28 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Saved plans module', () => {
+  it('projects actual current parent into detached comparison evidence', async () => {
+    const { workPackageId, requirements } = await seeded();
+    const { savedPlans } = installSavedPlans(requirements);
+    const current = await savedPlans.workPackageCurrentPlan(workPackageId);
+    expect(current).toMatchObject({
+      inputEvidence: {
+        parent: { kind: 'recorded', projectId: 'fixture-project' },
+        dependencies: { kind: 'recorded', history: { kind: 'local' } },
+      },
+    });
+    if (current === null) throw Error('seeded current comparison absent');
+    expect(current.input.workPackage).not.toHaveProperty('projectId');
+    expect(current.input.workPackage).not.toHaveProperty('ownerId');
+    expect(current.input).not.toHaveProperty('schemaVersion');
+  });
+
   it('saves and reads back a plan over the graph installSavedPlans wires', async () => {
-    const { projectId, requirements } = await seeded();
+    const { workPackageId, requirements } = await seeded();
     const { savedPlans } = installSavedPlans(requirements);
 
     const saved = await savedPlans.save({
-      projectId,
+      workPackageId,
       name: 'Baseline',
       createdBy: owner.username,
       createdById: owner.id,
@@ -103,7 +131,7 @@ describe('the Saved plans module', () => {
   });
 
   it('refuses installed shared save and current before capture without admitted access', async () => {
-    const { projectId, requirements } = await seeded();
+    const { workPackageId, requirements } = await seeded();
     let sharedReads = 0;
     let localReads = 0;
     const savedPlans = installSavedPlans({
@@ -120,18 +148,18 @@ describe('the Saved plans module', () => {
       },
     }).savedPlans;
     const savedFailure = await savedPlans
-      .save({ projectId, createdBy: owner.username, createdById: owner.id })
+      .save({ workPackageId, createdBy: owner.username, createdById: owner.id })
       .then(
         () => null,
         (failure: unknown) => failure,
       );
-    const currentFailure = await savedPlans.projectCurrentPlan(projectId).then(
+    const currentFailure = await savedPlans.workPackageCurrentPlan(workPackageId).then(
       () => null,
       (failure: unknown) => failure,
     );
     expect(sharedReads).toBe(0);
     expect(localReads).toBe(0);
-    expect(await requirements.plans.listOf(projectId)).toEqual([]);
+    expect(await requirements.plans.listOf(workPackageId)).toEqual([]);
     expect(savedFailure).toBeInstanceOf(Error);
     expect(currentFailure).toBeInstanceOf(Error);
     expect((savedFailure as Error).message).toBe(
@@ -143,34 +171,34 @@ describe('the Saved plans module', () => {
   });
 
   it('passes a supplied quota through to the installed feature', async () => {
-    const { projectId, requirements } = await seeded();
+    const { workPackageId, requirements } = await seeded();
     const { savedPlans } = installSavedPlans({
       ...requirements,
       quota: {
         mostBytesPerBody: 1024 * 1024,
-        mostPlansPerProject: 1,
-        mostBytesPerProject: 1024 * 1024,
+        mostPlansPerWorkPackage: 1,
+        mostBytesPerWorkPackage: 1024 * 1024,
       },
     });
-    const request = { projectId, createdBy: owner.username, createdById: owner.id };
+    const request = { workPackageId, createdBy: owner.username, createdById: owner.id };
 
     expect(await savedPlans.save(request)).toHaveProperty('outcome', 'saved');
     expect(await savedPlans.save(request)).toHaveProperty('outcome', 'refused');
   });
 
   it('saves and announces through savePlan over the installed feature', async () => {
-    const { projects, projectId, requirements } = await seeded();
+    const { workPackages, workPackageId, requirements } = await seeded();
     const { savedPlans } = installSavedPlans(requirements);
     const announcements = recordingBroadcaster();
 
     const outcome = await savePlan(
-      { projects, plans: savedPlans, announcements },
-      { projectId, actor: owner, name: 'Announced', access: LEGACY_ACCESS },
+      { workPackages, plans: savedPlans, announcements },
+      { workPackageId, actor: owner, name: 'Announced', access: LEGACY_ACCESS },
     );
 
     expect(outcome).toHaveProperty('outcome', 'saved');
     expect(announcements.published).toEqual([
-      { projectId, event: { type: 'saved_plans_changed' } },
+      { workPackageId, event: { type: 'saved_plans_changed' } },
     ]);
   });
 
@@ -231,21 +259,31 @@ describe('the Saved plans module', () => {
 
 describe('a saved plan and step allowances', () => {
   it('keeps the allowance it was saved with when the live step changes later', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
+    await source.stores.users.create(
+      { id: owner.id, username: owner.id, passwordHash: null, createdAt: 1 },
+      { at: 1, by: owner.id },
+    );
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: owner.id,
+    });
     let next = 0;
     const clock = clockOf({ now: () => STAMP_AT, newId: () => `id-${String(++next)}` });
-    const { projects } = servicesOver(source.stores, {
+    const { workPackages } = servicesOver(source.stores, {
       dependencyContext: createLocalDependencyContext(source.stores),
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock,
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
     });
-    const created = expectCreated(await projects.create('Plan', owner.id));
+    const created = expectCreated(await workPackages.create('Plan', 'fixture-project', owner.id));
     const qa = created.steps.find((step) => step.name === 'QA');
     if (qa === undefined) throw new Error('no QA step');
     const stamp = { at: STAMP_AT, by: owner.id };
-    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 30, stamp);
+    await source.stores.workPackages.setStepAllowance(created.workPackage.id, qa.id, 30, stamp);
     const { savedPlans } = installSavedPlans({
       digest: lengthDigest,
       capture: source.history.savedPlanCapture,
@@ -255,22 +293,22 @@ describe('a saved plan and step allowances', () => {
       now: () => Math.floor(clock.now() / 1_000),
     });
     const saved = await savedPlans.save({
-      projectId: created.project.id,
+      workPackageId: created.workPackage.id,
       name: 'Baseline',
       createdBy: owner.username,
       createdById: owner.id,
     });
     if (saved.outcome !== 'saved') throw new Error(`save answered ${saved.outcome}`);
 
-    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 50, stamp);
-    await source.stores.steps.rename(created.project.id, qa.id, 'Renamed QA', stamp);
+    await source.stores.workPackages.setStepAllowance(created.workPackage.id, qa.id, 50, stamp);
+    await source.stores.steps.rename(created.workPackage.id, qa.id, 'Renamed QA', stamp);
 
     const read = await savedPlans.read(saved.record.id);
     if (read.outcome !== 'read') throw new Error(`read answered ${read.outcome}`);
     const body = JSON.parse(read.plan.input.bytes) as {
       steps: { id: string; code: string | null; name: string; allowancePercent: number }[];
     };
-    expect(read.plan.input.schemaVersion).toBe(9);
+    expect(read.plan.input.schemaVersion).toBe(12);
     expect(body.steps.find((step) => step.id === qa.id)?.allowancePercent).toBe(30);
     expect(body.steps.find((step) => step.id === qa.id)?.code).toBe(qa.code);
     expect(body.steps.find((step) => step.id === qa.id)?.name).toBe(qa.name);

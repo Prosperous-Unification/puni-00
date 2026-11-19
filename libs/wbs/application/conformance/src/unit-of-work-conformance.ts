@@ -8,7 +8,7 @@ import { expect, it } from 'bun:test';
 
 /**
  * What a source hands the kit: a unit of work, the stores a **reader outside**
- * it sees, and a project and account its writes can hang off.
+ * it sees, and a work package and account its writes can hang off.
  *
  * The reader's stores are named separately from the scope's on purpose. Every
  * case here is about what is observable **after `run` settles**, and reading
@@ -18,7 +18,7 @@ import { expect, it } from 'bun:test';
 export interface UnitOfWorkFixture {
   uow: UnitOfWork;
   reader: TransactionalStores;
-  projectId: string;
+  workPackageId: string;
   stamp: WriteStamp;
   /** Torn down by the caller; the kit opens nothing it does not close. */
   close?: () => void;
@@ -39,13 +39,13 @@ export interface UnitOfWorkFixture {
 export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
   const threeWrites = async (
     stores: PlanTransactionalStores,
-    projectId: string,
+    workPackageId: string,
     stamp: WriteStamp,
   ): Promise<void> => {
     await stores.steps.add(
       {
         id: crypto.randomUUID(),
-        projectId,
+        workPackageId,
         name: 'Wiring',
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
@@ -53,53 +53,53 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
       stamp,
     );
     await stores.directory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp);
-    await stores.projects.update(projectId, { name: 'Rewired' }, stamp);
+    await stores.workPackages.update(workPackageId, { name: 'Rewired' }, stamp);
   };
 
   const written = async (
     reader: PlanTransactionalStores,
-    projectId: string,
+    workPackageId: string,
   ): Promise<{ steps: string[]; tags: string[]; name: string | undefined }> => ({
-    steps: (await reader.steps.listByProject(projectId)).map((each) => each.name),
+    steps: (await reader.steps.listByWorkPackage(workPackageId)).map((each) => each.name),
     tags: (await reader.directory.listTags()).map((each) => each.name),
-    name: (await reader.projects.findById(projectId))?.name,
+    name: (await reader.workPackages.findById(workPackageId))?.name,
   });
 
   it('(a) makes none of a refused batch observable', async () => {
-    const { uow, reader, projectId, stamp } = open();
+    const { uow, reader, workPackageId, stamp } = open();
     const answer = await uow.run(async (scope) => {
-      await threeWrites(scope.stores, projectId, stamp);
+      await threeWrites(scope.stores, workPackageId, stamp);
       return { commit: false, value: 'refused' as const };
     });
     expect(answer).toBe('refused');
-    const after = await written(reader, projectId);
+    const after = await written(reader, workPackageId);
     expect(after.steps).not.toContain('Wiring');
     expect(after.tags).not.toContain('urgent');
     expect(after.name).not.toBe('Rewired');
   });
 
   it('(b) makes none of a batch that threw observable, and rethrows', async () => {
-    const { uow, reader, projectId, stamp } = open();
+    const { uow, reader, workPackageId, stamp } = open();
     const thrown = uow.run<never>(async (scope) => {
-      await threeWrites(scope.stores, projectId, stamp);
+      await threeWrites(scope.stores, workPackageId, stamp);
       throw new Error('the third write went wrong');
     });
     expect(thrown).rejects.toThrow('the third write went wrong');
     await thrown.catch(() => undefined);
-    const after = await written(reader, projectId);
+    const after = await written(reader, workPackageId);
     expect(after.steps).not.toContain('Wiring');
     expect(after.tags).not.toContain('urgent');
     expect(after.name).not.toBe('Rewired');
   });
 
   it('(c) makes all of a committed batch observable', async () => {
-    const { uow, reader, projectId, stamp } = open();
+    const { uow, reader, workPackageId, stamp } = open();
     const answer = await uow.run(async (scope) => {
-      await threeWrites(scope.stores, projectId, stamp);
+      await threeWrites(scope.stores, workPackageId, stamp);
       return { commit: true, value: 'applied' as const };
     });
     expect(answer).toBe('applied');
-    const after = await written(reader, projectId);
+    const after = await written(reader, workPackageId);
     expect(after.steps).toContain('Wiring');
     expect(after.tags).toContain('urgent');
     expect(after.name).toBe('Rewired');
@@ -116,12 +116,12 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     // and the run had to be killed. A timeout is what a deadlock looks like
     // from outside, which is why the fault is named here rather than left to a
     // reader to infer from a hang. Watched 2026-09-08.
-    const { uow, projectId, stamp } = open();
+    const { uow, workPackageId, stamp } = open();
     const answer = await uow.run(async (scope) => {
       await scope.stores.steps.add(
         {
           id: crypto.randomUUID(),
-          projectId,
+          workPackageId,
           name: 'Wiring',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -135,11 +135,11 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
 
   it('(m) excludes any concurrent batch for the length of its turn', async () => {
     // ADR 0015's amendment of 2026-10-25 (`wbs-shared-occupancy` S4): a check
-    // that reads beyond its own project holds only if no batch of another
-    // project commits between its read and its write. `run` takes no project
+    // that reads beyond its own work package holds only if no batch of another
+    // work package commits between its read and its write. `run` takes no work package
     // key, so this proves what every source has today, a store-wide turn,
-    // and no more: a source that keys its coordinator by project must add the
-    // key and a per-project case first. The directory's tags stand in for
+    // and no more: a source that keys its coordinator by work package must add the
+    // key and a per-work-package case first. The directory's tags stand in for
     // the organization's rows: each batch reads how many there are and writes
     // one named by that count, so two batches that overlapped would both write
     // `seen-0` (idempotent by name) and leave one.
@@ -203,13 +203,13 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     // The window undo needs: a refused batch discards the stale journal entry
     // it refused, and that discard must survive the rollback that took the
     // rest of the batch with it.
-    const { uow, reader, projectId, stamp } = open();
+    const { uow, reader, workPackageId, stamp } = open();
     const survivor = crypto.randomUUID();
     await uow.run<'refused'>(async (scope) => {
       await scope.stores.steps.add(
         {
           id: crypto.randomUUID(),
-          projectId,
+          workPackageId,
           name: 'Wiring',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -223,7 +223,7 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
           await repair.stores.steps.add(
             {
               id: survivor,
-              projectId,
+              workPackageId,
               name: 'Repaired',
               allowancePercent: 0,
               estimateUnit: 'workdays' as const,
@@ -233,18 +233,18 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
         },
       };
     });
-    const after = await written(reader, projectId);
+    const after = await written(reader, workPackageId);
     expect(after.steps).not.toContain('Wiring');
     expect(after.steps).toContain('Repaired');
   });
 
   it('(k) lets a failing repair surface as itself, with no second rollback', async () => {
-    const { uow, reader, projectId, stamp } = open();
+    const { uow, reader, workPackageId, stamp } = open();
     const failing = uow.run<'refused'>(async (scope) => {
       await scope.stores.steps.add(
         {
           id: crypto.randomUUID(),
-          projectId,
+          workPackageId,
           name: 'Wiring',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -266,7 +266,7 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
       await scope.stores.steps.add(
         {
           id: crypto.randomUUID(),
-          projectId,
+          workPackageId,
           name: 'After',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -276,6 +276,6 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
       return { commit: true, value: 'applied' as const };
     });
     expect(answer).toBe('applied');
-    expect((await written(reader, projectId)).steps).toContain('After');
+    expect((await written(reader, workPackageId)).steps).toContain('After');
   });
 }

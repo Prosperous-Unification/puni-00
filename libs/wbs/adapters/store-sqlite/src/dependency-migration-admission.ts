@@ -55,7 +55,7 @@ export function inspectDependencyBootstrap(
   if (
     schema.some(
       (entry) =>
-        entry.name.startsWith('cross_project_dependency_activation') ||
+        entry.name.startsWith('cross_work_package_dependency_activation') ||
         entry.name.startsWith('external_dependency_admit_'),
     )
   )

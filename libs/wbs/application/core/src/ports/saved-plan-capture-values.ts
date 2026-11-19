@@ -4,7 +4,7 @@ export type {
   CapturedDependency,
   CapturedNamedValue,
   CapturedPerson,
-  CapturedProject,
+  CapturedWorkPackage,
   CapturedStep,
   CapturedTeam,
   CapturedWorkItem,

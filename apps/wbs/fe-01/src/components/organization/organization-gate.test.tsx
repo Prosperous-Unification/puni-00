@@ -15,7 +15,7 @@ import {
   installSessionRuntime,
   type SessionRuntime,
 } from '@/runtime/session-runtime';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { SILENT_STREAM } from '@/testing/silent-stream';
 import { answerJson, stubServer } from '@/testing/stub-server';
@@ -66,7 +66,7 @@ it.each(['selection', 'switcher'] as const)(
             openOwner={() =>
               createSessionOwner({
                 clientFor: () => fakeDirectoryApi(),
-                projectClientFor: () => fakeProjectApi(),
+                workPackageClientFor: () => fakeWorkPackageApi(),
                 streamDeps: SILENT_STREAM,
               })
             }
@@ -125,7 +125,7 @@ function mount(
         openOwner={() =>
           createSessionOwner({
             clientFor: () => fakeDirectoryApi(),
-            projectClientFor: () => fakeProjectApi(),
+            workPackageClientFor: () => fakeWorkPackageApi(),
             streamDeps: SILENT_STREAM,
           })
         }
@@ -318,7 +318,7 @@ it('fails application retirement when the organization runtime cannot retire', a
   );
   const sessions = createSessionOwner({
     clientFor: () => fakeDirectoryApi(),
-    projectClientFor: () => fakeProjectApi(),
+    workPackageClientFor: () => fakeWorkPackageApi(),
     streamDeps: SILENT_STREAM,
     install: (dependencies) => {
       const runtime = installSessionRuntime(dependencies);
@@ -347,4 +347,27 @@ it('fails application retirement when the organization runtime cannot retire', a
   mounted.unmount();
   await expect(slot.retire()).rejects.toThrow();
   expect(slot.snapshot().status).toBe('fatal');
+});
+
+it('retains the full organization name in its bounded trigger and open panel', async () => {
+  const name = 'A deliberately long organization name for the current header';
+  mount({
+    discover: () =>
+      Promise.resolve({
+        kind: 'success',
+        representation: 'json',
+        status: 200,
+        headers: new Headers(),
+        body: { ...current, name },
+      }),
+    select: () => {
+      throw new Error('Viewing the organization name must not select it');
+    },
+  });
+  await screen.findByText('Resources org-a');
+  const trigger = screen.getByLabelText('Organization: ' + name);
+  expect(trigger).toHaveAccessibleName('Organization: ' + name);
+  fireEvent.click(trigger);
+  expect(await screen.findByText(name, { selector: 'p' })).toBeVisible();
+  expect(screen.getByText('Resources org-a')).toBeVisible();
 });

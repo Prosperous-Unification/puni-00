@@ -10,7 +10,7 @@ import { expect, spyOn, test } from 'bun:test';
 
 import { buildApp } from './app';
 import { Presence } from './service/presence';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
 function connect(port: number, protocol?: string): Promise<WebSocket | null> {
   return new Promise((resolve) => {
@@ -43,7 +43,7 @@ test('legacy reconnect rereads ENABLED authority and exact V1 offers remain admi
     internalAuthSecret: 's'.repeat(32),
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ada',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     fetchImpl: (_url, init) => {
       const claim = new Headers(init?.headers).get(DEPENDENCY_SEMANTICS_HEADER);
       claims.push(claim);
@@ -86,7 +86,7 @@ test('transport, malformed success and malformed refusal fail closed within the 
       internalAuthSecret: 's'.repeat(32),
       jwtKey: 'k'.repeat(32),
       localIdentity: 'ada',
-      projectAccess: GRANT_EVERY_PROJECT,
+      workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
       requests: { timers: systemTimers, attemptMs: 20, overallMs: 30 },
       fetchImpl: () => {
         if (mode === 'throw') return Promise.reject(new Error('offline'));
@@ -113,7 +113,7 @@ test('origin and credential refusals never inspect backend dependency authority'
     internalAuthSecret: 's'.repeat(32),
     jwtKey: 'k'.repeat(32),
     appOrigin: 'https://wbs.test',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     fetchImpl: () => {
       inspections += 1;
       return Promise.resolve(new Response(null, { status: 204 }));
@@ -161,9 +161,9 @@ test('dual offers explicitly select V1 and retained presence keeps that exact ad
     internalAuthSecret: 's'.repeat(32),
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ada',
-    projectAccess: (credential) => {
+    workPackageAccess: (credential) => {
       accessClaims.push(credential.dependencySemantics);
-      return GRANT_EVERY_PROJECT();
+      return GRANT_EVERY_WORK_PACKAGE();
     },
     fetchImpl: (_url, init) => {
       const claim = new Headers(init?.headers).get(DEPENDENCY_SEMANTICS_HEADER);
@@ -244,7 +244,7 @@ test('dual offers explicitly select V1 and retained presence keeps that exact ad
 /** Sends header octets and pipelined masked frames without WebSocket constructor normalization. */
 function rawDependencyHandshake(port: number, protocol: string): Promise<string> {
   const frames = [
-    { type: 'subscribe', subscription: 'project:11111111-1111-4111-8111-111111111111' },
+    { type: 'subscribe', subscription: 'work-package:11111111-1111-4111-8111-111111111111' },
     { type: 'resume', resume_points: {} },
     { subscription: 'presence', message: { write: true } },
   ].map((frame) => {
@@ -284,7 +284,7 @@ function rawDependencyHandshake(port: number, protocol: string): Promise<string>
   });
 }
 
-test('raw NBSP protocol octets refuse before presence, project access, replay or backend work', async () => {
+test('raw NBSP protocol octets refuse before presence, work package access, replay or backend work', async () => {
   const backendPaths: string[] = [];
   let accessChecks = 0;
   const joining = spyOn(Presence.prototype, 'join');
@@ -293,9 +293,9 @@ test('raw NBSP protocol octets refuse before presence, project access, replay or
     internalAuthSecret: 's'.repeat(32),
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ada',
-    projectAccess: () => {
+    workPackageAccess: () => {
       accessChecks++;
-      return GRANT_EVERY_PROJECT();
+      return GRANT_EVERY_WORK_PACKAGE();
     },
     fetchImpl: (url) => {
       backendPaths.push(url);

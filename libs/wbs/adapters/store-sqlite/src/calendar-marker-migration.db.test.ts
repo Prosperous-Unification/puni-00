@@ -1,206 +1,246 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import type { Connection } from './db';
 import { openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { duplicateMigrationStamps, rollbackTo } from './migrate-down';
-import { ProjectRepository } from './project';
+import { duplicateMigrationStamps, readMigrationFolders, rollbackTo } from './migrate-down';
 import { calendarMarker } from './schema';
+import { isSqliteCleanupUnknown } from './sqlite-cleanup';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
-/** The folder this one is stamped after — the newest on main before it. */
-// The folder immediately before this one, which moved when TASK-219 landed two
-// migrations of its own between it and `saved_plan_created_by_id`. Named
-// rather than computed, so a third folder arriving here is a red test and not
-// a silently widened rollback.
+/** Immutable historical folder identity; later entity renames do not rename migrations. */
 const PREVIOUS = '20260904140000_add_project_settings';
-/**
- * The folder stamped after this one, landed by TASK-219 on 2026-09-06. A
- * rollback to {@link PREVIOUS} reverses it too, newest first, so it heads the
- * list below. Named rather than filtered out, so the list stays the literal
- * answer `rollbackTo` gave.
- */
-const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
-/**
- * The third folder this file's `PREVIOUS` comment predicted, landed by
- * TASK-267 on 2026-09-06 and stamped after {@link READ_ORDER_INDEX}. It arrived
- * red exactly as that comment intended: the rollback below reverses it too, and
- * newest-first puts it at the head. Naming it is the whole cost of the
- * prediction being right.
- */
-const WORK_ITEM_DEADLINE = '20260906090000_add_work_item_deadline';
-/**
- * The newest: `work_item_external_ref.name`, the `NOT NULL DEFAULT ''` column
- * `link-names-and-card` adds. Additive forward and `DROP COLUMN` on the way
- * back, so it heads every descending reversal list here, exactly as
- * {@link WORK_ITEM_DEADLINE} did while it was newest.
- */
-const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
-/**
- * The newest: `work_item.fact_start` and `work_item.fact_end`, the two nullable
- * date-only columns `work-item-status-and-facts` adds. Additive forward and two
- * `DROP COLUMN`s on the way back, so it heads every descending reversal list and
- * tails every ascending one, exactly as {@link EXTERNAL_REF_NAME} did while it
- * was newest.
- */
-const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
-/**
- * The inert organization records `organization-ownership-and-access`
- * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back.
- */
-const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
-/**
- * The ownership side tables `organization-ownership-and-access`
- * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
- */
-const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
-/**
- * The durable activation marker, stamped after main's step code column and
- * reversed before it.
- */
-const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
-/**
- * The legacy bridge triggers, stamped after
- * {@link ORGANIZATION_ACTIVATION} and reversed before it.
- */
-const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
-/**
- * The newest: the triggers that freeze organization ownership, stamped after
- * {@link ORGANIZATION_BRIDGE} and reversed before it.
- */
-const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
-/** The tables {@link ORGANIZATION_RECORDS} adds, which the same rollback takes. */
-const ORGANIZATION_TABLES = [
-  'organization_activation',
-  'external_system_organization',
-  'person_organization',
-  'project_organization',
-  'saved_plan_organization',
-  'organization_sso_connection',
-  'organization_scim_token',
-  'organization_scim_user',
-  'organization_session_policy',
-  'organization_audit',
-  'project_solution',
-  'delegation_use',
-  'space',
-  'space_project',
-  'project_rank',
-  'service_organization',
-  'service_team_organization',
-  'tag_organization',
-  'work_item_type_organization',
-  'external_identity',
-  'organization',
-  'organization_domain_claim',
-  'organization_invitation',
-  'organization_join_request',
-  'organization_membership',
-];
-/**
- * The nullable step code column and its partial unique index
- * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
- * forward, the index and the column back.
- */
-const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
-const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
-const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
-
 const wrote: WriteStamp = { at: 1, by: 'owner' };
-
 /** Past the first weekend, for the reason `calendar-marker.db.test.ts` states. */
 const PAST_THE_WEEKEND = '2026-08-24';
+let directory: string | undefined;
+let hasUnknownOwner = false;
+const retainedOwners: unknown[] = [];
 
-async function seedProjectWithMarkers(path: string): Promise<void> {
-  const seed = openConnection(path);
-  await new UserRepository(seed.db, OPEN).create(
-    { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-    wrote,
-  );
-  // **No starting steps, deliberately.** `step`, `work_item`, `dependency` and
-  // `project_access` all reference `project` with no `ON DELETE` action at all
-  // (`schema.ts:244,277,498,1639`), so a project holding any of them refuses a
-  // bare `DELETE FROM project` today, before this change exists. Seeding one
-  // here would make the case below fail for a constraint that is not
-  // `calendar_marker`'s — a red that says nothing about the diff, and one that
-  // would still be red with the cascade in place. The project is left bare so
-  // that the only reference standing between the delete and success is the one
-  // this migration adds.
-  await new ProjectRepository(seed.db, OPEN).create(
-    projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-    [],
-    wrote,
-  );
-  await seed.db.insert(calendarMarker).values([
-    {
-      id: 'cm-demo',
-      projectId: 'p1',
-      date: PAST_THE_WEEKEND,
-      name: 'Client demo',
-      color: null,
-      createdAt: 1_756_000_000,
-    },
-    {
-      id: 'cm-deadline',
-      projectId: 'p1',
-      date: PAST_THE_WEEKEND,
-      name: 'Grant deadline',
-      color: '#3b82f6',
-      createdAt: 1_756_000_001,
-    },
-  ]);
-  seed.close();
+/** Owns only this native reader; retains primary and selected-close failures in order. */
+function withinStore<T>(path: string, use: (sqlite: ReturnType<typeof openDatabase>) => T): T {
+  let sqlite: ReturnType<typeof openDatabase>;
+  try {
+    sqlite = openDatabase(path);
+  } catch (cause: unknown) {
+    if (isSqliteCleanupUnknown(cause)) {
+      hasUnknownOwner = true;
+      retainedOwners.push(cause);
+    }
+    throw cause;
+  }
+  let outcome: { ok: true; value: T } | { ok: false; cause: unknown };
+  try {
+    outcome = { ok: true, value: use(sqlite) };
+  } catch (cause: unknown) {
+    outcome = { ok: false, cause };
+  }
+  let closeFailure: { cause: unknown } | undefined;
+  try {
+    sqlite.close(true);
+  } catch (cause: unknown) {
+    hasUnknownOwner = true;
+    retainedOwners.push(sqlite);
+    closeFailure = { cause };
+  }
+  if (closeFailure !== undefined) {
+    if (!outcome.ok)
+      throw new AggregateError(
+        [outcome.cause, closeFailure.cause],
+        'Calendar operation and close failed',
+        { cause: outcome.cause },
+      );
+    throw closeFailure.cause;
+  }
+  if (!outcome.ok) throw outcome.cause;
+  return outcome.value;
+}
+
+/** Keeps the actual seed connection until its one selected close returns. */
+async function withinConnection(
+  path: string,
+  use: (connection: Connection) => Promise<void>,
+): Promise<void> {
+  let connection: Connection;
+  try {
+    connection = openConnection(path);
+  } catch (cause: unknown) {
+    if (isSqliteCleanupUnknown(cause)) {
+      hasUnknownOwner = true;
+      retainedOwners.push(cause);
+    }
+    throw cause;
+  }
+  let primary: { cause: unknown } | undefined;
+  try {
+    await use(connection);
+  } catch (cause: unknown) {
+    primary = { cause };
+  }
+  let closeFailure: { cause: unknown } | undefined;
+  try {
+    connection.close();
+  } catch (cause: unknown) {
+    hasUnknownOwner = true;
+    retainedOwners.push(connection);
+    closeFailure = { cause };
+  }
+  if (closeFailure !== undefined) {
+    if (primary !== undefined)
+      throw new AggregateError(
+        [primary.cause, closeFailure.cause],
+        'Calendar seed and close failed',
+        { cause: primary.cause },
+      );
+    throw closeFailure.cause;
+  }
+  if (primary !== undefined) throw primary.cause;
+}
+
+function migrate(path: string, folders: string): void {
+  try {
+    runMigrations(path, folders);
+  } catch (cause: unknown) {
+    if (isSqliteCleanupUnknown(cause)) {
+      hasUnknownOwner = true;
+      retainedOwners.push(cause);
+    }
+    throw cause;
+  }
+}
+
+async function seedWorkPackageWithMarkers(path: string): Promise<void> {
+  try {
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+  } catch (cause: unknown) {
+    // This inherited helper has its own finally-close; an unexpected failure
+    // cannot establish its custody, so preserve the original and retain the fixture.
+    hasUnknownOwner = true;
+    retainedOwners.push(cause);
+    throw cause;
+  }
+  await withinConnection(path, async (seed) => {
+    await new UserRepository(seed.db, OPEN).create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
+    // Keep the package without steps or graph rows so their independent foreign keys
+    // cannot prevent the plain DELETE that observes normalized marker cleanup.
+    await new WorkPackageRepository(seed.db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+      [],
+      wrote,
+    );
+    await seed.db.insert(calendarMarker).values([
+      {
+        id: 'cm-demo',
+        scopeKind: 'work_package',
+        scopeId: 'p1',
+        date: PAST_THE_WEEKEND,
+        name: 'Client demo',
+        color: null,
+        createdAt: 1_756_000_000,
+      },
+      {
+        id: 'cm-deadline',
+        scopeKind: 'work_package',
+        scopeId: 'p1',
+        date: PAST_THE_WEEKEND,
+        name: 'Grant deadline',
+        color: '#3b82f6',
+        createdAt: 1_756_000_001,
+      },
+    ]);
+  });
+}
+
+/** Captures all persistent schema and table cells, including the complete migration ledger. */
+function captureStore(path: string) {
+  return withinStore(path, (sqlite) => {
+    const schema = sqlite
+      .query<
+        { type: string; name: string; tbl_name: string; rootpage: number; sql: string | null },
+        []
+      >('SELECT type,name,tbl_name,rootpage,sql FROM sqlite_master ORDER BY type,name')
+      .all();
+    const tables = schema
+      .filter(({ type }) => type === 'table')
+      .map(({ name }) => {
+        const quoted = '"' + name.replaceAll('"', '""') + '"';
+        const rows = sqlite.query<Record<string, unknown>, []>('SELECT * FROM ' + quoted).all();
+        rows.sort((left, right) => {
+          const first = JSON.stringify(left),
+            second = JSON.stringify(right);
+          return first < second ? -1 : first > second ? 1 : 0;
+        });
+        return { name, rows };
+      });
+    return { schema, tables };
+  });
 }
 
 function tableNames(path: string): string[] {
-  const db = openDatabase(path);
-  try {
-    return db
+  return withinStore(path, (sqlite) =>
+    sqlite
       .query<{ name: string }, []>(
         "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
       )
       .all()
-      .map((r) => r.name);
-  } finally {
-    db.close();
-  }
+      .map(({ name }) => name),
+  );
+}
+
+/** Copies the actual forty-folder historical prefix; no later down is represented by it. */
+function prepareCalendarPrefix(): string {
+  if (directory === undefined) throw new Error('Calendar fixture directory was not acquired');
+  const folders = join(directory, 'calendar-prefix');
+  mkdirSync(folders);
+  const selected = readMigrationFolders(FOLDER).filter(({ name }) => name <= CALENDAR_MARKER);
+  expect(selected).toHaveLength(40);
+  expect(selected.at(-2)?.name).toBe(PREVIOUS);
+  expect(selected.at(-1)?.name).toBe(CALENDAR_MARKER);
+  for (const folder of selected)
+    cpSync(join(FOLDER, folder.name), join(folders, folder.name), { recursive: true });
+  return folders;
 }
 
 describe('20260905090000_add_calendar_marker', () => {
-  let dir: string;
   let path: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'wbs-calendar-marker-migration-'));
-    path = join(dir, 'test.db');
+    if (directory !== undefined || hasUnknownOwner || retainedOwners.length !== 0)
+      throw new Error('Previous calendar migration fixture is unsettled');
+    directory = mkdtempSync(join(tmpdir(), 'wbs-calendar-marker-migration-'));
+    path = join(directory, 'test.db');
   });
 
   afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
+    if (directory === undefined) return;
+    if (hasUnknownOwner || retainedOwners.length !== 0)
+      throw new Error('Unknown calendar migration cleanup; fixture retained at ' + directory);
+    rmSync(directory, { recursive: true });
+    directory = undefined;
   });
 
-  it('lets a plain DELETE FROM project take its markers with it', async () => {
-    // **The cascade is a deployment property, not tidiness.** Blue and green
-    // share one SQLite file through a swap, and the outgoing release knows
-    // nothing of `calendar_marker`: whatever delete sequence it was built with
-    // ends at a `DELETE FROM project` that names only the tables it knows.
-    // Without `ON DELETE CASCADE` that last statement hits a constraint it
-    // cannot see and the release answers 500 for the length of the swap — which
-    // is what this case is watching, not row hygiene.
+  it('lets a plain DELETE FROM work_package take its markers with it', async () => {
+    // Current scope normalization replaces the former FK cascade with the package
+    // cleanup trigger. This still observes an actual plain package DELETE without
+    // manually deleting its markers. The fixture has no steps or private graph rows.
     //
-    // **It watches this table's constraint and no other.** The other
-    // project-scoped tables the outgoing release *does* know are deleted by it
-    // first; see `seedProjectWithMarkers` for why nothing else is seeded here.
-    //
+    // Historical evidence below predates the normalized scope columns. The current
+    // full-chain DELETE is owned by work_package_settings_delete; its own physical
+    // negative is still pending and is not credited by this earlier cascade proof.
     // Proof: with `ON DELETE CASCADE` removed from the `FOREIGN KEY` clause in
     // `20260905090000_add_calendar_marker/migration.sql` (leaving the reference
     // in place), this fails on the `DELETE` with `FOREIGN KEY constraint
@@ -208,24 +248,42 @@ describe('20260905090000_add_calendar_marker', () => {
     // than requesting it. Watched failing exactly that way on h2puni,
     // 2026-09-05, before the seed was narrowed — the fault reproduces, and the
     // narrowing is what makes the red mean this table.
-    runMigrations(path, FOLDER);
-    await seedProjectWithMarkers(path);
+    migrate(path, FOLDER);
+    await seedWorkPackageWithMarkers(path);
 
-    const db = openDatabase(path);
-    try {
-      db.run("DELETE FROM project WHERE id = 'p1'");
+    withinStore(path, (db) => {
+      db.run("DELETE FROM work_package WHERE id = 'p1'");
       const left = db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM calendar_marker').get();
       expect(left?.n).toBe(0);
-    } finally {
-      db.close();
-    }
+    });
   });
 
-  it('rolls back to the previous migration, taking the table and leaving the rest', () => {
-    // `rollbackTo` rather than a CLI: `migrate-down.ts` exports the runner and
-    // `readMigrationFolders` is the lint — a missing or empty `down.sql` throws
-    // there, so both halves of the negative below are reachable from this file.
-    //
+  it('refuses latest full-chain rollback without changing schema, rows or migration identities', () => {
+    migrate(path, FOLDER);
+    const before = captureStore(path);
+    const expected =
+      'rolling back 20261110120100_space_holds_projects_people_teams failed: space project rollback requires restoring the verified window snapshot';
+    let refusal: { cause: unknown } | undefined;
+    try {
+      rollbackTo(path, FOLDER, PREVIOUS);
+    } catch (cause: unknown) {
+      refusal = { cause };
+      // The public wrapper still owns an untagged finally-close. Unexpected failures
+      // retain this fixture; this case makes no independent paired-close assertion.
+      if (!(cause instanceof Error) || cause.message !== expected) {
+        hasUnknownOwner = true;
+        retainedOwners.push(cause);
+        throw cause;
+      }
+    }
+    expect(refusal).toBeDefined();
+    expect(captureStore(path)).toEqual(before);
+  });
+
+  it('reverses only the calendar migration on its actual historical prefix', () => {
+    // Historical observations below are retained verbatim. Today readMigrationFolders
+    // rejects both missing and empty down.sql before rollback; the old empty-script
+    // ledger/table failure is not a claim about the current lint boundary.
     // Proof, two mutations, each watched separately:
     //   (a) `20260905090000_add_calendar_marker/down.sql` deleted — every test
     //       that calls `readMigrationFolders` or `rollbackTo` fails with
@@ -237,150 +295,26 @@ describe('20260905090000_add_calendar_marker', () => {
     //       it reversed `CALENDAR_MARKER` while `calendar_marker` is still in
     //       `sqlite_master`. That gap between the two is why the empty file is
     //       a separate mutation and not a restatement of the first.
-    runMigrations(path, FOLDER);
-    const withTable = tableNames(path);
-    expect(withTable).toContain('calendar_marker');
-
-    const reversed = rollbackTo(path, FOLDER, PREVIOUS);
-
-    expect(reversed).toEqual([
-      '20261103110000_add_initial_access_offers',
-      '20261102130000_widen_organization_audit_access',
-      '20261102120000_add_access_grants',
-      '20261101120000_add_host_job_projection',
-      '20261101100100_add_resource_directory_capacity',
-      '20261101100000_widen_organization_audit_directory_capacity',
-      '20261028100100_widen_organization_audit_agent_pools',
-      '20261028100000_add_agent_pool',
-      '20261026130000_widen_organization_audit_machine_tokens',
-      '20261026120000_add_command_journal_person',
-      '20261025130000_add_resource_runtime',
-      '20261025120000_add_resource_use',
-      '20261023170000_add_work_item_budget',
-      '20261023160000_add_measure_estimate',
-      '20261023150000_key_step_measure',
-      '20261023140000_add_measure',
-      '20261023100000_add_claim_lease',
-      '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
-      '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
-      '20261022140100_widen_organization_audit_compute_providers',
-      '20261022140000_add_resource_provider',
-      '20261022130100_widen_organization_audit_organization_limits',
-      '20261022130000_add_organization_limits',
-      '20261022121000_add_runtime_commands',
-      '20261022120000_scope_trusted_issuer_audience',
-      '20261022110100_check_machine_credential_id',
-      '20261022110000_widen_organization_audit_machine_credentials',
-      '20261022100000_add_machine_credential',
-      '20261020130000_add_claim_occupancy',
-      '20261020120000_add_resources',
-      '20261019130100_add_external_identity_person',
-      '20261019130000_add_person_account',
-      '20261019120000_add_claim',
-      '20261015110000_add_step_node_parallelism',
-      '20261015100000_add_step_blockage_activation_receipt',
-      '20261014140000_add_step_blockage_activation',
-      '20261014130000_add_shared_people_restore_receipts',
-      '20261014120000_add_shared_people_restore_approvals',
-      '20261013140000_add_step_node_blockages',
-      '20261012130000_add_step_estimate_unit',
-      '20261012120000_add_step_node_attempts',
-      '20261012090200_widen_organization_audit',
-      '20261012090100_add_browser_auth_times',
-      '20261012090000_add_enterprise_sso_records',
-      '20261011200000_add_shared_people_audit',
-      '20261011120000_add_browser_auth_lifecycle',
-      '20261005110000_add_shared_people',
-      '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
-      '20260929100000_add_spaces',
-      '20260928200000_add_work_item_status_facts',
-      '20260928040000_add_email_challenge',
-      '20260928030000_add_delegation_use',
-      '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
-      '20260927220000_add_organization_audit',
-      TYPED_DEPENDENCY,
-      ORGANIZATION_FROZEN,
-      ORGANIZATION_BRIDGE,
-      ORGANIZATION_ACTIVATION,
-      STEP_ALLOWANCE,
-      STEP_CODE,
-      ORGANIZATION_OWNERSHIP,
-      ORGANIZATION_RECORDS,
-      WORK_ITEM_FACTS,
-      EXTERNAL_REF_NAME,
-      WORK_ITEM_DEADLINE,
-      READ_ORDER_INDEX,
-      CALENDAR_MARKER,
-    ]);
-    const afterRollback = tableNames(path);
-    expect(afterRollback).not.toContain('calendar_marker');
-    // Nothing else moved: the forward migration is additive, so its reversal
-    // owes the rest of the schema byte-for-byte.
-    expect(afterRollback).toEqual(
-      withTable.filter(
-        (n) =>
-          n !== 'calendar_marker' &&
-          n !== 'optimization_boundary_certificate' &&
-          n !== 'cross_project_dependency_activation' &&
-          n !== 'cross_project_dependency_activation_receipt' &&
-          n !== 'external_dependency' &&
-          n !== 'project_abbreviation' &&
-          n !== 'project_abbreviation_counter' &&
-          n !== 'browser_auth_association' &&
-          n !== 'browser_auth_lifecycle' &&
-          n !== 'shared_people_audit' &&
-          n !== 'step_blockage' &&
-          n !== 'step_blockage_activation' &&
-          n !== 'step_blockage_activation_receipt' &&
-          n !== 'step_parallel' &&
-          n !== 'claim' &&
-          n !== 'resource' &&
-          n !== 'resource_organization' &&
-          n !== 'project_resource_capacity' &&
-          n !== 'work_item_resource_demand' &&
-          n !== 'claim_occupancy' &&
-          n !== 'organization_trusted_issuer' &&
-          n !== 'machine_credential' &&
-          n !== 'machine_credential_secret' &&
-          n !== 'runtime_ledger' &&
-          n !== 'runtime_authority' &&
-          n !== 'runtime_claim_binding' &&
-          n !== 'runtime_command_receipt' &&
-          n !== 'organization_limits' &&
-          n !== 'measure' &&
-          n !== 'measure_estimate' &&
-          n !== 'work_item_budget' &&
-          !n.startsWith('access_') &&
-          n !== 'compute_provider' &&
-          n !== 'resource_capacity_report' &&
-          n !== 'resource_authority' &&
-          n !== 'resource_cleanup_request' &&
-          n !== 'resource_runtime_event' &&
-          n !== 'resource_host_job' &&
-          n !== 'resource_runtime_use' &&
-          n !== 'resource_use' &&
-          n !== 'agent_pool' &&
-          n !== 'resource_use_event' &&
-          n !== 'resource_directory_capacity' &&
-          n !== 'shared_people_restore_operation' &&
-          n !== 'shared_people_restore_receipt' &&
-          n !== 'shared_people_restore_consumption' &&
-          n !== 'shared_people_restore_approval' &&
-          n !== 'step_node_attempt' &&
-          n !== 'step_node_attempt_issued' &&
-          n !== 'browser_credential_revocations' &&
-          n !== 'email_challenge' &&
-          n !== 'typed_dependency' &&
-          !ORGANIZATION_TABLES.includes(n),
-      ),
-    );
+    const folders = prepareCalendarPrefix();
+    migrate(path, folders);
+    const before = tableNames(path);
+    expect(before).toContain('calendar_marker');
+    let reversed: string[];
+    try {
+      reversed = rollbackTo(path, folders, PREVIOUS);
+    } catch (cause: unknown) {
+      // Preserve the public caller, including its inherited finally-close limitation.
+      // Its unexpected failure cannot establish cleanup, so retain the fixture.
+      hasUnknownOwner = true;
+      retainedOwners.push(cause);
+      throw cause;
+    }
+    expect(reversed).toEqual([CALENDAR_MARKER]);
+    // Table inventory only: this does not claim byte-for-byte preservation of schema.
+    expect(tableNames(path)).toEqual(before.filter((name) => name !== 'calendar_marker'));
   });
 
-  it('is stamped later than every folder on disk and collides with none', () => {
+  it('is stamped directly after its actual predecessor and collides with none', () => {
     // A colliding stamp is the failure with no error message: drizzle records
     // the folder's numeric prefix as `created_at`, `migrationsToRollback`
     // filters on a strict `created_at >`, and a rollback whose baseline names

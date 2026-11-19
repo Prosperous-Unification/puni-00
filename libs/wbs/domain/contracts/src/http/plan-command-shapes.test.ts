@@ -45,8 +45,8 @@ const commands: PlanCommandWire[] = [
   },
   { kind: 'removeTypedDependency', dependencyId: 'd' },
   { kind: 'arrangeBySchedule' },
-  { kind: 'freezeProject' },
-  { kind: 'unfreezeProject' },
+  { kind: 'freezeWorkPackage' },
+  { kind: 'unfreezeWorkPackage' },
   { kind: 'unfreezeWorkItem' },
   { kind: 'setCapacity', size: null },
   { kind: 'setPriorityBands', bands: [{ startsAt: -1, defaultValue: 2, label: ' ' }] },
@@ -75,7 +75,7 @@ test('validates all structural wire arms without applying semantic defaults or a
     });
   }
   const batch = {
-    commands: Array.from({ length: 201 }, () => ({ kind: 'freezeProject' as const })),
+    commands: Array.from({ length: 201 }, () => ({ kind: 'freezeWorkPackage' as const })),
   };
   expect(await validateSchema(planCommandsBody, batch)).toEqual({ value: batch });
   expect(await validateSchema(planCommandsBody, { commands: [] })).toEqual({
@@ -161,7 +161,7 @@ test('rejects malformed structures and nested extras including derived numbering
     { kind: 'patchTeam', patch: { extra: 1 } },
     { kind: 'patchPerson', patch: { kind: 42 } },
     { kind: 'deletePerson', cascade: 'true' },
-    { kind: 'freezeProject', extra: 1 },
+    { kind: 'freezeWorkPackage', extra: 1 },
   ])
     expect((await validateSchema(planCommandsBody, { commands: [command] })).issues).toBeDefined();
   for (const body of [{ commands: 'bad' }, { commands: [], extra: 1 }, []])
@@ -258,8 +258,8 @@ test('retains the nullable deadline wire field without taking over date semantic
 test('retains explicitly scoped typed endpoints on the wire', async () => {
   const command = {
     kind: 'addTypedDependency',
-    predecessor: { projectId: 'predecessor-project', scope: 'whole', workItemId: 'a' },
-    successor: { projectId: 'owner', scope: 'node', stepNodeId: 'sn1.b.s' },
+    predecessor: { workPackageId: 'predecessor-work-package', scope: 'whole', workItemId: 'a' },
+    successor: { workPackageId: 'owner', scope: 'node', stepNodeId: 'sn1.b.s' },
     type: 'FS',
   } as const;
   expect(await validateSchema(planCommandsBody, { commands: [command] })).toEqual({
@@ -271,7 +271,7 @@ test('retains explicitly scoped typed endpoints on the wire', async () => {
         commands: [
           {
             ...command,
-            predecessor: { ...command.predecessor, projectId: 7 },
+            predecessor: { ...command.predecessor, workPackageId: 7 },
           },
         ],
       })

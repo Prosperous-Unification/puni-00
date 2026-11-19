@@ -7,13 +7,13 @@ import {
   type Page,
   type Response,
   test,
-} from '@playwright/test';
+} from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
-const FIRST_PROJECT_DAY = '2030-01-01';
+const FIRST_WORK_PACKAGE_DAY = '2030-01-01';
 const WORK_ITEM_DEADLINE = '2030-01-07';
-const MOVED_PROJECT_DAY = '2030-02-01';
+const MOVED_WORK_PACKAGE_DAY = '2030-02-01';
 const DEADLINE_COLUMN = 'Work item deadline';
 const UNREACHABLE_COLUMN = 'Work item deadline unreachable';
 // The shipped 390x844 layout leaves 347px of this card visible. One complete
@@ -21,7 +21,7 @@ const UNREACHABLE_COLUMN = 'Work item deadline unreachable';
 const PHONE_CARD_VISIBLE_FLOOR_PX = 44;
 // Deliberately copied instead of imported from deadline-impossible.ts: the export test must
 // pin the shipped words independently, or changing producer and oracle together stays green.
-const UNREACHABLE_CELL = "before the project's first working day";
+const UNREACHABLE_CELL = "before the work package's first working day";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -29,15 +29,15 @@ test.use({ viewport: { width: 390, height: 844 } });
 async function seedDatedWorkItem(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Deadline browser evidence');
+  await createWorkPackage(page, 'Deadline browser evidence');
   await page.getByRole('button', { name: 'Plan actions' }).click();
   const actions = page.getByRole('dialog', { name: 'Plan actions' });
   await expect(actions).toBeVisible();
-  const projectStart = actions.getByLabel('Project start date');
-  const savedProjectStart = savedProjectStartDate(page);
-  await projectStart.fill(FIRST_PROJECT_DAY);
-  await savedProjectStart;
-  await projectStart.blur();
+  const workPackageStart = actions.getByLabel('Work package start date');
+  const savedWorkPackageStart = savedWorkPackageStartDate(page);
+  await workPackageStart.fill(FIRST_WORK_PACKAGE_DAY);
+  await savedWorkPackageStart;
+  await workPackageStart.blur();
   await actions.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
   await page.getByRole('button', { name: 'Plan actions' }).click();
@@ -139,8 +139,8 @@ function savedWorkItemDeadline(page: Page, workItemId: string): Promise<Response
   });
 }
 
-/** The project PATCH that makes a start-date edit durable before the next gesture. */
-function savedProjectStartDate(page: Page): Promise<Response> {
+/** The work package PATCH that makes a start-date edit durable before the next gesture. */
+function savedWorkPackageStartDate(page: Page): Promise<Response> {
   // Proof: changing this endpoint to `/api/never/` made seedDatedWorkItem fail
   // here on `page.waitForResponse: Timeout 1000ms exceeded`, before Add work
   // item; the negative probe temporarily shortened the helper's timeout from
@@ -148,19 +148,20 @@ function savedProjectStartDate(page: Page): Promise<Response> {
   // h2puni, 2026-09-13.
   return page.waitForResponse(
     (response) =>
-      response.request().method() === 'PATCH' && /\/api\/projects\/[^/]+$/.test(response.url()),
+      response.request().method() === 'PATCH' &&
+      /\/api\/work-packages\/[^/]+$/.test(response.url()),
   );
 }
 
-/** Moves day zero through the phone's only route to the project-start control. */
-async function moveProjectStart(page: Page, day: string): Promise<void> {
+/** Moves day zero through the phone's only route to the work-package-start control. */
+async function moveWorkPackageStart(page: Page, day: string): Promise<void> {
   await page.getByRole('button', { name: 'Plan actions' }).click();
   const actions = page.getByRole('dialog', { name: 'Plan actions' });
-  const projectStart = actions.getByLabel('Project start date');
-  const saved = savedProjectStartDate(page);
-  await projectStart.fill(day);
+  const workPackageStart = actions.getByLabel('Work package start date');
+  const saved = savedWorkPackageStartDate(page);
+  await workPackageStart.fill(day);
   await saved;
-  await projectStart.blur();
+  await workPackageStart.blur();
   await page.keyboard.press('Escape');
   await expect(actions).toBeHidden();
 }
@@ -352,10 +353,11 @@ test('renders impossible marks on both faces and downloads both deadline columns
   page,
 }) => {
   await saveDeadline(page, '010', WORK_ITEM_DEADLINE);
-  await moveProjectStart(page, MOVED_PROJECT_DAY);
+  await moveWorkPackageStart(page, MOVED_WORK_PACKAGE_DAY);
   await page.reload();
 
-  const impossibleName = "Work item deadline for 010 falls before the project's first working day";
+  const impossibleName =
+    "Work item deadline for 010 falls before the work package's first working day";
   const cardMark = page.getByRole('img', { name: impossibleName });
   // Proof: role="presentation" on this card mark made this accessible-role
   // lookup fail in Chromium. Watched on h2puni, 2026-09-09.

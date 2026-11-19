@@ -1,66 +1,20 @@
 import type { PlanDocument, PlanDocumentImport } from '@wbs/contracts';
-import type {
-  Demand,
-  MeasureDefinition,
-  ResourceCapacity,
-  StoredBudget,
-  StoredMeasure,
-  StoredMeasureEstimate,
-} from '@wbs/domain';
-
-import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
-import type { DirectoryStore } from '../../ports/directory-store';
-import type { Project } from '../../ports/project-store';
-import type { StepParallelStore } from '../../ports/step-parallel-store';
+import type { WorkPackage } from '../../ports/work-package-store';
 
 /**
- * The project an export writes: its settings and the zone its days are read
+ * The work package an export writes: its settings and the zone its days are read
  * in, which the document carries as `settings.timezone` (`step-node-attempts` D5).
  */
-export type ExportedProject = Project & { timezone: string };
+export type ExportedWorkPackage = WorkPackage & { timezone: string };
 
-type PlanDirectory = Pick<
-  DirectoryStore,
-  | 'listInOrganization'
-  | 'listTeams'
-  | 'listPeople'
-  | 'listTags'
-  | 'listServices'
-  | 'listWorkItemTypes'
-  | 'listExternalSystems'
-  | 'listResources'
->;
-
-/** The project's resource capacities and demands an export reads (`wbs-resources`). */
-export interface ResourceFactsReader {
-  resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]>;
-  demandsOf(projectId: string): Promise<Demand[]>;
-}
-
-/**
- * The project's stored measures an export reads (`wbs-measure-budgets` design
- * D63): its organization's definitions (null when none owns it), every fact
- * with its basis, every trio and every stated budget.
- */
-export interface MeasureFactsReader {
-  measureDefinitionsOf(projectId: string): Promise<MeasureDefinition[] | null>;
-  measuresOf(projectId: string): Promise<StoredMeasure[]>;
-  measureEstimatesOf(projectId: string): Promise<StoredMeasureEstimate[]>;
-  budgetsOf(projectId: string): Promise<StoredBudget[]>;
-}
-
+/** The pure serializer borrows only its export timestamp clock. */
 export interface PlanDocumentServiceOptions {
-  stepParallels: Pick<StepParallelStore, 'listByProject'>;
-  directory: PlanDirectory;
-  markers: CalendarMarkerReader;
   clock: Pick<Clock, 'now'>;
-  resourceFacts: ResourceFactsReader;
-  measureFacts: MeasureFactsReader;
 }
 
 /**
- * A plan export: the document, or the modeled refusal of a project holding
+ * A plan export: the document, or the modeled refusal of a work package holding
  * uncoded steps, which names each one and the be-01 backfill `command` that
  * codes them, after which the export succeeds. Authored sparse parallelism
  * refuses export because version 9 cannot preserve it; uncoded steps take precedence.

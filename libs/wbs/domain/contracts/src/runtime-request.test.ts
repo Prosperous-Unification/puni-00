@@ -10,7 +10,7 @@ import {
   parseRuntimeWriteRequest,
 } from './index';
 
-const scope = { organizationId: 'org', projectId: 'project', personId: 'person' };
+const scope = { organizationId: 'org', workPackageId: 'workPackage', personId: 'person' };
 const authority = { ownerId: 'owner', generation: 1 };
 const execution = { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' };
 const common = { schemaVersion: 1 as const, commandId: 'command', expectedLedgerId: 'ledger' };
@@ -66,25 +66,25 @@ const write = {
   },
 };
 const authorityBytes =
-  '{"schemaVersion":1,"expectedLedgerId":"ledger","scope":{"organizationId":"org","projectId":"project","personId":"person"},"commandId":"command","operation":{"kind":"authority","ownerId":"owner","expectedGeneration":null}}';
+  '{"schemaVersion":2,"expectedLedgerId":"ledger","scope":{"organizationId":"org","workPackageId":"workPackage","personId":"person"},"commandId":"command","operation":{"kind":"authority","ownerId":"owner","expectedGeneration":null}}';
 const claimBytes =
-  '{"schemaVersion":1,"expectedLedgerId":"ledger","scope":{"organizationId":"org","projectId":"project","personId":"person"},"commandId":"command","operation":{"kind":"claim","authority":{"ownerId":"owner","generation":1},"expectedBasis":"rb1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","action":{"kind":"claim","workItemId":"leaf","stepId":"dev","parentClaimId":null,"execution":{"storeId":"store","runId":"run","attemptId":"attempt","sessionId":"session"}}}}';
+  '{"schemaVersion":2,"expectedLedgerId":"ledger","scope":{"organizationId":"org","workPackageId":"workPackage","personId":"person"},"commandId":"command","operation":{"kind":"claim","authority":{"ownerId":"owner","generation":1},"expectedBasis":"rb1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","action":{"kind":"claim","workItemId":"leaf","stepId":"dev","parentClaimId":null,"execution":{"storeId":"store","runId":"run","attemptId":"attempt","sessionId":"session"}}}}';
 const writeBytes =
-  '{"schemaVersion":1,"expectedLedgerId":"ledger","scope":{"organizationId":"org","projectId":"project","personId":"person"},"commandId":"command","operation":{"kind":"write","authority":{"ownerId":"owner","generation":1},"expectedBasis":"rb1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","action":{"kind":"write","claim":{"claimId":"claim","workItemId":"leaf","stepId":"dev","parentClaimId":null,"execution":{"storeId":"store","runId":"run","attemptId":"attempt","sessionId":"session"}},"commands":[{"kind":"setMeasure","workItemId":"leaf","stepId":"dev","metric":"token_actual","value":0},{"kind":"patchWorkItem","workItemId":"leaf","patch":{"externalRefs":[{"systemId":"git","url":"first","name":"One"},{"systemId":"git","url":"second"}]}},{"kind":"setProgress","workItemId":"leaf","stepId":"dev","state":"done"},{"kind":"releaseWorkItem","workItemId":"leaf","personId":"person","steps":["dev","review"]}]}}}';
+  '{"schemaVersion":2,"expectedLedgerId":"ledger","scope":{"organizationId":"org","workPackageId":"workPackage","personId":"person"},"commandId":"command","operation":{"kind":"write","authority":{"ownerId":"owner","generation":1},"expectedBasis":"rb1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","action":{"kind":"write","claim":{"claimId":"claim","workItemId":"leaf","stepId":"dev","parentClaimId":null,"execution":{"storeId":"store","runId":"run","attemptId":"attempt","sessionId":"session"}},"commands":[{"kind":"setMeasure","workItemId":"leaf","stepId":"dev","metric":"token_actual","value":0},{"kind":"patchWorkItem","workItemId":"leaf","patch":{"externalRefs":[{"systemId":"git","url":"first","name":"One"},{"systemId":"git","url":"second"}]}},{"kind":"setProgress","workItemId":"leaf","stepId":"dev","state":"done"},{"kind":"releaseWorkItem","workItemId":"leaf","personId":"person","steps":["dev","review"]}]}}}';
 
 describe('public runtime request identity', () => {
   it.each([
     [acquisition, authorityBytes],
     [claim, claimBytes],
     [write, writeBytes],
-  ] as const)('preserves independent version 1 literal bytes %#', (operation, bytes) => {
+  ] as const)('preserves independent version 2 literal bytes %#', (operation, bytes) => {
     expect(canonicalRuntimeRequest(scope, operation)).toBe(bytes);
     expect(parseCanonicalRuntimeRequest(bytes)).toEqual({ scope, operation });
   });
   it('normalizes caller key order at every nested identity without changing ordered content', () => {
     expect(
       canonicalRuntimeRequest(
-        { personId: 'person', projectId: 'project', organizationId: 'org' },
+        { personId: 'person', workPackageId: 'workPackage', organizationId: 'org' },
         {
           action: {
             execution: {
@@ -202,7 +202,7 @@ describe('public runtime request identity', () => {
     authorityBytes + ' ',
     claimBytes.replace('"kind":"claim"', '"kind":"write"'),
     writeBytes.replace('"value":0', '"value":0.0'),
-    authorityBytes.replace('"schemaVersion":1', '"schemaVersion":2'),
+    authorityBytes.replace('"schemaVersion":2', '"schemaVersion":3'),
     authorityBytes.replace('"ownerId":"owner"', '"ownerId":"owner","extra":true'),
     claimBytes.replace('"sessionId":"session"', '"sessionId":""'),
     '{',

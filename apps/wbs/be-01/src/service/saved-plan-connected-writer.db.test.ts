@@ -58,11 +58,11 @@ test.each([
         throw new Error('connected observation cannot recapture target');
       });
       try {
-        const current = await savedPlans.projectCurrentPlan('a1', access);
+        const current = await savedPlans.workPackageCurrentPlan('a1', access);
         if (current === null) throw new Error('current expected');
         replaceAfterCapture = true;
         const saved = await savedPlans.save({
-          projectId: 'a1',
+          workPackageId: 'a1',
           createdBy: 'ada',
           createdById: 'ada',
           access,
@@ -136,7 +136,7 @@ test('installed connected writer refuses missing required evidence without parti
         let refusal: unknown;
         try {
           await savedPlans.save({
-            projectId: 'a1',
+            workPackageId: 'a1',
             createdBy: 'ada',
             createdById: 'ada',
             access: {

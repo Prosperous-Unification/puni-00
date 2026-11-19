@@ -1,6 +1,6 @@
 import { type Type, type } from 'arktype';
 
-export type CommandScope = 'project' | 'directory';
+export type CommandScope = 'work_package' | 'directory';
 
 type SchemaKind<Schema extends Type> = Schema['infer'] extends {
   kind: infer Kind extends string;
@@ -43,7 +43,7 @@ const predecessor = {
   'predecessorRef?': 'string',
 } as const;
 const dependencyEndpoint = type({
-  'projectId?': 'string',
+  'workPackageId?': 'string',
   scope: "'whole' | 'node' | 'descendant-step'",
   'workItemId?': 'string',
   'workItemRef?': 'string',
@@ -90,29 +90,29 @@ export const commandDefinitions = {
       'notes?': 'string',
       'priority?': 'number | null',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Add a work item. `ref` names it for the rest of this batch.',
   }),
   patchWorkItem: defineCommand('patchWorkItem', {
     schema: type({ kind: "'patchWorkItem'", ...target, patch: workItemPatch }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Change fields of a work item; only the fields named change. typeIds and typeRefs together name at most one type (a list of zero clears it); more is refused with work_item_takes_one_type.',
   }),
   moveWorkItem: defineCommand('moveWorkItem', {
     schema: type({ kind: "'moveWorkItem'", ...target, ...placement }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Move a work item under a parent, after a sibling. Refused destination_claimed (names holders) when the parent is a leaf whose steps are claimed.',
   }),
   duplicateWorkItem: defineCommand('duplicateWorkItem', {
     schema: type({ kind: "'duplicateWorkItem'", ...target, ...reference }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Copy a work item with its whole subtree, placed right after it.',
   }),
   deleteWorkItem: defineCommand('deleteWorkItem', {
     schema: type({ kind: "'deleteWorkItem'", ...target, 'strategy?': "'cascade' | 'promote'" }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Remove a work item. A parent needs a strategy: cascade its children or promote them. Deleting the only child hands its claims back up to the parent; refused children_claimed (names holders) when claims sit on more than one deleted row or on that parent too.',
   }),
@@ -122,43 +122,43 @@ export const commandDefinitions = {
       ...step,
       days: { optimistic: 'number', realistic: 'number', pessimistic: 'number' },
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Set the three-point estimate in the step estimate unit (workdays or whole minutes) on a leaf work item. Address it with workItemId/workItemRef and stepId, or stepNodeId (sn1.<workItemId>.<stepId>).',
   }),
   clearEstimate: defineCommand('clearEstimate', {
     schema: type({ kind: "'clearEstimate'", ...step }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Remove one step’s estimate from a work item. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setActual: defineCommand('setActual', {
     schema: type({ kind: "'setActual'", ...step, days: 'number' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Record the days one step actually took on a work item. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearActual: defineCommand('clearActual', {
     schema: type({ kind: "'clearActual'", ...step }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Remove one step’s actual from a work item. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setProgress: defineCommand('setProgress', {
     schema: type({ kind: "'setProgress'", ...step, state: "'in_progress' | 'done'" }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Mark one step of a work item in progress or done. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setStepBlocked: defineCommand('setStepBlocked', {
     schema: type({ kind: "'setStepBlocked'", ...step, isBlocked: 'boolean' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Set or clear direct blockage on one leaf step without changing progress or schedule. Equivalent writes are no-ops; new blockage on done is refused. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearProgress: defineCommand('clearProgress', {
     schema: type({ kind: "'clearProgress'", ...step }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Take a step back to not started. Accepts stepNodeId in place of the work-item and step pair.',
   }),
@@ -171,7 +171,7 @@ export const commandDefinitions = {
       'reference?': 'string',
       'note?': 'string',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Start the next attempt at one step node, numbered its highest plus one. at is epoch ms, absent means now. Refused node_done on a node stated done, attempt_running while one runs, attempt_in_future after now, budget_exhausted (409) when a strict budget of the work item or an ancestor has nothing left, would go below zero with this attempt’s holdPerAttempt, or cannot be read across two rate cards (blocked, remaining null); the refusal names workItemId, measure, remaining and hold. Advisory and derived budgets never refuse. reference is a URL or label. Accepts stepNodeId in place of the work-item and step pair.',
   }),
@@ -184,13 +184,13 @@ export const commandDefinitions = {
       'reference?': 'string',
       'note?': 'string',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'End the running attempt at one step node with an outcome. at is epoch ms, absent means now. Refused no_running_attempt, attempt_in_future, or attempt_ends_before_start. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   removeAttempt: defineCommand('removeAttempt', {
     schema: type({ kind: "'removeAttempt'", ...step, attemptNumber: 'number' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Remove one attempt at a step node by its number, as a correction; refused unknown_attempt. A removed number is never reused. Accepts stepNodeId in place of the work-item and step pair.',
   }),
@@ -202,7 +202,7 @@ export const commandDefinitions = {
       'on?': 'string',
       'factStart?': 'string',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Set a work item status; on a parent it acts on the leaves beneath. done marks every step done (on = the day it finished, YYYY-MM-DD, absent means today; factStart fills an empty fact start). unknown takes every statement, readiness and hold back and clears both facts of a row that read done. ready/draft set readiness (refused readiness_after_progress once a step has spoken). on_hold/blocked set a hold (refused cannot_hold_done on a done row); on_hold takes the work out of the schedule. in_progress starts the first silent step (on a parent, one leaf), or reopens a done row. blocked_by_proxy is derived and cannot be set.',
   }),
@@ -214,13 +214,13 @@ export const commandDefinitions = {
       value: 'number',
       'rateCardDigest?': 'string',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Record a fact in one measure for one step of a work item. metric is a measure definition key of the organization (tokens, hours, cost or a defined one; token_actual and hours_actual still name tokens and hours, token_estimate the legacy token estimate). value is in that measure’s unit and scale as getApiMeasures lists them (tokens whole tokens, hours real hours, cost whole micro-units of its currency), at or above 0 (invalid_measure otherwise); 0 records that the work cost nothing, clearMeasure removes the fact. rateCardDigest names the rate card a money fact (cost) was priced with: required there (rate_card_required), refused on any other measure (rate_card_forbidden). Refused unknown_measure, derived_measure (agent_minutes is read from attempts), scheduling_measure_fact (the fact of time is the actual days, set with setActual) or scale_mismatch (a fraction on an integer measure). Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearMeasure: defineCommand('clearMeasure', {
     schema: type({ kind: "'clearMeasure'", ...step, metric: 'string' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Remove one fact in one measure (metric as for setMeasure). Refused unknown_measure, derived_measure or scheduling_measure_fact as setMeasure is; needs no rateCardDigest. Accepts stepNodeId in place of the work-item and step pair.',
   }),
@@ -232,13 +232,13 @@ export const commandDefinitions = {
       estimate: { optimistic: 'number', realistic: 'number', pessimistic: 'number' },
       'rateCardDigest?': 'string',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
-      'Set the three-point estimate in one measure other than time (tokens, cost or a defined one) on a leaf work item, in that measure’s unit and scale, each point at or above 0 and ordered optimistic <= realistic <= pessimistic (invalid_estimate otherwise). measure is the definition key; the read shows the expected value (the project’s PERT weights) and, beside a fact, the variance. rateCardDigest as for setMeasure: required on a money measure, refused elsewhere. Refused unknown_measure, scheduling_measure_estimate (the time estimate is setEstimate), three_point_forbidden (hours, agent_minutes) scale_mismatch (a fraction on an integer measure) or rolled_up (a work item with children). Accepts stepNodeId in place of the work-item and step pair.',
+      'Set the three-point estimate in one measure other than time (tokens, cost or a defined one) on a leaf work item, in that measure’s unit and scale, each point at or above 0 and ordered optimistic <= realistic <= pessimistic (invalid_estimate otherwise). measure is the definition key; the read shows the expected value (the work package’s PERT weights) and, beside a fact, the variance. rateCardDigest as for setMeasure: required on a money measure, refused elsewhere. Refused unknown_measure, scheduling_measure_estimate (the time estimate is setEstimate), three_point_forbidden (hours, agent_minutes) scale_mismatch (a fraction on an integer measure) or rolled_up (a work item with children). Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearMeasureEstimate: defineCommand('clearMeasureEstimate', {
     schema: type({ kind: "'clearMeasureEstimate'", ...step, measure: 'string' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Remove one step’s three-point estimate in one measure (measure as for setMeasureEstimate). Refused unknown_measure or scheduling_measure_estimate; a trio stored before its definition stopped allowing three points can still be cleared. Accepts stepNodeId in place of the work-item and step pair.',
   }),
@@ -251,13 +251,13 @@ export const commandDefinitions = {
       policy: "'strict' | 'advisory'",
       'holdPerAttempt?': 'number | null',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
-      'State the budget of a work item (leaf or parent) in one measure: cap, at or above 0 in that measure’s unit and scale (cost in micro-units of its currency), bounds the summed facts of the whole subtree on every step. policy strict makes startAttempt refuse budget_exhausted once nothing remains or the next attempt’s hold would not fit; advisory only reports. holdPerAttempt, when given (same unit), is held against the remainder for every running attempt in the subtree whose usage is not yet recorded. measure is the definition key; agent_minutes may hold a budget. Read the remainders with getApiProjectsByIdBudget-headroom. A stated budget replaces the one derived from the pessimistic estimate. Refused unknown_measure, scheduling_measure_budget (time), invalid_budget (400: a negative cap or hold, or another policy) or scale_mismatch (a fraction on an integer measure).',
+      'State the budget of a work item (leaf or parent) in one measure: cap, at or above 0 in that measure’s unit and scale (cost in micro-units of its currency), bounds the summed facts of the whole subtree on every step. policy strict makes startAttempt refuse budget_exhausted once nothing remains or the next attempt’s hold would not fit; advisory only reports. holdPerAttempt, when given (same unit), is held against the remainder for every running attempt in the subtree whose usage is not yet recorded. measure is the definition key; agent_minutes may hold a budget. Read the remainders with getApiWorkPackagesByIdBudget-headroom. A stated budget replaces the one derived from the pessimistic estimate. Refused unknown_measure, scheduling_measure_budget (time), invalid_budget (400: a negative cap or hold, or another policy) or scale_mismatch (a fraction on an integer measure).',
   }),
   clearBudget: defineCommand('clearBudget', {
     schema: type({ kind: "'clearBudget'", ...target, measure: 'string' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Remove the stated budget of a work item in one measure (measure as for setBudget); the derived budget, if any, shows again. Refused unknown_measure or scheduling_measure_budget; clearing an absent budget changes nothing.',
   }),
@@ -268,7 +268,7 @@ export const commandDefinitions = {
       'personId?': 'string | null',
       'personRef?': 'string',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Name who does one step of a work item, or null to unassign. Accepts stepNodeId in place of the work-item and step pair.',
   }),
@@ -280,7 +280,7 @@ export const commandDefinitions = {
       'personId?': 'string | null',
       'personRef?': 'string',
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Name who does one step on every leaf under a work item (the item itself when it is a leaf), or null to unassign them all. One undo restores each leaf’s previous assignee. Team labels are not read and no claim refuses it; the result lists reassignedClaimedSteps in tree order, each leaf step whose assignee changed while another person holds the claim on that step (a subtree claim or a claim on another step does not count), as of this command in its batch: workItemId, stepId, previousPersonId (null when unassigned) and holder (claimId, personId, runId). A step given to its own holder is not listed; a redo does not list again. Refused unknown_step and unknown_person as for setAssignee.',
   }),
@@ -295,24 +295,24 @@ export const commandDefinitions = {
       'assign?': 'boolean',
       'resources?': type({ resourceId: 'string', units: 'number' }).array(),
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
-      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. personId or personRef names the person; both absent means the calling agent’s own person (the agent person of its machine credential, API key or OIDC, or MCP agent consent), exactly as if named, while a caller acting as its account (browser or MCP session without an agent, upstream token) must name one, else person_required. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched unless assign is true, which also makes the person the assignee of every step this claim writes (a subtree claim writes no step), undone with the claim; the result lists them as assignedStepIds. The first claim on a leaf holds the leaf’s declared resource demand, or resources [{ resourceId, units }] when given (each at least the declared units; may add a resource), against the project’s stated capacity minus what other leaves’ claims hold; an unstated capacity never refuses; a later claim on a held leaf holds the same units, or raises them to its resources (never below what the leaf holds), acquiring only the difference against the same free units; the last release frees them, and the result lists what was acquired. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, run_mismatch (a token opted into a run through wbs_run claims for its own person: the claim takes that run, and naming another runId is refused; a claim for another person keeps its runId), parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, steps_on_subtree, resources_on_subtree, item_done, no_steps, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), below_declared_demand, below_held_occupancy, resources_exhausted (names the first short resource, asked, free and holders, and lists every short resource the same way in resources), inside_subtree_claim, overlaps_subtree_claim, and last claim_limit (names cap and current: the organization already holds its cap of bound claims, one per work item, person and run; a claim adding none, such as a further step under the same person and run, is never refused by it). A claim an agent takes for itself with its own credential carries a 15-minute lease: every committed batch of that agent renews it, postApiClaimsRenew renews it while idle, and the coordinator releases a claim whose lease ran out, or whose agent lost its last credential.',
+      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. personId or personRef names the person; both absent means the calling agent’s own person (the agent person of its machine credential, API key or OIDC, or MCP agent consent), exactly as if named, while a caller acting as its account (browser or MCP session without an agent, upstream token) must name one, else person_required. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched unless assign is true, which also makes the person the assignee of every step this claim writes (a subtree claim writes no step), undone with the claim; the result lists them as assignedStepIds. The first claim on a leaf holds the leaf’s declared resource demand, or resources [{ resourceId, units }] when given (each at least the declared units; may add a resource), against the work package’s stated capacity minus what other leaves’ claims hold; an unstated capacity never refuses; a later claim on a held leaf holds the same units, or raises them to its resources (never below what the leaf holds), acquiring only the difference against the same free units; the last release frees them, and the result lists what was acquired. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, run_mismatch (a token opted into a run through wbs_run claims for its own person: the claim takes that run, and naming another runId is refused; a claim for another person keeps its runId), parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, steps_on_subtree, resources_on_subtree, item_done, no_steps, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), below_declared_demand, below_held_occupancy, resources_exhausted (names the first short resource, asked, free and holders, and lists every short resource the same way in resources), inside_subtree_claim, overlaps_subtree_claim, and last claim_limit (names cap and current: the organization already holds its cap of bound claims, one per work item, person and run; a claim adding none, such as a further step under the same person and run, is never refused by it). A claim an agent takes for itself with its own credential carries a 15-minute lease: every committed batch of that agent renews it, postApiClaimsRenew renews it while idle, and the coordinator releases a claim whose lease ran out, or whose agent lost its last credential.',
   }),
   releaseWorkItem: defineCommand('releaseWorkItem', {
     schema: type({ kind: "'releaseWorkItem'", ...target, ...person, 'steps?': 'string[]' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'Release a person’s claims: on a leaf the named steps or every step; on a non-leaf the subtree claim and every claim delegated under it. Progress is untouched. personId or personRef absent means the calling agent’s own person (machine credential, API key or OIDC, or MCP agent consent), and a caller acting as its account (browser or MCP session without an agent, upstream token) must name one, else person_required, as for claimWorkItem. Refused not_claimed_by when the person holds none, and person_not_bound or credential_not_for_person as for claimWorkItem. For a token opted into a run through wbs_run, a release of its own person removes that run’s claims and the person’s claims with no run, and is refused run_mismatch when the person holds them only under other runs; undo and redo stay per person and are not limited to the run.',
   }),
   addDependency: defineCommand('addDependency', {
     schema: type({ kind: "'addDependency'", ...predecessor }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Make a work item wait for another.',
   }),
   removeDependency: defineCommand('removeDependency', {
     schema: type({ kind: "'removeDependency'", ...predecessor }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Stop a work item waiting for another.',
   }),
   addTypedDependency: defineCommand('addTypedDependency', {
@@ -324,9 +324,9 @@ export const commandDefinitions = {
       // instead of the input-boundary 400; watched 2026-09-28.
       type: "'FS' | 'SS' | 'FF'",
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
-      'Add a typed FS, SS or FF dependency. Each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id. Omitted projectId keeps owner-local IDs or workItemRef batch aliases. Explicit projectId requires nonempty stable IDs without surrounding whitespace (or sn1 node ID), never workItemRef. The successor project must own the batch. External authoring may refuse external_dependencies_inactive.',
+      'Add a typed FS, SS or FF dependency. Each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id. Omitted workPackageId keeps owner-local IDs or workItemRef batch aliases. Explicit workPackageId requires nonempty stable IDs without surrounding whitespace (or sn1 node ID), never workItemRef. The successor work package must own the batch. External authoring may refuse external_dependencies_inactive.',
   }),
   updateTypedDependency: defineCommand('updateTypedDependency', {
     schema: type({
@@ -338,57 +338,58 @@ export const commandDefinitions = {
       // 422 instead of the input-boundary 400; watched 2026-09-28.
       type: "'FS' | 'SS' | 'FF'",
     }),
-    scope: 'project',
+    scope: 'work_package',
     description:
-      'Change both endpoints and FS, SS or FF type of a typed relationship by its stable dependencyId. Omitted projectId keeps owner-local IDs or workItemRef batch aliases. Explicit projectId requires nonempty stable IDs without surrounding whitespace (or sn1 node ID), never workItemRef. The successor project must own the batch. External authoring may refuse external_dependencies_inactive.',
+      'Change both endpoints and FS, SS or FF type of a typed relationship by its stable dependencyId. Omitted workPackageId keeps owner-local IDs or workItemRef batch aliases. Explicit workPackageId requires nonempty stable IDs without surrounding whitespace (or sn1 node ID), never workItemRef. The successor work package must own the batch. External authoring may refuse external_dependencies_inactive.',
   }),
   removeTypedDependency: defineCommand('removeTypedDependency', {
     schema: type({ kind: "'removeTypedDependency'", dependencyId: 'string' }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Remove a typed relationship by dependencyId.',
   }),
   arrangeBySchedule: defineCommand('arrangeBySchedule', {
     schema: type({ kind: "'arrangeBySchedule'" }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Put every sibling group in the order its bars start.',
   }),
-  freezeProject: defineCommand('freezeProject', {
-    schema: type({ kind: "'freezeProject'" }),
-    scope: 'project',
+  freezeWorkPackage: defineCommand('freezeWorkPackage', {
+    schema: type({ kind: "'freezeWorkPackage'" }),
+    scope: 'work_package',
     description: 'Freeze every work item number as it stands.',
   }),
-  unfreezeProject: defineCommand('unfreezeProject', {
-    schema: type({ kind: "'unfreezeProject'" }),
-    scope: 'project',
+  unfreezeWorkPackage: defineCommand('unfreezeWorkPackage', {
+    schema: type({ kind: "'unfreezeWorkPackage'" }),
+    scope: 'work_package',
     description: 'Let every number follow the tree again.',
   }),
   unfreezeWorkItem: defineCommand('unfreezeWorkItem', {
     schema: type({ kind: "'unfreezeWorkItem'", ...target }),
-    scope: 'project',
+    scope: 'work_package',
     description: 'Let one work item’s number follow the tree again.',
   }),
   setCapacity: defineCommand('setCapacity', {
     schema: type({ kind: "'setCapacity'", ...team, size: 'number | null' }),
-    scope: 'project',
-    description: 'How many of a team may be at work at once on this project; null means unstated.',
+    scope: 'work_package',
+    description:
+      'How many of a team may be at work at once on this work package; null means unstated.',
   }),
   setResourceCapacity: defineCommand('setResourceCapacity', {
     schema: type({ kind: "'setResourceCapacity'", ...resource, units: 'number | null' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
-      'How many units of a resource this project’s plan may use: a whole number from 0; null means unstated and constrains nothing. Not journalled, like setCapacity. Raising a statement so that the organization’s projects would state more units of this resource than its cap allows is refused capacity_limit, naming resourceId, cap, declared (the units its other projects state) and asked; the whole batch writes nothing. Clearing, restating or lowering never is.',
+      'How many units of a resource this work package’s plan may use: a whole number from 0; null means unstated and constrains nothing. Not journalled, like setCapacity. Raising a statement so that the organization’s work packages would state more units of this resource than its cap allows is refused capacity_limit, naming resourceId, cap, declared (the units its other work packages state) and asked; the whole batch writes nothing. Clearing, restating or lowering never is.',
   }),
   setDemand: defineCommand('setDemand', {
     schema: type({ kind: "'setDemand'", ...target, ...resource, units: 'number | null' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
       'State the units of a resource one work item needs while any of its steps runs: a whole number from 1, exactly 1 on an exclusive resource (else exclusive_demand_is_one); null removes the demand. Not inherited down the tree. One undo.',
   }),
   setStepAllowance: defineCommand('setStepAllowance', {
     schema: type({ kind: "'setStepAllowance'", stepId: 'string', allowancePercent: 'number' }),
-    scope: 'project',
+    scope: 'work_package',
     description:
-      'Set one project step’s estimate allowance: a percentage from 0 to 1000 with at most ' +
+      'Set one work package step’s estimate allowance: a percentage from 0 to 1000 with at most ' +
       'two decimal places, applied to every estimate for that step before rounding. One undo.',
   }),
   setPriorityBands: defineCommand('setPriorityBands', {
@@ -396,8 +397,8 @@ export const commandDefinitions = {
       kind: "'setPriorityBands'",
       bands: type({ startsAt: 'number', defaultValue: 'number', label: 'string' }).array(),
     }),
-    scope: 'project',
-    description: 'Replace this project’s priority ladder.',
+    scope: 'work_package',
+    description: 'Replace this work package’s priority ladder.',
   }),
   createTeam: defineCommand('createTeam', {
     schema: type({ kind: "'createTeam'", ...named }),
@@ -526,7 +527,7 @@ export const commandDefinitions = {
     schema: type({ kind: "'deleteResource'", ...resource, 'cascade?': 'boolean' }),
     scope: 'directory',
     description:
-      'Remove a resource from the directory (organization admins and super-admins only, since a removal reaches every project; anyone else is refused forbidden, and so is every machine credential and MCP delegation, which act as at most a member whatever their account’s role). Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
+      'Remove a resource from the directory (organization admins and super-admins only, since a removal reaches every work package; anyone else is refused forbidden, and so is every machine credential and MCP delegation, which act as at most a member whatever their account’s role). Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
   }),
   setDirectoryCapacity: defineCommand('setDirectoryCapacity', {
     schema: type({
@@ -537,7 +538,7 @@ export const commandDefinitions = {
     }),
     scope: 'directory',
     description:
-      'State how many units of a resource exist for every project of the organization (its directory capacity): a whole number from 0; null makes it unstated again. Organization admins and super-admins only, in their own session or their own MCP session; anyone else is refused forbidden, and so is every machine credential and every MCP consent acting as an agent, which act as at most a member whatever their account’s role. A resource no organization owns is refused organization_required. While stated, every claim of that resource in any project of the organization must fit what the other projects hold as well as its own project’s capacity. Not journalled; each write is one organization audit row. confirm is reserved for clearing above the organization’s cap.',
+      'State how many units of a resource exist for every work package of the organization (its directory capacity): a whole number from 0; null makes it unstated again. Organization admins and super-admins only, in their own session or their own MCP session; anyone else is refused forbidden, and so is every machine credential and every MCP consent acting as an agent, which act as at most a member whatever their account’s role. A resource no organization owns is refused organization_required. While stated, every claim of that resource in any work package of the organization must fit what the other work packages hold as well as its own work package’s capacity. Not journalled; each write is one organization audit row. confirm is reserved for clearing above the organization’s cap.',
   }),
   createMeasure: defineCommand('createMeasure', {
     schema: type({

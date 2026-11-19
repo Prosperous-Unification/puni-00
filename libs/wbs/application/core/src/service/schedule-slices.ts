@@ -14,12 +14,12 @@ import {
 
 import type { WorkItem } from '../ports/work-item-store';
 
-/** Undated projects state no deadline offsets; all preparation shares this readonly empty value. */
+/** Undated work packages state no deadline offsets; all preparation shares this readonly empty value. */
 export const NO_DEADLINES: ReadonlyMap<string, number> = new Map<string, number>();
 
 /**
- * Prepare one slice per leaf and project step, preserving unknown estimates as null.
- * Stepless projects retain a zero-duration boundary for every leaf. Estimate
+ * Prepare one slice per leaf and work package step, preserving unknown estimates as null.
+ * Stepless work packages retain a zero-duration boundary for every leaf. Estimate
  * allowances, unit conversion, assignment widths and resource demands are
  * resolved once for live, captured and connected scheduling. Unknown estimated
  * steps throw through the allowance/unit lookups rather than dropping effort.
@@ -29,13 +29,13 @@ export function slicesOf(
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
   /**
-   * The project's steps in step order, each with its allowance. Every estimate
+   * The work package's steps in step order, each with its allowance. Every estimate
    * must name one of them: {@link allowanceOf} throws for a step outside this
    * list rather than charging it at no allowance.
    */
   steps: readonly StepPolicy[],
   /**
-   * The project's whole estimate arithmetic — method, weights and rounding.
+   * The work package's whole estimate arithmetic — method, weights and rounding.
    * The number a slice runs for is `chargedWorkdaysOf`'s own, so the bar the chart
    * draws and the figure the table prints are one number rather than two
    * roundings of one estimate.
@@ -67,19 +67,19 @@ export function slicesOf(
   teamSizes: ReadonlyMap<string, number>,
   /**
    * Each leaf's charged demand vector, from `chargedDemandsOf`: its own
-   * demands on resources the project states a capacity for, clamped to it.
+   * demands on resources the work package states a capacity for, clamped to it.
    * Charged on **every** step's slice of the leaf (`wbs-resources` R2), as the
    * team pools are; a leaf absent from the map demands nothing.
    */
   demandsOf: ReadonlyMap<string, readonly ResourceDemand[]>,
 ): Slice[] {
-  const inProject = new Set(rows.map((row) => row.id));
+  const inWorkPackage = new Set(rows.map((row) => row.id));
   const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
   const units = new Map(steps.map((step) => [step.id, step.estimateUnit]));
   const days = new Map<string, number>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
-    if (!inProject.has(estimate.workItemId)) continue;
+    if (!inWorkPackage.has(estimate.workItemId)) continue;
     // The shared slice seam: Fast, the solver request and a saved plan's
     // schedule all read charged effort from here, so the allowance is applied
     // once, before rounding, for every scheduler.

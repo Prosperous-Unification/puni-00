@@ -6,7 +6,7 @@ import type { AccessDecisions } from '../ports/access-decisions';
 import type { Clock } from '../ports/clock';
 import type { RefusedOrganizationAccess } from '../ports/organization-access';
 import type { ResourceAccess } from '../ports/organization-access';
-import type { CapacityModeSwitch } from '../ports/project-rank-store';
+import type { CapacityModeSwitch } from '../ports/work-package-rank-store';
 import { authorize } from './authorize';
 
 export type CapacityModeRefusal =
@@ -19,7 +19,7 @@ export type CapacityModeOutcome<R extends CapacityModeRefusal = CapacityModeRefu
 
 export interface CapacityModeResourceOptions {
   accessDecisions?: AccessDecisions;
-  /** In production, the owner that audits each switch and tells every project. */
+  /** In production, the owner that audits each switch and tells every work package. */
   modes: CapacityModeSwitch;
   clock: Pick<Clock, 'stampFor' | 'newId'>;
   /** The modes this release can run; `SUPPORTED_CAPACITY_MODES` in production. */
@@ -27,8 +27,8 @@ export interface CapacityModeResourceOptions {
 }
 
 /**
- * An organization's capacity mode (`share-people-across-projects`, spec
- * `shared-people-mode`, ADR 0034): whether its projects are scheduled around
+ * An organization's capacity mode (`share-people-across-work-packages`, spec
+ * `shared-people-mode`, ADR 0034): whether its work packages are scheduled around
  * each other's bookings. Isolated by default.
  *
  * Any current member reads it. Switching requires current
@@ -90,7 +90,7 @@ export class CapacityModeResource {
     delegated: boolean,
   ): Promise<CapacityModeOutcome> {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
-    // An organization act that moves every project's dates is a person's,
+    // An organization act that moves every work package's dates is a person's,
     // never a delegation's, as member administration is.
     // Proof: mode-switch-actor-snapshot: retaining complete actor aliases across the grant await.
     // retains direct mode switch actor id before awaited grant evaluation

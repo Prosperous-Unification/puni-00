@@ -18,6 +18,7 @@ import {
 import { type SQL, sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
+import { readSettingTargetIn } from './settings';
 
 /** `access_grant` joined to its role and permission rows, as SQLite answers it. */
 interface GrantPermissionRecord {
@@ -65,7 +66,17 @@ function readGrantRoleRow(record: JoinedGrantRoleRecord): StoredGrantRow {
 /** One row of the listing: a reaching grant's permission row, or a readable package. */
 type ListingRecord =
   | ({ readonly row_kind: 'grant'; readonly package_id: null } & JoinedGrantRoleRecord)
-  | { readonly row_kind: 'package'; readonly package_id: string };
+  | { readonly row_kind: 'package'; readonly package_id: string }
+  | ({ readonly row_kind: 'target' } & PackageTargetRecord);
+
+/** A real scoped project target or one complete selected grant permission row. */
+type ProjectListingRecord =
+  | ({ readonly row_kind: 'grant' } & JoinedGrantRoleRecord)
+  | {
+      readonly row_kind: 'project';
+      readonly project_id: unknown;
+      readonly organization_id: unknown;
+    };
 
 /**
  * Proof: with the 0/1 guard removed, `throws on a reaches_restricted outside
@@ -128,10 +139,11 @@ function membershipHolds(subject: AccessSubject, organizationId: string): SQL {
 
 /**
  * The scope rows a target's grants may name, nearest last: a work package
- * reaches its organization and itself (no project until `wbs-work-packages`
- * slice 2); a project its organization and itself. The organization target
+ * reaches its organization, actual project and itself; a project reaches its
+ * organization and itself. The organization target
  * has none: it reads every grant in the organization (the `any` mode of CP16).
  *
+ * Historical interim-chain proof; the coordinated parent transition replaces its old expectation.
  * Proof: with a `('project', projectId)` row added for a chain naming its
  * project, `a project grant reaches no package, in detail or in the listing,
  * until task 3.2` (access-decisions.db.test.ts) read the package in detail
@@ -140,7 +152,7 @@ function membershipHolds(subject: AccessSubject, organizationId: string): SQL {
 function scopeRows(target: Exclude<AccessTarget, { kind: 'organization' }>): SQL {
   return target.kind === 'project'
     ? sql`VALUES ('organization', ${target.chain.organizationId}), ('project', ${target.chain.projectId})`
-    : sql`VALUES ('organization', ${target.chain.organizationId}), ('work_package', ${target.chain.workPackageId})`;
+    : sql`VALUES ('organization', ${target.chain.organizationId}), ('project', ${target.chain.projectId}), ('work_package', ${target.chain.workPackageId})`;
 }
 
 function organizationOf(target: AccessTarget): string {
@@ -198,7 +210,7 @@ export class AccessDecisionRepository implements AccessDecisions {
       ${scopeJoin}
       /* Proof: effective-catalogue-join: making this role join INNER silently omitted the orphan.
        * rejects selected orphan-role beside sufficient grant at organization-effective
-       * refuses a mounted project mutation on selected orphan-role beside sufficient package authority
+       * refuses a mounted work_package mutation on selected orphan-role beside sufficient package authority
        * both failed under the fault and passed after restoration (task2.4b catalogue receipts). */
       LEFT JOIN access_role r ON r.id = g.role_id
       LEFT JOIN access_role_permission p ON p.role_id = g.role_id
@@ -218,15 +230,18 @@ export class AccessDecisionRepository implements AccessDecisions {
    * One statement: every reaching grant's raw rows (validated, so a corrupt
    * row throws here exactly as on {@link effectiveRoleAt}) and, beside them,
    * the packages a grant whose set holds `package.read` admits after P5. The
-   * cap never removes `package.read`, so it changes no listing. Until
-   * `wbs-work-packages` slice 2 a package has no project, so no project grant
-   * admits one.
+   * cap never removes `package.read`, so it changes no listing. Project grants
+   * reach their actual current children without the organization-scope P5 cut.
+   * Every package mapped to this organization is validated, even without a read
+   * grant. A broken/missing mapping is also observed when the actual parent
+   * belongs here; a valid foreign mapping stays opaque. This is not a global
+   * audit of packages having neither an attributable map nor a parent.
    *
    * Proof, each fault alone in `access-decisions.db.test.ts`, watched
    * 2026-11-08: the `package.read` admission dropped made `an organization
    * role without package.read lists nothing and every detail is invisible`
    * list both unrestricted packages; the P5 clause dropped made `org-viewer,
-   * project and package roles at organization scope and the members subject
+   * workPackage and package roles at organization scope and the members subject
    * are skipped` list `wp-closed`; the admin read dropped (`wp.restricted = 0`
    * only) made `org-admin and org-super-admin read a restricted package and
    * never write it` miss `wp-closed`; filtering the grant rows by the
@@ -253,6 +268,22 @@ export class AccessDecisionRepository implements AccessDecisions {
         LEFT JOIN access_role r ON r.id = g.role_id
         WHERE g.organization_id = ${organizationId} AND ${membershipHolds(subject, organizationId)}
       ),
+      targets AS MATERIALIZED (
+        SELECT wp.id AS package_id, wpo.organization_id, wp.project_id,
+               parent.id AS parent_id, parent.organization_id AS parent_organization_id,
+               (SELECT actual_owner.id FROM organization actual_owner WHERE actual_owner.id =
+                 (SELECT organization_id FROM work_package_organization WHERE resource_id = wp.id)) AS actual_organization_id,
+               parent.space_id AS space_id,
+               (SELECT selected_space.id FROM space selected_space WHERE selected_space.id = parent.space_id) AS actual_space_id,
+               (SELECT selected_space.organization_id FROM space selected_space WHERE selected_space.id = parent.space_id) AS space_organization_id,
+               wp.restricted
+        FROM work_package wp
+        LEFT JOIN work_package_organization wpo ON wpo.resource_id = wp.id
+        LEFT JOIN project parent ON parent.id = wp.project_id
+        WHERE wpo.organization_id = ${organizationId}
+           OR ((wpo.organization_id IS NULL OR typeof(wpo.organization_id) <> 'text'
+                OR wpo.organization_id = '') AND parent.organization_id = ${organizationId})
+      ),
       readers AS MATERIALIZED (
         SELECT reach.scope_kind, reach.scope_id, reach.subject_kind, reach.reaches_restricted
         FROM reaching reach
@@ -261,17 +292,23 @@ export class AccessDecisionRepository implements AccessDecisions {
       )
       SELECT 'grant' AS row_kind, NULL AS package_id, reach.grant_id, reach.scope_kind,
              reach.scope_id, reach.subject_kind, reach.subject_id, reach.role_id,
-             reach.catalogue_id, reach.object_kind, reach.reaches_restricted, p.permission
+             reach.catalogue_id, reach.object_kind, reach.reaches_restricted, p.permission,
+             NULL AS organization_id, NULL AS project_id, NULL AS parent_id,
+             NULL AS parent_organization_id, NULL AS actual_organization_id, NULL AS space_id, NULL AS actual_space_id, NULL AS space_organization_id, NULL AS restricted
       FROM reaching reach LEFT JOIN access_role_permission p ON p.role_id = reach.role_id
       UNION ALL
-      SELECT 'package', wp.id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-      FROM project wp
-      JOIN project_organization wpo ON wpo.resource_id = wp.id
-      WHERE wpo.organization_id = ${organizationId}
-        AND EXISTS (SELECT 1 FROM readers reader WHERE
+      SELECT 'target', package_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+             organization_id, project_id, parent_id, parent_organization_id, actual_organization_id, space_id, actual_space_id, space_organization_id, restricted
+      FROM targets
+      UNION ALL
+      SELECT 'package', wp.package_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+      FROM targets wp
+      WHERE EXISTS (SELECT 1 FROM readers reader WHERE
               (reader.scope_kind = 'organization' AND (wp.restricted = 0
                  OR (reader.subject_kind <> 'organization_members' AND reader.reaches_restricted = 1)))
-           OR (reader.scope_kind = 'work_package' AND reader.scope_id = wp.id))`);
+           OR (reader.scope_kind = 'project' AND reader.scope_id = wp.project_id)
+           OR (reader.scope_kind = 'work_package' AND reader.scope_id = wp.package_id))`);
     const grantRows: StoredGrantRow[] = [];
     const packageIds = new Set<string>();
     /* Proof: listing-all-grant-validation: retaining only package.read grant records hid corrupt rows.
@@ -279,42 +316,166 @@ export class AccessDecisionRepository implements AccessDecisions {
      * failed under the fault and passed after restoration (task2.4b catalogue receipts). */
     for (const record of records)
       if (record.row_kind === 'grant') grantRows.push(readGrantRoleRow(record));
+      else if (record.row_kind === 'target') readPackageTargetRow(record);
       else packageIds.add(record.package_id);
     reachingGrantsOf(grantRows);
     return packageIds;
   }
 
   /**
-   * The store-private reader of `wbs-permissions` P13: a work package's target
-   * from its organization and package rows only (today's `project` and
-   * `project_organization`), or null when it is absent or no organization
-   * owns it. Task 3.4 replaces it with the project chain.
+   * Batched project.read decisions over actual scoped projects on this borrowed connection.
+   * Uses the same subject, membership, strict selected role rows and cap as detail;
+   * package grants contribute no project permission. No generic memory/source capability.
+   * @throws on malformed selected targets or grant catalogue state before permission filtering.
    */
-  async packageTargetOf(packageId: string): Promise<AccessTarget | null> {
+  async readableProjectIds(
+    principal: ScopedPrincipal,
+    organizationId: string,
+  ): Promise<ReadonlySet<string>> {
     await Promise.resolve();
-    const row = this.db
-      .all<{ organization_id: string; restricted: number }>(
-        sql`
-      SELECT wpo.organization_id, wp.restricted FROM project wp
-      JOIN project_organization wpo ON wpo.resource_id = wp.id
-      WHERE wp.id = ${packageId}`,
+    const subject = accessSubjectOf(principal);
+    // Proof: omitting local membership kept14 IDs after deletion in 'uses one statement for many real projects' (privacy P9); canonical passed before/after, 2026-11-14.
+    // Proof: omitting target organization selected a foreign row and failed 'agrees with real detail decisions' at the strict target guard (P10, availability); canonical passed before/after, 2026-11-14.
+    // Proof: omitting grant organization exposed proj/proj-two in 'ignores an actual foreign-organization grant' (P11); canonical passed before/after, 2026-11-14.
+    // Proof: omitting the reaching envelope selected package.teleport in 'ignores nonreaching package catalogue corruption' (P12, availability); canonical passed before/after, 2026-11-14.
+    const records = this.db.all<ProjectListingRecord>(sql`
+      WITH ${subjectRows(subject, organizationId)},
+      targets AS MATERIALIZED (
+        SELECT id AS project_id, organization_id FROM project
+        WHERE organization_id = ${organizationId}
+      ),
+      reaching AS MATERIALIZED (
+        SELECT g.id AS grant_id, g.scope_kind, g.scope_id, g.subject_kind, g.subject_id,
+               g.role_id, r.id AS catalogue_id, r.object_kind, r.reaches_restricted
+        FROM subject s CROSS JOIN access_grant g
+          ON g.subject_kind=s.kind AND g.subject_id=s.id
+        LEFT JOIN access_role r ON r.id=g.role_id
+        WHERE g.organization_id=${organizationId}
+          AND ${membershipHolds(subject, organizationId)}
+          AND (g.scope_kind='organization' OR
+               (g.scope_kind='project' AND EXISTS (
+                 SELECT 1 FROM targets target WHERE target.project_id=g.scope_id)))
       )
-      .at(0);
-    if (row === undefined) return null;
-    // Proof: with this guard removed, `throws on a package restricted flag
-    // outside 0 and 1` resolved; watched 2026-11-08.
-    if (row.restricted !== 0 && row.restricted !== 1)
-      throw new Error(`restricted of package ${packageId} is ${String(row.restricted)}`);
-    return {
-      kind: 'work_package',
-      chain: {
-        level: 'work_package',
-        organizationId: row.organization_id,
-        workPackageId: packageId,
-      },
-      restricted: row.restricted === 1,
-    };
+      SELECT 'grant' AS row_kind, reach.grant_id, reach.scope_kind, reach.scope_id,
+             reach.subject_kind, reach.subject_id, reach.role_id, reach.catalogue_id,
+             reach.object_kind, reach.reaches_restricted, p.permission,
+             NULL AS project_id, NULL AS organization_id
+      FROM reaching reach LEFT JOIN access_role_permission p ON p.role_id=reach.role_id
+      UNION ALL
+      SELECT 'project', NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+             project_id,organization_id FROM targets`);
+    // Proof: skipping selected project-scope/organization-kind rows made the read resolve in 'rejects a selected incompatible project role even beside sufficient organization authority';
+    // canonical passed before/after (access-decisions.db.test.ts, 2026-11-14). Local strict-decoder forwarding only.
+    const grants = reachingGrantsOf(
+      records.filter((record) => record.row_kind === 'grant').map(readGrantRoleRow),
+    );
+    const visible = new Set<string>();
+    for (const record of records) {
+      if (record.row_kind !== 'project') continue;
+      // Proof: omitting this compound guard made the BLOB project-ID read resolve, failing rejectionOf in the owning SQL case (M4); canonical passed before/after, 2026-11-14.
+      if (
+        typeof record.project_id !== 'string' ||
+        record.project_id === '' ||
+        record.organization_id !== organizationId
+      )
+        throw new Error('stored project permission target is malformed');
+      // Proof: removing per-target matching exposed proj-two for Ada in 'agrees with real detail decisions' (privacy P7); canonical passed before/after, 2026-11-14.
+      const reaching = grants.filter(
+        (grant) =>
+          grant.scopeKind === 'organization' ||
+          (grant.scopeKind === 'project' && grant.scopeId === record.project_id),
+      );
+      // Proof: bypassing visibility exposed proj-two in 'agrees with real detail decisions' (privacy P8, not cap necessity); canonical passed before/after, 2026-11-14.
+      if (effectiveRoleOn(reaching, { kind: 'project' }, capOf(subject)) !== null)
+        visible.add(record.project_id);
+    }
+    return visible;
   }
+
+  /**
+   * Reads an addressed current package and its parent with a narrow query and an absence orphan probe. Missing
+   * package is null; a present package with missing/malformed map or parent throws.
+   * A supplied organization conceals valid foreign mappings before parent validation;
+   * null explicitly requests the raw internal global target, never ambient authority.
+   */
+  async packageTargetOf(
+    packageId: string,
+    organizationId: string | null,
+  ): Promise<Extract<AccessTarget, { kind: 'work_package' }> | null> {
+    await Promise.resolve();
+    return readSettingTargetIn(this.db, { level: 'work_package', id: packageId }, organizationId);
+  }
+}
+
+/** Raw columns of one current package/organization/parent LEFT JOIN observation. */
+export interface PackageTargetRecord {
+  readonly package_id: unknown;
+  readonly organization_id: unknown;
+  readonly project_id: unknown;
+  readonly parent_id: unknown;
+  readonly parent_organization_id: unknown;
+  readonly actual_organization_id: unknown;
+  readonly space_id: unknown;
+  readonly actual_space_id: unknown;
+  readonly space_organization_id: unknown;
+  readonly restricted: unknown;
+}
+
+/** Validates the mapping identity before scoped readers decide foreign opacity. */
+export function readPackageOrganization(packageId: string, organizationId: unknown): string {
+  if (typeof organizationId !== 'string' || organizationId === '')
+    throw new Error('package ' + packageId + ' has an absent or malformed organization mapping');
+  return organizationId;
+}
+
+/** Validates owned parent correspondence before permission or DTO projection. */
+export function readPackageTargetRow(
+  row: PackageTargetRecord,
+): Extract<AccessTarget, { kind: 'work_package' }> {
+  if (typeof row.package_id !== 'string' || row.package_id === '')
+    throw new Error('package target has an absent or malformed identity');
+  const packageId = row.package_id;
+  const organizationId = readPackageOrganization(packageId, row.organization_id);
+  if (
+    typeof row.project_id !== 'string' ||
+    row.project_id === '' ||
+    typeof row.parent_id !== 'string' ||
+    row.parent_id !== row.project_id ||
+    typeof row.parent_organization_id !== 'string' ||
+    row.parent_organization_id !== organizationId
+  )
+    throw new Error('package ' + packageId + ' has an absent, malformed or foreign parent');
+  if (row.actual_organization_id !== organizationId)
+    throw new Error('package ' + packageId + ' has an absent organization ancestor');
+  let spaceId: string | null;
+  if (row.space_id === null) spaceId = null;
+  else {
+    if (
+      typeof row.space_id !== 'string' ||
+      row.space_id === '' ||
+      row.actual_space_id !== row.space_id ||
+      row.space_organization_id !== organizationId
+    )
+      throw new Error(
+        'package ' + packageId + ' has an absent, malformed or foreign project space',
+      );
+    spaceId = row.space_id;
+  }
+  // Proof: with this guard removed, `throws on a package restricted flag
+  // outside 0 and 1` resolved; watched 2026-11-08.
+  if (row.restricted !== 0 && row.restricted !== 1)
+    throw new Error(`restricted of package ${packageId} is ${String(row.restricted)}`);
+  return {
+    kind: 'work_package',
+    chain: {
+      level: 'work_package',
+      organizationId,
+      spaceId,
+      projectId: row.project_id,
+      workPackageId: packageId,
+    },
+    restricted: row.restricted === 1,
+  };
 }
 
 /**

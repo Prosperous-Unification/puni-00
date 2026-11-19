@@ -3,10 +3,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import type { ClaimHistoryEventView } from '@/lib/wbs-api';
-import type { OpenProjectStream, ProjectStreamHandlers } from '@/modules/project/contract';
+import type {
+  OpenWorkPackageStream,
+  WorkPackageStreamHandlers,
+} from '@/modules/work-package/contract';
 import { CLAIMED_AT, claimedPlan } from '@/testing/claims-fixture';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -22,17 +25,17 @@ beforeEach(() => {
 type Fixture = Awaited<ReturnType<typeof claimedPlan>>;
 
 /** The table over the fixture, with the stream's handlers handed back to the case. */
-function drawTable(api: Fixture['api']): { stream: () => ProjectStreamHandlers } {
-  let handlers: ProjectStreamHandlers | null = null;
-  const subscribe: OpenProjectStream = (_projectId, given) => {
+function drawTable(api: Fixture['api']): { stream: () => WorkPackageStreamHandlers } {
+  let handlers: WorkPackageStreamHandlers | null = null;
+  const subscribe: OpenWorkPackageStream = (_work_packageId, given) => {
     handlers = given;
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
   render(
     <AppFaultBoundary>
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />
     </AppFaultBoundary>,
@@ -386,8 +389,8 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
     const { api, history, historyReads } = await claimedPlan(['c-dana']);
     const read = api.readClaimHistory.bind(api);
     let failing = true;
-    api.readClaimHistory = (projectId) =>
-      failing ? Promise.reject(new Error('http_404')) : read(projectId);
+    api.readClaimHistory = (workPackageId) =>
+      failing ? Promise.reject(new Error('http_404')) : read(workPackageId);
     drawTable(api);
 
     const sheet = await openTheSheet();

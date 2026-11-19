@@ -16,7 +16,7 @@ function frame(attemptToken: string): SupervisorStartFrame {
     type: 'start',
     protocolVersion: SUPERVISOR_PROTOCOL_VERSION,
     callerId: CALLER_ID,
-    projectId: '018f3f08-2ef7-7d1c-b645-14f877575d65',
+    workPackageId: '018f3f08-2ef7-7d1c-b645-14f877575d65',
     objective: 'pri',
     attemptToken,
     childDeadlineAt: Date.now() + 60_000,

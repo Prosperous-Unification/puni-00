@@ -3,7 +3,7 @@ import type { ValueGroupPlacement, WorkItemStore } from '@wbs/core';
 /** Reads identity-only satellite placement without borrowing work-item collection order. */
 export async function listValueGroupPlacements(
   rows: readonly { readonly workItemId: string }[],
-  projectId: string,
+  workPackageId: string,
   ids: readonly string[],
   workItems: WorkItemStore,
 ): Promise<ValueGroupPlacement[]> {
@@ -12,13 +12,13 @@ export async function listValueGroupPlacements(
   const groupIds = [...new Set(rows.map(({ workItemId }) => workItemId))].sort(
     compareValueGroupIds,
   );
-  const projectGroups: string[] = [];
+  const workPackageGroups: string[] = [];
   for (const id of groupIds) {
     const workItem = await workItems.findById(id);
-    if (workItem?.projectId === projectId) projectGroups.push(id);
+    if (workItem?.workPackageId === workPackageId) workPackageGroups.push(id);
   }
-  return projectGroups.flatMap((id, index) =>
-    requested.has(id) ? [{ id, afterId: index === 0 ? null : projectGroups[index - 1] }] : [],
+  return workPackageGroups.flatMap((id, index) =>
+    requested.has(id) ? [{ id, afterId: index === 0 ? null : workPackageGroups[index - 1] }] : [],
   );
 }
 

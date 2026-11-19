@@ -1,8 +1,8 @@
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { readSharedPeople, scheduleInputOfCaptured } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { SavedComparisonSide } from '@wbs/core/module/saved-plans/saved-plan-comparison';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { schedule } from '@wbs/domain';
 import { type Connection, openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { allocateGeneration } from '@wbs/store-sqlite/optimization-generation';
@@ -19,12 +19,12 @@ import { fastScheduler } from '../service/optimizer-wiring';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
- * The schedule read (`GET /api/projects/:id/work-items`) under organization
+ * The schedule read (`GET /api/work-packages/:id/work-items`) under organization
  * isolation (task 3.3), over real SQLite and the production organization
  * access; see {@link OrganizationHarness}.
  *
  * Dependent rows are seeded as SQL: the writes that would refuse them are
- * task 3.4's. A coherent project holds one row of every schedule relation
+ * task 3.4's. A coherent work package holds one row of every schedule relation
  * inside its organization; each crossing case adds one row that leaves it.
  */
 let h: OrganizationHarness;
@@ -51,18 +51,18 @@ beforeEach(async () => {
   foreign = await create('grace', 'B plan');
   ownStep = await firstStep('ada', own);
   foreignStep = await firstStep('grace', foreign);
-  for (const [org, project] of [
+  for (const [org, workPackage] of [
     ['a', own],
     ['b', foreign],
   ] as const) {
     seedCatalogs(org);
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 0, ?)',
-      [`w-${org}`, project, 'Root'],
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 0, ?)',
+      [`w-${org}`, workPackage, 'Root'],
     );
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, ?, 0, ?)',
-      [`w2-${org}`, project, `w-${org}`, 'Child'],
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, ?, 0, ?)',
+      [`w2-${org}`, workPackage, `w-${org}`, 'Child'],
     );
   }
   seedCoherentLinks();
@@ -73,15 +73,15 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
 }
 
-async function firstStep(username: string, projectId: string): Promise<string> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}`);
+async function firstStep(username: string, workPackageId: string): Promise<string> {
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageId}`);
   const step = (answer.body as { steps: { id: string }[] }).steps.at(0);
-  if (step === undefined) throw new Error('the project started with no step');
+  if (step === undefined) throw new Error('the work package started with no step');
   return step.id;
 }
 
@@ -104,7 +104,7 @@ function seedCatalogs(org: 'a' | 'b'): void {
   }
 }
 
-/** Every schedule relation of the own project, inside its organization. */
+/** Every schedule relation of the own work package, inside its organization. */
 function seedCoherentLinks(): void {
   for (const statement of [
     `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w2-a', '${ownStep}', 1, 2, 3)`,
@@ -115,7 +115,7 @@ function seedCoherentLinks(): void {
     "INSERT INTO work_item_service (work_item_id, service_id) VALUES ('w2-a', 'sv-a')",
     "INSERT INTO work_item_external_ref (id, work_item_id, system_id, url, name, position) VALUES ('x-a', 'w2-a', 'es-a', 'https://x', 'X', 0)",
     "UPDATE work_item SET service_team_id = 'tm-a', service_id = 'sv-a' WHERE id = 'w2-a'",
-    `INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('${own}', 'tm-a', 1)`,
+    `INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES ('${own}', 'tm-a', 1)`,
   ]) {
     h.sqlite.run(statement);
   }
@@ -128,7 +128,7 @@ function crossings(): Record<string, string> {
     actual_step: `INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w2-a', '${foreignStep}', 1, 1)`,
     step_progress_step: `INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w2-a', '${foreignStep}', 'done', 1)`,
     step_measure_step: `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('w2-a', '${foreignStep}', 'hours_actual', 1, 1)`,
-    // A trio on another project's step (`wbs-measure-budgets` D48): the row
+    // A trio on another work package's step (`wbs-measure-budgets` D48): the row
     // read shows trios, so it fails closed as for the time estimate.
     measure_estimate_step: `INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES ('w2-a', '${foreignStep}', 'tokens', 1, 2, 3)`,
     step_node_attempt_step: `INSERT INTO step_node_attempt (work_item_id, step_id, attempt_number, started_at) VALUES ('w2-a', '${foreignStep}', 1, 1)`,
@@ -147,62 +147,64 @@ function crossings(): Record<string, string> {
     work_item_service_team: "UPDATE work_item SET service_team_id = 'tm-b' WHERE id = 'w-a'",
     work_item_service: "UPDATE work_item SET service_id = 'sv-b' WHERE id = 'w-a'",
     work_item_parent: "UPDATE work_item SET parent_id = 'w-b' WHERE id = 'w2-a'",
-    dependency_endpoint: `INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('d-x', '${own}', 'w-a', 'w-b')`,
-    project_team_capacity: `INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('${own}', 'tm-b', 1)`,
+    dependency_endpoint: `INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('d-x', '${own}', 'w-a', 'w-b')`,
+    work_package_team_capacity: `INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES ('${own}', 'tm-b', 1)`,
   };
 }
 
 describe('before activation', () => {
-  it('reads any project deployment-wide, crossing rows and all', async () => {
+  it('reads any work package deployment-wide, crossing rows and all', async () => {
     h.close();
     h = OrganizationHarness.open();
     for (const username of ['ada', 'grace']) await h.register(username);
     const theirs = await create('ada', 'Legacy plan');
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-l', ?, NULL, 0, 'Root')",
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-l', ?, NULL, 0, 'Root')",
       [theirs],
     );
     // A crossing row: a label no organization owns, which any scoped read
-    // would refuse. (A per-step row on another project's step no longer
+    // would refuse. (A per-step row on another work package's step no longer
     // serves: since 010.4.5 the legacy read itself fails on a step it cannot
     // find an allowance for.)
     h.sqlite.run("INSERT INTO tag (id, name) VALUES ('t-l', 'unowned')");
     h.sqlite.run("INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-l', 't-l')");
-    expect((await h.call('grace', 'GET', `/api/projects/${theirs}/work-items`)).status).toBe(200);
+    expect((await h.call('grace', 'GET', `/api/work-packages/${theirs}/work-items`)).status).toBe(
+      200,
+    );
   });
 });
 
 describe('after activation', () => {
-  it('reads a coherent own project, to viewers too', async () => {
-    const answer = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
+  it('reads a coherent own work package, to viewers too', async () => {
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`);
     expect(answer.status).toBe(200);
-    expect((await h.call('vic', 'GET', `/api/projects/${own}/work-items`)).status).toBe(200);
-    expect((await h.call('ada', 'GET', `/api/projects/${own}/export?format=markdown`)).status).toBe(
-      200,
-    );
+    expect((await h.call('vic', 'GET', `/api/work-packages/${own}/work-items`)).status).toBe(200);
+    expect(
+      (await h.call('ada', 'GET', `/api/work-packages/${own}/export?format=markdown`)).status,
+    ).toBe(200);
   });
 
   it("shows assignees under the organization's own names", async () => {
-    const answer = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`);
     expect((answer.body as { assignedPeople: unknown }).assignedPeople).toEqual([
       { id: 'pe-a', name: 'pe-a' },
     ]);
   });
 
-  it('answers 404 alike for a foreign and an absent project', async () => {
+  it('answers 404 alike for a foreign and an absent work package', async () => {
     for (const tail of ['work-items', 'step-references?reference=1.dev&revision=r']) {
-      const toForeign = await h.call('ada', 'GET', `/api/projects/${foreign}/${tail}`);
+      const toForeign = await h.call('ada', 'GET', `/api/work-packages/${foreign}/${tail}`);
       expect({ tail, ...toForeign }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      expect(await h.call('ada', 'GET', `/api/projects/missing/${tail}`)).toEqual(toForeign);
+      expect(await h.call('ada', 'GET', `/api/work-packages/missing/${tail}`)).toEqual(toForeign);
     }
   });
 
   it('refuses an unbound session and a removed member before any lookup', async () => {
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
     for (const path of [
-      `/api/projects/${own}/work-items`,
-      '/api/projects/missing/work-items',
-      `/api/projects/${own}/step-references?reference=1.dev&revision=r`,
+      `/api/work-packages/${own}/work-items`,
+      '/api/work-packages/missing/work-items',
+      `/api/work-packages/${own}/step-references?reference=1.dev&revision=r`,
     ]) {
       expect(await h.call('ada', 'GET', path)).toEqual({
         status: 403,
@@ -221,24 +223,24 @@ describe('after activation', () => {
       const statement = new Map(Object.entries(crossings())).get(kind);
       if (statement === undefined) throw new Error(`no crossing seeded for ${kind}`);
       h.sqlite.run(statement);
-      expect((await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).status).toBe(500);
+      expect((await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`)).status).toBe(500);
     });
 
   it('fails closed over a catalog entry the organization does not own at all', async () => {
     h.sqlite.run("INSERT INTO tag (id, name) VALUES ('tg-x', 'unowned')");
     h.sqlite.run("INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-a', 'tg-x')");
-    expect((await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).status).toBe(500);
+    expect((await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`)).status).toBe(500);
   });
 
   it('fails the export and the optimizer retry closed over a crossing row', async () => {
     h.grant('org-a', 'ada', 'package-manager', 'work_package', own);
     h.sqlite.run(crossings()['estimate_step']);
-    expect((await h.call('ada', 'GET', `/api/projects/${own}/export?format=markdown`)).status).toBe(
-      500,
-    );
+    expect(
+      (await h.call('ada', 'GET', `/api/work-packages/${own}/export?format=markdown`)).status,
+    ).toBe(500);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${own}/optimization/retry`, {
+        await h.call('ada', 'POST', `/api/work-packages/${own}/optimization/retry`, {
           objective: 'pri',
           inputHash: 'h',
         })
@@ -269,7 +271,7 @@ function buildSharedComparison(savedPlanId: string, schedule: SavedComparisonSid
 describe('shared live projection', () => {
   it('installed saved capture and current comparison retain their own shared chain', async () => {
     const { higher, lower } = await seedSharedPlans();
-    const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+    const saved = await h.call('ada', 'POST', `/api/work-packages/${lower}/saved-plans`, {
       name: 'Before upstream edit',
     });
     expect(saved.status).toBe(201);
@@ -295,7 +297,7 @@ describe('shared live projection', () => {
     const same = await h.call(
       'ada',
       'GET',
-      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+      `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
     );
     expect(same).toEqual(
       buildSharedComparison(savedId, { present: true, algorithmId: 'slice-leveling-v4' }),
@@ -308,7 +310,7 @@ describe('shared live projection', () => {
     const changed = await h.call(
       'ada',
       'GET',
-      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+      `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
     );
     expect(changed.status).toBe(200);
     expect((changed.body as { diff: { schedule: unknown[] } }).diff.schedule).not.toEqual([]);
@@ -318,7 +320,7 @@ describe('shared live projection', () => {
     const removed = await h.call(
       'ada',
       'GET',
-      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+      `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
     );
     expect(removed.status).toBe(200);
     const removedSchedule = (
@@ -329,7 +331,7 @@ describe('shared live projection', () => {
     const removedHolder = removedSchedule.find((difference) =>
       difference.path.includes('elsewhereHolder'),
     );
-    expect(removedHolder?.left).toEqual({ projectId: higher, workItemId: 'higher-work' });
+    expect(removedHolder?.left).toEqual({ workPackageId: higher, workItemId: 'higher-work' });
     expect(removedHolder?.right).toBeNull();
     expect(
       removedSchedule.some(
@@ -339,7 +341,7 @@ describe('shared live projection', () => {
     const reversed = await h.call(
       'ada',
       'GET',
-      `/api/projects/${lower}/saved-plans/compare?left=current&right=${savedId}`,
+      `/api/work-packages/${lower}/saved-plans/compare?left=current&right=${savedId}`,
     );
     expect(reversed.status).toBe(200);
     const reversedHolder = (
@@ -347,12 +349,12 @@ describe('shared live projection', () => {
     ).diff.schedule.find((difference) => difference.path.includes('elsewhereHolder'));
     expect(reversedHolder?.left).toBeNull();
     h.sqlite.run("UPDATE work_item SET notes = 'updated' WHERE id = 'lower-work'");
-    h.sqlite.run('UPDATE project SET restricted = 1 WHERE id = ?', [lower]);
+    h.sqlite.run('UPDATE work_package SET restricted = 1 WHERE id = ?', [lower]);
     h.sqlite.run("DELETE FROM assignment WHERE work_item_id = 'lower-work'");
     const inputRemoved = await h.call(
       'ada',
       'GET',
-      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+      `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
     );
     expect(inputRemoved.status).toBe(200);
     const inputDifferences = (
@@ -366,7 +368,7 @@ describe('shared live projection', () => {
     const inputReversed = await h.call(
       'ada',
       'GET',
-      `/api/projects/${lower}/saved-plans/compare?left=current&right=${savedId}`,
+      `/api/work-packages/${lower}/saved-plans/compare?left=current&right=${savedId}`,
     );
     expect(inputReversed.status).toBe(200);
     expect(
@@ -391,7 +393,7 @@ describe('shared live projection', () => {
       });
       let savedId = '';
       if (operation === 'compare') {
-        const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+        const saved = await h.call('ada', 'POST', `/api/work-packages/${lower}/saved-plans`, {
           name: 'Before revocation',
         });
         expect(saved.status).toBe(201);
@@ -401,11 +403,13 @@ describe('shared live projection', () => {
       revoke = true;
       const refused =
         operation === 'save'
-          ? await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, { name: 'Denied' })
+          ? await h.call('ada', 'POST', `/api/work-packages/${lower}/saved-plans`, {
+              name: 'Denied',
+            })
           : await h.call(
               'ada',
               'GET',
-              `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+              `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
             );
       expect(refused).toEqual(
         operation === 'save'
@@ -425,17 +429,17 @@ describe('shared live projection', () => {
     const { higher, lower } = await seedSharedPlans(setting !== 'upstream');
     if (setting === 'target')
       h.sqlite.run(
-        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
         [lower],
       );
     if (setting === 'upstream')
       h.sqlite.run(
-        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
         [higher],
       );
     if (setting === 'cycle')
       h.sqlite.run(
-        "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('saved-cycle', ?, 'lower-work', 'lower-work')",
+        "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('saved-cycle', ?, 'lower-work', 'lower-work')",
         [lower],
       );
     if (setting === 'calendar_range')
@@ -450,7 +454,7 @@ describe('shared live projection', () => {
       'solver_queue',
     ];
     const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
-    const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+    const saved = await h.call('ada', 'POST', `/api/work-packages/${lower}/saved-plans`, {
       name: `Shared ${reason}`,
     });
     expect(saved.status).toBe(201);
@@ -465,7 +469,7 @@ describe('shared live projection', () => {
       await h.call(
         'ada',
         'GET',
-        `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+        `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
       ),
     ).toEqual(buildSharedComparison(savedId, { present: false, absentReason: reason }));
     expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
@@ -478,7 +482,7 @@ describe('shared live projection', () => {
     });
     const higherReads = await capture.readPlanInput(higher);
     const lowerReads = await capture.readPlanInput(lower);
-    if (higherReads === null || lowerReads === null) throw new Error('missing ranked project');
+    if (higherReads === null || lowerReads === null) throw new Error('missing ranked work package');
     const chain = readSharedPeople([higherReads, lowerReads], lower, fastScheduler);
     if (chain.kind !== 'scheduled') throw new Error('missing shared target input');
     const input = chain.input;
@@ -495,7 +499,7 @@ describe('shared live projection', () => {
       input.elsewhere,
     );
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
     const connection = openConnection(h.databasePath());
@@ -505,7 +509,7 @@ describe('shared live projection', () => {
       connection.db
         .insert(optimizedScheduleCache)
         .values({
-          projectId: lower,
+          workPackageId: lower,
           inputHash,
           generation,
           contractVersion: '18+0.4.0',
@@ -537,7 +541,7 @@ describe('shared live projection', () => {
       'solver_queue',
     ];
     const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
-    const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+    const saved = await h.call('ada', 'POST', `/api/work-packages/${lower}/saved-plans`, {
       name: 'Selected optimized',
     });
     expect(saved.status).toBe(201);
@@ -559,7 +563,7 @@ describe('shared live projection', () => {
       await h.call(
         'ada',
         'GET',
-        `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+        `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
       ),
     ).toEqual(
       buildSharedComparison(savedId, {
@@ -579,12 +583,13 @@ describe('shared live projection', () => {
       });
       const higherReads = await capture.readPlanInput(higher);
       const lowerReads = await capture.readPlanInput(lower);
-      if (higherReads === null || lowerReads === null) throw new Error('missing ranked project');
+      if (higherReads === null || lowerReads === null)
+        throw new Error('missing ranked work package');
       const chain = readSharedPeople([higherReads, lowerReads], lower, fastScheduler);
       if (chain.kind !== 'scheduled') throw new Error('missing shared target input');
       const inputHash = scheduleInputHash(chain.input);
       h.sqlite.run(
-        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
         [lower],
       );
       const connection = openConnection(h.databasePath());
@@ -593,7 +598,7 @@ describe('shared live projection', () => {
         connection.db
           .insert(optimizedScheduleCache)
           .values({
-            projectId: lower,
+            workPackageId: lower,
             inputHash,
             generation,
             contractVersion: '18+0.4.0',
@@ -615,7 +620,7 @@ describe('shared live projection', () => {
         'solver_queue',
       ];
       const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
-      const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+      const saved = await h.call('ada', 'POST', `/api/work-packages/${lower}/saved-plans`, {
         name: `Selected ${state}`,
       });
       expect(saved.status).toBe(201);
@@ -630,7 +635,7 @@ describe('shared live projection', () => {
         await h.call(
           'ada',
           'GET',
-          `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+          `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
         ),
       ).toEqual(buildSharedComparison(savedId, { present: false, absentReason: 'unavailable' }));
       expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
@@ -639,9 +644,9 @@ describe('shared live projection', () => {
 
   it('shared tree and export agree', async () => {
     const { higher, lower, lowerStep } = await seedSharedPlans();
-    h.sqlite.run('UPDATE project SET revision = 7 WHERE id = ?', [lower]);
+    h.sqlite.run('UPDATE work_package SET revision = 7 WHERE id = ?', [lower]);
     h.sqlite.run('INSERT INTO event_sequencer (subscription, next_seq) VALUES (?, 12)', [
-      `project:${lower}`,
+      `work-package:${lower}`,
     ]);
     h.sqlite.run(
       "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('lower-work', ?, 0.5, 1)",
@@ -655,23 +660,23 @@ describe('shared live projection', () => {
       "INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('lower-work', ?, 'hours_actual', 4, 1)",
       [lowerStep],
     );
-    const tree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const tree = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     expect(tree.status).toBe(200);
     const plan = tree.body as {
       workItems: { schedule: { earliestStart: number; earliestFinish: number } }[];
-      slices: { elsewhereHolder?: { projectId: string; workItemId: string } }[];
+      slices: { elsewhereHolder?: { workPackageId: string; workItemId: string } }[];
       waitingElsewhere?: number;
       assignedPeople: { id: string; name: string }[];
     };
     expect(plan.workItems[0]?.schedule).toMatchObject({ earliestStart: 3, earliestFinish: 4 });
     expect(plan.slices[0]?.elsewhereHolder).toEqual({
-      projectId: higher,
+      workPackageId: higher,
       workItemId: 'higher-work',
     });
     expect(plan.waitingElsewhere).toBe(1);
     expect(tree.body).toMatchObject({
       seq: 11,
-      projectRevision: 7,
+      workPackageRevision: 7,
       workItems: [
         {
           actuals: { [lowerStep]: 0.5 },
@@ -681,7 +686,11 @@ describe('shared live projection', () => {
       ],
     });
     expect(plan.assignedPeople).toEqual([{ id: 'ana', name: 'Local Ana' }]);
-    const exported = await h.call('ada', 'GET', `/api/projects/${lower}/export?format=markdown`);
+    const exported = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${lower}/export?format=markdown`,
+    );
     expect(exported.status).toBe(200);
     expect(exported.body).toContain('2026-10-08');
     for (const table of ['optimization_generation', 'solver_slot', 'solver_queue', 'event_log']) {
@@ -691,22 +700,22 @@ describe('shared live projection', () => {
 });
 
 describe('shared holder labels', () => {
-  it('names whom a slice waits for in the project above', async () => {
+  it('names whom a slice waits for in the work package above', async () => {
     const { higher, lower } = await seedSharedPlans();
-    const higherRead = await h.call('ada', 'GET', `/api/projects/${higher}/work-items`);
+    const higherRead = await h.call('ada', 'GET', `/api/work-packages/${higher}/work-items`);
     expect(higherRead.body).not.toHaveProperty('elsewhereHolders');
     const row = (
       higherRead.body as { workItems: { id: string; number: string; name: string }[] }
     ).workItems.find((each) => each.id === 'higher-work');
     if (row === undefined) throw new Error('Higher holds no row');
-    const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     expect(answer.status).toBe(200);
     expect(answer.body).toMatchObject({
       waitingElsewhere: 1,
       elsewhereHolders: [
         {
-          projectId: higher,
-          projectName: 'Higher',
+          workPackageId: higher,
+          workPackageName: 'Higher',
           workItemId: 'higher-work',
           number: row.number,
           name: 'higher-work',
@@ -714,7 +723,7 @@ describe('shared holder labels', () => {
       ],
     });
     h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
-    const isolated = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const isolated = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     expect(isolated.body).not.toHaveProperty('elsewhereHolders');
     expect(isolated.body).not.toHaveProperty('waitingElsewhere');
   });
@@ -726,14 +735,14 @@ describe('shared transactional consumers', () => {
 
     h.sqlite.run("DELETE FROM assignment WHERE work_item_id = 'lower-work'");
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, position, name) VALUES ('other-work', ?, 20, 'other-work')",
+      "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('other-work', ?, 20, 'other-work')",
       [lower],
     );
     h.sqlite.run(
       "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('other-work', ?, 1, 1, 1)",
       [lowerStep],
     );
-    const arranged = await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
+    const arranged = await h.call('ada', 'POST', `/api/work-packages/${lower}/commands`, {
       commands: [
         { kind: 'setAssignee', workItemId: 'lower-work', stepId: lowerStep, personId: 'ana' },
         {
@@ -749,17 +758,16 @@ describe('shared transactional consumers', () => {
     expect(
       h.sqlite
         .query<{ id: string }, [string]>(
-          'SELECT id FROM work_item WHERE project_id = ? ORDER BY position',
+          'SELECT id FROM work_item WHERE work_package_id = ? ORDER BY position',
         )
         .all(lower)
         .map((row) => row.id),
     ).toEqual(['other-work', 'lower-work']);
     for (const workId of ['second-work', 'third-work']) {
-      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 100, ?)', [
-        workId,
-        lower,
-        workId,
-      ]);
+      h.sqlite.run(
+        'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 100, ?)',
+        [workId, lower, workId],
+      );
       h.sqlite.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 30000000, 30000000, 30000000)',
         [workId, lowerStep],
@@ -770,7 +778,7 @@ describe('shared transactional consumers', () => {
       );
     }
     const before = h.sqlite.query('SELECT * FROM estimate ORDER BY work_item_id, step_id').all();
-    const refused = await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
+    const refused = await h.call('ada', 'POST', `/api/work-packages/${lower}/commands`, {
       commands: [
         {
           kind: 'setEstimate',
@@ -856,22 +864,21 @@ async function seedSharedPlans(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Local Ana')",
   );
   h.sqlite.run(
-    'INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, ?, 1, 1, ?)',
+    'INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, ?, 1, 1, ?)',
     [higher, 'org-a', h.userId('ada')],
   );
-  for (const [projectId, stepId, workId, days] of [
+  for (const [workPackageId, stepId, workId, days] of [
     [higher, higherStep, 'higher-work', 3],
     [lower, lowerStep, 'lower-work', 1],
   ] as const) {
     h.sqlite.run(
-      "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-      [projectId],
+      "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+      [workPackageId],
     );
-    h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-      workId,
-      projectId,
-      workId,
-    ]);
+    h.sqlite.run(
+      'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+      [workId, workPackageId, workId],
+    );
     h.sqlite.run(
       'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, ?, ?, ?)',
       [workId, stepId, days, days, days],
@@ -884,15 +891,15 @@ async function seedSharedPlans(
   return { higher, lower, higherStep, lowerStep };
 }
 
-function seedFailedRetry(projectId: string, inputHash: string, solverVersion = '0.4.0'): void {
+function seedFailedRetry(workPackageId: string, inputHash: string, solverVersion = '0.4.0'): void {
   const contractVersion = `18+${solverVersion}`;
   h.sqlite.run(
-    'INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES (?, ?, 1, ?, 1)',
-    [projectId, contractVersion, inputHash],
+    'INSERT INTO optimization_generation (work_package_id, contract_version, generation, input_hash, updated_at) VALUES (?, ?, 1, ?, 1)',
+    [workPackageId, contractVersion, inputHash],
   );
   h.sqlite.run(
-    "INSERT INTO optimized_schedule_cache (project_id, input_hash, objective, contract_version, budget_ms, generation, status, failure_reason, created_at) VALUES (?, ?, 'pri', ?, 60000, 1, 'failed', 'timeout', 2)",
-    [projectId, inputHash, contractVersion],
+    "INSERT INTO optimized_schedule_cache (work_package_id, input_hash, objective, contract_version, budget_ms, generation, status, failure_reason, created_at) VALUES (?, ?, 'pri', ?, 60000, 1, 'failed', 'timeout', 2)",
+    [workPackageId, inputHash, contractVersion],
   );
 }
 
@@ -900,21 +907,21 @@ describe('shared detached evidence', () => {
   it('keeps live metadata and local names on the scheduling observation', async () => {
     const { higher, lower, lowerStep } = await seedSharedPlans();
     h.sqlite.run('INSERT INTO event_sequencer (subscription, next_seq) VALUES (?, 12)', [
-      `project:${lower}`,
+      `work-package:${lower}`,
     ]);
     const beforeRevision = h.sqlite
-      .query<{ revision: number }, [string]>('SELECT revision FROM project WHERE id = ?')
+      .query<{ revision: number }, [string]>('SELECT revision FROM work_package WHERE id = ?')
       .get(lower)?.revision;
     // eslint-disable-next-line @typescript-eslint/unbound-method -- injected seam calls this method with its actual repository receiver.
-    const original = WorkItemRepository.prototype.listByProject;
+    const original = WorkItemRepository.prototype.listByWorkPackage;
     let edited = false;
-    const concurrent = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: WorkItemRepository, projectId) {
-        const rows = await original.call(this, projectId);
-        if (projectId === higher && !edited) {
+    const concurrent = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+      async function (this: WorkItemRepository, workPackageId) {
+        const rows = await original.call(this, workPackageId);
+        if (workPackageId === higher && !edited) {
           edited = true;
           h.sqlite.run(
-            "UPDATE project SET revision = revision + 1, start_date = '2026-10-12' WHERE id = ?",
+            "UPDATE work_package SET revision = revision + 1, start_date = '2026-10-12' WHERE id = ?",
             [lower],
           );
           h.sqlite.run("UPDATE estimate SET realistic = 9 WHERE work_item_id = 'higher-work'");
@@ -922,7 +929,7 @@ describe('shared detached evidence', () => {
             "UPDATE person_organization SET name = 'Changed Ana' WHERE resource_id = 'ana'",
           );
           h.sqlite.run('UPDATE event_sequencer SET next_seq = 20 WHERE subscription = ?', [
-            `project:${lower}`,
+            `work-package:${lower}`,
           ]);
           h.sqlite.run(
             "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('lower-work', ?, 2, 1)",
@@ -933,11 +940,11 @@ describe('shared detached evidence', () => {
       },
     );
     try {
-      const captured = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      const captured = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
       expect(captured.status).toBe(200);
       expect(captured.body).toMatchObject({
         seq: 11,
-        projectRevision: beforeRevision,
+        workPackageRevision: beforeRevision,
         startDate: '2026-10-05',
         assignedPeople: [{ id: 'ana', name: 'Local Ana' }],
         workItems: [{ schedule: { earliestStart: 3 }, actuals: {} }],
@@ -945,10 +952,10 @@ describe('shared detached evidence', () => {
     } finally {
       concurrent.mockRestore();
     }
-    const current = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const current = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     expect(current.body).toMatchObject({
       seq: 19,
-      projectRevision: beforeRevision! + 1,
+      workPackageRevision: beforeRevision! + 1,
       startDate: '2026-10-12',
       assignedPeople: [{ id: 'ana', name: 'Changed Ana' }],
     });
@@ -957,7 +964,7 @@ describe('shared detached evidence', () => {
   it('keeps isolated live responses without elsewhere and avoids directory materialization', async () => {
     const { lower } = await seedSharedPlans();
     h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
-    const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     expect(answer.status).toBe(200);
     expect(answer.body).not.toHaveProperty('waitingElsewhere');
     expect(answer.body).toMatchObject({
@@ -970,11 +977,10 @@ describe('borrowed command evidence', () => {
   it('shared calendar preflight independently sees staged estimates', async () => {
     const { lower, lowerStep } = await seedSharedPlans();
     for (const workId of ['second-work', 'third-work']) {
-      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 100, ?)', [
-        workId,
-        lower,
-        workId,
-      ]);
+      h.sqlite.run(
+        'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 100, ?)',
+        [workId, lower, workId],
+      );
       h.sqlite.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 30000000, 30000000, 30000000)',
         [workId, lowerStep],
@@ -985,7 +991,7 @@ describe('borrowed command evidence', () => {
       );
     }
     const before = h.sqlite.query('SELECT * FROM estimate ORDER BY work_item_id, step_id').all();
-    const refused = await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
+    const refused = await h.call('ada', 'POST', `/api/work-packages/${lower}/commands`, {
       commands: [
         {
           kind: 'setEstimate',
@@ -1007,7 +1013,7 @@ describe('borrowed command evidence', () => {
   it('shared arrangement sees staged work-item dates', async () => {
     const { lower, lowerStep } = await seedSharedPlans();
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, position, name) VALUES ('other-work', ?, 20, 'other-work')",
+      "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('other-work', ?, 20, 'other-work')",
       [lower],
     );
     h.sqlite.run(
@@ -1018,7 +1024,7 @@ describe('borrowed command evidence', () => {
       "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('other-work', ?, 'ana')",
       [lowerStep],
     );
-    const arranged = await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
+    const arranged = await h.call('ada', 'POST', `/api/work-packages/${lower}/commands`, {
       commands: [
         {
           kind: 'patchWorkItem',
@@ -1032,7 +1038,7 @@ describe('borrowed command evidence', () => {
     expect(
       h.sqlite
         .query<{ id: string }, [string]>(
-          'SELECT id FROM work_item WHERE project_id = ? ORDER BY position',
+          'SELECT id FROM work_item WHERE work_package_id = ? ORDER BY position',
         )
         .all(lower)
         .map((row) => row.id),
@@ -1044,7 +1050,7 @@ describe('shared displayed cache evidence', () => {
   it('refuses Retry for a required unavailable engine with its readable influencer identity', async () => {
     const { higher, lower } = await seedSharedPlans();
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [higher],
     );
     const before = [
@@ -1054,13 +1060,17 @@ describe('shared displayed cache evidence', () => {
       'solver_queue',
       'event_log',
     ].map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
-    const refused = await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+    const refused = await h.call('ada', 'POST', `/api/work-packages/${lower}/optimization/retry`, {
       objective: 'pri',
       inputHash: 'old',
     });
     expect(refused).toEqual({
       status: 409,
-      body: { code: 'schedule-input-unavailable', reason: 'engine_unavailable', projectId: higher },
+      body: {
+        code: 'schedule-input-unavailable',
+        reason: 'engine_unavailable',
+        workPackageId: higher,
+      },
     });
     expect(
       [
@@ -1086,10 +1096,10 @@ describe('shared displayed cache evidence', () => {
         },
         '0.4.0',
       );
-      h.sqlite.run('UPDATE project SET optimization_enabled = 1 WHERE id = ?', [lower]);
+      h.sqlite.run('UPDATE work_package SET optimization_enabled = 1 WHERE id = ?', [lower]);
       if (reason === 'cycle')
         h.sqlite.run(
-          "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('retry-cycle', ?, 'lower-work', 'lower-work')",
+          "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('retry-cycle', ?, 'lower-work', 'lower-work')",
           [lower],
         );
       else
@@ -1106,13 +1116,13 @@ describe('shared displayed cache evidence', () => {
       ];
       const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
       expect(
-        await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+        await h.call('ada', 'POST', `/api/work-packages/${lower}/optimization/retry`, {
           objective: 'pri',
           inputHash: 'old',
         }),
       ).toEqual({
         status: 409,
-        body: { code: 'schedule-input-unavailable', reason, projectId: lower },
+        body: { code: 'schedule-input-unavailable', reason, workPackageId: lower },
       });
       expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
       expect(launched).toEqual([]);
@@ -1125,7 +1135,7 @@ describe('shared displayed cache evidence', () => {
       const { higher, lower, higherStep } = await seedSharedPlans(true);
       if (reason === 'cycle')
         h.sqlite.run(
-          "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('upstream-cycle', ?, 'higher-work', 'higher-work')",
+          "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('upstream-cycle', ?, 'higher-work', 'higher-work')",
           [higher],
         );
       else
@@ -1133,11 +1143,11 @@ describe('shared displayed cache evidence', () => {
           'UPDATE estimate SET optimistic = 80000000, realistic = 80000000, pessimistic = 80000000 WHERE work_item_id = ? AND step_id = ?',
           ['higher-work', higherStep],
         );
-      const tree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      const tree = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
       expect(tree.status).toBe(200);
       const currentHash = (tree.body as { optimization: { inputHash: string } }).optimization
         .inputHash;
-      const retry = await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+      const retry = await h.call('ada', 'POST', `/api/work-packages/${lower}/optimization/retry`, {
         objective: 'pri',
         inputHash: 'old',
       });
@@ -1151,17 +1161,17 @@ describe('shared displayed cache evidence', () => {
   it('rechecks human authority in the Retry capture after route write admission', async () => {
     const { lower } = await seedSharedPlans(true);
     // eslint-disable-next-line @typescript-eslint/unbound-method -- spy preserves the repository receiver.
-    const original = ProjectService.prototype.authorizeRetry;
-    const admitted = spyOn(ProjectService.prototype, 'authorizeRetry').mockImplementation(
-      async function (this: ProjectService, projectId, actorId, access) {
-        const decision = await original.call(this, projectId, actorId, access);
+    const original = WorkPackageService.prototype.authorizeRetry;
+    const admitted = spyOn(WorkPackageService.prototype, 'authorizeRetry').mockImplementation(
+      async function (this: WorkPackageService, workPackageId, actorId, access) {
+        const decision = await original.call(this, workPackageId, actorId, access);
         h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
         return decision;
       },
     );
     try {
       expect(
-        await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+        await h.call('ada', 'POST', `/api/work-packages/${lower}/optimization/retry`, {
           objective: 'pri',
           inputHash: 'old',
         }),
@@ -1186,16 +1196,16 @@ describe('shared displayed cache evidence', () => {
       '0.4.0',
       reads.open,
     );
-    const tree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const tree = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     const inputHash = (tree.body as { optimization: { inputHash: string } }).optimization.inputHash;
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
     seedFailedRetry(lower, inputHash);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+        await h.call('ada', 'POST', `/api/work-packages/${lower}/optimization/retry`, {
           objective: 'pri',
           inputHash,
         })
@@ -1216,31 +1226,31 @@ describe('shared displayed cache evidence', () => {
       },
       '0.4.0',
     );
-    const oldTree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const oldTree = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     const oldHash = (oldTree.body as { optimization: { inputHash: string } }).optimization
       .inputHash;
     const localRevision = h.sqlite
-      .query<{ revision: number }, [string]>('SELECT revision FROM project WHERE id = ?')
+      .query<{ revision: number }, [string]>('SELECT revision FROM work_package WHERE id = ?')
       .get(lower)?.revision;
     h.sqlite.run(
       'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ? AND step_id = ?',
       ['higher-work', higherStep],
     );
-    const currentTree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const currentTree = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     const currentHash = (currentTree.body as { optimization: { inputHash: string } }).optimization
       .inputHash;
     expect(currentHash).not.toBe(oldHash);
     expect(
       h.sqlite
-        .query<{ revision: number }, [string]>('SELECT revision FROM project WHERE id = ?')
+        .query<{ revision: number }, [string]>('SELECT revision FROM work_package WHERE id = ?')
         .get(lower)?.revision,
     ).toBe(localRevision);
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
     seedFailedRetry(lower, currentHash);
-    const path = `/api/projects/${lower}/optimization/retry`;
+    const path = `/api/work-packages/${lower}/optimization/retry`;
     const stale = await h.call('ada', 'POST', path, { objective: 'pri', inputHash: oldHash });
     expect(stale).toEqual({
       status: 409,
@@ -1256,12 +1266,12 @@ describe('shared displayed cache evidence', () => {
     expect(launched).toHaveLength(1);
     if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
     expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
-      { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+      { start: 0, end: 4, workPackageId: higher, workItemId: 'higher-work' },
     ]);
     expect(launched[0]?.request.elsewhere).toEqual({ ana: [[0, 192]] });
     expect(launched[0]?.key.inputHash).toBe(scheduleInputHash(launched[0].input));
-    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
-      { project_id: lower },
+    expect(h.sqlite.query('SELECT work_package_id FROM solver_slot').all()).toEqual([
+      { work_package_id: lower },
     ]);
   });
 
@@ -1276,10 +1286,10 @@ describe('shared displayed cache evidence', () => {
       },
       '0.4.0',
     );
-    const before = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const before = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
     const oldHash = (before.body as { optimization: { inputHash: string } }).optimization.inputHash;
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
     const connection = openConnection(h.databasePath());
@@ -1287,7 +1297,7 @@ describe('shared displayed cache evidence', () => {
       const generation = allocateGeneration(connection.db, lower, '18+0.4.0', oldHash, 1);
       expect(
         enqueueSolverRequest(connection.db, {
-          projectId: lower,
+          workPackageId: lower,
           contractVersion: '18+0.4.0',
           generation,
           objective: 'pri',
@@ -1310,13 +1320,13 @@ describe('shared displayed cache evidence', () => {
     if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
     expect(launched[0]?.key.inputHash).not.toBe(oldHash);
     expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
-      { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+      { start: 0, end: 4, workPackageId: higher, workItemId: 'higher-work' },
     ]);
     for (const request of launched) expect(request.request.elsewhere).toEqual({ ana: [[0, 192]] });
-    expect(h.sqlite.query('SELECT project_id FROM solver_queue').all()).toEqual([]);
-    expect(h.sqlite.query('SELECT project_id, generation FROM solver_slot').all()).toEqual([
-      { project_id: lower, generation: 2 },
-      { project_id: lower, generation: 2 },
+    expect(h.sqlite.query('SELECT work_package_id FROM solver_queue').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT work_package_id, generation FROM solver_slot').all()).toEqual([
+      { work_package_id: lower, generation: 2 },
+      { work_package_id: lower, generation: 2 },
     ]);
   });
 
@@ -1334,19 +1344,19 @@ describe('shared displayed cache evidence', () => {
       reads.open,
     );
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
 
-    const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
 
     expect(answer.status).toBe(200);
     expect(answer.body).toMatchObject({ optimization: { variants: { pri: { state: 'idle' } } } });
     expect(admittedOpenReads).toEqual([0, 0]);
     expect(reads.openSnapshots()).toBe(0);
-    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
-      { project_id: lower },
-      { project_id: lower },
+    expect(h.sqlite.query('SELECT work_package_id FROM solver_slot').all()).toEqual([
+      { work_package_id: lower },
+      { work_package_id: lower },
     ]);
   });
 
@@ -1362,15 +1372,15 @@ describe('shared displayed cache evidence', () => {
       '0.4.0',
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method -- injected seam calls the repository receiver.
-    const original = WorkItemRepository.prototype.listByProject;
+    const original = WorkItemRepository.prototype.listByWorkPackage;
     let changed = false;
-    const concurrent = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: WorkItemRepository, projectId) {
-        const rows = await original.call(this, projectId);
-        if (projectId === higher && !changed) {
+    const concurrent = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+      async function (this: WorkItemRepository, workPackageId) {
+        const rows = await original.call(this, workPackageId);
+        if (workPackageId === higher && !changed) {
           changed = true;
           h.sqlite.run(
-            "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+            "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
             [lower],
           );
           h.sqlite.run(
@@ -1386,14 +1396,16 @@ describe('shared displayed cache evidence', () => {
       await Bun.sleep(300);
       expect(changed).toBe(true);
       expect(launched).toEqual([]);
-      expect(h.sqlite.query('SELECT project_id FROM optimization_generation').all()).toEqual([]);
+      expect(h.sqlite.query('SELECT work_package_id FROM optimization_generation').all()).toEqual(
+        [],
+      );
 
       h.triggerOptimization(lower);
       await Bun.sleep(300);
       expect(launched).toHaveLength(2);
       if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
       expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
-        { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+        { start: 0, end: 4, workPackageId: higher, workItemId: 'higher-work' },
       ]);
     } finally {
       concurrent.mockRestore();
@@ -1412,16 +1424,16 @@ describe('shared displayed cache evidence', () => {
       '0.4.0',
     );
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
 
     expect(
-      (await h.call('ada', 'GET', `/api/projects/${lower}/export?format=markdown`)).status,
+      (await h.call('ada', 'GET', `/api/work-packages/${lower}/export?format=markdown`)).status,
     ).toBe(200);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${lower}/commands`, {
           commands: [{ kind: 'arrangeBySchedule' }],
         })
       ).status,
@@ -1443,7 +1455,7 @@ describe('shared displayed cache evidence', () => {
       );
       if (!shared) h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
       h.sqlite.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 20, 'other')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 20, 'other')",
         ['lower-other', lower],
       );
       h.sqlite.run(
@@ -1494,7 +1506,7 @@ describe('shared displayed cache evidence', () => {
         planned.workItems.get('lower-work')?.earliestStart ?? -1,
       );
       h.sqlite.run(
-        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
         [lower],
       );
       const connection = openConnection(h.databasePath());
@@ -1505,7 +1517,7 @@ describe('shared displayed cache evidence', () => {
           connection.db
             .insert(optimizedScheduleCache)
             .values({
-              projectId: lower,
+              workPackageId: lower,
               inputHash,
               generation,
               contractVersion: '18+0.4.0',
@@ -1545,7 +1557,7 @@ describe('shared displayed cache evidence', () => {
       // eslint-disable-next-line @typescript-eslint/unbound-method -- spy preserves the resource receiver.
       const announceNow = WorkItemService.prototype.announceTreeNow;
       const publication = spyOn(WorkItemService.prototype, 'announceTreeNow').mockImplementation(
-        async function (this: WorkItemService, projectId) {
+        async function (this: WorkItemService, workPackageId) {
           borrowed = false;
           beforePublic = [
             'optimization_generation',
@@ -1553,7 +1565,7 @@ describe('shared displayed cache evidence', () => {
             'solver_slot',
             'solver_queue',
           ].map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
-          await announceNow.call(this, projectId);
+          await announceNow.call(this, workPackageId);
         },
       );
       const live = spyOn(optimizer, 'readPlan').mockImplementation((ask) => {
@@ -1564,14 +1576,14 @@ describe('shared displayed cache evidence', () => {
         () => undefined,
       );
       try {
-        const response = await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
-          commands: [{ kind: 'arrangeBySchedule' }, { kind: 'freezeProject' }],
+        const response = await h.call('ada', 'POST', `/api/work-packages/${lower}/commands`, {
+          commands: [{ kind: 'arrangeBySchedule' }, { kind: 'freezeWorkPackage' }],
         });
         expect(response.status).toBe(200);
         expect(
           h.sqlite
             .query<{ id: string; position: number; frozen_number: string }, [string]>(
-              'SELECT id, position, frozen_number FROM work_item WHERE project_id = ? ORDER BY position',
+              'SELECT id, position, frozen_number FROM work_item WHERE work_package_id = ? ORDER BY position',
             )
             .all(lower),
         ).toEqual([
@@ -1599,7 +1611,7 @@ describe('shared displayed cache evidence', () => {
       '0.4.0',
     );
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
     h.sqlite.run(
@@ -1614,14 +1626,14 @@ describe('shared displayed cache evidence', () => {
     for (const request of launched) {
       if (request.kind === 'connected') throw new Error('expected local fixture request');
       expect(request.input.elsewhere?.get('ana')).toEqual([
-        { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+        { start: 0, end: 4, workPackageId: higher, workItemId: 'higher-work' },
       ]);
       expect(request.request.elsewhere).toEqual({ ana: [[0, 192]] });
       expect(request.key.inputHash).toBe(scheduleInputHash(request.input));
     }
-    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
-      { project_id: lower },
-      { project_id: lower },
+    expect(h.sqlite.query('SELECT work_package_id FROM solver_slot').all()).toEqual([
+      { work_package_id: lower },
+      { work_package_id: lower },
     ]);
   });
 
@@ -1637,11 +1649,11 @@ describe('shared displayed cache evidence', () => {
       '0.4.0',
     );
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [lower],
     );
 
-    const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
 
     expect(answer.status).toBe(200);
     expect(answer.body).toMatchObject({
@@ -1651,23 +1663,23 @@ describe('shared displayed cache evidence', () => {
     expect(launched).toHaveLength(2);
     for (const request of launched) {
       if (request.kind === 'connected') throw new Error('expected local fixture request');
-      expect(request.key.projectId).toBe(lower);
+      expect(request.key.workPackageId).toBe(lower);
       expect(request.input.elsewhere?.get('ana')).toEqual([
-        { start: 0, end: 3, projectId: higher, workItemId: 'higher-work' },
+        { start: 0, end: 3, workPackageId: higher, workItemId: 'higher-work' },
       ]);
       expect(request.request.elsewhere).toEqual({ ana: [[0, 144]] });
       expect(request.key.inputHash).toBe(scheduleInputHash(request.input));
     }
-    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
-      { project_id: lower },
-      { project_id: lower },
+    expect(h.sqlite.query('SELECT work_package_id FROM solver_slot').all()).toEqual([
+      { work_package_id: lower },
+      { work_package_id: lower },
     ]);
   });
 
   it('keeps publication after snapshot outside its captured display without live admission', async () => {
     const { higher, lower } = await seedSharedPlans(true);
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [higher],
     );
     // The ready booking starts at 1; the target floor excludes the valid [0, 1) gap.
@@ -1690,12 +1702,12 @@ describe('shared displayed cache evidence', () => {
       input.typed,
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method -- injected seam calls this method with its actual repository receiver.
-    const original = WorkItemRepository.prototype.listByProject;
+    const original = WorkItemRepository.prototype.listByWorkPackage;
     let published = false;
-    const concurrent = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: WorkItemRepository, projectId) {
-        const rows = await original.call(this, projectId);
-        if (projectId === higher && !published) {
+    const concurrent = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+      async function (this: WorkItemRepository, workPackageId) {
+        const rows = await original.call(this, workPackageId);
+        if (workPackageId === higher && !published) {
           published = true;
           const connection = openConnection(h.databasePath());
           try {
@@ -1704,7 +1716,7 @@ describe('shared displayed cache evidence', () => {
             connection.db
               .insert(optimizedScheduleCache)
               .values({
-                projectId: higher,
+                workPackageId: higher,
                 inputHash,
                 generation,
                 contractVersion: '18+0.1.0',
@@ -1739,18 +1751,18 @@ describe('shared displayed cache evidence', () => {
       },
     );
     try {
-      const first = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      const first = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
       expect(first.status).toBe(200);
       expect(first.body).toMatchObject({ workItems: [{ schedule: { earliestStart: 3 } }] });
       concurrent.mockRestore();
-      const next = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      const next = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
       expect(next.status).toBe(200);
       expect(next.body).toMatchObject({ workItems: [{ schedule: { earliestStart: 4 } }] });
       expect(admission).not.toHaveBeenCalled();
       for (const table of ['solver_slot', 'solver_queue', 'event_log'])
         expect(h.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
-      expect(h.sqlite.query('SELECT project_id FROM optimization_generation').all()).toEqual([
-        { project_id: higher },
+      expect(h.sqlite.query('SELECT work_package_id FROM optimization_generation').all()).toEqual([
+        { work_package_id: higher },
       ]);
     } finally {
       concurrent.mockRestore();
@@ -1769,11 +1781,11 @@ describe('shared snapshot authority', () => {
       h.sqlite.run("UPDATE estimate SET realistic = 9 WHERE work_item_id = 'higher-work'");
     });
     for (const path of [
-      `/api/projects/${lower}/work-items`,
-      `/api/projects/${lower}/export?format=markdown`,
+      `/api/work-packages/${lower}/work-items`,
+      `/api/work-packages/${lower}/export?format=markdown`,
       '/api/people/ana/load?from=2026-10-05&to=2026-10-09',
       '/api/people/load?from=2026-10-05&to=2026-10-09',
-      `/api/spaces/all/roll-ups?projectIds=${lower}`,
+      `/api/spaces/all/roll-ups?workPackageIds=${lower}`,
       '/api/spaces/all/in-progress',
     ]) {
       revoke = true;
@@ -1788,12 +1800,12 @@ describe('shared snapshot authorization observation', () => {
   it('retains authorization when membership is revoked after the snapshot authority read', async () => {
     const { higher, lower } = await seedSharedPlans();
     // eslint-disable-next-line @typescript-eslint/unbound-method -- injected seam calls this method with its actual repository receiver.
-    const original = WorkItemRepository.prototype.listByProject;
+    const original = WorkItemRepository.prototype.listByWorkPackage;
     let revoked = false;
-    const capture = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: WorkItemRepository, projectId) {
-        const rows = await original.call(this, projectId);
-        if (!revoked && projectId === higher) {
+    const capture = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+      async function (this: WorkItemRepository, workPackageId) {
+        const rows = await original.call(this, workPackageId);
+        if (!revoked && workPackageId === higher) {
           revoked = true;
           h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
           h.sqlite.run("UPDATE estimate SET realistic = 9 WHERE work_item_id = 'higher-work'");
@@ -1802,13 +1814,15 @@ describe('shared snapshot authorization observation', () => {
       },
     );
     try {
-      const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      const answer = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
       expect(answer.status).toBe(200);
       expect(
         (answer.body as { workItems: { schedule: { earliestStart: number } }[] }).workItems[0]
           .schedule.earliestStart,
       ).toBe(3);
-      expect((await h.call('ada', 'GET', `/api/projects/${lower}/work-items`)).status).toBe(403);
+      expect((await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`)).status).toBe(
+        403,
+      );
     } finally {
       capture.mockRestore();
     }
@@ -1824,19 +1838,47 @@ describe('shared snapshot authorization observation', () => {
       }
     });
     await h.register('ada');
-    const projectId = await create('ada', 'Legacy');
+    const workPackageId = await create('ada', 'Legacy');
     activate = true;
-    expect(await h.call('ada', 'GET', `/api/projects/${projectId}/work-items`)).toEqual({
+    expect(await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/work-items`)).toEqual({
       status: 403,
       body: { error: 'no_active_organization' },
     });
+  });
+
+  it('ignores compatibility membership labels introduced after admission', async () => {
+    let relabel = false;
+    const { lower } = await seedSharedPlans(false, () => {
+      if (!relabel) return;
+      relabel = false;
+      h.sqlite.run('PRAGMA ignore_check_constraints = ON');
+      h.sqlite.run("UPDATE organization_membership SET role = 'owner' WHERE user_id = ?", [
+        h.userId('ada'),
+      ]);
+      h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    });
+    relabel = true;
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`);
+    expect(answer.status).toBe(200);
+    expect(
+      (answer.body as { workItems: { schedule: { earliestStart: number } }[] }).workItems[0]
+        .schedule.earliestStart,
+    ).toBe(3);
+    expect(relabel).toBe(false);
+    expect(
+      h.sqlite
+        .query<{ role: string }, [string]>(
+          'SELECT role FROM organization_membership WHERE user_id = ?',
+        )
+        .get(h.userId('ada')),
+    ).toEqual({ role: 'owner' });
   });
 
   it.each([
     'missing marker',
     'unreadable marker',
     'malformed marker',
-    'malformed membership',
+    'unreadable membership identity',
     'reset marker',
   ])('fails closed for %s introduced after admission', async (fault) => {
     let corrupt = false;
@@ -1858,15 +1900,13 @@ describe('shared snapshot authorization observation', () => {
           "UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL",
         );
       } else {
-        h.sqlite.run('PRAGMA ignore_check_constraints = ON');
-        h.sqlite.run("UPDATE organization_membership SET role = 'owner' WHERE user_id = ?", [
-          h.userId('ada'),
-        ]);
-        h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+        h.sqlite.run(
+          'ALTER TABLE organization_membership RENAME COLUMN user_id TO unreadable_user_id',
+        );
       }
     });
     corrupt = true;
-    expect((await h.call('ada', 'GET', `/api/projects/${lower}/work-items`)).status).toBe(
+    expect((await h.call('ada', 'GET', `/api/work-packages/${lower}/work-items`)).status).toBe(
       fault === 'reset marker' ? 403 : 500,
     );
   });
@@ -1874,55 +1914,62 @@ describe('shared snapshot authorization observation', () => {
 
 describe('shared export observation', () => {
   it.each(['json', 'markdown'])(
-    'keeps structured export project directory and markers on the captured observation (%s)',
+    'keeps structured export work package directory and markers on the captured observation (%s)',
     async (format) => {
       let admitted = false;
       const { higher, lower } = await seedSharedPlans(false, () => {
         if (!admitted) return;
         admitted = false;
-        h.sqlite.run("UPDATE project SET name = 'Captured project', revision = 7 WHERE id = ?", [
-          targetId,
-        ]);
+        h.sqlite.run(
+          "UPDATE work_package SET name = 'Captured work_package', revision = 7 WHERE id = ?",
+          [targetId],
+        );
       });
       const targetId = lower;
       h.sqlite.run(
-        "INSERT INTO calendar_marker (id, project_id, date, name, color, created_at) VALUES ('export-marker', ?, '2026-10-05', 'Captured marker', NULL, 1)",
+        "INSERT INTO calendar_marker (id, work_package_id, date, name, color, created_at) VALUES ('export-marker', ?, '2026-10-05', 'Captured marker', NULL, 1)",
         [lower],
       );
       // eslint-disable-next-line @typescript-eslint/unbound-method -- seam invokes original with the actual repository receiver.
-      const listWorkItems = WorkItemRepository.prototype.listByProject;
+      const listWorkItems = WorkItemRepository.prototype.listByWorkPackage;
       let edited = false;
-      const afterSnapshot = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-        async function (this: WorkItemRepository, projectId) {
-          const rows = await listWorkItems.call(this, projectId);
-          if (!edited && projectId === higher) {
-            edited = true;
-            h.sqlite.run("UPDATE project SET name = 'Later project', revision = 8 WHERE id = ?", [
-              lower,
-            ]);
-            h.sqlite.run(
-              "UPDATE person_organization SET name = 'Later Ana' WHERE resource_id = 'ana'",
-            );
-            h.sqlite.run(
-              "UPDATE calendar_marker SET name = 'Later marker' WHERE id = 'export-marker'",
-            );
-          }
-          return rows;
-        },
-      );
+      const afterSnapshot = spyOn(
+        WorkItemRepository.prototype,
+        'listByWorkPackage',
+      ).mockImplementation(async function (this: WorkItemRepository, workPackageId) {
+        const rows = await listWorkItems.call(this, workPackageId);
+        if (!edited && workPackageId === higher) {
+          edited = true;
+          h.sqlite.run(
+            "UPDATE work_package SET name = 'Later work_package', revision = 8 WHERE id = ?",
+            [lower],
+          );
+          h.sqlite.run(
+            "UPDATE person_organization SET name = 'Later Ana' WHERE resource_id = 'ana'",
+          );
+          h.sqlite.run(
+            "UPDATE calendar_marker SET name = 'Later marker' WHERE id = 'export-marker'",
+          );
+        }
+        return rows;
+      });
       try {
         admitted = true;
-        const answer = await h.call('ada', 'GET', `/api/projects/${lower}/export?format=${format}`);
+        const answer = await h.call(
+          'ada',
+          'GET',
+          `/api/work-packages/${lower}/export?format=${format}`,
+        );
         expect(answer.status).toBe(200);
         if (format === 'markdown') {
-          expect(answer.body).toContain('Captured project');
-          expect(answer.body).not.toContain('Later project');
+          expect(answer.body).toContain('Captured work package');
+          expect(answer.body).not.toContain('Later work package');
           return;
         }
         expect(answer.body).toMatchObject({
-          project: { name: 'Captured project', revision: 7 },
-          settings: { name: 'Captured project' },
-          projectRevision: 7,
+          workPackage: { name: 'Captured work package', revision: 7 },
+          settings: { name: 'Captured work package' },
+          workPackageRevision: 7,
           assignedPeople: [{ name: 'Local Ana' }],
           directory: { people: [{ name: 'Local Ana' }] },
           calendarMarkers: [{ name: 'Captured marker' }],
@@ -1945,12 +1992,12 @@ for (const initiallyPresent of [true, false]) {
       );
     if (initiallyPresent) insert();
     // eslint-disable-next-line @typescript-eslint/unbound-method -- invokes the repository method with its original receiver.
-    const list = WorkItemRepository.prototype.listByProject;
+    const list = WorkItemRepository.prototype.listByWorkPackage;
     let changed = false;
-    const concurrent = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: WorkItemRepository, projectId) {
-        const rows = await list.call(this, projectId);
-        if (!changed && projectId === higher) {
+    const concurrent = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+      async function (this: WorkItemRepository, workPackageId) {
+        const rows = await list.call(this, workPackageId);
+        if (!changed && workPackageId === higher) {
           changed = true;
           if (initiallyPresent)
             h.sqlite.run('DELETE FROM step_parallel WHERE work_item_id = ?', ['lower-work']);
@@ -1960,7 +2007,7 @@ for (const initiallyPresent of [true, false]) {
       },
     );
     try {
-      const answer = await h.call('ada', 'GET', `/api/projects/${lower}/export?format=json`);
+      const answer = await h.call('ada', 'GET', `/api/work-packages/${lower}/export?format=json`);
       expect(changed).toBe(true);
       expect(answer.status).toBe(initiallyPresent ? 409 : 200);
       if (initiallyPresent) expect(answer.body).toEqual({ error: 'unsupported_step_parallelism' });

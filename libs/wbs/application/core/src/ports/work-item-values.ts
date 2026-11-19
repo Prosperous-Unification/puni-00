@@ -2,7 +2,7 @@ import type { Hold, IsoDate, Readiness } from '@wbs/domain';
 
 export interface WorkItem {
   id: string;
-  projectId: string;
+  workPackageId: string;
   parentId: string | null;
   position: number;
   name: string;

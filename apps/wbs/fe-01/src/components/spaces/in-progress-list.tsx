@@ -51,15 +51,15 @@ export async function readInProgress(
  * "In progress now" across a space: the leaves whose status reads in
  * progress, soonest end first. The space page reads it with its rows, so a
  * poll, a focus and every write refresh both together. Says when the list
- * was cut, and which projects' schedules could not be read.
+ * was cut, and which work packages' schedules could not be read.
  */
 export function InProgressList({
   state,
-  projectNames,
+  workPackageNames,
 }: {
   state: InProgressState;
-  /** Names for the projects `unavailable` lists, from the rows already read. */
-  projectNames: ReadonlyMap<string, string>;
+  /** Names for the work packages `unavailable` lists, from the rows already read. */
+  workPackageNames: ReadonlyMap<string, string>;
 }): React.JSX.Element {
   return (
     <section aria-labelledby="in-progress-heading">
@@ -81,10 +81,10 @@ export function InProgressList({
             <ul aria-label="Work in progress" className={`${LIST_CLASS} -my-2 text-sm`}>
               {state.answer.items.map((leaf) => (
                 <li
-                  key={`${leaf.projectId}/${leaf.workItemId}`}
+                  key={`${leaf.workPackageId}/${leaf.workItemId}`}
                   className="py-2 [overflow-wrap:anywhere]"
                 >
-                  <span className="text-muted-foreground">{leaf.projectName}</span>{' '}
+                  <span className="text-muted-foreground">{leaf.workPackageName}</span>{' '}
                   <span className="tabular-nums">{leaf.number}</span>{' '}
                   <span className="font-medium">{leaf.name}</span>
                   {leaf.step !== null && <span> · {leaf.step.name}</span>}
@@ -108,7 +108,9 @@ export function InProgressList({
           {state.kind === 'ready' && state.answer.unavailable.length > 0 && (
             <p className={NOTE_CLASS}>
               Schedule unavailable for{' '}
-              {state.answer.unavailable.map((id) => projectNames.get(id) ?? 'a project').join(', ')}
+              {state.answer.unavailable
+                .map((id) => workPackageNames.get(id) ?? 'a work package')
+                .join(', ')}
               .
             </p>
           )}

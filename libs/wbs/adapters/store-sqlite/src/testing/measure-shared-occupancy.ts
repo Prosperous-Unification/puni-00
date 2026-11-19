@@ -1,9 +1,10 @@
+import { seedPackageParent, seedOrganizationPackage } from './legacy-package-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { PlanCommand, Scope } from '@wbs/core';
-import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
+import { clockOf, LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -20,7 +21,7 @@ import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability
 /**
  * `wbs-shared-occupancy` task 3.5: a claim batch's p99 latency with a
  * directory capacity stated against the same batch without one, on a fixture
- * of 50 projects of one organization holding 20 standing claims each of the
+ * of 50 work packages of one organization holding 20 standing claims each of the
  * resource, every claim by an agent of its own, 200 runs each under scoped access, alternated so drift lands on both sides. Prints one
  * JSON line; the bounds (at most 5 ms and 25 % added at p99) are judged in
  * verify.md, not here: a measurement on a shared laptop is not a gate.
@@ -31,7 +32,7 @@ const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.me
 const F = 'account-f';
 const ORG = 'org-measure';
 const RAM = 'resource-host-ram';
-const PROJECTS = 50;
+const WORK_PACKAGES = 50;
 const STANDING = 20;
 const RUNS = 200;
 
@@ -59,7 +60,7 @@ async function measure(): Promise<void> {
       },
     });
     const options = {
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock,
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
@@ -106,15 +107,16 @@ async function measure(): Promise<void> {
     );
     if (!added.ok) throw new Error('the resource was refused');
     source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES (${ORG}, ${ORG}, 1)`);
+    seedPackageParent(dbPath, ORG, 'fixture-project');
     source.db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${ORG}, ${F}, 'admin', 1)`,
     );
     source.db.run(
       sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${RAM}, ${ORG}, 'host ram')`,
     );
-    const leavesOf = async (projectId: string, count: number): Promise<string[]> => {
+    const leavesOf = async (workPackageId: string, count: number): Promise<string[]> => {
       const created = await runner.run(
-        projectId,
+        workPackageId,
         F,
         Array.from({ length: count }, (_, index): PlanCommand => ({
           kind: 'createWorkItem',
@@ -133,24 +135,31 @@ async function measure(): Promise<void> {
         applied.kind === 'createWorkItem' ? [applied.id] : [],
       );
     };
-    const projects: string[] = [];
-    for (let index = 0; index < PROJECTS; index += 1) {
-      const { project } = expectCreated(await graph.projects.create(`P${String(index)}`, F));
-      projects.push(project.id);
-      source.db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${project.id}, ${ORG})`,
+    const workPackages: string[] = [];
+    for (let index = 0; index < WORK_PACKAGES; index += 1) {
+      const { workPackage } = expectCreated(
+        await seedOrganizationPackage(
+          source.stores.workPackages,
+          options.clock,
+          ORG,
+          'fixture-project',
+          F,
+          `P${String(index)}`,
+        ),
       );
-      for (const [leafIndex, workItemId] of (await leavesOf(project.id, STANDING)).entries()) {
+      workPackages.push(workPackage.id);
+
+      for (const [leafIndex, workItemId] of (await leavesOf(workPackage.id, STANDING)).entries()) {
         const personId = await agentOf(`standing-${String(index)}-${String(leafIndex)}`);
-        const claimed = await runner.run(project.id, F, [
+        const claimed = await runner.run(workPackage.id, F, [
           { kind: 'claimWorkItem', workItemId, personId },
         ]);
         if (!claimed.ok)
           throw new Error(`a standing claim was refused: ${JSON.stringify(claimed)}`);
       }
     }
-    const target = projects.at(0);
-    if (target === undefined) throw new Error('no project to measure in');
+    const target = workPackages.at(0);
+    if (target === undefined) throw new Error('no work package to measure in');
     // A batch takes at most 200 commands: two per leaf, so 50 leaves a batch.
     const fresh: string[] = [];
     while (fresh.length < RUNS * 2) fresh.push(...(await leavesOf(target, 50)));
@@ -200,8 +209,8 @@ async function measure(): Promise<void> {
     const unstated99 = p(timings.unstated, 0.99);
     console.log(
       JSON.stringify({
-        projects: PROJECTS,
-        standingClaimsPerProject: STANDING,
+        workPackages: WORK_PACKAGES,
+        standingClaimsPerWorkPackage: STANDING,
         runsEach: RUNS,
         statedMs: { p50: p(timings.stated, 0.5), p99: stated99 },
         unstatedMs: { p50: p(timings.unstated, 0.5), p99: unstated99 },

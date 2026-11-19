@@ -16,9 +16,9 @@ async function refuses(write: () => Promise<unknown>): Promise<boolean> {
 }
 const link = (id: string, predecessorId: string, successorId: string): StoredTypedDependency => ({
   id,
-  projectId: 'project',
-  predecessor: { projectId: 'project', scope: 'whole', workItemId: predecessorId },
-  successor: { projectId: 'project', scope: 'whole', workItemId: successorId },
+  workPackageId: 'work_package',
+  predecessor: { workPackageId: 'work_package', scope: 'whole', workItemId: predecessorId },
+  successor: { workPackageId: 'work_package', scope: 'whole', workItemId: successorId },
   type: 'FS',
 });
 
@@ -28,7 +28,7 @@ it('refuses duplicate ids and endpoint keys', async () => {
   await store.add(link('one', 'a', 'b'), stamp);
   expect(await refuses(() => store.add(link('one', 'a', 'c'), stamp))).toBe(true);
   expect(await refuses(() => store.add(link('two', 'a', 'b'), stamp))).toBe(true);
-  expect(await store.listByProject('project')).toEqual([link('one', 'a', 'b')]);
+  expect(await store.listByWorkPackage('work_package')).toEqual([link('one', 'a', 'b')]);
 });
 
 /** Proof: without the unknown-id checks, both writes resolved; watched 2026-09-27. */
@@ -36,7 +36,7 @@ it('refuses updates and removals of unknown ids', async () => {
   const store = inMemoryTypedDependencies();
   expect(await refuses(() => store.update(link('missing', 'a', 'b'), stamp))).toBe(true);
   expect(await refuses(() => store.remove('missing', stamp))).toBe(true);
-  expect(await store.listByProject('project')).toEqual([]);
+  expect(await store.listByWorkPackage('work_package')).toEqual([]);
 });
 
 /** Proof: without the incident filter, the returned links and survivor set were wrong; watched 2026-09-27. */
@@ -52,21 +52,21 @@ it('removes and returns links touching the doomed set', async () => {
     link('out', 'a', 'c'),
     link('in', 'd', 'b'),
   ]);
-  expect(await store.listByProject('project')).toEqual([link('keep', 'c', 'd')]);
+  expect(await store.listByWorkPackage('work_package')).toEqual([link('keep', 'c', 'd')]);
 });
 
 it('lists owned and incident links separately and preserves identity across endpoint changes', async () => {
   const local = link('local', 'a', 'b');
   const external = {
     ...link('external', 'c', 'b'),
-    predecessor: { projectId: 'remote', scope: 'whole' as const, workItemId: 'c' },
+    predecessor: { workPackageId: 'remote', scope: 'whole' as const, workItemId: 'c' },
   };
   const store = inMemoryTypedDependencies([local, external]);
-  expect(await store.listByProject('remote')).toEqual([]);
-  expect(await store.listIncident(['remote', 'project', 'remote'])).toEqual([external, local]);
+  expect(await store.listByWorkPackage('remote')).toEqual([]);
+  expect(await store.listIncident(['remote', 'work_package', 'remote'])).toEqual([external, local]);
   expect(await store.listIncident([])).toEqual([]);
   await store.update({ ...external, predecessor: local.predecessor, type: 'SS' }, stamp);
-  expect((await store.listByProject('project')).map((row) => row.id)).toEqual([
+  expect((await store.listByWorkPackage('work_package')).map((row) => row.id)).toEqual([
     'local',
     'external',
   ]);
@@ -76,12 +76,12 @@ it('refuses successor-owner disagreement and owner changes', async () => {
   const row = link('one', 'a', 'b');
   const store = inMemoryTypedDependencies([row]);
   expect(
-    await refuses(() => store.add({ ...link('two', 'c', 'd'), projectId: 'other' }, stamp)),
+    await refuses(() => store.add({ ...link('two', 'c', 'd'), workPackageId: 'other' }, stamp)),
   ).toBe(true);
   expect(
     await refuses(() =>
       store.update(
-        { ...row, projectId: 'other', successor: { ...row.successor, projectId: 'other' } },
+        { ...row, workPackageId: 'other', successor: { ...row.successor, workPackageId: 'other' } },
         stamp,
       ),
     ),
@@ -97,14 +97,14 @@ it('refuses successor-owner disagreement and owner changes', async () => {
       ),
     ),
   ).toBe(true);
-  expect(await store.listByProject('project')).toEqual([row]);
+  expect(await store.listByWorkPackage('work_package')).toEqual([row]);
 });
 
 it('protects a surviving external successor before removing any doomed links', async () => {
   const local = link('local', 'a', 'b');
   const external = {
     ...link('external', 'a', 'c'),
-    predecessor: { projectId: 'remote', scope: 'whole' as const, workItemId: 'a' },
+    predecessor: { workPackageId: 'remote', scope: 'whole' as const, workItemId: 'a' },
   };
   const store = inMemoryTypedDependencies([local, external]);
   expect(await refuses(() => store.removeAllFor(['a'], stamp))).toBe(true);
@@ -140,5 +140,5 @@ it('incident restoration refuses a reused identity without duplicating its row',
   await store.add(original, stamp);
   const receipt = await store.incidents.capture(original.id);
   expect(await refuses(() => store.incidents.restore(receipt, original, stamp))).toBe(true);
-  expect(await store.listByProject('project')).toEqual([original]);
+  expect(await store.listByWorkPackage('work_package')).toEqual([original]);
 });

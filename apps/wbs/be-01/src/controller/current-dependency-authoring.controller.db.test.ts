@@ -7,7 +7,7 @@ import {
   openFixture,
   readTables,
   runSemantic,
-} from './cross-project-dependency-fixture';
+} from './cross-work-package-dependency-fixture';
 
 afterEach(closeFixture);
 
@@ -49,7 +49,7 @@ for (const initial of ['active', 'inactive'] as const) {
       async (service) => {
         authoring.setState(initial === 'active' ? 'inactive' : 'active');
         return service.addTypedDependency(
-          fixture.owner.projectId,
+          fixture.owner.workPackageId,
           fixture.principal.id,
           fixture.input,
         );
@@ -76,7 +76,7 @@ for (const operation of [
   for (const fault of ['inactive', 'unreadable', 'active'] as const) {
     test(`current capability ${fault} admits or refuses ${operation} atomically`, async () => {
       const fixture = await openFixture();
-      const owner = fixture.owner.projectId;
+      const owner = fixture.owner.workPackageId;
       const actor = fixture.principal.id;
       const authoring = mutableAuthoring('active');
       const localInput = {
@@ -87,7 +87,7 @@ for (const operation of [
       // An independent local predecessor avoids a self edge in update-to-local.
       expect(
         (
-          await fixture.request(`/api/projects/${owner}/commands`, {
+          await fixture.request(`/api/work-packages/${owner}/commands`, {
             commands: [{ kind: 'createWorkItem', name: 'Local predecessor' }],
           })
         ).status,
@@ -116,7 +116,7 @@ for (const operation of [
               fixture,
               (service) =>
                 service.undoWithin(
-                  { projectId: owner, userId: actor, personId: null },
+                  { workPackageId: owner, userId: actor, personId: null },
                   fixture.expectedAccess,
                 ),
               undefined,
@@ -146,12 +146,12 @@ for (const operation of [
                 return service.duplicate(fixture.owner.workItemId, actor);
               case 'undo':
                 return service.undoWithin(
-                  { projectId: owner, userId: actor, personId: null },
+                  { workPackageId: owner, userId: actor, personId: null },
                   fixture.expectedAccess,
                 );
               case 'redo':
                 return service.redoWithin(
-                  { projectId: owner, userId: actor, personId: null },
+                  { workPackageId: owner, userId: actor, personId: null },
                   fixture.expectedAccess,
                 );
             }
@@ -182,16 +182,16 @@ test('current capability preserves principal owner and endpoint concealment befo
       const reads = authoring.readCount();
       authoring.breakRead();
       expect(
-        await service.addTypedDependency(fixture.owner.projectId, 'stranger', fixture.input),
+        await service.addTypedDependency(fixture.owner.workPackageId, 'stranger', fixture.input),
       ).toEqual({ ok: false, reason: 'forbidden' });
       expect(
-        await service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+        await service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
           ...fixture.input,
-          successor: { ...fixture.input.successor, projectId: fixture.successor.projectId },
+          successor: { ...fixture.input.successor, workPackageId: fixture.successor.workPackageId },
         }),
       ).toEqual({ ok: false, reason: 'not_found' });
       expect(
-        await service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+        await service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
           ...fixture.input,
           predecessor: { ...fixture.input.predecessor, workItemId: 'missing' },
         }),
@@ -212,7 +212,7 @@ test('a local command does not consume unreadable external authority after const
     fixture,
     async (service) => {
       authoring.breakRead();
-      return service.create(fixture.owner.projectId, fixture.principal.id, {
+      return service.create(fixture.owner.workPackageId, fixture.principal.id, {
         name: 'Local only',
         parentId: null,
         afterId: null,
@@ -233,7 +233,7 @@ for (const fault of ['inactive', 'unreadable'] as const) {
       runSemantic(
         fixture,
         async (service) => {
-          const created = await service.create(fixture.owner.projectId, fixture.principal.id, {
+          const created = await service.create(fixture.owner.workPackageId, fixture.principal.id, {
             name: 'Must roll back',
             parentId: null,
             afterId: null,
@@ -242,7 +242,7 @@ for (const fault of ['inactive', 'unreadable'] as const) {
           if (fault === 'unreadable') authoring.breakRead();
           else authoring.setState(fault);
           return service.addTypedDependency(
-            fixture.owner.projectId,
+            fixture.owner.workPackageId,
             fixture.principal.id,
             fixture.input,
           );
@@ -271,7 +271,7 @@ for (const fault of ['missing', 'unknown'] as const) {
           if (fault === 'missing') Reflect.deleteProperty(authoring.port, 'state');
           else Object.defineProperty(authoring.port, 'state', { value: 'unknown' });
           return service.addTypedDependency(
-            fixture.owner.projectId,
+            fixture.owner.workPackageId,
             fixture.principal.id,
             fixture.input,
           );
@@ -291,9 +291,9 @@ test('derived incident history does not require general external authoring', asy
   const fixture = await openFixture();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (step === null) throw new Error('fixture owner step missing');
   const authoring = mutableAuthoring('active');
   expect(
@@ -301,7 +301,7 @@ test('derived incident history does not require general external authoring', asy
       await runSemantic(
         fixture,
         (service) =>
-          service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+          service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
             ...fixture.input,
             successor: { ...fixture.owner, scope: 'node', stepId: step.id },
           }),
@@ -313,7 +313,7 @@ test('derived incident history does not require general external authoring', asy
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.create(fixture.owner.projectId, fixture.principal.id, {
+        service.create(fixture.owner.workPackageId, fixture.principal.id, {
           parentId: fixture.owner.workItemId,
           afterId: null,
           name: 'Derived child',
@@ -332,7 +332,7 @@ test('derived incident history does not require general external authoring', asy
           direction === 'undo'
             ? await service.undoWithin(
                 {
-                  projectId: fixture.owner.projectId,
+                  workPackageId: fixture.owner.workPackageId,
                   userId: fixture.principal.id,
                   personId: null,
                 },
@@ -340,7 +340,7 @@ test('derived incident history does not require general external authoring', asy
               )
             : await service.redoWithin(
                 {
-                  projectId: fixture.owner.projectId,
+                  workPackageId: fixture.owner.workPackageId,
                   userId: fixture.principal.id,
                   personId: null,
                 },

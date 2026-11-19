@@ -29,39 +29,38 @@ function assignment(workItemId: string, stepId: string, personId: string): Assig
 async function assignmentState(
   directory: DirectoryStore,
   workItemIds: readonly [string, string, string],
-  projectIds: readonly [string, string],
+  workPackageIds: readonly [string, string],
 ) {
-  const [firstItemId, secondItemId, otherProjectItemId] = workItemIds;
-  const [firstProjectId, otherProjectId] = projectIds;
-  const [first, second, otherProject, selected, subset, firstProject, projectB] = await Promise.all(
-    [
+  const [firstItemId, secondItemId, otherWorkPackageItemId] = workItemIds;
+  const [firstWorkPackageId, otherWorkPackageId] = workPackageIds;
+  const [first, second, otherWorkPackage, selected, subset, firstWorkPackage, workPackageB] =
+    await Promise.all([
       directory.assignmentsFor(firstItemId),
       directory.assignmentsFor(secondItemId),
-      directory.assignmentsFor(otherProjectItemId),
+      directory.assignmentsFor(otherWorkPackageItemId),
       directory.assignmentsOf(workItemIds),
       directory.assignmentsOf([firstItemId, secondItemId]),
-      directory.assignmentsInProject(firstProjectId),
-      directory.assignmentsInProject(otherProjectId),
-    ],
-  );
+      directory.assignmentsInWorkPackage(firstWorkPackageId),
+      directory.assignmentsInWorkPackage(otherWorkPackageId),
+    ]);
   return {
     forItems: [
       { workItemId: firstItemId, assignments: byAssignment(first) },
       { workItemId: secondItemId, assignments: byAssignment(second) },
-      { workItemId: otherProjectItemId, assignments: byAssignment(otherProject) },
+      { workItemId: otherWorkPackageItemId, assignments: byAssignment(otherWorkPackage) },
     ],
     ofItems: byAssignment(selected),
     ofSubset: byAssignment(subset),
-    inProjects: [
+    inWorkPackages: [
       {
-        projectId: firstProjectId,
-        assignments: byAssignment(firstProject.assignments),
-        people: byPerson(firstProject.people),
+        workPackageId: firstWorkPackageId,
+        assignments: byAssignment(firstWorkPackage.assignments),
+        people: byPerson(firstWorkPackage.people),
       },
       {
-        projectId: otherProjectId,
-        assignments: byAssignment(projectB.assignments),
-        people: byPerson(projectB.people),
+        workPackageId: otherWorkPackageId,
+        assignments: byAssignment(workPackageB.assignments),
+        people: byPerson(workPackageB.people),
       },
     ],
   };
@@ -94,42 +93,46 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
     }),
     storeCase('directory', 'directory.assign:scope-replace-clear', open, async ({ port, seed }) => {
       const [firstItemId, secondItemId] = seed.workItemIds[0];
-      const otherProjectItemId = seed.workItemIds[1][0];
+      const otherWorkPackageItemId = seed.workItemIds[1][0];
       const [firstStepId, secondStepId] = seed.stepIds[0];
-      const otherProjectStepId = seed.stepIds[1][0];
+      const otherWorkPackageStepId = seed.stepIds[1][0];
       const [firstPersonId, secondPersonId] = seed.personIds;
       const sameItem = assignment(firstItemId, secondStepId, firstPersonId);
       const sameStep = assignment(secondItemId, firstStepId, firstPersonId);
-      const otherProject = assignment(otherProjectItemId, otherProjectStepId, secondPersonId);
+      const otherWorkPackage = assignment(
+        otherWorkPackageItemId,
+        otherWorkPackageStepId,
+        secondPersonId,
+      );
       const targetFor = (personId: string): Assignment =>
         assignment(firstItemId, firstStepId, personId);
       const expectedState = (personId: string | null) => {
-        const projectA = [sameItem, sameStep];
-        if (personId !== null) projectA.push(targetFor(personId));
+        const workPackageA = [sameItem, sameStep];
+        if (personId !== null) workPackageA.push(targetFor(personId));
         const firstItem = [sameItem];
         if (personId !== null) firstItem.push(targetFor(personId));
         return {
           forItems: [
             { workItemId: firstItemId, assignments: byAssignment(firstItem) },
             { workItemId: secondItemId, assignments: [sameStep] },
-            { workItemId: otherProjectItemId, assignments: [otherProject] },
+            { workItemId: otherWorkPackageItemId, assignments: [otherWorkPackage] },
           ],
-          ofItems: byAssignment([...projectA, otherProject]),
-          // Proof: ignored-subset faults return the complete project-B row as
+          ofItems: byAssignment([...workPackageA, otherWorkPackage]),
+          // Proof: ignored-subset faults return the complete work-package-B row as
           // an extra record here while every seeded assignment remains stored.
-          ofSubset: byAssignment(projectA),
-          inProjects: [
+          ofSubset: byAssignment(workPackageA),
+          inWorkPackages: [
             {
-              projectId: seed.projectIds[0],
-              assignments: byAssignment(projectA),
+              workPackageId: seed.workPackageIds[0],
+              assignments: byAssignment(workPackageA),
               people: byPerson([
                 { id: firstPersonId, name: 'Person 1' },
                 ...(personId === secondPersonId ? [{ id: secondPersonId, name: 'Person 2' }] : []),
               ]),
             },
             {
-              projectId: seed.projectIds[1],
-              assignments: [otherProject],
+              workPackageId: seed.workPackageIds[1],
+              assignments: [otherWorkPackage],
               people: [{ id: secondPersonId, name: 'Person 2' }],
             },
           ],
@@ -143,7 +146,12 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
         ok: true,
       });
       expect(
-        await port.assign(otherProjectItemId, otherProjectStepId, secondPersonId, seed.stamps[1]),
+        await port.assign(
+          otherWorkPackageItemId,
+          otherWorkPackageStepId,
+          secondPersonId,
+          seed.stamps[1],
+        ),
       ).toEqual({ ok: true });
       expect(await port.assign(firstItemId, firstStepId, firstPersonId, seed.stamps[0])).toEqual({
         ok: true,
@@ -151,8 +159,8 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       expect(
         await assignmentState(
           port,
-          [firstItemId, secondItemId, otherProjectItemId],
-          seed.projectIds,
+          [firstItemId, secondItemId, otherWorkPackageItemId],
+          seed.workPackageIds,
         ),
       ).toEqual(expectedState(firstPersonId));
 
@@ -164,8 +172,8 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       expect(
         await assignmentState(
           port,
-          [firstItemId, secondItemId, otherProjectItemId],
-          seed.projectIds,
+          [firstItemId, secondItemId, otherWorkPackageItemId],
+          seed.workPackageIds,
         ),
       ).toEqual(expectedState(secondPersonId));
 
@@ -175,8 +183,8 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       expect(
         await assignmentState(
           port,
-          [firstItemId, secondItemId, otherProjectItemId],
-          seed.projectIds,
+          [firstItemId, secondItemId, otherWorkPackageItemId],
+          seed.workPackageIds,
         ),
       ).toEqual(expectedState(null));
     }),
@@ -198,14 +206,14 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       ).toEqual({
         ok: true,
         team: originalTeams[0],
-        projectIds: [],
+        workPackageIds: [],
       });
       expect(
         await port.patchTeam(otherTeamId, { serviceIds: [otherService.id] }, seed.stamps[0]),
       ).toEqual({
         ok: true,
         team: originalTeams[1],
-        projectIds: [],
+        workPackageIds: [],
       });
       expect(byTeam(await port.listTeams())).toEqual(originalTeams);
       expect((await port.listServices()).toSorted((a, b) => a.id.localeCompare(b.id))).toEqual(

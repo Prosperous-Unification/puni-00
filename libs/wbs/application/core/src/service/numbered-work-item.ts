@@ -33,7 +33,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    *
    * It does **not** move when `number` does. A create anywhere above renumbers
    * rows nobody wrote to, and a revision that tracked the derived number would
-   * be a project-wide counter with a work item's name on it.
+   * be a work-package-wide counter with a work item's name on it.
    *
    * A created work item is 0. One created as the first child of a work item
    * that held estimates is 1: the handoff of those estimates down to it is a
@@ -103,7 +103,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   /**
    * The three-point estimates in measures other than time, by definition key
    * and step (`wbs-measure-budgets` D3): the trio summed up the tree, whether
-   * every trio in it is single-point, the expected measure (the project's
+   * every trio in it is single-point, the expected measure (the work package's
    * PERT weights, rounded by the measure's scale per node) and, where a fact
    * in the same measure sits beside it in {@link measures}, the variance.
    *
@@ -157,7 +157,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   /** Every step's final figure, summed — the row's whole planning duration. */
   finalTotal: number;
   /**
-   * When this can happen, in whole days from the project's day zero.
+   * When this can happen, in whole days from the work package's day zero.
    *
    * `estimates` above is **effort** and this is **span**, and for a parent they
    * are different numbers: two independent children of 3 and 4 days are 7 days
@@ -168,7 +168,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    */
   schedule: Scheduled | null;
   /**
-   * When this happens on a calendar, or null while the project has no start
+   * When this happens on a calendar, or null while the work package has no start
    * date.
    *
    * Working days only: weekends are skipped, so a five-day task starting on a
@@ -205,10 +205,10 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   /**
    * A leaf's node readings by step id (`step-node-readings` D3), derived on
    * every read and never stored. Absent on a parent, which holds no step
-   * nodes; empty on a leaf of a stepless project.
+   * nodes; empty on a leaf of a stepless work package.
    */
   nodeReadings?: Record<string, NodeReading>;
-  /** Derived resources per project step on retained leaves, including held leaves; absent on parents and older servers. */
+  /** Derived resources per work package step on retained leaves, including held leaves; absent on parents and older servers. */
   nodeResources?: Record<string, NodeResources>;
   /** Sparse direct blockage timestamps on a leaf; absent on a parent. */
   blockages?: Record<string, { blockedAt: number }>;

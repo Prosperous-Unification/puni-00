@@ -222,7 +222,7 @@ describe('resolveStepNodeGraph', () => {
 describe('authored typed dependencies', () => {
   /**
    * Parent `P` over leaves `P1` and `P2`, and leaves `A`, `B`, each with Dev
-   * then QA. `S` is a stepless project's lone boundary node.
+   * then QA. `S` is a stepless work package's lone boundary node.
    */
   const devQa: readonly GraphSlice[] = [
     { days: 2, stepId: 'dev' },
@@ -330,7 +330,7 @@ describe('authored typed dependencies', () => {
     expect(wire(edges)).toEqual(['A1→B0', 'A1→B0']);
   });
 
-  it('resolves a stepless project’s whole endpoint to the work-item boundary', () => {
+  it('resolves a stepless work package’s whole endpoint to the work-item boundary', () => {
     const boundary: readonly GraphSlice[] = [{ days: null, stepId: null }];
     const edges = resolveStepNodeGraph(['A', 'B'], () => boundary, [], 'whole-item', {
       dependencies: [fs('r1', whole('A'), whole('B'))],

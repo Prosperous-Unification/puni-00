@@ -775,7 +775,7 @@ it('rechecks a queued enterprise proof grant without refusing its ordinary ident
   expect(harness.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
 });
 
-it('projects actual security authority without retaining credential binding or secret-shaped extras', async () => {
+it('work packages actual security authority without retaining credential binding or secret-shaped extras', async () => {
   const principal = {
     id: harness.userId('security'),
     authentication: { kind: 'first_party' as const, issuedAt: 1 },

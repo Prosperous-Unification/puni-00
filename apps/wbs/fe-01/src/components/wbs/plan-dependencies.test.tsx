@@ -2,15 +2,15 @@ import { act, createEvent, fireEvent, screen, waitFor, within } from '@testing-l
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PlanRead, ProjectApi, WorkItemView } from '@/lib/wbs-api';
+import type { PlanRead, WorkItemView, WorkPackageApi } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW, WbsRequestError } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
+import { DEV, fakeWorkPackageApi as fakeApi, QA } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
-import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
+import { planRead, sliceView, workItemView, workPackageListEntry } from '@/testing/views';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { cellKey } from './editable-grid';
 import type * as TableFrameModule from './table-frame';
@@ -98,7 +98,7 @@ const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -123,7 +123,9 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -162,7 +164,9 @@ async function typedOnlyRows() {
     { scope: 'whole', workItemId: successor.id },
     'FS',
   );
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ });
   return api;
 }
@@ -183,7 +187,9 @@ describe('dependencies in the table', () => {
       'SS',
     );
     const updated = recordCalls(api, 'updateTypedDependency');
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     const chip = await screen.findByRole('button', {
       name: /Edit dependency: .*010 Strip.*020 Sand.*Start-to-start/,
     });
@@ -318,7 +324,9 @@ describe('dependencies in the table', () => {
         { scope: 'whole', workItemId: target.id },
         'FS',
       );
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       const input = await screen.findByLabelText<HTMLInputElement>('Add a dependency to 020');
       fireEvent.focus(input);
       fireEvent.keyDown(input, { key: 'Home' });
@@ -373,7 +381,9 @@ describe('dependencies in the table', () => {
       { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
       'FS',
     );
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     const input = await screen.findByLabelText('Add a dependency to 020');
     fireEvent.focus(input);
     fireEvent.keyDown(await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ }), {
@@ -401,7 +411,9 @@ describe('dependencies in the table', () => {
     const original = (await api.tree('p1')).typedDependencies?.[0];
     if (original === undefined) throw new Error('Missing fixture dependency');
     const added = recordCalls(api, 'addTypedDependency');
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     fireEvent.keyDown(await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ }), {
       key: 'Enter',
     });
@@ -437,8 +449,8 @@ describe('dependencies in the table', () => {
       );
       const readPlan = api.tree.bind(api);
       let predecessorDeleted = false;
-      api.tree = async (projectId) => {
-        const plan = await readPlan(projectId);
+      api.tree = async (workPackageId) => {
+        const plan = await readPlan(workPackageId);
         return predecessorDeleted
           ? {
               ...plan,
@@ -447,7 +459,9 @@ describe('dependencies in the table', () => {
             }
           : plan;
       };
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       fireEvent.keyDown(await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ }), {
         key: 'Enter',
       });
@@ -466,13 +480,15 @@ describe('dependencies in the table', () => {
     await api.createWorkItem('p1', { parentId: null, afterId: source.id, name: 'Sand' });
     const readPlan = api.tree.bind(api);
     let predecessorDeleted = false;
-    api.tree = async (projectId) => {
-      const plan = await readPlan(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readPlan(workPackageId);
       return predecessorDeleted
         ? { ...plan, workItems: plan.workItems.filter((row) => row.id !== source.id) }
         : plan;
     };
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     fireEvent.focus(await screen.findByLabelText('Add a dependency to 020'));
     fireEvent.click(await screen.findByRole('button', { name: 'Customize 010 - Strip' }));
     predecessorDeleted = true;
@@ -499,7 +515,9 @@ describe('dependencies in the table', () => {
       });
       await api.addDependency(target.id, source.id);
       const added = recordCalls(api, 'addTypedDependency');
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       const input = await screen.findByLabelText('Add a dependency to 020');
       fireEvent.focus(input);
       expect(screen.getByRole('button', { name: 'Customize 010 - Strip' })).toBeDefined();
@@ -582,7 +600,9 @@ describe('dependencies in the table', () => {
         { scope: 'node', stepNodeId: `sn1.${target.id}.${DEV.id}` },
         'FS',
       );
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await screen.findByLabelText('Add a dependency to 020');
       fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
       fireEvent.click(await screen.findByRole('button', { name: 'Customize 010 - Strip' }));
@@ -612,7 +632,9 @@ describe('dependencies in the table', () => {
       'FS',
     );
     const added = recordCalls(api, 'addTypedDependency');
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Add a dependency to 020');
     fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
     expect(screen.getByRole('button', { name: 'Customize 010 - Strip' })).toBeDefined();
@@ -628,7 +650,7 @@ describe('dependencies in the table', () => {
       Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: { error: 'cycle', at: 0, kind: 'addTypedDependency' },
         }),
       );
@@ -752,7 +774,9 @@ describe('dependencies in the table', () => {
       { scope: 'node', stepNodeId: `sn1.${successorId}.${DEV.id}` },
       'FS',
     );
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Add a dependency to 020');
     fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
     await waitFor(() => {
@@ -1734,14 +1758,14 @@ describe('picking dependencies from a list', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -1826,14 +1850,14 @@ describe('the picker marks what be-01 would refuse', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -1861,7 +1885,7 @@ describe('the picker marks what be-01 would refuse', () => {
   };
 
   /** Every call to `addDependency`, so "nothing was picked" is an observation. */
-  const watchAdds = (api: ProjectApi) => recordCalls(api, 'addDependency');
+  const watchAdds = (api: WorkPackageApi) => recordCalls(api, 'addDependency');
 
   itDom('greys the row this one sits inside, and says so', async () => {
     await nested();
@@ -1975,136 +1999,154 @@ describe('dependencies in the table — cross-review findings', () => {
   const apiReturning = (
     scheduleError: PlanRead['scheduleError'],
     schedule: Partial<WorkItemView['schedule']> = {},
-  ): ProjectApi =>
-    refusingApi({
-      listProjects: () =>
-        Promise.resolve([projectListEntry({ name: 'P', createdAt: 1_780_000_000_000 })]),
-      createProject: (name: string) =>
-        Promise.resolve({ id: 'p1', name, restricted: false, abbreviation: 'PLAN' }),
-      openProject: () => Promise.resolve(),
-      setEstimateMethod: () => Promise.resolve(),
-      setStartDate: () => Promise.resolve(),
-      listTeams: () => Promise.resolve([]),
-      listTags: () => Promise.resolve([]),
-      listWorkItemTypes: () => Promise.resolve([]),
-      listServices: () => Promise.resolve([]),
-      listExternalSystems: () => Promise.resolve([]),
-      addTeam: () => Promise.reject(new Error('not_in_these_tests')),
-      listPeople: () => Promise.resolve([]),
-      // The table reads the calendar markers on mount, alongside the plan, so a
-      // double that stands in for a project has to answer it: unstated, this api
-      // refuses on purpose and the refusal arrives as a toast over every case in
-      // this file. Empty is what these projects have.
-      listCalendarMarkers: () => Promise.resolve([]),
-      // Claims too, for the same reason: unstated, the stale notice stands over every case.
-      readClaims: () => Promise.resolve({ readAt: 0, claims: [] }),
-      addPerson: () => Promise.reject(new Error('not_in_these_tests')),
-      assignPerson: () => Promise.resolve(),
-      renameProject: () => Promise.resolve(),
-      setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
-      duplicateWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
-      steps: () => Promise.resolve([DEV]),
-      addStep: () => Promise.reject(new Error('not_in_these_tests')),
-      renameStep: () => Promise.reject(new Error('not_in_these_tests')),
-      removeStep: () => Promise.reject(new Error('not_in_these_tests')),
-      tree: () =>
-        Promise.resolve(
-          planRead({
-            seq: 0,
-            scheduleError,
-            // A cycle takes the slices with the dates: there is no schedule to have
-            // placed any.
-            slices:
-              scheduleError !== null
-                ? []
-                : [
-                    sliceView({
-                      id: `w1::${DEV.id}`,
-                      workItemId: 'w1',
-                      stepId: DEV.id,
-                      personId: null,
-                      duration: 7,
-                      estimated: true,
-                      earliestStart: 11,
-                      earliestFinish: 18,
-                      latestStart: 13,
-                      latestFinish: 20,
-                      float: 2,
-                      critical: false,
-                      boundBy: 'projectStart' as const,
-                      resourcePredecessorId: null,
-                      width: 1,
-                      effort: 7,
-                      capacityPredecessorIds: [],
-                      lateBy: null,
-                      ...schedule,
-                    }),
-                  ],
-            steps: [DEV],
-            assignedPeople: [],
-            // Present and empty, never absent: be-01 always sends it, so a fake that
-            // left it out would let `teamsOnThePlan` be handed `undefined` here and
-            // never in production. A plan whose teams are unlimited is what `[]` says.
-            teamCapacities: [],
-            priorityBands: [...DEFAULT_PRIORITY_BANDS],
-            estimateMethod: 'pert' as const,
-            depReach: 'whole-item' as const,
-            pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-            estimateRounding: 'ceil' as const,
-            workItems: [
-              workItemView({
-                charged: {},
-                id: 'w1',
-                parentId: null,
-                revision: 0,
-                number: '010',
-                name: 'Strip',
-                notes: '',
-                frozenNumber: null,
-                priority: null,
-                rolledUp: false,
-                estimates: {},
-                dependsOn: [],
-                finalDays: {},
-                finalTotal: 0,
-                startNoEarlierThan: null,
-                startNoEarlierThanReason: null,
-                serviceTeamId: null,
-                teamIds: [],
-                assignees: {},
-                doesEveryStep: null,
-                dates: null,
-                schedule: {
-                  duration: 7,
-                  estimated: true,
-                  earliestStart: 11,
-                  earliestFinish: 18,
-                  latestStart: 13,
-                  latestFinish: 20,
-                  float: 2,
-                  critical: false,
-                  ...schedule,
-                },
-              }),
-            ],
-            undoable: false,
-            redoable: false,
-          }),
-        ),
-      createWorkItem: () => Promise.resolve({ id: 'w2' }),
-      patchWorkItem: () => Promise.resolve(),
-      moveWorkItem: () => Promise.resolve(),
-      removeWorkItem: () => Promise.resolve(),
-      setEstimate: () => Promise.resolve(),
-      clearEstimate: () => Promise.resolve(),
-      freezeProject: () => Promise.resolve(),
-      unfreezeProject: () => Promise.resolve(),
-      unfreezeWorkItem: () => Promise.resolve(),
-      addDependency: () => Promise.resolve(),
-      removeDependency: () => Promise.resolve(),
-      undo: () => Promise.reject(new Error('not_in_these_tests')),
-      redo: () => Promise.reject(new Error('not_in_these_tests')),
-    });
+  ): WorkPackageApi =>
+    refusingApi(
+      {
+        listProjects: () =>
+          Promise.resolve([
+            {
+              id: 'fixture-project',
+              organizationId: 'fixture-organization',
+              spaceId: null,
+              spacePosition: null,
+              name: 'Fixture project',
+              revision: 0,
+              createdAt: 1,
+              updatedAt: null,
+              createdBy: null,
+              workPackageCount: 1,
+            },
+          ]),
+        listWorkPackages: () =>
+          Promise.resolve([workPackageListEntry({ name: 'P', createdAt: 1_780_000_000_000 })]),
+        createWorkPackage: (projectId: string, name: string) =>
+          Promise.resolve({ projectId, id: 'p1', name, restricted: false, abbreviation: 'PLAN' }),
+        openWorkPackage: () => Promise.resolve(),
+        setEstimateMethod: () => Promise.resolve(),
+        setStartDate: () => Promise.resolve(),
+        listTeams: () => Promise.resolve([]),
+        listTags: () => Promise.resolve([]),
+        listWorkItemTypes: () => Promise.resolve([]),
+        listServices: () => Promise.resolve([]),
+        listExternalSystems: () => Promise.resolve([]),
+        addTeam: () => Promise.reject(new Error('not_in_these_tests')),
+        listPeople: () => Promise.resolve([]),
+        // The table reads the calendar markers on mount, alongside the plan, so a
+        // double that stands in for a work package has to answer it: unstated, this api
+        // refuses on purpose and the refusal arrives as a toast over every case in
+        // this file. Empty is what these work packages have.
+        listCalendarMarkers: () => Promise.resolve([]),
+        // Claims too, for the same reason: unstated, the stale notice stands over every case.
+        readClaims: () => Promise.resolve({ readAt: 0, claims: [] }),
+        addPerson: () => Promise.reject(new Error('not_in_these_tests')),
+        assignPerson: () => Promise.resolve(),
+        renameWorkPackage: () => Promise.resolve(),
+        setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
+        duplicateWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+        steps: () => Promise.resolve([DEV]),
+        addStep: () => Promise.reject(new Error('not_in_these_tests')),
+        renameStep: () => Promise.reject(new Error('not_in_these_tests')),
+        removeStep: () => Promise.reject(new Error('not_in_these_tests')),
+        tree: () =>
+          Promise.resolve(
+            planRead({
+              seq: 0,
+              scheduleError,
+              // A cycle takes the slices with the dates: there is no schedule to have
+              // placed any.
+              slices:
+                scheduleError !== null
+                  ? []
+                  : [
+                      sliceView({
+                        id: `w1::${DEV.id}`,
+                        workItemId: 'w1',
+                        stepId: DEV.id,
+                        personId: null,
+                        duration: 7,
+                        estimated: true,
+                        earliestStart: 11,
+                        earliestFinish: 18,
+                        latestStart: 13,
+                        latestFinish: 20,
+                        float: 2,
+                        critical: false,
+                        boundBy: 'workPackageStart' as const,
+                        resourcePredecessorId: null,
+                        width: 1,
+                        effort: 7,
+                        capacityPredecessorIds: [],
+                        lateBy: null,
+                        ...schedule,
+                      }),
+                    ],
+              steps: [DEV],
+              assignedPeople: [],
+              // Present and empty, never absent: be-01 always sends it, so a fake that
+              // left it out would let `teamsOnThePlan` be handed `undefined` here and
+              // never in production. A plan whose teams are unlimited is what `[]` says.
+              teamCapacities: [],
+              priorityBands: [...DEFAULT_PRIORITY_BANDS],
+              estimateMethod: 'pert' as const,
+              depReach: 'whole-item' as const,
+              pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+              estimateRounding: 'ceil' as const,
+              workItems: [
+                workItemView({
+                  charged: {},
+                  id: 'w1',
+                  parentId: null,
+                  revision: 0,
+                  number: '010',
+                  name: 'Strip',
+                  notes: '',
+                  frozenNumber: null,
+                  priority: null,
+                  rolledUp: false,
+                  estimates: {},
+                  dependsOn: [],
+                  finalDays: {},
+                  finalTotal: 0,
+                  startNoEarlierThan: null,
+                  startNoEarlierThanReason: null,
+                  serviceTeamId: null,
+                  teamIds: [],
+                  assignees: {},
+                  doesEveryStep: null,
+                  dates: null,
+                  schedule: {
+                    duration: 7,
+                    estimated: true,
+                    earliestStart: 11,
+                    earliestFinish: 18,
+                    latestStart: 13,
+                    latestFinish: 20,
+                    float: 2,
+                    critical: false,
+                    ...schedule,
+                  },
+                }),
+              ],
+              undoable: false,
+              redoable: false,
+            }),
+          ),
+        createWorkItem: () => Promise.resolve({ id: 'w2' }),
+        patchWorkItem: () => Promise.resolve(),
+        moveWorkItem: () => Promise.resolve(),
+        removeWorkItem: () => Promise.resolve(),
+        setEstimate: () => Promise.resolve(),
+        clearEstimate: () => Promise.resolve(),
+        freezeWorkPackage: () => Promise.resolve(),
+        unfreezeWorkPackage: () => Promise.resolve(),
+        unfreezeWorkItem: () => Promise.resolve(),
+        addDependency: () => Promise.resolve(),
+        removeDependency: () => Promise.resolve(),
+        undo: () => Promise.reject(new Error('not_in_these_tests')),
+        redo: () => Promise.reject(new Error('not_in_these_tests')),
+      },
+      { projectIdOf: (_id: string) => 'fixture-project' },
+    );
 
   const cells = async () => {
     const row = await waitFor(() => {
@@ -2123,7 +2165,10 @@ describe('dependencies in the table — cross-review findings', () => {
 
   itDom('shows the schedule be-01 sent, not one it worked out itself', async () => {
     render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(apiReturning(null))} />,
+      <WbsTableOverClient
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(apiReturning(null))}
+      />,
     );
 
     expect(await cells()).toEqual({ start: 'day 11', finish: 'day 18', float: '2' });
@@ -2132,8 +2177,10 @@ describe('dependencies in the table — cross-review findings', () => {
   itDom('names a critical row rather than printing its zero', async () => {
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(apiReturning(null, { float: 0, critical: true }))}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(
+          apiReturning(null, { float: 0, critical: true }),
+        )}
       />,
     );
 
@@ -2144,7 +2191,10 @@ describe('dependencies in the table — cross-review findings', () => {
 
   itDom('explains a slack figure in its hover title', async () => {
     render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(apiReturning(null))} />,
+      <WbsTableOverClient
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(apiReturning(null))}
+      />,
     );
 
     await cells();
@@ -2159,8 +2209,10 @@ describe('dependencies in the table — cross-review findings', () => {
   itDom('explains what critical means in the hover title', async () => {
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(apiReturning(null, { float: 0, critical: true }))}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(
+          apiReturning(null, { float: 0, critical: true }),
+        )}
       />,
     );
 
@@ -2177,7 +2229,7 @@ describe('dependencies in the table — cross-review findings', () => {
     {
       error: {
         kind: 'dependency_calendar_missing' as const,
-        projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
+        workPackages: [{ workPackageId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
       },
       words: 'PUNI · Remote plan',
     },
@@ -2185,7 +2237,7 @@ describe('dependencies in the table — cross-review findings', () => {
       error: {
         kind: 'engine_unavailable' as const,
         engine: 'optimized' as const,
-        projects: ['remote'],
+        workPackages: ['remote'],
         reason: 'connected_optimization_not_supported' as const,
       },
       words: 'Connected optimization is unavailable',
@@ -2194,8 +2246,8 @@ describe('dependencies in the table — cross-review findings', () => {
     itDom(`explains ${refusal.error.kind} without hiding the table`, async () => {
       render(
         <WbsTableOverClient
-          projectId="p1"
-          projectServices={projectServicesOf(apiReturning(refusal.error))}
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(apiReturning(refusal.error))}
         />,
       );
       expect(await cells()).toEqual({ start: '—', finish: '—', float: '—' });
@@ -2212,8 +2264,8 @@ describe('dependencies in the table — cross-review findings', () => {
     // wrong answer, next to a banner saying no dates could be worked out.
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(apiReturning('cycle'))}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(apiReturning('cycle'))}
       />,
     );
 
@@ -2501,7 +2553,9 @@ describe('hovering a dependency lights the rows it names', () => {
 
   itDom('a collapsed dependency has no row to light, and the card still names it', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');

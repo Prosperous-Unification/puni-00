@@ -36,7 +36,7 @@ describe('the default ladder', () => {
 
   it('is a ladder by its own rule, which is what makes it usable as the read’s answer', () => {
     // Not decoration: `PriorityBandRepository.listFor` hands this back for a
-    // project holding no rows, so a default that could not pass the write's own
+    // work package holding no rows, so a default that could not pass the write's own
     // validation would be a state the API refuses to store and the read invents.
     expect(priorityLadderProblem(DEFAULT_PRIORITY_BANDS)).toBeNull();
   });
@@ -102,7 +102,7 @@ describe('which band a priority falls in', () => {
 });
 
 describe('what a ladder may be', () => {
-  it('is five bands, and a project may not add or drop one', () => {
+  it('is five bands, and a work package may not add or drop one', () => {
     // The refusal that makes the count not configurable — design.md D3. Both
     // directions, because "at most five" and "exactly five" are different rules
     // and only one of them keeps `rank` a number from 0 to 4.

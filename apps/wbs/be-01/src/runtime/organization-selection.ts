@@ -168,7 +168,7 @@ export function organizationSelection(
       const presented = principal.organizationBinding;
       if (presented?.cookie == null) return null;
       // Proof: removing this read made the mounted old token/cookie pair keep
-      // listing projects after a different connection committed revocation.
+      // listing work packages after a different connection committed revocation.
       if (await revocations.isRevoked(presented.credential)) return null;
       return cookie.read(presented.cookie, presented.credential);
     },

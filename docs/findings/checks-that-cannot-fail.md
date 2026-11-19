@@ -891,3 +891,97 @@ believed — not after it has been written down as a finding in three files.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
+
+## Bun runtime flags can select a package script before the test subcommand
+
+On 2026-11-13 with Bun 1.4.4, a private validator proof driver used
+`bun --preload <file> test <test-file> ...`. In this workspace that selected the
+package's `test` script, which launched Nx for 55 projects and four prerequisites.
+The healthy phase timed out after 12 seconds; no injected-fault phase ran. A static
+review had checked the hook and failure classifier but missed command dispatch.
+The outcome is invalid setup, never a healthy or breakability result.
+
+The exact intended built-in form, `bun test --preload <file> <test-file> ...`,
+was separately observed in a private-directory preload sentinel (1 pass/0 fail).
+The later application healthy child passed 2 selected tests but emitted no expected
+process-exit trace, so that driver also refused credit. A passing test count alone
+did not establish that the actual dependency hook had been consumed.
+
+Keep dispatch, hook-consumption and first-own failure evidence distinct. Match
+actual test names and owning assertion frames, preserve fresh exclusive artifacts,
+and record timeout/setup failures before changing a harness. Runtime flags and a
+reviewed argv are not evidence of the executed tool contract.
+
+The unintended invocation left one uniquely marked orphan; it was reidentified,
+terminated and observed gone. The follow-up host marker scan had no match among 151
+readable process environments, while nine environments were unreadable. Broader
+descendant cleanup and repository/index effects remain unverified. Ten declared
+source/config pins matching cannot establish whole-tree continuity. Original
+receipts and containment observations remain in
+`/tmp/puni-comparison-validator-fault-v5/flight`; the subsequent missing-trace
+attempt remains separately in `/tmp/puni-comparison-validator-fault-v6/flight`.
+
+The separate V7 experiment used Bun's `afterAll` lifecycle hook and recorded actual
+validator calls in all three fresh children. Healthy-before and healthy-after each
+passed two tests with nine assertions; the accepting-dependency child failed both
+tests at their first owning missing-left-parent and null-right-parent assertions.
+This qualifies one outer-validator dependency fault with two witnesses. It does
+not independently qualify every parent grammar branch, and it does not repair the
+V5/V6 incidents or their broader containment and repository/index unknowns. The
+reviewed evidence is `/tmp/puni-comparison-validator-fault-v7/evidence.json`.
+
+### Reused native evidence prefix and wrapper exit status (2026-11-13)
+
+A consumer runner reused the already occupied green-parent evidence prefix. Its
+exclusive log open failed before that attempt acquired a process owner or spawned
+a child; exclusive receipt publication then failed too. The original receipt still
+describes its earlier 21-pass/2-fail child. It cannot identify a fresh invocation.
+The first outer exit and inner publication cause were not separately captured, so
+neither a successful wrapper nor complete absence of side effects is established.
+
+A shell newline independently launched the next command. That original child
+reported 44 passes, one failure and native exit 1; its wrapper exited 0 after
+printing the receipt. Wrapper success therefore did not prove test success. The
+failed assertion discarded nested stderr, leaving its cause unknown. Preserve
+both observations rather than infer an environment or trust failure.
+
+The reviewed incident and bounded recovery are recorded in
+`/tmp/puni-document-consumer-native-prefix-incident-v1` and
+`/tmp/puni-document-consumer-prefix-incident-astra-v1.md`. Successors use fresh
+exclusive paths, one dispatch at a time, inspect the original outcome and owned
+cleanup before proceeding, and propagate the native exit status.
+
+A diagnostic-only successor retained the actual production validator and captured
+both nested stderr streams. Under the default sandbox both failed with EPERM at
+the CLI stdout write. The same source, arguments and environment passed the one
+selected case under approved escalated execution. This supports that observed
+sandbox boundary only; no trusted-module setting, validator, installed output API
+or previously rejected formal operation was changed. Evidence remains in
+`/tmp/puni-document-consumer-records-observation-v1` and
+`/tmp/puni-document-consumer-records-escalation-preparation-v1`.
+
+### A Vitest invocation can select no case and still exit zero (2026-11-13)
+
+The first isolated frontend failed-build request omitted Vitest's actual `" > "`
+separator between suite and case names. Its original process exited0/null with
+all7 tests skipped. No lifecycle controller or inner receipt existed. This is a
+selection exclusion, not a passing lifecycle check or a feature RED. The scoped
+owner and output descriptors settled cleanly; that does not supply missing test
+coverage. Installed matcher source confirmed the separator; a fresh corrected
+one-case request then selected exactly one case and observed the intended
+controlled failed-build result. Preserve both epochs. Originals are in
+`/tmp/puni-ordinary-browser-frontend-v1/failed-build-native-v1` and
+`failed-build-native-v2`. Check selected assertions as well as native status,
+and inspect original inner/outer custody before the next process-control case.
+
+### Flat comment scanning undercounted preserved Proof text (2026-11-13)
+
+The provider packet's flat TypeScript scanner counted66 historical Proof groups.
+A complete parser-token inventory finds133 Proof-containing comment tokens and
+markers, grouped into119 contiguous blocks, in the original preimages, retained
+snapshot and current21-file successor. All133 bytes/order match. The67 missed
+starts follow template literals; no comments were added or lost by the source
+successor. These are different inventory units, not133 independent safety checks.
+Old packets remain immutable and their count is qualified by
+`/tmp/puni-provider-proof-parser-audit-v3/report.md`. This correction supplies
+no runtime, omission or new R5 credit.

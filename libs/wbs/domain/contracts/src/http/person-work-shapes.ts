@@ -13,16 +13,16 @@ const address = {
 } as const;
 
 /**
- * One person's **Assignment**s and **Claim**s in one project, apart
+ * One person's **Assignment**s and **Claim**s in one work package, apart
  * (`wbs-resources` R7, spec `assignee-management`). A caller the tree read
  * refuses is refused alike: an organization's viewer reads it, a foreign or
- * absent project is 404 `not_found`; a person the caller's organization does
+ * absent work package is 404 `not_found`; a person the caller's organization does
  * not hold is 404 `unknown_person`.
  */
 export const readPersonWork = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/people/:personId/work',
-  operationId: 'getApiProjectsByIdPeopleByPersonIdWork',
+  path: '/api/work-packages/:id/people/:personId/work',
+  operationId: 'getApiWorkPackagesByIdPeopleByPersonIdWork',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: requestSchema(type({ id: 'string', personId: 'string' })),
   responses: [
@@ -60,8 +60,8 @@ export const readPersonWork = defineEndpointShape({
     organizationContextRefusal,
   ],
   document: {
-    summary: 'List what one person is assigned to and what they hold claimed in a project.',
+    summary: 'List what one person is assigned to and what they hold claimed in a work package.',
     description:
-      'assignments: each step the person is assigned to, with the work item id, its frozen number (numberIsFrozen) or else its derived one, its name and the step id. claims: each claim the person holds, with the work item, the step (null for a subtree claim on a non-leaf), the claim id, run, parent claim, write instant and lease expiry (epoch milliseconds; null for a claim no agent renews). Both in tree order, then step order; an assignment and a claim on the same step are listed in each. Give personId from getApiPeople; assign a subtree with postApiProjectsByIdCommands kind assignSubtree, or claim and assign at once with claimWorkItem assign true.',
+      'assignments: each step the person is assigned to, with the work item id, its frozen number (numberIsFrozen) or else its derived one, its name and the step id. claims: each claim the person holds, with the work item, the step (null for a subtree claim on a non-leaf), the claim id, run, parent claim, write instant and lease expiry (epoch milliseconds; null for a claim no agent renews). Both in tree order, then step order; an assignment and a claim on the same step are listed in each. Give personId from getApiPeople; assign a subtree with postApiWorkPackagesByIdCommands kind assignSubtree, or claim and assign at once with claimWorkItem assign true.',
   },
 });

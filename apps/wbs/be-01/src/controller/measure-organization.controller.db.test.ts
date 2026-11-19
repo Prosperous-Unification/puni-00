@@ -170,7 +170,7 @@ describe('measure definitions in an organization', () => {
     expect((await listed('grace')).find((each) => each.key === 'tokens')?.name).toBe('Tokens');
   });
 
-  // Design D70: defining a measure changes what every project's figures mean.
+  // Design D70: defining a measure changes what every work package's figures mean.
   it('refuses a member every definition write, an admin and a super-admin allowed', async () => {
     const tokens = await idOf('ada', 'tokens');
     for (const command of [
@@ -221,19 +221,21 @@ describe('budgets and money bases in an organization', () => {
     h.activate();
   });
 
-  /** A project of org-a with parent P over leaves L and R, and the first step's id. */
+  /** A work package of org-a with parent P over leaves L and R, and the first step's id. */
   async function plan() {
-    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Budgets' });
+    const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Budgets' });
     if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-    const projectId = (created.body as { project: { id: string } }).project.id;
+    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
     const dev = h.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-      .all(projectId)
+      .query<{ id: string }, [string]>(
+        'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
+      )
+      .all(workPackageId)
       .map(({ id }) => id)
       .at(0);
-    if (dev === undefined) throw new Error('the project has no step');
+    if (dev === undefined) throw new Error('the work package has no step');
     const run = (commands: readonly unknown[]) =>
-      h.call('ada', 'POST', `/api/projects/${projectId}/commands`, { commands });
+      h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
     const built = await run([
       { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
       {
@@ -261,7 +263,7 @@ describe('budgets and money bases in an organization', () => {
       if (id === undefined) throw new Error(`no ${ref}`);
       return id;
     };
-    return { projectId, dev, run, idOf };
+    return { workPackageId, dev, run, idOf };
   }
 
   const cost = (workItemId: string, stepId: string, rateCardDigest?: string) => ({
@@ -276,7 +278,7 @@ describe('budgets and money bases in an organization', () => {
   // Proof: with the `rate_card_required` arm removed from work-item-shapes.ts,
   // this case answered 500 for the unpriced cost fact; watched 2026-10-23.
   it('answers 409 for an unpriced cost fact and reads a parent mixing two cards, naming both', async () => {
-    const { projectId, dev, run, idOf } = await plan();
+    const { workPackageId, dev, run, idOf } = await plan();
     const [P, L, R] = ['P', 'L', 'R'].map(idOf);
     const unpriced = await run([cost(L, dev)]);
     expect(unpriced).toMatchObject({
@@ -293,7 +295,7 @@ describe('budgets and money bases in an organization', () => {
         ])
       ).status,
     ).toBe(200);
-    const read = await h.call('ada', 'GET', `/api/projects/${projectId}/work-items`);
+    const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/work-items`);
     const rows = (read.body as { workItems: { id: string; [field: string]: unknown }[] }).workItems;
     const parent = rows.find((each) => each.id === P);
     expect(parent?.['mixedRateCards']).toEqual({

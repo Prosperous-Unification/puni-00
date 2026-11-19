@@ -1,5 +1,5 @@
 import { type PlanRefreshSnapshot, resourcesFor } from '@/lib/plan-refresh';
-import type { ProjectStream } from '@/lib/project-stream';
+import type { WorkPackageStream } from '@/lib/work-package-stream';
 
 import type {
   AppliedGenerations,
@@ -105,7 +105,7 @@ export function nextDelivery(
 }
 
 /**
- * Opens one project's reading and starts it at once.
+ * Opens one work package's reading and starts it at once.
  *
  * Reading begins inside this call, exactly where the effect it replaces began
  * it. So the caller stores what it gets back **after** the call returns, and the
@@ -127,7 +127,7 @@ export function createPlanReading({
   // after StrictMode cleans up its first setup` (2026-09-20).
   const owner = openOwner();
   let applied: AppliedGenerations = { tree: 0, steps: 0, directory: 0, markers: 0, claims: 0 };
-  let stream: ProjectStream | null = null;
+  let stream: WorkPackageStream | null = null;
   let streamSequence = -1;
   const apply = (): void => {
     // Proof: deleting this guard delivered a snapshot in `delivers nothing

@@ -1,8 +1,16 @@
 import type { RuntimeAuthority, RuntimeClaim, RuntimeScope } from '@wbs/contracts';
 
-import type { RuntimeLedger, StoredRuntimeAcceptance } from './runtime-command-values';
+import type {
+  RuntimeLedger,
+  StoredRuntimeAcceptance,
+  StoredRuntimeAcceptance2,
+} from './runtime-command-values';
 
-export type { RuntimeLedger, StoredRuntimeAcceptance } from './runtime-command-values';
+export type {
+  RuntimeLedger,
+  StoredRuntimeAcceptance,
+  StoredRuntimeAcceptance2,
+} from './runtime-command-values';
 export type {
   ExecutionIdentity,
   RuntimeAuthority,
@@ -39,5 +47,5 @@ export interface RuntimeCommandStore {
   insertBinding(scope: RuntimeScope, claim: RuntimeClaim): Promise<void>;
   readAcceptance(scope: RuntimeScope, commandId: string): Promise<StoredRuntimeAcceptance | null>;
   /** Throws for an unexpected command collision; never overwrites its immutable reply. */
-  insertAcceptance(stored: StoredRuntimeAcceptance): Promise<void>;
+  insertAcceptance(stored: StoredRuntimeAcceptance2): Promise<void>;
 }

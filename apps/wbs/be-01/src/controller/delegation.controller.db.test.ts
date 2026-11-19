@@ -83,27 +83,27 @@ async function delegation(
     .sign(key);
 }
 
-async function project(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+async function workPackage(username: string, name: string): Promise<string> {
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
 }
 
 const names = (answer: { body: unknown }) =>
-  (answer.body as { projects: { name: string }[] }).projects.map((p) => p.name).sort();
+  (answer.body as { workPackages: { name: string }[] }).workPackages.map((p) => p.name).sort();
 
 describe('after activation', () => {
-  let bProject: string;
+  let bWorkPackage: string;
 
   beforeEach(async () => {
     h.activate();
-    await project('ada', 'A plan');
-    bProject = await project('grace', 'B plan');
+    await workPackage('ada', 'A plan');
+    bWorkPackage = await workPackage('grace', 'B plan');
   });
 
-  it('admits one gateway project check with both credentials and refuses replay', async () => {
-    const projectId = await project('ada', 'Gateway plan');
-    const path = `/internal/gateway/projects/${projectId}/access`;
+  it('admits one gateway work package check with both credentials and refuses replay', async () => {
+    const workPackageId = await workPackage('ada', 'Gateway plan');
+    const path = `/internal/gateway/work-packages/${workPackageId}/access`;
     const token = await delegation({ aud: 'wbs-be-01/via-gw-01' });
     const headers = { 'x-internal-auth': 'x'.repeat(32) };
     expect((await h.callWith(token, 'POST', path, undefined, headers)).status).toBe(204);
@@ -128,20 +128,20 @@ describe('after activation', () => {
     expect((await h.callWith(noRead, 'POST', path, undefined, headers)).status).toBe(401);
   });
 
-  it('checks gateway membership and returns identical foreign and absent project 404s', async () => {
+  it('checks gateway membership and returns identical foreign and absent work package 404s', async () => {
     const headers = { 'x-internal-auth': 'x'.repeat(32), 'x-wbs-organization': 'org-b' };
     const token = () => delegation({ aud: 'wbs-be-01/via-gw-01' });
     const foreign = await h.callWith(
       await token(),
       'POST',
-      `/internal/gateway/projects/${bProject}/access`,
+      `/internal/gateway/work-packages/${bWorkPackage}/access`,
       undefined,
       headers,
     );
     const absent = await h.callWith(
       await token(),
       'POST',
-      '/internal/gateway/projects/absent/access',
+      '/internal/gateway/work-packages/absent/access',
       undefined,
       headers,
     );
@@ -157,7 +157,7 @@ describe('after activation', () => {
         await h.callWith(
           removedMemberToken,
           'POST',
-          '/internal/gateway/projects/absent/access',
+          '/internal/gateway/work-packages/absent/access',
           undefined,
           headers,
         )
@@ -168,7 +168,7 @@ describe('after activation', () => {
         await h.callWith(
           removedMemberToken,
           'POST',
-          '/internal/gateway/projects/absent/access',
+          '/internal/gateway/work-packages/absent/access',
           undefined,
           headers,
         )
@@ -373,19 +373,19 @@ describe('after activation', () => {
     );
   }
 
-  it('lists only the delegated organization’s projects', async () => {
-    const answer = await h.callWith(await delegation(), 'GET', '/api/projects');
+  it('lists only the delegated organization’s work packages', async () => {
+    const answer = await h.callWith(await delegation(), 'GET', '/api/work-packages');
 
     expect(answer.status).toBe(200);
     expect(names(answer)).toEqual(['A plan']);
-    const toB = await h.callWith(await delegation({ org: 'org-b' }), 'GET', '/api/projects');
+    const toB = await h.callWith(await delegation({ org: 'org-b' }), 'GET', '/api/work-packages');
     expect(names(toB)).toEqual(['B plan']);
   });
 
-  it('consumes an MCP delegation once even when the project is missing', async () => {
+  it('consumes an MCP delegation once even when the work package is missing', async () => {
     const token = await delegation();
-    expect((await h.callWith(token, 'GET', '/api/projects/absent')).status).toBe(404);
-    expect((await h.callWith(token, 'GET', '/api/projects/absent')).status).toBe(401);
+    expect((await h.callWith(token, 'GET', '/api/work-packages/absent')).status).toBe(404);
+    expect((await h.callWith(token, 'GET', '/api/work-packages/absent')).status).toBe(401);
   });
 
   // Dispatch is by exact audience (`wbs-mcp-agent-surface` M3): only direct
@@ -396,7 +396,7 @@ describe('after activation', () => {
   // 401 unauthenticated instead of invalid_token; watched 2026-10-26.
   it('refuses a gateway, grant or unknown audience invalid_token', async () => {
     for (const aud of ['wbs-be-01/via-gw-01', 'wbs-be-01/machine-grant', 'somewhere-else']) {
-      expect(await h.callWith(await delegation({ aud }), 'GET', '/api/projects')).toEqual({
+      expect(await h.callWith(await delegation({ aud }), 'GET', '/api/work-packages')).toEqual({
         status: 401,
         body: { error: 'invalid_token' },
       });
@@ -411,19 +411,25 @@ describe('after activation', () => {
       await h.callWith(
         await delegation({ aud: ['wbs-be-01/via-mcp-01', 'wbs-be-01/via-gw-01'] }),
         'GET',
-        '/api/projects',
+        '/api/work-packages',
       ),
     ).toEqual({ status: 401, body: { error: 'invalid_token' } });
   });
 
   it('refuses a gateway bearer beside a session cookie', async () => {
-    const projectId = await project('ada', 'Cookie check');
+    const workPackageId = await workPackage('ada', 'Cookie check');
     const token = await delegation({ aud: 'wbs-be-01/via-gw-01' });
     expect(
-      await h.callWith(token, 'POST', `/internal/gateway/projects/${projectId}/access`, undefined, {
-        'x-internal-auth': 'x'.repeat(32),
-        cookie: `__Host-wbs_access=${h.token('ada')}`,
-      }),
+      await h.callWith(
+        token,
+        'POST',
+        `/internal/gateway/work-packages/${workPackageId}/access`,
+        undefined,
+        {
+          'x-internal-auth': 'x'.repeat(32),
+          cookie: `__Host-wbs_access=${h.token('ada')}`,
+        },
+      ),
     ).toMatchObject({ status: 401 });
   });
 
@@ -439,14 +445,16 @@ describe('after activation', () => {
     const forged = `${header}.${forgedBody}.${signature}`;
 
     for (const token of [expired, sessionSigned, forged]) {
-      expect(await h.callWith(token, 'GET', '/api/projects')).toMatchObject({ status: 401 });
+      expect(await h.callWith(token, 'GET', '/api/work-packages')).toMatchObject({ status: 401 });
     }
   });
 
   // Also `wbs-mcp-agent-surface`'s "A long delegation stays refused": the
   // machine grant's 24-hour cap is its own and never reaches a delegation.
   it('refuses a delegation longer than five minutes', async () => {
-    expect(await h.callWith(await delegation({ lifetime: 3600 }), 'GET', '/api/projects')).toEqual({
+    expect(
+      await h.callWith(await delegation({ lifetime: 3600 }), 'GET', '/api/work-packages'),
+    ).toEqual({
       status: 401,
       body: { error: 'unauthenticated' },
     });
@@ -458,16 +466,18 @@ describe('after activation', () => {
       { lifetime: 0 },
       { grant: null },
     ] satisfies Claims[]) {
-      expect(await h.callWith(await delegation(claims), 'GET', '/api/projects')).toMatchObject({
-        status: 401,
-      });
+      expect(await h.callWith(await delegation(claims), 'GET', '/api/work-packages')).toMatchObject(
+        {
+          status: 401,
+        },
+      );
     }
   });
 
   it('refuses a delegation carried in the session cookie, or beside one', async () => {
     const signed = await delegation({}, new TextEncoder().encode(TEST_JWT_KEY));
     const cookieOnly = await h.app.handle(
-      new Request('http://localhost/api/projects', {
+      new Request('http://localhost/api/work-packages', {
         headers: { cookie: `__Host-wbs_access=${signed}` },
       }),
     );
@@ -476,7 +486,7 @@ describe('after activation', () => {
     // Proof: skipping the ambiguity refusal in `http/identity.ts` made this
     // answer 200; watched 2026-09-28.
     const beside = await h.app.handle(
-      new Request('http://localhost/api/projects', {
+      new Request('http://localhost/api/work-packages', {
         headers: {
           cookie: `__Host-wbs_access=${h.token('ada')}`,
           authorization: `Bearer ${await delegation({ org: 'org-b' })}`,
@@ -488,7 +498,7 @@ describe('after activation', () => {
 
   it('refuses a delegation whose upstream identity maps to someone else', async () => {
     expect(
-      await h.callWith(await delegation({ upstream: 'sub-grace' }), 'GET', '/api/projects'),
+      await h.callWith(await delegation({ upstream: 'sub-grace' }), 'GET', '/api/work-packages'),
     ).toMatchObject({ status: 401 });
   });
 
@@ -499,7 +509,7 @@ describe('after activation', () => {
     ]);
 
     expect(
-      await h.callWith(await delegation({ org: 'org-b' }), 'GET', '/api/projects'),
+      await h.callWith(await delegation({ org: 'org-b' }), 'GET', '/api/work-packages'),
     ).toMatchObject({ status: 403 });
   });
 
@@ -510,27 +520,45 @@ describe('after activation', () => {
     const forged = { 'x-wbs-organization': 'org-b', 'x-organization-id': 'org-b' };
 
     expect(
-      await h.callWith(await delegation(), 'GET', `/api/projects/${bProject}`, undefined, forged),
+      await h.callWith(
+        await delegation(),
+        'GET',
+        `/api/work-packages/${bWorkPackage}`,
+        undefined,
+        forged,
+      ),
     ).toMatchObject({ status: 404 });
     expect(
-      await h.callWith(h.token('ada'), 'GET', `/api/projects/${bProject}`, undefined, forged),
+      await h.callWith(
+        h.token('ada'),
+        'GET',
+        `/api/work-packages/${bWorkPackage}`,
+        undefined,
+        forged,
+      ),
     ).toMatchObject({ status: 404 });
     h.unbind('ada');
     expect(
-      await h.callWith(h.token('ada'), 'GET', `/api/projects/${bProject}`, undefined, forged),
+      await h.callWith(
+        h.token('ada'),
+        'GET',
+        `/api/work-packages/${bWorkPackage}`,
+        undefined,
+        forged,
+      ),
     ).toMatchObject({ status: 403 });
   });
 });
 
 describe('before activation', () => {
   it('refuses a verified delegation before activation', async () => {
-    await project('grace', 'B plan');
+    await workPackage('grace', 'B plan');
 
-    expect(await h.callWith(await delegation(), 'GET', '/api/projects')).toMatchObject({
+    expect(await h.callWith(await delegation(), 'GET', '/api/work-packages')).toMatchObject({
       status: 403,
       body: { error: 'no_active_organization' },
     });
-    expect((await h.call('ada', 'GET', '/api/projects')).status).toBe(200);
+    expect((await h.call('ada', 'GET', '/api/work-packages')).status).toBe(200);
   });
 
   it('refuses every delegation when no delegation key is configured', async () => {
@@ -547,9 +575,9 @@ describe('before activation', () => {
     // Proof: answering `not_delegation` from `REFUSE_DELEGATIONS` made the
     // session-key-signed delegation answer 200; watched 2026-09-28.
     for (const token of [await delegation(), sessionSigned]) {
-      expect(await h.callWith(token, 'GET', '/api/projects')).toMatchObject({ status: 401 });
+      expect(await h.callWith(token, 'GET', '/api/work-packages')).toMatchObject({ status: 401 });
     }
-    expect((await h.call('ada', 'GET', '/api/projects')).status).toBe(200);
+    expect((await h.call('ada', 'GET', '/api/work-packages')).status).toBe(200);
   });
 });
 
@@ -562,7 +590,7 @@ it('keeps signed delegation writes independent of browser expectation and refuse
         await h.callWith(
           token,
           'POST',
-          '/api/projects',
+          '/api/work-packages',
           { name: 'delegated' },
           expected === undefined ? {} : { 'X-WBS-Expected-Organization': expected },
         )

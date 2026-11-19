@@ -66,7 +66,7 @@ const HASH = 'h1';
 const BUDGET = 60_000;
 
 const KEY: OptimizedCacheKey = {
-  projectId: 'p-1',
+  workPackageId: 'p-1',
   inputHash: HASH,
   contractVersion: CONTRACT,
   budgetMs: BUDGET,
@@ -82,14 +82,14 @@ function tempDb(): { path: string; cleanup: () => void } {
   };
 }
 
-function seedProject(path: string): void {
+function seedWorkPackage(path: string): void {
   const db = openDatabase(path);
   try {
     db.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     db.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
        VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
@@ -132,7 +132,7 @@ function solverResult(plan: Schedule): OptimizedResult {
 /** A prepared database with one allocated generation and nothing cached. */
 function prepared(path: string): number {
   runMigrations(path, FOLDER);
-  seedProject(path);
+  seedWorkPackage(path);
   return allocateGeneration(openDrizzle(path), 'p-1', CONTRACT, HASH, 1);
 }
 
@@ -164,7 +164,7 @@ function storeRow(
       value === null ? 'NULL' : `'${value.replaceAll("'", "''")}'`;
     db.run(
       `INSERT INTO optimized_schedule_cache
-         (project_id, input_hash, objective, contract_version, budget_ms,
+         (work_package_id, input_hash, objective, contract_version, budget_ms,
           generation, status, result_json, failure_reason, created_at)
        VALUES ('p-1', ${quote(values.inputHash ?? HASH)}, '${values.objective}',
                ${quote(values.contractVersion ?? CONTRACT)}, ${String(values.budgetMs ?? BUDGET)},
@@ -310,7 +310,7 @@ describe('what a stored pair reads as', () => {
    * failure and read it back, so the relaxation cannot be made to look local.
    *
    * Why it is guarded at all: a failure marker served as a schedule publishes
-   * an **empty plan as an optimized one** — every date in the project moves to
+   * an **empty plan as an optimized one** — every date in the work package moves to
    * nothing, and the read reports success while doing it, so nothing downstream
    * has a reason to look. `corrupt` is guarded by the same branch's other arm
    * and for the same reason (4.8).
@@ -372,7 +372,7 @@ describe('the generation predicate on the read', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      seedProject(db.path);
+      seedWorkPackage(db.path);
       storeRow(db.path, {
         objective: 'pri',
         generation: 1,
@@ -463,7 +463,7 @@ describe('a payload the decoder refuses', () => {
           raw.run('PRAGMA ignore_check_constraints = ON');
           raw.run(
             `INSERT INTO optimized_schedule_cache
-             (project_id, input_hash, objective, contract_version, budget_ms,
+             (work_package_id, input_hash, objective, contract_version, budget_ms,
               generation, status, result_json, failure_reason, created_at)
            VALUES ('p-1', '${HASH}', 'pri', '${CONTRACT}', ${String(BUDGET)}, ${String(generation)},
                    '${status}', NULL, NULL, 7)`,
@@ -629,7 +629,7 @@ describe('the 3.8 boundary still throws on the read path', () => {
    * 4.8's first half. An unknown *enum value* is not a corrupt payload: there
    * is no honest answer to a question about a token this release has never
    * heard of, so the read throws naming the column and the value, exactly as
-   * `toProject` does. The distinction from `corrupt` is the point — one is an
+   * `toWorkPackage` does. The distinction from `corrupt` is the point — one is an
    * absent payload, the other an unrecognised vocabulary.
    */
   it('throws naming the column when a stored objective is unknown', () => {
@@ -641,7 +641,7 @@ describe('the 3.8 boundary still throws on the read path', () => {
         raw.run('PRAGMA ignore_check_constraints = ON');
         raw.run(
           `INSERT INTO optimized_schedule_cache
-             (project_id, input_hash, objective, contract_version, budget_ms,
+             (work_package_id, input_hash, objective, contract_version, budget_ms,
               generation, status, result_json, failure_reason, created_at)
            VALUES ('p-1', '${HASH}', 'cost', '${CONTRACT}', ${String(BUDGET)}, ${String(generation)},
                    'failed', NULL, 'timeout', 7)`,
@@ -671,7 +671,7 @@ describe('the 3.8 boundary still throws on the read path', () => {
       const quote = (value: string | null): string => (value === null ? 'NULL' : `'${value}'`);
       raw.run(
         `INSERT INTO optimized_schedule_cache
-           (project_id, input_hash, objective, contract_version, budget_ms,
+           (work_package_id, input_hash, objective, contract_version, budget_ms,
             generation, status, result_json, failure_reason, created_at)
          VALUES ('p-1', '${HASH}', 'pri', '${CONTRACT}', ${String(BUDGET)}, ${String(generation)},
                  '${values.status}', NULL, ${quote(values.failureReason)}, 7)`,
@@ -745,7 +745,7 @@ describe('the 3.8 boundary still throws on the read path', () => {
       openDrizzle(db.path)
         .insert(optimizedScheduleCache)
         .values({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           inputHash: HASH,
           objective: 'pri',
           contractVersion: CONTRACT,
@@ -777,7 +777,7 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
    * keeps a late write from a reclaimed child out of the cache.
    */
   const CLAIM = {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation: 1,
     objective: 'pri',
@@ -795,7 +795,7 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
     try {
       db.run(
         `INSERT INTO solver_slot
-           (project_id, contract_version, generation, objective, budget_ms,
+           (work_package_id, contract_version, generation, objective, budget_ms,
             owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
             cancel_requested_at, admitted_deadline_at)
          VALUES ('p-1', '${CONTRACT}', ${String(generation)}, 'pri', ${String(BUDGET)},
@@ -835,7 +835,7 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
 
   /**
    * The case the token exists for, and the one a row-existence check passes:
-   * same project, same seat, same coordinator, second attempt.
+   * same work package, same seat, same coordinator, second attempt.
    */
   it('does not hold when the same owner has re-reserved the seat', () => {
     const db = tempDb();
@@ -887,7 +887,7 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
       try {
         raw.run(
           `INSERT INTO solver_slot
-             (project_id, contract_version, generation, objective, budget_ms,
+             (work_package_id, contract_version, generation, objective, budget_ms,
               owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
               cancel_requested_at, admitted_deadline_at)
            VALUES ('p-1', '${CONTRACT}', 1, 'pri', ${String(BUDGET)},
@@ -913,7 +913,7 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
         raw.run('PRAGMA ignore_check_constraints = ON');
         raw.run(
           `INSERT INTO solver_slot
-             (project_id, contract_version, generation, objective, budget_ms,
+             (work_package_id, contract_version, generation, objective, budget_ms,
               owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
               cancel_requested_at, admitted_deadline_at)
            VALUES ('p-1', '${CONTRACT}', 1, 'pri', ${String(BUDGET)},
@@ -932,7 +932,7 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
 
 describe("the generation the attempt was admitted under, which is 4.1's second and third conditions", () => {
   const ADMITTED: AdmissionClaim = {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation: 1,
     admittedCancelEpoch: 0,
@@ -946,7 +946,7 @@ describe("the generation the attempt was admitted under, which is 4.1's second a
     try {
       db.run(
         `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1
-         WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+         WHERE work_package_id = 'p-1' AND contract_version = '${CONTRACT}'`,
       );
     } finally {
       db.close();
@@ -996,7 +996,7 @@ describe("the generation the attempt was admitted under, which is 4.1's second a
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      seedProject(db.path);
+      seedWorkPackage(db.path);
 
       expect(current(db.path)).toBe(false);
     } finally {
@@ -1030,7 +1030,7 @@ describe("the generation the attempt was admitted under, which is 4.1's second a
       try {
         raw.run(
           `UPDATE optimization_generation SET admission_state = 'draining'
-           WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+           WHERE work_package_id = 'p-1' AND contract_version = '${CONTRACT}'`,
         );
       } finally {
         raw.close();
@@ -1045,7 +1045,7 @@ describe("the generation the attempt was admitted under, which is 4.1's second a
 
 describe("4.1's conditional write, with all four conditions composed", () => {
   const CLAIM = {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation: 1,
     objective: 'pri',
@@ -1060,7 +1060,7 @@ describe("4.1's conditional write, with all four conditions composed", () => {
     try {
       db.run(
         `INSERT INTO solver_slot
-           (project_id, contract_version, generation, objective, budget_ms,
+           (work_package_id, contract_version, generation, objective, budget_ms,
             owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
             cancel_requested_at, admitted_deadline_at)
          VALUES ('p-1', '${CONTRACT}', 1, 'pri', ${String(BUDGET)},
@@ -1075,7 +1075,7 @@ describe("4.1's conditional write, with all four conditions composed", () => {
   function setEnabled(path: string, enabled: 0 | 1): void {
     const db = openDatabase(path);
     try {
-      db.run(`UPDATE project SET optimization_enabled = ${String(enabled)} WHERE id = 'p-1'`);
+      db.run(`UPDATE work_package SET optimization_enabled = ${String(enabled)} WHERE id = 'p-1'`);
     } finally {
       db.close();
     }
@@ -1086,7 +1086,7 @@ describe("4.1's conditional write, with all four conditions composed", () => {
     try {
       db.run(
         `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1
-         WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+         WHERE work_package_id = 'p-1' AND contract_version = '${CONTRACT}'`,
       );
     } finally {
       db.close();
@@ -1095,7 +1095,7 @@ describe("4.1's conditional write, with all four conditions composed", () => {
 
   /**
    * A prepared database with one allocated generation, the seat reserved and
-   * the project switched on — the state a legitimate commit starts from.
+   * the work package switched on — the state a legitimate commit starts from.
    */
   function admitted(path: string): number {
     const generation = prepared(path);
@@ -1198,7 +1198,9 @@ describe("4.1's conditional write, with all four conditions composed", () => {
       admitted(db.path);
       const reclaimed = openDatabase(db.path);
       try {
-        reclaimed.run(`UPDATE solver_slot SET attempt_token = 'tok-2' WHERE project_id = 'p-1'`);
+        reclaimed.run(
+          `UPDATE solver_slot SET attempt_token = 'tok-2' WHERE work_package_id = 'p-1'`,
+        );
       } finally {
         reclaimed.close();
       }
@@ -1238,11 +1240,11 @@ describe("4.1's conditional write, with all four conditions composed", () => {
 
   /**
    * The fourth predicate, and the one no other fence covers: admission
-   * happened while the project was on, and the owner switched it off while the
+   * happened while the work package was on, and the owner switched it off while the
    * solve was still running. Every other condition still holds here — same
    * seat, same token, same generation, same cancel epoch.
    */
-  it('refuses a commit against a project whose optimizer was switched off mid-solve', () => {
+  it('refuses a commit against a work package whose optimizer was switched off mid-solve', () => {
     const db = tempDb();
     try {
       admitted(db.path);
@@ -1255,8 +1257,8 @@ describe("4.1's conditional write, with all four conditions composed", () => {
     }
   });
 
-  /** The default every existing project already carries, never turned on. */
-  it('refuses a commit against a project that was never switched on', () => {
+  /** The default every existing work package already carries, never turned on. */
+  it('refuses a commit against a work package that was never switched on', () => {
     const db = tempDb();
     try {
       prepared(db.path);
@@ -1399,7 +1401,7 @@ describe("4.1's conditional write, with all four conditions composed", () => {
 
         const raw = openDatabase(db.path);
         try {
-          raw.run(`DELETE FROM solver_slot WHERE project_id = 'p-1'`);
+          raw.run(`DELETE FROM solver_slot WHERE work_package_id = 'p-1'`);
         } finally {
           raw.close();
         }
@@ -1676,7 +1678,7 @@ describe("4.1's conditional write, with all four conditions composed", () => {
 
 describe("4.1b's retention bound, which is a bound and not an exclusion", () => {
   const CLAIM = {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation: 1,
     objective: 'pri',
@@ -1695,7 +1697,7 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
         // and a primary-key conflict there would fail the case for the wrong
         // reason.
         `INSERT OR REPLACE INTO solver_slot
-           (project_id, contract_version, generation, objective, budget_ms,
+           (work_package_id, contract_version, generation, objective, budget_ms,
             owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
             cancel_requested_at, admitted_deadline_at)
          VALUES ('p-1', '${contractVersion}', 1, 'pri', ${String(budgetMs)},
@@ -1709,7 +1711,7 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
   function enable(path: string): void {
     const db = openDatabase(path);
     try {
-      db.run(`UPDATE project SET optimization_enabled = 1 WHERE id = 'p-1'`);
+      db.run(`UPDATE work_package SET optimization_enabled = 1 WHERE id = 'p-1'`);
     } finally {
       db.close();
     }
@@ -1750,8 +1752,8 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
 
   /**
    * 4.1b proof (a): raise `budgetMs` three times and bump `contractVersion`
-   * with no plan edit at all — same project, same objective, same input hash —
-   * and at most two rows survive per project per objective per live contract
+   * with no plan edit at all — same work package, same objective, same input hash —
+   * and at most two rows survive per work package per objective per live contract
    * version. The bound is per contract version, so the bumped release's own
    * row is *not* evicted by the old one's: that is the blue/green half.
    */
@@ -1915,7 +1917,7 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
   /**
    * A cold key asks for both, in the stored vocabulary's order, and each
    * request carries the key the read actually ran against — not a rebuilt one.
-   * `budgetMs` is the column that proves it: a spawner handed the project and
+   * `budgetMs` is the column that proves it: a spawner handed the work package and
    * the objective alone could not tell which of two live budgets asked.
    */
   it('asks for both objectives on a cold key, carrying the key it read', () => {
@@ -2025,10 +2027,10 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
    * `generation` and 4.1's insert is `onConflictDoNothing`, so the replacement
    * path is `allocateGeneration`'s delete and nothing else. A changed input
    * allocates, the prior rows go — `failed` ones included, because the delete
-   * is scoped by project and contract version and says nothing about status —
+   * is scoped by work package and contract version and says nothing about status —
    * and a read of the old hash asks for both objectives again.
    */
-  it('clears every prior row for the project when a generation is allocated, failed ones included', () => {
+  it('clears every prior row for the work package when a generation is allocated, failed ones included', () => {
     const db = tempDb();
     try {
       const generation = prepared(db.path);
@@ -2158,7 +2160,7 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
 
   /**
    * tasks.md 4.4's first two arms. A failed key is read over and over — three
-   * collaborators with a project open, refreshing — and asks for nothing every
+   * collaborators with a work package open, refreshing — and asks for nothing every
    * time, because the marker IS the suppression. An edit that leaves the
    * canonical input unchanged (a rename, a reordered field) produces the same
    * hash and therefore the same key, so it is one more of those reads and not a
@@ -2481,7 +2483,7 @@ describe('the adapter a plan read asks', () => {
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
       });
-      const served = read({ projectId: 'p-1', objective: 'pri', input });
+      const served = read({ workPackageId: 'p-1', objective: 'pri', input });
       // Load-bearing: over an empty plan the comparison below is vacuous.
       expect(plan.slices.size).toBe(3);
       expect(served === null ? null : encodeSchedule(served)).toEqual(encodeSchedule(plan));
@@ -2516,8 +2518,8 @@ describe('the adapter a plan read asks', () => {
       // Proof: hard-coding `reach` served the stored schedule in array slot 0;
       // emptying `deadlines` served it in slot 1, where each expected `null`.
       expect([
-        read({ projectId: 'p-1', objective: 'pri', input: withAnchorSliceReach }),
-        read({ projectId: 'p-1', objective: 'pri', input: withDeadline }),
+        read({ workPackageId: 'p-1', objective: 'pri', input: withAnchorSliceReach }),
+        read({ workPackageId: 'p-1', objective: 'pri', input: withDeadline }),
       ]).toEqual([null, null]);
     } finally {
       db.cleanup();
@@ -2525,7 +2527,7 @@ describe('the adapter a plan read asks', () => {
   });
 
   it('answers nothing for the objective that is not the published one', () => {
-    // The pair holds two rows and a project publishes one of them. Reading the
+    // The pair holds two rows and a work package publishes one of them. Reading the
     // other would show a planner the schedule of an objective they did not pick.
     const db = tempDb();
     try {
@@ -2543,7 +2545,7 @@ describe('the adapter a plan read asks', () => {
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
       });
-      expect(read({ projectId: 'p-1', objective: 'time', input })).toBeNull();
+      expect(read({ workPackageId: 'p-1', objective: 'time', input })).toBeNull();
     } finally {
       db.cleanup();
     }
@@ -2594,11 +2596,11 @@ describe('the adapter a plan read asks', () => {
         slices: input.slices.map((each) => ({ ...each, days: 4 })),
       };
       expect([
-        read({ projectId: 'p-1', objective: 'pri', input }),
-        read({ projectId: 'p-1', objective: 'time', input }),
-        read({ projectId: 'p-1', objective: 'pri', input: otherPlan }),
+        read({ workPackageId: 'p-1', objective: 'pri', input }),
+        read({ workPackageId: 'p-1', objective: 'time', input }),
+        read({ workPackageId: 'p-1', objective: 'pri', input: otherPlan }),
       ]).toEqual([null, null, null]);
-      // And the third answer is a miss on the HASH rather than on the project:
+      // And the third answer is a miss on the HASH rather than on the work package:
       // the same read against the stored plan is not a miss for `time`'s row.
       expect(scheduleInputHash(otherPlan)).not.toBe(scheduleInputHash(input));
     } finally {
@@ -2658,7 +2660,7 @@ describe('a typed dependency edit and the contract bump retire cached rows', () 
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      seedProject(db.path);
+      seedWorkPackage(db.path);
       const contract = contractVersionOf('0.1.3');
       const payload = JSON.stringify(encodeOptimizedResult(solverResult(realPlan())));
       const current = allocateGeneration(

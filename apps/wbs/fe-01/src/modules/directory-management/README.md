@@ -46,7 +46,7 @@ The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the modul
 `directory-management.feature.test.ts` and `module.test.ts`. The behaviour this extraction preserves is proved by
 `apps/wbs/fe-01/src/components/directory/directory-page.test.tsx`, in the `test` target.
 
-Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+Its isolated type check is the `typecheck:module` target of the same work package, which `typecheck`
 depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
 extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.
 

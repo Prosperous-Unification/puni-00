@@ -55,15 +55,18 @@ export function validateConnectedSolverRequest(request: ConnectedSolverRequest):
     if (!keys.has(edge.predecessorKey) || !keys.has(edge.successorKey))
       throw new Error('connected solver edge does not name local slices');
   }
-  const projects = new Set(request.scope.projects.map((project) => project.projectId));
-  if (projects.size !== request.scope.projects.length || !projects.has(request.scope.projectId))
-    throw new Error('connected solver projects are inconsistent');
+  const workPackages = new Set(request.scope.projects.map((workPackage) => workPackage.projectId));
+  if (
+    workPackages.size !== request.scope.projects.length ||
+    !workPackages.has(request.scope.projectId)
+  )
+    throw new Error('connected solver work packages are inconsistent');
   const fixed = new Map(request.scope.fixed.map((entry) => [entry.key, entry]));
   if (fixed.size !== request.scope.fixed.length) throw new Error('connected fixed keys repeat');
   for (const entry of request.scope.fixed) {
     if (
       keys.has(entry.key) ||
-      !projects.has(entry.projectId) ||
+      !workPackages.has(entry.projectId) ||
       entry.projectId === request.scope.projectId
     )
       throw new Error('connected fixed slice has invalid ownership');

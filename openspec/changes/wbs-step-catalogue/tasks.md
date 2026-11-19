@@ -25,8 +25,8 @@ remain concrete operator inputs, never inferred from implementation authorizatio
 - [ ] 1.2 Migration `add_step_catalogue` (SC11, SC12, SC14, SC15) under the E14 window with
       its lint waiver — test: `step-catalogue-migration.db.test.ts`: every unmerged step keeps
       its id and every fact answers unchanged; journal, saved-plan, `plan_event` and cache
-      bytes are byte-identical; a ruled merge re-points all thirteen columns (one fixture
-      fact per column) and keeps each package's unit, allowance and `allowance_revision`;
+      bytes are byte-identical; a ruled merge re-points all fifteen current columns (one fixture
+      fact per column, including both external-dependency endpoints) and keeps each package's unit, allowance and `allowance_revision`;
       the six recreated triggers refuse a step without a row for the work item's package;
       `down.sql` reverses an unmerged database and refuses after a merge or an authored
       binding; negatives: drop one re-point (`step_parallel`) and the orphan guard
@@ -39,7 +39,7 @@ remain concrete operator inputs, never inferred from implementation authorizatio
       fixture, plus a tampered body that still fails its hash; negatives: drop translation
       and the saved plan read throws naming the loser; write translated bytes back and the
       byte-identity assertion fails; a live write naming the loser is `404`; watched.
-- [ ] 1.4 `@wbs/domain` `resolveSteps(chain, typeState, bindings)` (SC2, SC3, SC18, SC19)
+- [x] 1.4 `@wbs/domain` `resolveSteps(chain, typeState, bindings)` (SC2, SC3, SC18, SC19)
       — test: property over random chains and bindings (union, dedupe, every-type reaches
       every type, typed only its type, conflict resolves nothing, order total and stable
       under input permutation); negatives: drop the type predicate and a `story` step
@@ -53,7 +53,7 @@ remain concrete operator inputs, never inferred from implementation authorizatio
       duplicate every-type write succeeds; skip the write on move and the read throws;
       watched.
 - [ ] 1.6 SC17 invariant in every applicability-changing path and fact writer — test: one
-      case per protected fact (twelve) against an unbind, plus retype, type deletion, leaf
+      case per protected fact (thirteen tables, both dependency endpoint directions) against an unbind, plus retype, type deletion, leaf
       and package move, space change and deletion, undo/restore, copy and leaf-to-parent,
       and two concurrent writers (one admits a fact, one unbinds) of which exactly one wins;
       the refusal's `pairs` and `count` on a 201-pair fixture (200 listed); `dryRun: true`
@@ -62,6 +62,44 @@ remain concrete operator inputs, never inferred from implementation authorizatio
       vanishes; drop the check from `setStepBlocked` and a blockage lands on an unresolved
       pair; drop the dry-run rollback and a retype persists after a preview; drop the
       `pairs` query and the refusal lists nothing with `count: 1`; watched.
+
+- [ ] 1.7a SC25 retirement tests first: actual current Source in both adapters defines one
+      organization step, materializes two packages, authors distinct units/allowances and
+      revisions, safely unbinds and retires. Observe active catalogue absence while the
+      original definition and every explicit package row remain exact; bound, foreign,
+      repeated, reserved code/name and attempted rebind outcomes preserve state. An actual
+      borrowed UoW rollback restores retirement and catalogue visibility together. A missing
+      required operation is scaffolding RED only; later assertions require independent observation.
+- [ ] 1.7b SC25 historical survivor owner first: load the genuinely migrated merged117
+      artifact with pinned database/logical state and full ledger, apply only required later
+      migrations, remove its live protected claim through the actual Source and safely unbind.
+      Retire the survivor through the required current port; retain its physical definition,
+      aliases, unused package rows and immutable runtime/resource history. Observe the real
+      historical identity reader before/after. Saved-plan input/schedule hash and translated
+      body coverage additionally requires an actual saved-plan producer/reader owner; the
+      resource fixture alone does not establish it.
+- [ ] 1.7c Required additive retirement relation with paired down migration, actual current
+      Source implementation and active/historical read split. Same-writer zero-binding
+      admission, definition ownership, binding INSERT/UPDATE guards and atomic Memory staging
+      or SQL savepoint preserve original identities; no missing-relation/default fallback.
+      Empty forward/down restores the complete name/hash ledger; nonempty down refuses named
+      retirements rather than silently reactivating. Qualify blue/green and runtime capability
+      behavior before permitting mixed-version deployment.
+- [ ] 1.7d Current lifetime/queue and concurrency owners: retained payloads, Source closure,
+      ordinary/repair loan expiry, binding-versus-retirement serialization, a late native fault,
+      and a caught borrowed refusal followed by independent outer COMMIT. Each new or changed
+      guard needs its own production-path negative and observed finite omission; add adjacent
+      Proof comments only after exact restore and healthy after-control. Corrupt retirement
+      ownership/orphans/scalars and bindings to retired identities must throw, not disappear.
+- [ ] 1.7e SC25 import/replay tests first: a retired reserved code answers named
+      `retired_step_codes` even with `defineMissing`; current journal restore/write cannot
+      reactivate a retired identity and uses its existing modeled stale/applicability refusal.
+      Frozen history is translated only in the reader and original bodies/hashes/signatures
+      remain exact. Preserve unknown-code and active-code behavior with actual sibling controls.
+- [ ] 1.7f Complete SC20/SC25 mounted definition retirement and active catalogue listing,
+      API/MCP generated surfaces and organization/space/project settings UI; explain retained
+      code/name reservation and render modeled conflicts. Keep task2.1, task2.2 and task4.1
+      open until their full binding/reorder/preview/import/client scope and final gate are verified.
 
 ## 2. Routes, commands, documents
 
@@ -84,6 +122,12 @@ remain concrete operator inputs, never inferred from implementation authorizatio
       (SC22), coordinated with #601's task — test: every type and code pair and the default
       mapping validate offline; another revision refuses; negative: skip the per-type check
       and `story.research` passes; watched.
+
+- [ ] 2.3.1 Make actual organization type-set changes invalidate every affected project manifest revision atomically, including empty projects. Test real directory create/remove, idempotence, refusal, rollback and foreign-project exclusion. Preserve explicit package values and existing scoped permissions. Required before claiming the SC22 producer complete.
+
+- [ ] 2.3.2 Add strict version2 offline binding/manifest decoding, per-type and whole-default validation with project/revision identity, zero-step support and canonical schema2 acceptance. Retain exact version1 behavior and digest compatibility. Tests first; each changed guard needs a bounded omission.
+- [ ] 2.3.3 Wire actual offline `--manifest` file handling into Burokrat and final PUNI aliases/help, retaining `--steps` compatibility, strict grammar-before-IO, existing YAML/prompt boundaries and named manifest file failures. Test actual commands without network.
+- [ ] 2.3.4 Complete schema2 descriptor reconstruction/digest integrity and real legacy acceptance/RunStore compatibility checks; run compiler/format/relevant products and Astra review before closing parent2.3.
 
 ## 3. Scheduler
 

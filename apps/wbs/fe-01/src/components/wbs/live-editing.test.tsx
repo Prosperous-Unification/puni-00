@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 
 import { CellInput } from './cell-input';
 import {
@@ -116,7 +116,7 @@ itDom(
 );
 
 itDom('forgets a suspended step field when the authoritative tree drops its step', async () => {
-  const model = fakeProjectApi();
+  const model = fakeWorkPackageApi();
   await model.createWorkItem('p1', { parentId: null, afterId: null, name: 'Build' });
   const scope = new PlanInteractionScope();
   const key = 'w1::step-dev-final';

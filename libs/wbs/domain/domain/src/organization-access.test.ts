@@ -11,10 +11,10 @@ describe('retired membership-label authorization', () => {
     'mayDefineMeasuresInOrganization',
     'mayRemoveResourceInOrganization',
     'mayStateDirectoryCapacityInOrganization',
-    'canEditProjectInOrganization',
+    'canEditWorkPackageInOrganization',
     'mayAdministerMembership',
     'mayInvite',
-    'classifyProjectEdit',
+    'classifyWorkPackageEdit',
   ])
     it('does not expose ' + symbol, () => {
       expect(Reflect.has(access, symbol)).toBe(false);

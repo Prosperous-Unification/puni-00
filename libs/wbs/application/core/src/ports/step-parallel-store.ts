@@ -10,8 +10,8 @@ export type { StoredStepParallel } from '@wbs/domain';
  * This internal foundation has no public writer or scheduling consumer yet.
  */
 export interface StepParallelStore {
-  listByProject(projectId: string): Promise<StoredStepParallel[]>;
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredStepParallel[]>;
+  listByWorkPackage(workPackageId: string): Promise<StoredStepParallel[]>;
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredStepParallel[]>;
   set(parallel: StoredStepParallel, stamp: WriteStamp): Promise<void>;
   remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void>;
 }

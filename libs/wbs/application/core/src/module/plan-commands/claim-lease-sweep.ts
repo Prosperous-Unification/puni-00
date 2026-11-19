@@ -4,39 +4,39 @@ import type { PlanCommandRunner } from './plan-commands.feature';
 /** How often the coordinator looks for expired leases (`wbs-claim-leases` L7). */
 export const CLAIM_LEASE_SWEEP_INTERVAL_MS = 30_000;
 
-/** The most projects one tick releases; the rest wait for the next tick (L7). */
-export const CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK = 50;
+/** The most work packages one tick releases; the rest wait for the next tick (L7). */
+export const CLAIM_LEASE_SWEEP_WORK_PACKAGES_PER_TICK = 50;
 
 export interface ClaimLeaseSweepOptions {
-  /** Releases one project's expired claims in a unit of work of its own. */
+  /** Releases one work package's expired claims in a unit of work of its own. */
   readonly runner: Pick<PlanCommandRunner, 'releaseExpiredLeases'>;
   /**
-   * The projects holding a lease run out at `at`, at most `limit`: the public
+   * The work packages holding a lease run out at `at`, at most `limit`: the public
    * claim store's read, outside any turn.
    */
-  readonly projectsWithExpiredLeases: (at: number, limit: number) => Promise<string[]>;
-  /** The clock the projects to visit are chosen by; each release reads its own inside its turn. */
+  readonly workPackagesWithExpiredLeases: (at: number, limit: number) => Promise<string[]>;
+  /** The clock the work packages to visit are chosen by; each release reads its own inside its turn. */
   readonly now: () => number;
   /** How this runtime repeats work; required, as `RetentionTimer`'s is. */
   readonly intervals: Intervals;
   readonly intervalMs: number;
-  readonly projectsPerTick: number;
+  readonly workPackagesPerTick: number;
   /** Reported per tick that released something. */
   readonly onSweep?: (released: number) => void;
   /**
-   * A tick or one project's release that threw, with that project's id when
-   * it was one project's. Required: a dead sweep strands capacity exactly as
+   * A tick or one work package's release that threw, with that work package's id when
+   * it was one work package's. Required: a dead sweep strands capacity exactly as
    * the missing one did, and looks identical to a healthy one from outside.
    */
-  readonly onError: (error: unknown, projectId: string | null) => void;
+  readonly onError: (error: unknown, workPackageId: string | null) => void;
 }
 
 /**
  * The coordinator that gives back claims nobody renewed (`wbs-claim-leases`
- * L7): at start and every `intervalMs`, it reads up to `projectsPerTick`
- * projects holding an expired lease and releases each through
- * {@link PlanCommandRunner.releaseExpiredLeases}, one unit of work per project,
- * so no turn is held across projects.
+ * L7): at start and every `intervalMs`, it reads up to `workPackagesPerTick`
+ * work packages holding an expired lease and releases each through
+ * {@link PlanCommandRunner.releaseExpiredLeases}, one unit of work per work package,
+ * so no turn is held across work packages.
  *
  * One tick runs at a time. A tick asked for while one runs (the timer, or a
  * revocation's {@link requestSweep}) is coalesced into one follow-up, so a
@@ -105,11 +105,11 @@ export class ClaimLeaseSweep {
   }
 
   private async tick(): Promise<void> {
-    let projects: string[];
+    let workPackages: string[];
     try {
-      projects = await this.opts.projectsWithExpiredLeases(
+      workPackages = await this.opts.workPackagesWithExpiredLeases(
         this.opts.now(),
-        this.opts.projectsPerTick,
+        this.opts.workPackagesPerTick,
       );
     } catch (error) {
       // Reported and the schedule kept: one failed tick is a busy database or
@@ -120,16 +120,16 @@ export class ClaimLeaseSweep {
       return;
     }
     let released = 0;
-    for (const projectId of projects) {
-      // One project's failure is its own: the rest of the tick still runs.
-      // Proof: with one try around the whole loop, `releases the next project
-      // on the same tick when one project's release throws`
+    for (const workPackageId of workPackages) {
+      // One work package's failure is its own: the rest of the tick still runs.
+      // Proof: with one try around the whole loop, `releases the next workPackage
+      // on the same tick when one work package's release throws`
       // (claim-lease-sweep.test.ts) released nothing after the first
       // (4 pass, 1 fail); watched 2026-10-23.
       try {
-        released += await this.opts.runner.releaseExpiredLeases(projectId);
+        released += await this.opts.runner.releaseExpiredLeases(workPackageId);
       } catch (error) {
-        this.opts.onError(error, projectId);
+        this.opts.onError(error, workPackageId);
       }
     }
     if (released > 0) this.opts.onSweep?.(released);

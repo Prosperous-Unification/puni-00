@@ -7,25 +7,25 @@ import {
   type ResourceScope,
   sameOrganization,
 } from '@/lib/organization-context';
-import type { ProjectStreamDeps } from '@/lib/project-stream';
-import { httpProjectAddressApi, type ProjectAddressApi } from '@/lib/wbs-api';
+import { httpWorkPackageAddressApi, type WorkPackageAddressApi } from '@/lib/wbs-api';
 import {
   type DirectoryApi,
   httpDirectoryApi,
-  httpProjectApi,
-  type ProjectApi,
+  httpWorkPackageApi,
+  type WorkPackageApi,
 } from '@/lib/wbs-api';
+import type { WorkPackageStreamDeps } from '@/lib/work-package-stream';
 import type { DirectoryManagement } from '@/modules/directory-management/contract';
 import { directoryManagementModule } from '@/modules/directory-management/module';
-import { browserSavedPlanRoutes, projectSourceOver } from '@/modules/project/composition';
-import type {
-  ProjectCatalog,
-  ProjectCatalogRoutes,
-  ProjectRuntime,
-  ProjectSource,
-} from '@/modules/project/contract';
-import { createProjectCatalog } from '@/modules/project/project-catalog.feature';
 import type { Store } from '@/modules/store';
+import { browserSavedPlanRoutes, workPackageSourceOver } from '@/modules/work-package/composition';
+import type {
+  WorkPackageCatalog,
+  WorkPackageCatalogRoutes,
+  WorkPackageRuntime,
+  WorkPackageSource,
+} from '@/modules/work-package/contract';
+import { createWorkPackageCatalog } from '@/modules/work-package/work-package-catalog.feature';
 
 import { acquireTransactionally } from './application-runtime';
 import type { Credential } from './credential';
@@ -38,17 +38,17 @@ import {
   TransitionSupersededError,
 } from './lifetime-slot';
 import {
-  createProjectOwner,
-  installProjectRuntime,
-  type ProjectRuntimeDependencies,
-} from './project-runtime';
+  createWorkPackageOwner,
+  installWorkPackageRuntime,
+  type WorkPackageRuntimeDependencies,
+} from './work-package-runtime';
 
 /**
  * Who is signed in, as the session runtime is keyed and built from it.
  *
  * `userId` is the **key**: the account's id, never its username, which a rename
  * changes, and never the credential. `credential` is only an **adapter input** —
- * the directory's client and the project client are built from it and nothing
+ * the directory's client and the work package client are built from it and nothing
  * else reads it — and it is empty for an identity restored from the access
  * cookie at startup, which a same-origin request carries by itself.
  */
@@ -60,14 +60,14 @@ export interface SessionIdentity {
 }
 
 /**
- * The selected project of one session, as a page opens and leaves it: by id
+ * The selected work package of one session, as a page opens and leaves it: by id
  * alone. The session opens it over its own source — the plan services cut from
- * its one project client, and that project's stream — which no page holds.
+ * its one work package client, and that work package's stream — which no page holds.
  */
-export interface SessionProjects extends Store<LifetimeState<ProjectRuntime>> {
-  /** Opens `projectId` through the session's project owner; as the project owner's own `open` does. */
-  readonly open: (projectId: string) => Promise<void>;
-  /** Withdraws and retires whatever project is current; as the project owner's own `leave` does. */
+export interface SessionWorkPackages extends Store<LifetimeState<WorkPackageRuntime>> {
+  /** Opens `workPackageId` through the session's work package owner; as the work package owner's own `open` does. */
+  readonly open: (workPackageId: string) => Promise<void>;
+  /** Withdraws and retires whatever work package is current; as the work package owner's own `leave` does. */
   readonly leave: () => Promise<void>;
 }
 
@@ -81,7 +81,7 @@ export interface SessionProjects extends Store<LifetimeState<ProjectRuntime>> {
  *
  * **`isCurrent`** turns false the instant the owner withdraws this runtime —
  * another user signing in, or the session being left — before its disposal
- * starts, and never turns true again. The directory and every project runtime
+ * starts, and never turns true again. The directory and every work package runtime
  * this session owns answer from it.
  */
 export interface SessionRuntime {
@@ -92,14 +92,14 @@ export interface SessionRuntime {
   readonly isCurrent: () => boolean;
   /** The account-wide directory, as the gestures a person names. */
   readonly directory: DirectoryManagement;
-  /** The projects this account can see: listed, created, renamed, imported. */
-  readonly catalog: ProjectCatalog;
+  /** The work packages this account can see: listed, created, renamed, imported. */
+  readonly catalog: WorkPackageCatalog;
   /**
-   * The owner of this session's selected project: a project is opened through
+   * The owner of this session's selected work package: a work package is opened through
    * it, and only while this session is current, and the session's retirement
    * retires it first.
    */
-  readonly projects: SessionProjects;
+  readonly workPackages: SessionWorkPackages;
 }
 
 /**
@@ -109,7 +109,7 @@ export interface SessionRuntime {
  * Between the render that hands a region a new identity and the effect that asks
  * the owner for it, the owner still publishes the previous user's runtime. A
  * region that drew from it then would hand the previous user's directory and
- * project owner to a page rendering for the next user — and a page's own effects
+ * work package owner to a page rendering for the next user — and a page's own effects
  * run before its parent's, so it would act on them before anything was
  * withdrawn.
  */
@@ -134,75 +134,75 @@ export interface SessionRuntimeDependencies {
   readonly userId: string;
   /** The client cut from the identity's credential; the directory's only way out. */
   readonly directoryApi: DirectoryApi;
-  /** The catalog's port, cut from the session's one project client. */
-  readonly catalogRoutes: ProjectCatalogRoutes;
+  /** The catalog's port, cut from the session's one work package client. */
+  readonly catalogRoutes: WorkPackageCatalogRoutes;
   /**
-   * What a project opened in this session is built over. Production composes
-   * one source per session and answers it for every project.
+   * What a work package opened in this session is built over. Production composes
+   * one source per session and answers it for every work package.
    */
-  readonly projectSourceFor: (projectId: string) => ProjectSource;
+  readonly workPackageSourceFor: (workPackageId: string) => WorkPackageSource;
   /**
    * Whether this runtime is still the one its owner publishes, asked
    * synchronously at the moment anything happens — the owner's answer, not the
    * runtime's, because withdrawal happens in the owner.
    */
   readonly isCurrent: () => boolean;
-  /** How this session's project runtimes are installed. Production passes the real one. */
-  readonly installProject: (
-    dependencies: ProjectRuntimeDependencies,
-  ) => RetirableRuntime<ProjectRuntime>;
-  /** The bounded wait this session gives its project's retirement. */
+  /** How this session's work package runtimes are installed. Production passes the real one. */
+  readonly installWorkPackage: (
+    dependencies: WorkPackageRuntimeDependencies,
+  ) => RetirableRuntime<WorkPackageRuntime>;
+  /** The bounded wait this session gives its work package's retirement. */
   readonly budgetMs: number;
 }
 
 /**
- * A session whose selected project could not be given back.
+ * A session whose selected work package could not be given back.
  *
  * Thrown from the session's own disposal, so the session's retirement fails
- * too: a session that let go while its project still held a socket would be
- * the overlap this change exists to refuse. The project's own owner has already
+ * too: a session that let go while its work package still held a socket would be
+ * the overlap this change exists to refuse. The work package's own owner has already
  * disclosed its fault; this one says only which lifetime it stopped.
  */
-export class SessionProjectRetirementError extends Error {
+export class SessionWorkPackageRetirementError extends Error {
   constructor() {
-    super('the session could not retire its selected project');
-    this.name = 'SessionProjectRetirementError';
+    super('the session could not retire its selected work package');
+    this.name = 'SessionWorkPackageRetirementError';
   }
 }
 
 /**
- * The project owner one session hands its pages.
+ * The work package owner one session hands its pages.
  *
- * Two guards make "a project inside the current session" true rather than
+ * Two guards make "a work package inside the current session" true rather than
  * hoped for:
  *
- * - every project runtime it builds is current only while **both** its own
+ * - every work package runtime it builds is current only while **both** its own
  *   owner publishes it **and** this session is current, so withdrawing the
- *   session withdraws its project in the same instant, before either disposal
+ *   session withdraws its work package in the same instant, before either disposal
  *   starts;
  * - an `open` asked of it once the session has been withdrawn builds nothing
  *   and settles quietly, so a page's late effect cannot give a retired session
- *   a project nobody will retire.
+ *   a work package nobody will retire.
  */
-function sessionProjects({
+function sessionWorkPackages({
   isCurrent,
-  installProject,
-  projectSourceFor,
+  installWorkPackage,
+  workPackageSourceFor,
   budgetMs,
 }: Pick<
   SessionRuntimeDependencies,
-  'isCurrent' | 'installProject' | 'projectSourceFor' | 'budgetMs'
->): SessionProjects {
-  const owner = createProjectOwner({
+  'isCurrent' | 'installWorkPackage' | 'workPackageSourceFor' | 'budgetMs'
+>): SessionWorkPackages {
+  const owner = createWorkPackageOwner({
     install: (dependencies) =>
-      installProject({
+      installWorkPackage({
         ...dependencies,
-        // Proof: on 2026-09-24, passing the project's own reader alone (m8) failed the model test
-        // `keys one runtime by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openProject(0,
+        // Proof: on 2026-09-24, passing the work package's own reader alone (m8) failed the model test
+        // `keys one runtime by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openWorkPackage(0,
         // p1),signInBroken(u2)`: s1.p1 was still current after its session was withdrawn.
         // Proof: on 2026-09-24 the log-out model caught the same fault (x3) through a leave:
-        // `retires the project and then the session, …` (seed 20260924) failed at run 59,
-        // `signIn(u1),openProject(0, p1, settles),leave,drain`, because s1.p1's plan changed after
+        // `retires the workPackage and then the session, …` (seed 20260924) failed at run 59,
+        // `signIn(u1),openWorkPackage(0, p1, settles),leave,drain`, because s1.p1's plan changed after
         // s1 was withdrawn.
         isCurrent: () => isCurrent() && dependencies.isCurrent(),
       }),
@@ -211,13 +211,13 @@ function sessionProjects({
   return {
     subscribe: owner.subscribe,
     snapshot: owner.snapshot,
-    open: async (projectId) => {
+    open: async (workPackageId) => {
       // Proof: on 2026-09-24, deleting this guard (m9) failed the model test `keys one runtime by
-      // user, …` (seed 20260924) at run 3, `signIn(u2, ''),signInBroken(u1),drain,openProject(0,
-      // p1),drain`: withdrawn s1 opened a project and was retired while its project owner was still
+      // user, …` (seed 20260924) at run 3, `signIn(u2, ''),signInBroken(u1),drain,openWorkPackage(0,
+      // p1),drain`: withdrawn s1 opened a workPackage and was retired while its workPackage owner was still
       // `live`.
       if (!isCurrent()) return;
-      await owner.open(projectId, projectSourceFor(projectId));
+      await owner.open(workPackageId, workPackageSourceFor(workPackageId));
     },
     leave: owner.leave,
   };
@@ -229,15 +229,15 @@ function sessionProjects({
  *
  * It installs the directory-management module over the identity's client,
  * with this runtime's own `isCurrent` as the directory's reader test, builds
- * the project catalog over its port with the same test, and owns the session's
- * project owner, which opens every project over `projectSourceFor`.
+ * the work package catalog over its port with the same test, and owns the session's
+ * work package owner, which opens every work package over `workPackageSourceFor`.
  *
- * **The project owner is the graph's one owned disposable.** The session's
- * disposal leaves it — retiring whatever project is current, and waiting for
+ * **The work package owner is the graph's one owned disposable.** The session's
+ * disposal leaves it — retiring whatever work package is current, and waiting for
  * that retirement — before the session's own retirement is done, which is the
- * ordering the lifetime map requires: project first, then session. A project
+ * ordering the lifetime map requires: work package first, then session. A work package
  * that could not be given back fails the session's disposal with
- * {@link SessionProjectRetirementError}; a project whose construction failed
+ * {@link SessionWorkPackageRetirementError}; a work package whose construction failed
  * holds nothing, and does not.
  *
  * @throws `PartialAcquisitionError` when a service cannot be resolved, carrying
@@ -249,9 +249,9 @@ export function installSessionRuntime({
   resourceScope,
   directoryApi,
   catalogRoutes,
-  projectSourceFor,
+  workPackageSourceFor,
   isCurrent,
-  installProject,
+  installWorkPackage,
   budgetMs,
 }: SessionRuntimeDependencies): RetirableRuntime<SessionRuntime> {
   const bag = DiBag.createBuilder()
@@ -269,40 +269,41 @@ export function installSessionRuntime({
         // Proof: on 2026-09-27, `isCurrent: () => true` here (n2) failed `sends nothing for a catalog
         // gesture asked of a withdrawn session` on `promise resolved "[ { id: 'p1', …(6) } ]" instead
         // of rejecting`.
-        (): ProjectCatalog => createProjectCatalog({ routes: catalogRoutes, isCurrent }),
+        (): WorkPackageCatalog => createWorkPackageCatalog({ routes: catalogRoutes, isCurrent }),
         { factoryReturnKind: 'sync-value' },
       ),
-      projects: DiBag.providerWithDisposal({
+      workPackages: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          (): SessionProjects =>
-            sessionProjects({ isCurrent, installProject, projectSourceFor, budgetMs }),
+          (): SessionWorkPackages =>
+            sessionWorkPackages({ isCurrent, installWorkPackage, workPackageSourceFor, budgetMs }),
           { factoryReturnKind: 'sync-value' },
         ),
-        disposeService: async (projects) => {
+        disposeService: async (workPackages) => {
           // Proof: on 2026-09-24, deleting this line (m7) failed the model test `keys one runtime
-          // by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openProject(0,
-          // p1),signInBroken(u2),gesture(0)`: s1 was retired while its project owner was still
+          // by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openWorkPackage(0,
+          // p1),signInBroken(u2),gesture(0)`: s1 was retired while its workPackage owner was still
           // `live`. Deleting the terminal-fatal throw below (d1) failed `fails the session’s
-          // retirement when its project will not let go` on `expected false to be true`: the
+          // retirement when its work package will not let go` on `expected false to be true`: the
           // session was left `empty`, not terminally `fatal`.
-          // Proof: on 2026-09-24 the log-out model caught `void projects.leave()` (x2) through a
-          // user switch: `retires the project and then the session, …` (seed 20260924) failed at
-          // run 50, `signIn(u1),openProject(0, p1, settles),signIn(u2),drain`: s1 was given back
-          // before its project s1.p1. The same fault (e1) failed `settles signed out once the
-          // project and then the session have let go, …`: the recorded order began with 'session
-          // given back' instead of 'project p1 given back'.
-          await projects.leave();
-          const left = projects.snapshot();
-          if (left.status === 'fatal' && left.terminal) throw new SessionProjectRetirementError();
+          // Proof: on 2026-09-24 the log-out model caught `void workPackages.leave()` (x2) through a
+          // user switch: `retires the workPackage and then the session, …` (seed 20260924) failed at
+          // run 50, `signIn(u1),openWorkPackage(0, p1, settles),signIn(u2),drain`: s1 was given back
+          // before its work package s1.p1. The same fault (e1) failed `settles signed out once the
+          // work package and then the session have let go, …`: the recorded order began with 'session
+          // given back' instead of 'work package p1 given back'.
+          await workPackages.leave();
+          const left = workPackages.snapshot();
+          if (left.status === 'fatal' && left.terminal)
+            throw new SessionWorkPackageRetirementError();
         },
       }),
     })
     .buildContainer();
   // Proof: on 2026-09-24, a transaction whose close gives nothing back (m11) failed the model test
-  // `keys one runtime by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openProject(0,
-  // p1),signInBroken(u2),gesture(0)`: s1 was retired while its project owner was still `live`.
+  // `keys one runtime by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openWorkPackage(0,
+  // p1),signInBroken(u2),gesture(0)`: s1 was retired while its workPackage owner was still `live`.
   // Publishing `directoryApi` beside the services (k1) failed `publishes the session’s directory
-  // and its projects, and nothing else`: expected [ 'directory', 'directoryApi', …(3) ] to deeply
+  // and its work packages, and nothing else`: expected [ 'directory', 'directoryApi', …(3) ] to deeply
   // equal [ 'directory', 'isCurrent', …(2) ].
   return acquireTransactionally(bag, () => ({
     userId,
@@ -311,7 +312,7 @@ export function installSessionRuntime({
     isCurrent,
     directory: bag.resolve('directoryManagement'),
     catalog: bag.resolve('catalog'),
-    projects: bag.resolve('projects'),
+    workPackages: bag.resolve('workPackages'),
   }));
 }
 
@@ -331,14 +332,14 @@ export interface SessionOwner extends Store<LifetimeState<SessionRuntime>> {
    * same user replaces nothing.
    *
    * For another user it withdraws the current runtime, and with it its
-   * project, synchronously, and publishes the new one once that retirement
+   * work package, synchronously, and publishes the new one once that retirement
    * has succeeded. Resolves when this request has published, was overtaken,
    * or was refused — the last leaves the owner `fatal`, which is what the app
    * shows.
    */
   readonly open: (identity: SessionIdentity) => Promise<void>;
   /**
-   * Withdraws and retires whatever runtime is current — its project first —
+   * Withdraws and retires whatever runtime is current — its work package first —
    * and settles only once that retirement has run: a second trigger queues
    * behind the first and settles after it, with the same outcome.
    */
@@ -347,8 +348,8 @@ export interface SessionOwner extends Store<LifetimeState<SessionRuntime>> {
    * Log out: a **local exit**, which sends no request and revokes nothing, so a
    * reload can still restore the identity from its cookie.
    *
-   * It is {@link leave} and nothing more: the session and its project are
-   * withdrawn in the same instant, the project is retired and then the
+   * It is {@link leave} and nothing more: the session and its work package are
+   * withdrawn in the same instant, the work package is retired and then the
    * session, each under the retirement budget, and this settles only once that
    * retirement has run — however many log outs, or the region's own departure,
    * asked for it. What it settles with is what the region may do next; see
@@ -360,7 +361,7 @@ export interface SessionOwner extends Store<LifetimeState<SessionRuntime>> {
 /**
  * How one log out ended, as the region that asked for it acts on it.
  *
- * - `signed-out` — the session and its project were withdrawn and retired, in
+ * - `signed-out` — the session and its work package were withdrawn and retired, in
  *   that order, and nobody has been asked for since: the signed-out state may
  *   render.
  * - `fatal` — a retirement failed or outran its wait, or the owner was already
@@ -373,23 +374,26 @@ export type SessionExit = 'signed-out' | 'fatal' | 'overtaken';
 
 /** What an owner is built from; production passes none of it. */
 export interface SessionOwnerDependencies {
-  /** Read-only addresses over the same credential and organization scope as the project client. */
-  readonly addressClientFor?: (credential: Credential, scope?: ResourceScope) => ProjectAddressApi;
+  /** Read-only addresses over the same credential and organization scope as the work package client. */
+  readonly addressClientFor?: (
+    credential: Credential,
+    scope?: ResourceScope,
+  ) => WorkPackageAddressApi;
   /** How one runtime is installed. Defaults to {@link installSessionRuntime}. */
   readonly install?: (dependencies: SessionRuntimeDependencies) => RetirableRuntime<SessionRuntime>;
   /** How the directory's client is cut from a credential. Defaults to the real one. */
   readonly clientFor?: (credential: Credential, scope?: ResourceScope) => DirectoryApi;
   /**
-   * How the session's one project client — the catalog's routes and every
-   * project's plan services — is cut from a credential. Defaults to the real one.
+   * How the session's one work package client — the catalog's routes and every
+   * work package's plan services — is cut from a credential. Defaults to the real one.
    */
-  readonly projectClientFor?: (credential: Credential, scope?: ResourceScope) => ProjectApi;
-  /** The project stream's socket wiring. Left out in production: the browser's own. */
-  readonly streamDeps?: ProjectStreamDeps;
-  /** How a project runtime is installed. Defaults to the real one. */
-  readonly installProject?: (
-    dependencies: ProjectRuntimeDependencies,
-  ) => RetirableRuntime<ProjectRuntime>;
+  readonly workPackageClientFor?: (credential: Credential, scope?: ResourceScope) => WorkPackageApi;
+  /** The work package stream's socket wiring. Left out in production: the browser's own. */
+  readonly streamDeps?: WorkPackageStreamDeps;
+  /** How a work package runtime is installed. Defaults to the real one. */
+  readonly installWorkPackage?: (
+    dependencies: WorkPackageRuntimeDependencies,
+  ) => RetirableRuntime<WorkPackageRuntime>;
   /** The bounded wait for a retirement. Defaults to the one budget every lifetime has. */
   readonly budgetMs?: number;
 }
@@ -409,16 +413,16 @@ export interface SessionOwnerDependencies {
 export function createSessionOwner({
   install = installSessionRuntime,
   clientFor = httpDirectoryApi,
-  projectClientFor = httpProjectApi,
-  addressClientFor = httpProjectAddressApi,
+  workPackageClientFor = httpWorkPackageApi,
+  addressClientFor = httpWorkPackageAddressApi,
   streamDeps,
-  installProject = installProjectRuntime,
+  installWorkPackage = installWorkPackageRuntime,
   budgetMs = RETIREMENT_BUDGET_MS,
 }: SessionOwnerDependencies = {}): SessionOwner {
-  // Proof: on 2026-09-24, unbounding both this wait and the one handed to the project (x4) failed
-  // `retires the project and then the session, …` (seed 20260924) at run 75,
-  // `signIn(u1),openProject(0, p1, hangs),leave,answer`: the leave had not settled by the teardown.
-  // The same fault (e2) failed `settles fatal at the budget when the project’s socket never closes,
+  // Proof: on 2026-09-24, unbounding both this wait and the one handed to the work package (x4) failed
+  // `retires the workPackage and then the session, …` (seed 20260924) at run 75,
+  // `signIn(u1),openWorkPackage(0, p1, hangs),leave,answer`: the leave had not settled by the teardown.
+  // The same fault (e2) failed `settles fatal at the budget when the workPackage’s socket never closes,
   // …` on `expected null to be 'fatal'`: nothing had settled once the budget had passed.
   const slot = createLifetimeSlot<SessionRuntime>(budgetMs);
   /** The identity the newest request asked for, or `null` after a leave. */
@@ -441,7 +445,7 @@ export function createSessionOwner({
         await close(options);
       } catch (refusal: unknown) {
         // Proof: on 2026-09-24, deleting this line (o2) failed `fails the session’s retirement when
-        // its project will not let go`: the promise rejected with `a session transition was refused
+        // its work package will not let go`: the promise rejected with `a session transition was refused
         // by the slot itself`, caused by `DI_BAG_CLEANUP_FAILED`.
         refusedByRuntime.add(refusal);
         throw refusal;
@@ -531,15 +535,15 @@ export function createSessionOwner({
             isCurrent,
             refuse: identity.onRefusal ?? (() => undefined),
           };
-          const projectClient = projectClientFor(identity.credential, resourceScope);
-          // One source per session: a new client or stream per project would make
-          // every project a composition of its own for no difference in behaviour.
-          // Proof: on 2026-09-27, the source over a second client (`httpProjectApi(identity.credential)`,
-          // n1) failed `lists the catalog and reads each project through the one client cut from the
+          const workPackageClient = workPackageClientFor(identity.credential, resourceScope);
+          // One source per session: a new client or stream per work package would make
+          // every work package a composition of its own for no difference in behaviour.
+          // Proof: on 2026-09-27, the source over a second client (`httpWorkPackageApi(identity.credential)`,
+          // n1) failed `lists the catalog and reads each workPackage through the one client cut from the
           // credential` on `expected [] to deeply equal [ 'p1' ]`; cutting that second client through
-          // `projectClientFor` failed it on `expected [ 'tok', 'tok' ] to deeply equal [ 'tok' ]`.
-          const projectSource = projectSourceOver(
-            projectClient,
+          // `workPackageClientFor` failed it on `expected [ 'tok', 'tok' ] to deeply equal [ 'tok' ]`.
+          const workPackageSource = workPackageSourceOver(
+            workPackageClient,
             addressClientFor(identity.credential, resourceScope),
             streamDeps,
             browserSavedPlanRoutes(streamDeps, resourceScope),
@@ -549,10 +553,10 @@ export function createSessionOwner({
             organization,
             resourceScope,
             directoryApi: clientFor(identity.credential, resourceScope),
-            catalogRoutes: projectClient,
-            projectSourceFor: () => projectSource,
+            catalogRoutes: workPackageClient,
+            workPackageSourceFor: () => workPackageSource,
             isCurrent,
-            installProject,
+            installWorkPackage,
             budgetMs,
           });
           built = runtime.services;
@@ -571,20 +575,20 @@ export function createSessionOwner({
       return latest;
     },
     exit: async () => {
-      // Proof: on 2026-09-24, leaving the live project first and on its own (x1) failed `retires
-      // the project and then the session, …` (seed 20260924) at run 18,
+      // Proof: on 2026-09-24, leaving the live work package first and on its own (x1) failed `retires
+      // the work package and then the session, …` (seed 20260924) at run 18,
       // `reenterLogOut,signIn(u1),read(0)`: the withdrawn s1 sent five requests where none was
       // allowed. Answering `signed-out` at once whenever the slot was not live (x5) failed it at
       // run 3, `signIn(u1),leave,logOut`: logOut#1 settled signed-out before s1 was given back.
       await owner.leave();
-      // Proof: on 2026-09-24, deleting this check (x6) failed `retires the project and then the
-      // session, …` (seed 20260924) at run 58, `signIn(u1),openProject(0, p1,
+      // Proof: on 2026-09-24, deleting this check (x6) failed `retires the workPackage and then the
+      // session, …` (seed 20260924) at run 58, `signIn(u1),openWorkPackage(0, p1,
       // rejects),logOut,drain`: logOut#1 settled signed-out before s1 was given back. The same
       // deletion (e3) failed `settles fatal after a sign-in that could not be built, …` on
       // `expected 'signed-out' to be 'fatal'`.
       if (slot.snapshot().status === 'fatal') return 'fatal';
       // Proof: on 2026-09-24, returning `signed-out` unconditionally (x7) failed `retires the
-      // project and then the session, …` (seed 20260924) at run 43,
+      // work package and then the session, …` (seed 20260924) at run 43,
       // `signIn(u1),logOut,signInBroken(u1)`: logOut#1 settled signed-out although a sign-in was
       // asked for while it retired.
       return wanted === null ? 'signed-out' : 'overtaken';

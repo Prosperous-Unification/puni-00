@@ -55,12 +55,12 @@ import {
 } from './domain-shapes';
 import { gatewayDependencyAdmission } from './gateway-dependency-http-shapes';
 import { readHistory } from './history-shapes';
-import { importProject } from './import-shapes';
+import { importWorkPackage } from './import-shapes';
 import { dependencyCapability, health, metrics } from './infrastructure-shapes';
 import {
   forwardInternal,
-  gatewayBrowserProjectAccess,
-  gatewayProjectAccess,
+  gatewayBrowserWorkPackageAccess,
+  gatewayWorkPackageAccess,
   resumeInternal,
 } from './internal-http-shapes';
 import {
@@ -106,20 +106,14 @@ import {
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
 import { readPersonWork } from './person-work-shapes';
 import {
-  discoverAddressCandidates,
-  discoverAddressProjects,
-  resolveAddressReference,
-} from './project-address-shapes';
-import { readProjectClaims } from './project-claims-shapes';
-import { moveProjectRank, readProjectRank } from './project-rank-shapes';
-import {
   createProject,
-  exportProject,
+  deleteProject,
   listProjects,
-  patchProject,
+  moveWorkPackage,
+  patchProjectSettings,
   readProject,
-  recordProjectOpen,
-  retryProjectOptimization,
+  readProjectSettings,
+  renameProject,
 } from './project-shapes';
 import {
   issueProvisioningToken,
@@ -134,7 +128,7 @@ import {
   readResourceAuthority,
   readResourceCleanupRequests,
 } from './resource-runtime-shapes';
-import { previewDirectoryCapacity, readProjectResources } from './resource-shapes';
+import { previewDirectoryCapacity, readWorkPackageResources } from './resource-shapes';
 import {
   appendResourceUseEvent,
   listResourceUses,
@@ -173,18 +167,35 @@ import {
   updateSsoConnection,
 } from './sso-connection-shapes';
 import { readStartableWork } from './startable-shapes';
-import { addStep, removeStep, renameStep } from './step-shapes';
+import { patchWorkPackageStepValues } from './step-shapes';
+import {listStepCatalogue,bindCatalogueStep,patchStepDefinition,retireStepDefinition,unbindCatalogueStep,reorderCatalogueBindings,readProjectSteps,readProjectStepUsage,readProjectStepManifest} from './step-catalogue-shapes';
 import { readTimezones } from './timezone-shapes';
 import {
   applyDirectoryCommands,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   getStepReference,
   getWorkItem,
   getWorkItemRows,
   getWorkItems,
-  redoProject,
-  undoProject,
+  redoWorkPackage,
+  undoWorkPackage,
 } from './work-item-shapes';
+import {
+  discoverAddressCandidates,
+  discoverAddressWorkPackages,
+  resolveAddressReference,
+} from './work-package-address-shapes';
+import { readWorkPackageClaims } from './work-package-claims-shapes';
+import { moveWorkPackageRank, readWorkPackageRank } from './work-package-rank-shapes';
+import {
+  createWorkPackage,
+  exportWorkPackage,
+  listWorkPackages,
+  patchWorkPackage,
+  readWorkPackage,
+  recordWorkPackageOpen,
+  retryWorkPackageOptimization,
+} from './work-package-shapes';
 
 /** Migrated HTTP declarations; legacy families join this table as their handlers migrate. */
 const ordinaryHttpShapes = [
@@ -215,9 +226,8 @@ const ordinaryHttpShapes = [
   refreshOidcSession,
   logoutOidcSession,
   smokeEcho,
-  addStep,
-  renameStep,
-  removeStep,
+  patchWorkPackageStepValues,
+  listStepCatalogue,bindCatalogueStep,patchStepDefinition,retireStepDefinition,unbindCatalogueStep,reorderCatalogueBindings,readProjectSteps,readProjectStepUsage,readProjectStepManifest,
   listMembers,
   removeMember,
   listOrganizationMemberships,
@@ -277,21 +287,29 @@ const ordinaryHttpShapes = [
   readTimezones,
   readOrganizationLoad,
   readPersonLoad,
-  readProjectRank,
-  moveProjectRank,
+  readWorkPackageRank,
+  moveWorkPackageRank,
   readCapacityMode,
   switchCapacityMode,
   approveSharedPeopleRestore,
   readHistory,
   readSolution,
+  readProjectSettings,
+  patchProjectSettings,
   createProject,
   listProjects,
-  recordProjectOpen,
-  exportProject,
-  importProject,
   readProject,
-  patchProject,
-  retryProjectOptimization,
+  renameProject,
+  deleteProject,
+  moveWorkPackage,
+  createWorkPackage,
+  listWorkPackages,
+  recordWorkPackageOpen,
+  exportWorkPackage,
+  importWorkPackage,
+  readWorkPackage,
+  patchWorkPackage,
+  retryWorkPackageOptimization,
   getWorkItems,
   getWorkItemRows,
   getWorkItem,
@@ -301,15 +319,15 @@ const ordinaryHttpShapes = [
   readStartableWork,
   readBudgetHeadroom,
   readPersonWork,
-  readProjectClaims,
+  readWorkPackageClaims,
   readClaimHistory,
   renewClaimLeases,
-  readProjectResources,
+  readWorkPackageResources,
   listMeasures,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   applyDirectoryCommands,
-  undoProject,
-  redoProject,
+  undoWorkPackage,
+  redoWorkPackage,
   listCalendarMarkers,
   createCalendarMarker,
   updateCalendarMarker,
@@ -332,14 +350,14 @@ const ordinaryHttpShapes = [
   moveSpaceProject,
   forwardInternal,
   resumeInternal,
-  gatewayProjectAccess,
-  gatewayBrowserProjectAccess,
+  gatewayWorkPackageAccess,
+  gatewayBrowserWorkPackageAccess,
   listMcpOrganizations,
   mintMcpConsentCredential,
   endMcpConsentCredential,
   issueMcpDelegation,
   readMcpAuthority,
-  discoverAddressProjects,
+  discoverAddressWorkPackages,
   discoverAddressCandidates,
   resolveAddressReference,
   issueMcpMachineGrant,

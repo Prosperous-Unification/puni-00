@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
- * Plan document version 11 (`wbs-measure-budgets` task 4.4, design D63) over
+ * Plan document version 13 (`wbs-measure-budgets` task 4.4, design D63) over
  * be-01's production composition and real SQLite: one organization's plan
  * holding a defined measure, priced money facts and trios, a three-point
  * tokens trio, budgets and a factor is exported, imported into another
@@ -23,6 +23,14 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'moe']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
+  for (const [id, organization, creator] of [
+    ['measure-parent-a', 'org-a', 'ada'],
+    ['measure-parent-b', 'org-b', 'grace'],
+  ] as const)
+    h.sqlite.run(
+      'INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,?,?,1,?)',
+      [id, organization, id, h.userId(creator)],
+    );
   // Defining a measure, directly or by import, is an admin's act (design D70).
   h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.member('org-b', 'grace', 'admin', ['org-admin']);
@@ -59,14 +67,19 @@ async function batch(username: string, path: string, commands: unknown[]): Promi
  */
 async function measuredPlan(): Promise<string> {
   await batch('ada', '/api/directory/commands', [GPU]);
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Measured' });
+  const created = await h.call('ada', 'POST', '/api/work-packages', {
+    name: 'Measured',
+    projectId: 'measure-parent-a',
+  });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const projectId = (created.body as { project: { id: string } }).project.id;
+  const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   const step = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-    .get(projectId)?.id;
-  if (step === undefined) throw new Error('the project has no step');
-  const built = (await batch('ada', `/api/projects/${projectId}/commands`, [
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
+    )
+    .get(workPackageId)?.id;
+  if (step === undefined) throw new Error('the work package has no step');
+  const built = (await batch('ada', `/api/work-packages/${workPackageId}/commands`, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     {
       kind: 'createWorkItem',
@@ -99,7 +112,7 @@ async function measuredPlan(): Promise<string> {
     estimate: { optimistic: points[0], realistic: points[1], pessimistic: points[2] },
     ...more,
   });
-  await batch('ada', `/api/projects/${projectId}/commands`, [
+  await batch('ada', `/api/work-packages/${workPackageId}/commands`, [
     { kind: 'setMeasure', workItemId: l1, stepId: step, metric: 'tokens', value: 900 },
     { kind: 'setMeasure', workItemId: l1, stepId: step, metric: 'hours', value: 1.5 },
     {
@@ -125,13 +138,19 @@ async function measuredPlan(): Promise<string> {
     },
     { kind: 'setBudget', workItemId: l2, measure: 'gpu_minutes', cap: 600, policy: 'advisory' },
   ]);
-  const patched = await h.call('ada', 'PATCH', `/api/projects/${projectId}`, { budgetFactor: 1.5 });
+  const patched = await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, {
+    budgetFactor: 1.5,
+  });
   if (patched.status !== 200) throw new Error(`patch refused: ${JSON.stringify(patched)}`);
-  return projectId;
+  return workPackageId;
 }
 
-async function exported(username: string, projectId: string): Promise<PlanDocument> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}/export?format=json`);
+async function exported(username: string, workPackageId: string): Promise<PlanDocument> {
+  const answer = await h.call(
+    username,
+    'GET',
+    `/api/work-packages/${workPackageId}/export?format=json`,
+  );
   if (answer.status !== 200) throw new Error(`export refused: ${JSON.stringify(answer)}`);
   return answer.body as PlanDocument;
 }
@@ -161,14 +180,14 @@ async function authored(document: PlanDocument): Promise<string> {
 }
 
 for (const mode of ['isolated', 'shared'] as const) {
-  describe(`version 11 (${mode})`, () => {
+  describe(`version 13 (${mode})`, () => {
     beforeEach(() => {
       if (mode === 'shared') {
         h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id IN ('org-a', 'org-b')");
       }
     });
 
-    it('round-trips a version-11 plan byte for byte into an organization lacking a measure', async () => {
+    it('round-trips a version-13 plan byte for byte into an organization lacking a measure', async () => {
       const source = await exported('ada', await measuredPlan());
       expect({
         version: source.document.version,
@@ -187,7 +206,7 @@ for (const mode of ['isolated', 'shared'] as const) {
           holdPerAttempt,
         })),
       }).toEqual({
-        version: 11,
+        version: 15,
         factor: 1.5,
         definitions: ['tokens', 'cost', 'gpu_minutes'],
         // In tree order (a created row goes first among its siblings: P, L2,
@@ -214,7 +233,10 @@ for (const mode of ['isolated', 'shared'] as const) {
           { measure: 'gpu_minutes', cap: 600, policy: 'advisory', holdPerAttempt: null },
         ],
       });
-      const imported = await h.call('grace', 'POST', '/api/projects/import', source);
+      const imported = await h.call('grace', 'POST', '/api/work-packages/import', {
+        projectId: 'measure-parent-b',
+        document: source,
+      });
       expect(imported.status).toBe(201);
       const listed = await h.call('grace', 'GET', '/api/measures');
       expect(
@@ -229,7 +251,10 @@ for (const mode of ['isolated', 'shared'] as const) {
         'agent_minutes:minutes',
         'gpu_minutes:min',
       ]);
-      const copy = await exported('grace', (imported.body as { projectId: string }).projectId);
+      const copy = await exported(
+        'grace',
+        (imported.body as { workPackageId: string }).workPackageId,
+      );
       expect(await authored(copy)).toBe(await authored(source));
     });
   });
@@ -240,12 +265,15 @@ it('refuses a definition the organization holds in another shape, writing nothin
   await batch('grace', '/api/directory/commands', [{ ...GPU, scale: 'real' }]);
   const counted = () =>
     h.sqlite
-      .query<{ projects: number; measures: number }, []>(
-        'SELECT (SELECT COUNT(*) FROM project) AS projects, (SELECT COUNT(*) FROM measure) AS measures',
+      .query<{ workPackages: number; measures: number }, []>(
+        'SELECT (SELECT COUNT(*) FROM work_package) AS workPackages, (SELECT COUNT(*) FROM measure) AS measures',
       )
       .get();
   const before = counted();
-  const refused = await h.call('grace', 'POST', '/api/projects/import', source);
+  const refused = await h.call('grace', 'POST', '/api/work-packages/import', {
+    projectId: 'measure-parent-b',
+    document: source,
+  });
   expect(refused).toMatchObject({
     status: 409,
     body: {
@@ -262,19 +290,31 @@ it("refuses a member's import that would define a measure, writing nothing", asy
   const source = await exported('ada', await measuredPlan());
   const counted = () =>
     h.sqlite
-      .query<{ projects: number; measures: number }, []>(
-        'SELECT (SELECT COUNT(*) FROM project) AS projects, (SELECT COUNT(*) FROM measure) AS measures',
+      .query<{ workPackages: number; measures: number }, []>(
+        'SELECT (SELECT COUNT(*) FROM work_package) AS workPackages, (SELECT COUNT(*) FROM measure) AS measures',
       )
       .get();
   const before = counted();
-  expect(await h.call('moe', 'POST', '/api/projects/import', source)).toEqual({
+  expect(
+    await h.call('moe', 'POST', '/api/work-packages/import', {
+      projectId: 'measure-parent-b',
+      document: source,
+    }),
+  ).toEqual({
     status: 403,
     body: { error: 'forbidden', permission: 'organization.manage_directory' },
   });
   expect(counted()).toEqual(before);
   // Once an admin has defined it, the member's import only matches it.
   await batch('grace', '/api/directory/commands', [GPU]);
-  expect((await h.call('moe', 'POST', '/api/projects/import', source)).status).toBe(201);
+  expect(
+    (
+      await h.call('moe', 'POST', '/api/work-packages/import', {
+        projectId: 'measure-parent-b',
+        document: source,
+      })
+    ).status,
+  ).toBe(201);
 });
 
 it('imports a version-10 file onto the seeded definitions, mapping its legacy metrics', async () => {
@@ -285,12 +325,15 @@ it('imports a version-10 file onto the seeded definitions, mapping its legacy me
   row.measures = { token_actual: { 'step-1': 900 }, hours_actual: { 'step-1': 4 } };
   // Version 7 on keys attempts by step code; this row has none.
   Reflect.deleteProperty(row, 'attempts');
-  const imported = await h.call('grace', 'POST', '/api/projects/import', document);
+  const imported = await h.call('grace', 'POST', '/api/work-packages/import', {
+    projectId: 'measure-parent-b',
+    document,
+  });
   expect(imported.status).toBe(201);
   const listed = await h.call('grace', 'GET', '/api/measures');
   expect((listed.body as { measures: unknown[] }).measures).toHaveLength(5);
-  const copy = await exported('grace', (imported.body as { projectId: string }).projectId);
-  expect(copy.document.version).toBe(11);
+  const copy = await exported('grace', (imported.body as { workPackageId: string }).workPackageId);
+  expect(copy.document.version).toBe(15);
   expect(copy.workItems.at(0)?.measures).toEqual({
     hours_actual: { [copy.steps.find(({ code }) => code === 'impl')?.id ?? 'impl']: 4 },
     token_actual: { [copy.steps.find(({ code }) => code === 'impl')?.id ?? 'impl']: 900 },
@@ -301,33 +344,35 @@ it('undo of a delete puts a priced fact back with its basis', async () => {
   // A restore replays a delete's journal, which this release reads only with
   // direct blockages active.
   activateTestStepBlockages(h.sqlite.filename);
-  const projectId = await measuredPlan();
+  const workPackageId = await measuredPlan();
   const pricedFacts = () =>
     h.sqlite
       .query<{ value: number; currency: string | null; digest: string | null }, [string]>(
         `SELECT sm.value, sm.currency, sm.rate_card_digest AS digest
            FROM step_measure sm JOIN work_item wi ON wi.id = sm.work_item_id
-          WHERE wi.project_id = ? AND (sm.currency IS NOT NULL OR sm.rate_card_digest IS NOT NULL)`,
+          WHERE wi.work_package_id = ? AND (sm.currency IS NOT NULL OR sm.rate_card_digest IS NOT NULL)`,
       )
-      .all(projectId);
+      .all(workPackageId);
   const before = pricedFacts();
   expect(before).toEqual([{ value: 2_500_000, currency: 'USD', digest: 'sha256:card-a' }]);
   const parent = h.sqlite
-    .query<{ id: string }, [string]>("SELECT id FROM work_item WHERE project_id = ? AND name = 'P'")
-    .get(projectId)?.id;
-  await batch('ada', `/api/projects/${projectId}/commands`, [
+    .query<{ id: string }, [string]>(
+      "SELECT id FROM work_item WHERE work_package_id = ? AND name = 'P'",
+    )
+    .get(workPackageId)?.id;
+  await batch('ada', `/api/work-packages/${workPackageId}/commands`, [
     { kind: 'deleteWorkItem', workItemId: parent, strategy: 'cascade' },
   ]);
   expect(pricedFacts()).toEqual([]);
-  expect(await h.call('ada', 'POST', `/api/projects/${projectId}/undo`)).toMatchObject({
+  expect(await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/undo`)).toMatchObject({
     status: 200,
   });
   expect(pricedFacts()).toEqual(before);
 });
 
 it('saved plan compare names a change in a trio, a budget, a basis and the factor', async () => {
-  const projectId = await measuredPlan();
-  const saved = await h.call('ada', 'POST', `/api/projects/${projectId}/saved-plans`, {
+  const workPackageId = await measuredPlan();
+  const saved = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/saved-plans`, {
     name: 'Before',
   });
   expect(saved.status).toBe(201);
@@ -336,7 +381,7 @@ it('saved plan compare names a change in a trio, a budget, a basis and the facto
     const answer = await h.call(
       'ada',
       'GET',
-      `/api/projects/${projectId}/saved-plans/compare?left=${savedId}&right=current`,
+      `/api/work-packages/${workPackageId}/saved-plans/compare?left=${savedId}&right=current`,
     );
     if (answer.status !== 200) throw new Error(`compare refused: ${JSON.stringify(answer)}`);
     return (
@@ -347,13 +392,15 @@ it('saved plan compare names a change in a trio, a budget, a basis and the facto
   const id = (name: string) =>
     h.sqlite
       .query<{ id: string }, [string, string]>(
-        'SELECT id FROM work_item WHERE project_id = ? AND name = ?',
+        'SELECT id FROM work_item WHERE work_package_id = ? AND name = ?',
       )
-      .get(projectId, name)?.id;
+      .get(workPackageId, name)?.id;
   const step = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-    .get(projectId)?.id;
-  await batch('ada', `/api/projects/${projectId}/commands`, [
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
+    )
+    .get(workPackageId)?.id;
+  await batch('ada', `/api/work-packages/${workPackageId}/commands`, [
     {
       kind: 'setMeasureEstimate',
       workItemId: id('L2'),
@@ -377,13 +424,13 @@ it('saved plan compare names a change in a trio, a budget, a basis and the facto
       rateCardDigest: 'sha256:card-b',
     },
   ]);
-  await h.call('ada', 'PATCH', `/api/projects/${projectId}`, { budgetFactor: 2 });
+  await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, { budgetFactor: 2 });
   expect((await compare()).sort()).toEqual(
     [
       'measures budgets[…].cap',
       'measures measureEstimates[…].pessimistic',
       'measures measures[…].rateCardDigest',
-      'settings project.budgetFactor',
+      'settings workPackage.budgetFactor',
     ].sort(),
   );
 });
@@ -409,12 +456,15 @@ it('rolls back a definition it created when a later definition refuses, writing 
   });
   const counted = () =>
     h.sqlite
-      .query<{ projects: number; gpu: number }, []>(
-        "SELECT (SELECT COUNT(*) FROM project) AS projects, (SELECT COUNT(*) FROM measure WHERE organization_id = 'org-b' AND key = 'gpu_minutes') AS gpu",
+      .query<{ workPackages: number; gpu: number }, []>(
+        "SELECT (SELECT COUNT(*) FROM work_package) AS workPackages, (SELECT COUNT(*) FROM measure WHERE organization_id = 'org-b' AND key = 'gpu_minutes') AS gpu",
       )
       .get();
   const before = counted();
-  const refused = await h.call('grace', 'POST', '/api/projects/import', source);
+  const refused = await h.call('grace', 'POST', '/api/work-packages/import', {
+    projectId: 'measure-parent-b',
+    document: source,
+  });
   // Proof: with `ImportService.import` committing on a `resolveMeasures`
   // refusal (`commit: true`), this case found org-b holding `gpu_minutes`
   // (gpu 1, expected 0); watched 2026-10-23.
@@ -427,11 +477,11 @@ it('rolls back a definition it created when a later definition refuses, writing 
         detail: 'measure_shape_mismatch',
       },
     },
-    after: { projects: before?.projects, gpu: 0 },
+    after: { workPackages: before?.workPackages, gpu: 0 },
   });
 });
 
-it('before activation, with a legacy organization: re-import of its own v11 export succeeds and matches its definitions', async () => {
+it('before activation, with a legacy organization: re-import of its own v13 export succeeds and matches its definitions', async () => {
   // This file's setup activates; legacy access needs a harness that has not.
   h.close();
   h = OrganizationHarness.openComposed();
@@ -439,9 +489,16 @@ it('before activation, with a legacy organization: re-import of its own v11 expo
   h.sqlite.run(
     "INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-legacy', 'Legacy', 1, 1)",
   );
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('measure-parent-a','org-legacy','Legacy measures',1,?)",
+    [h.userId('ada')],
+  );
   const source = await exported('ada', await measuredPlan());
-  const imported = await h.call('ada', 'POST', '/api/projects/import', source);
-  const projectId = (imported.body as { projectId?: string }).projectId ?? '';
+  const imported = await h.call('ada', 'POST', '/api/work-packages/import', {
+    projectId: 'measure-parent-a',
+    document: source,
+  });
+  const workPackageId = (imported.body as { workPackageId?: string }).workPackageId ?? '';
   const legacyMeasures = h.sqlite
     .query<{ key: string }, []>(
       "SELECT key FROM measure WHERE organization_id = 'org-legacy' AND key IN ('tokens', 'cost', 'gpu_minutes') ORDER BY key",
@@ -454,17 +511,17 @@ it('before activation, with a legacy organization: re-import of its own v11 expo
     status: imported.status,
     owner: h.sqlite
       .query<{ organization_id: string }, [string]>(
-        'SELECT organization_id FROM project_organization WHERE resource_id = ?',
+        'SELECT organization_id FROM work_package_organization WHERE resource_id = ?',
       )
-      .get(projectId)?.organization_id,
+      .get(workPackageId)?.organization_id,
     // Matched, not defined a second time.
     legacyMeasures,
   }).toEqual({
-    version: 11,
+    version: 15,
     definitions: ['tokens', 'cost', 'gpu_minutes'],
     status: 201,
     owner: 'org-legacy',
     legacyMeasures: ['cost', 'gpu_minutes', 'tokens'],
   });
-  expect(await authored(await exported('ada', projectId))).toBe(await authored(source));
+  expect(await authored(await exported('ada', workPackageId))).toBe(await authored(source));
 });

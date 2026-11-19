@@ -1370,3 +1370,109 @@ describe('every suite that reads a CI workflow declares it', () => {
     expect(undeclared).toEqual([]);
   });
 });
+
+it('native Nx cached backend recovery tasks include both declared wire fixture inputs', async () => {
+  const nxJson = JSON.parse(
+    await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+  ) as NxJsonConfiguration;
+  const inheritedDaemon = process.env['NX_DAEMON'];
+  process.env['NX_DAEMON'] = 'false';
+  let graph: ProjectGraph;
+  try {
+    graph = await createProjectGraphAsync({ exitOnError: true });
+  } finally {
+    if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+    else process.env['NX_DAEMON'] = inheritedDaemon;
+  }
+  const { rustReferences } = getFileMap();
+  if (rustReferences === null) throw Error('required Nx workspace file map absent');
+  const taskGraph = createTaskGraph(graph, {}, ['wbs-be-01'], ['test', 'test:unit'], undefined, {});
+  for (const consumer of ['test', 'test:unit']) {
+    const task = taskGraph.tasks['wbs-be-01:' + consumer];
+    const hasher = new InProcessTaskHasher(graph, nxJson, rustReferences, {});
+    const hash = await hasher.hashTask(task, taskGraph, process.env, WORKSPACE.pathname, true);
+    // Proof: backup-nx-required-input-receipt. Clearing the required receipt after the actual installed hasher returns throws the named absence error. Checker dependency evidence, not product admission.
+    // Observed test: native Nx cached backend recovery tasks include both declared wire fixture inputs.
+    const inputs = hash.inputs;
+    if (inputs === undefined) throw Error('required Nx native input receipt absent');
+    const required = [
+      'openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-save1.json',
+      'openspec/changes/wbs-work-packages/fixtures/shared-people-save2.json',
+    ];
+    // Proof: backup-nx-test-current2. Removing only shared-people-save2.json from test inputs appears in the actual installed missing-input receipt.
+    // Observed test: native Nx cached backend recovery tasks include both declared wire fixture inputs.
+    // Proof: backup-nx-test-legacy1. Removing only legacy-shared-people-save1.json from test inputs appears in the actual installed missing-input receipt.
+    // Observed test: native Nx cached backend recovery tasks include both declared wire fixture inputs.
+    // Proof: backup-nx-test-unit-current2. Removing only shared-people-save2.json from test:unit inputs appears in the actual installed missing-input receipt.
+    // Observed test: native Nx cached backend recovery tasks include both declared wire fixture inputs.
+    // Proof: backup-nx-test-unit-legacy1. Removing only legacy-shared-people-save1.json from test:unit inputs appears in the actual installed missing-input receipt.
+    // Observed test: native Nx cached backend recovery tasks include both declared wire fixture inputs.
+    expect({
+      consumer,
+      missing: required.filter((path) => !inputs.files.includes(path)),
+    }).toEqual({ consumer, missing: [] });
+  }
+}, 30000);
+
+async function runtimeFixtureTargetInputs(
+  project: string,
+  target: string,
+  required: readonly string[],
+) {
+  const nxJson = JSON.parse(
+    await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+  ) as NxJsonConfiguration;
+  const graph = await createProjectGraphAsync({ exitOnError: true });
+  const { rustReferences } = getFileMap();
+  if (rustReferences === null) throw Error('required Nx runtime fixture file map absent');
+  const taskGraph = createTaskGraph(graph, {}, [project], [target], undefined, {});
+  const task = taskGraph.tasks[project + ':' + target];
+  const hasher = new InProcessTaskHasher(graph, nxJson, rustReferences, {});
+  const hash = await hasher.hashTask(task, taskGraph, process.env, WORKSPACE.pathname, true);
+  const inputs = hash.inputs;
+  if (inputs === undefined) throw Error('required Nx runtime fixture input receipt absent');
+  expect({
+    project,
+    target,
+    missing: required.filter((path) => !inputs.files.includes(path)),
+  }).toEqual({ project, target, missing: [] });
+  return graph;
+}
+for (const target of ['test', 'test:unit']) {
+  it(
+    // Proof: dash-input-contracts-test: removing the canonical fixture from wbs-contracts:test inputs.
+    // 'native Nx WBS runtime fixture belongs to exact test target inputs' failed; exact restoration passed.
+    // Proof: dash-input-contracts-test-unit: removing the canonical fixture from wbs-contracts:test:unit inputs.
+    // 'native Nx WBS runtime fixture belongs to exact test:unit target inputs' failed; exact restoration passed.
+    'native Nx WBS runtime fixture belongs to exact ' + target + ' target inputs',
+    async () => {
+      await runtimeFixtureTargetInputs('wbs-contracts', target, [
+        'openspec/changes/wbs-work-packages/fixtures/legacy-runtime-acceptance1.txt',
+      ]);
+    },
+    30000,
+  );
+}
+// Proof: dash-input-own-legacy-runtime-acceptance1-txt: removing this exact canonical fixture from Dash:test inputs.
+// 'native Nx Dash runtime compatibility fixtures belong to its uncached test target inputs' failed; exact restoration passed.
+// Proof: dash-input-own-legacy-runtime-database1-txt: removing this exact paired text fixture from Dash:test inputs.
+// 'native Nx Dash runtime compatibility fixtures belong to its uncached test target inputs' failed; exact restoration passed.
+// Proof: dash-input-own-legacy-runtime-database-capture-json: removing this exact capture provenance fixture from Dash:test inputs.
+// 'native Nx Dash runtime compatibility fixtures belong to its uncached test target inputs' failed; exact restoration passed.
+// Proof: dash-input-own-legacy-runtime-database1-sqlite-gz: removing this exact paired SQLite fixture from Dash:test inputs.
+// 'native Nx Dash runtime compatibility fixtures belong to its uncached test target inputs' failed; exact restoration passed.
+// Proof: dash-input-own-legacy-dash-runtime6-json: removing this exact outgoing Dash capture metadata from Dash:test inputs.
+// 'native Nx Dash runtime compatibility fixtures belong to its uncached test target inputs' failed; exact restoration passed.
+// Proof: dash-input-own-legacy-dash-runtime6-sqlite-gz: removing this exact outgoing Dash SQLite fixture from Dash:test inputs.
+// 'native Nx Dash runtime compatibility fixtures belong to its uncached test target inputs' failed; exact restoration passed.
+it('native Nx Dash runtime compatibility fixtures belong to its uncached test target inputs', async () => {
+  const graph = await runtimeFixtureTargetInputs('twilight-dash', 'test', [
+    'openspec/changes/wbs-work-packages/fixtures/legacy-runtime-acceptance1.txt',
+    'openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database1.txt',
+    'openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database-capture.json',
+    'openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database1.sqlite.gz',
+    'openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.json',
+    'openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.sqlite.gz',
+  ]);
+  expect(graph.nodes['twilight-dash'].data.targets?.['test'].cache).toBe(false);
+}, 30000);

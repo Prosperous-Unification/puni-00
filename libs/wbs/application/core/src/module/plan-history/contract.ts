@@ -1,15 +1,15 @@
 import type { PlanEventService } from '../plan-event/plan-event.resource';
-import type { ProjectService } from '../project/project.resource';
+import type { WorkPackageService } from '../work-package/work-package.resource';
 import type { HistoryService } from './plan-history.feature';
 
 /**
  * What a host must supply to install {@link planHistoryModule}.
  *
- * History reads project headers and retained plan events through resource
- * services, preserving the project-before-events query order.
+ * History reads work package headers and retained plan events through resource
+ * services, preserving the work-package-before-events query order.
  */
 export interface PlanHistoryRequirements {
-  readonly projects: ProjectService;
+  readonly workPackages: WorkPackageService;
   readonly planEvents: PlanEventService;
 }
 

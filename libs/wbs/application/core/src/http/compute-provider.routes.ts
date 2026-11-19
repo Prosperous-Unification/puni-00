@@ -1,7 +1,7 @@
 import {
   listComputeProviders,
   putCapacityReport,
-  type readProjectResources,
+  type readWorkPackageResources,
   registerComputeProvider,
   removeComputeProvider,
   updateComputeProvider,
@@ -290,8 +290,8 @@ function reportRefusal(refusal: CapacityReportRefusal): HttpReply<typeof putCapa
   }
 }
 
-/** The project resources read's body, as the work-item service answers it. */
-type ResourcesRead = Extract<HttpReply<typeof readProjectResources>, { ok: true }>['body'];
+/** The work package resources read's body, as the work-item service answers it. */
+type ResourcesRead = Extract<HttpReply<typeof readWorkPackageResources>, { ok: true }>['body'];
 
 /** The resources read before {@link withProviderReadings} adds the provider columns. */
 export interface PlannedResources {
@@ -305,7 +305,7 @@ export interface PlannedResources {
 
 /**
  * Adds each resource's provider reference, latest report and declared-versus-
- * measured comparison to the project resources read (`compute-providers` P3,
+ * measured comparison to the work package resources read (`compute-providers` P3,
  * P7), the instance's kind and name for every reader (task 5.3), and the
  * unreturned host jobs of its authority (`dash-host-jobs` J10). The
  * planned read is taken as it was: nothing here feeds back into it. A resource

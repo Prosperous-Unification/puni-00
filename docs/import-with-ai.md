@@ -1,7 +1,7 @@
-# Import a project into WBS with an AI client
+# Import a work package into WBS with an AI client
 
-This guide takes an existing project — from Jira, Linear, Asana, Microsoft Project or a
-spreadsheet — into a **new** WBS project through an AI client connected to WBS over MCP. It is a
+This guide takes an existing plan — from Jira, Linear, Asana, Microsoft Project or a
+spreadsheet — into a **new** WBS work package through an AI client connected to WBS over MCP. It is a
 one-time copy, not a synchronization: later changes to the source do not reach WBS, and WBS never
 writes to or deletes from the source. The editor's **Export / Import → Import with AI** opens the
 short version of these steps and copies the same prompt.
@@ -63,17 +63,17 @@ that breaks one fails at sign-in, not later.
 1. **Choose a client** from the [table](#client-support) and add the WBS server as its row and
    linked vendor page show.
 2. **Sign in and confirm access.** Start the client's sign-in, log in to WBS in the browser and
-   approve. Then ask the client to list your WBS projects. Confirm the destination organization
-   the sign-in is bound to, your current WBS role in it (it must allow creating projects), and
+   approve. Then ask the client to list your WBS work packages. Confirm the destination organization
+   the sign-in is bound to, your current WBS role in it (it must allow creating work packages), and
    that the grant includes `wbs:write` — a successful list proves only `wbs:read`.
 3. **Provide the source** as [prepared below](#prepare-the-source).
 4. **Copy the [prompt](#the-import-prompt)**, fill in its brackets and send it. Review the
    mapping preview it returns: destination organization and role, hierarchy, steps, estimates
    and units, dependencies, people, dates, source references, and what it cannot map.
 5. **Approve** the named destination organization and the write. The client creates a new WBS
-   project (appending to an existing one only if you explicitly ask), then reads it back and
-   reports what it imported, omitted and could not resolve, with the project link. Open the
-   project and check the reconciliation against it.
+   work package (appending to an existing one only if you explicitly ask), then reads it back and
+   reports what it imported, omitted and could not resolve, with the work package link. Open the
+   work package and check the reconciliation against it.
 
 ## The import prompt
 
@@ -81,19 +81,19 @@ Copy the block as it is and fill in the bracketed fields. The editor's copy butt
 same text.
 
 ```text
-Import `[source project/link/files]` into a new WBS project named `[name]` using the WBS MCP tools.
+Import `[source plan/link/files]` into a new WBS work package named `[name]` using the WBS MCP tools.
 
 Confirm the destination WBS organization `[organization]` bound to my current MCP grant and my current WBS role. If it is wrong or cannot be verified, stop; switching organizations requires fresh MCP authorization.
 
-First inspect the available tool schemas and source material. Read the source without modifying it. Show a concise mapping preview naming the destination organization, my role, and covering hierarchy, project steps, estimates and units, dependencies, people, dates and source references. List unsupported or ambiguous fields; do not silently discard them or invent estimates.
+First inspect the available tool schemas and source material. Read the source without modifying it. Show a concise mapping preview naming the destination organization, my role, and covering hierarchy, work package steps, estimates and units, dependencies, people, dates and source references. List unsupported or ambiguous fields; do not silently discard them or invent estimates.
 
 Use explicit day estimates only. Represent a single day estimate as equal optimistic/realistic/pessimistic values. Ask before converting hours or story points. Preserve unknown estimates as missing.
 
-After I approve the preview and the named destination organization, use `postApiProjectsImport` for a complete valid WBS plan document. Alternatively, create the project and steps, then use `postApiProjectsByIdCommands` with ordered commands, `ref`, `parentRef`, `afterRef`, `workItemRef` and `predecessorRef`. Use `postApiDirectoryCommands` only for directory entries actually needed.
+After I approve the preview and the named destination organization, use `postApiWorkPackagesImport` for a complete valid WBS plan document. Alternatively, create the work package and steps, then use `postApiWorkPackagesByIdCommands` with ordered commands, `ref`, `parentRef`, `afterRef`, `workItemRef` and `predecessorRef`. Use `postApiDirectoryCommands` only for directory entries actually needed.
 
 Respect request limits. Each command batch is atomic and one undo; multiple batches are not one transaction. Keep the returned ID mapping. After an uncertain timeout, read back before retrying to avoid duplicates.
 
-Finally read back the project, reconcile counts, hierarchy, estimates and dependencies, and report imported, omitted and unresolved records with the WBS project link.
+Finally read back the work package, reconcile counts, hierarchy, estimates and dependencies, and report imported, omitted and unresolved records with the WBS work package link.
 ```
 
 ## Prepare the source
@@ -123,7 +123,7 @@ outline number or parent column), the estimate and its unit, and the predecessor
 
 ### Dependencies WBS cannot represent
 
-WBS dependencies are between work items. They are finish-to-start while the project's
+WBS dependencies are between work items. They are finish-to-start while the work package's
 dependency reach is `whole-item`, the default: a successor waits for the predecessor's last
 step. With `anchor-slice` a successor starts after the predecessor's first estimated step, so
 keep `whole-item` when the source means finish-to-start. Start-to-start, finish-to-finish,
@@ -149,7 +149,7 @@ successful connection to WBS:
 A client becomes **WBS import tested** only after a recorded live connection naming the client
 version and date, the exact callback, the registration method, requested and granted scopes,
 the grant-bound organization and role observed at the live request, a read of an owned
-project, a reversible write, an actual refresh and the rejection of a revoked token.
+work package, a reversible write, an actual refresh and the rejection of a revoked token.
 
 | Client                      | Status          | Checked    | Connect                                                                                                                                                                                                 | Callback and scopes                                                                                                                                                                                                                         | Source                                                                                                                                                                                                                                                                                            |
 | --------------------------- | --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -186,7 +186,7 @@ access token at `<WBS_MCP_URL>/oauth/token` and calls the same tools; be-01's `/
 the credential itself (`machine_bearer_not_accepted`).
 
 - **Claude Code**, interactive or `claude -p` and SDK sessions where folder trust allows it: a
-  `headersHelper` that runs `twilight-dash mcp token --resource <WBS_MCP_URL> --key-file <key>`
+  `headersHelper` that runs `puni dash mcp token --resource <WBS_MCP_URL> --key-file <key>`
   (or `--assertion-file` for a workload token). The helper runs again after a 401
   ([Dash `mcp token`](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)).
 - **Agent SDK and Messages API apps** fetch and renew the token themselves: an MCP SDK
@@ -240,7 +240,7 @@ authorization step, remove the connection and add it again, so the client regist
 
 ### Sign-in fails
 
-Sign in with the WBS account that should own the new project. `access_denied` after login
+Sign in with the WBS account that should own the new work package. `access_denied` after login
 means login was cancelled, the sign-in provider's token could not be verified, or the grant
 would not include `wbs:read` — because the account lacks it or the client did not ask for it. If the browser never returns to
 the client, the client's callback listener was closed or blocked; restart the sign-in from the
@@ -260,4 +260,4 @@ A rejected command batch writes nothing. A refusal about one command names it wi
 position) and usually `kind`; fix that command and resend. A refusal of the whole request, such
 as a malformed body, carries only `error`. A batch holds at most 200 commands, so a large plan is several
 batches, and each batch is its own undo: batches are not one transaction. After a timeout,
-read the project back before retrying, or the retry duplicates what already landed.
+read the work package back before retrying, or the retry duplicates what already landed.

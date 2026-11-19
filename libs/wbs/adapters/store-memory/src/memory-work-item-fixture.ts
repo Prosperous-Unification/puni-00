@@ -116,10 +116,10 @@ export function inMemoryWorkItems(
     listUpdateInstants() {
       return Promise.reject(new Error('the in-memory work-item store keeps no update instants'));
     },
-    listByProject(projectId) {
+    listByWorkPackage(workPackageId) {
       return Promise.resolve(
         [...byId.values()]
-          .filter((w) => w.projectId === projectId)
+          .filter((w) => w.workPackageId === workPackageId)
           .map((row) =>
             structuredClone({
               ...row,
@@ -132,11 +132,11 @@ export function inMemoryWorkItems(
           ),
       );
     },
-    listByIds(projectId, ids) {
+    listByIds(workPackageId, ids) {
       const requested = new Set(ids);
       return Promise.resolve(
         [...byId.values()]
-          .filter((row) => row.projectId === projectId && requested.has(row.id))
+          .filter((row) => row.workPackageId === workPackageId && requested.has(row.id))
           .map((row) =>
             structuredClone({
               ...row,
@@ -149,12 +149,12 @@ export function inMemoryWorkItems(
           ),
       );
     },
-    listPlacements(projectId, ids) {
+    listPlacements(workPackageId, ids) {
       const requested = new Set(ids);
       const placements: { id: string; afterId: string | null }[] = [];
       let afterId: string | null = null;
       for (const row of byId.values()) {
-        if (row.projectId !== projectId) continue;
+        if (row.workPackageId !== workPackageId) continue;
         if (requested.has(row.id)) placements.push({ id: row.id, afterId });
         afterId = row.id;
       }
@@ -273,7 +273,7 @@ export function inMemoryWorkItems(
       // The service set, whole and deduplicated, only where the patch names the
       // dimension — the real store's write, mirrored. `[]` is written as an
       // empty set rather than a delete so a later read answers the same either
-      // way, which is what `listByProject`'s `?? []` above already means.
+      // way, which is what `listByWorkPackage`'s `?? []` above already means.
       if (wantedServices !== undefined) servicesOf.set(id, [...new Set(wantedServices)]);
       // A tag set is the same whole-replacement relation as services and types.
       // Proof: the complete saved-plan capture case patched `tag-a` through the

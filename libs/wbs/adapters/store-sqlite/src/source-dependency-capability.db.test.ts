@@ -118,7 +118,7 @@ test('one operation reads durable authority once on its admitted writer', async 
     const query = queries[0];
     if (
       typeof query === 'string' &&
-      query.includes('SELECT id,state FROM cross_project_dependency_activation')
+      query.includes('SELECT id,state FROM cross_work_package_dependency_activation')
     )
       observations++;
     return read(...queries);

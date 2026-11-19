@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, type Request, test } from '@playwright/test';
+import { expect, type Locator, type Page, type Request, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 
 /**
  * The order this Chrome puts the segments of a native date input in.
@@ -133,7 +133,7 @@ async function seedRows(page: Page, _account: string, rows: number): Promise<voi
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (let made = 1; made <= rows; made += 1) {
     await addRow.click();
@@ -143,19 +143,19 @@ async function seedRows(page: Page, _account: string, rows: number): Promise<voi
 
 /**
  * Puts the plan on a calendar, which is what the earliest-start cells need
- * before they will open at all: without a project start date there is no day
+ * before they will open at all: without a work package start date there is no day
  * zero and be-01 ignores the constraint, so the column is a rendered disabled
  * state.
  */
-async function setProjectStart(page: Page): Promise<void> {
+async function setWorkPackageStart(page: Page): Promise<void> {
   // `fill` is a **pick** since 2026-08-23 — it sets the value and fires
   // `input`/`change` with no keydown, and a keyless change is a day the browser
   // put in the box, which `DateField` sends at once. So the write leaves here
   // rather than on the blur below; the blur stays because it is what a person
   // does and because it has to stay silent. The `toBeEnabled` wait is what
   // holds until the refetch that write starts has landed.
-  await page.getByLabel('Project start date').fill('2026-06-01');
-  await page.getByLabel('Project start date').blur();
+  await page.getByLabel('Work package start date').fill('2026-06-01');
+  await page.getByLabel('Work package start date').blur();
   await expect(page.getByLabel('Earliest start for 010', { exact: true })).toBeEnabled();
 }
 
@@ -267,7 +267,7 @@ test.describe('the command chords, in a browser', () => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
 
     // The two writes this chord makes: `PATCH /api/work-items/:id` saves the
-    // name, `POST /api/projects/:id/work-items` makes the row. Reads and the
+    // name, `POST /api/work-packages/:id/work-items` makes the row. Reads and the
     // refetches they trigger are left out — this is about which of the two
     // writes went first.
     const writes: string[] = [];
@@ -615,7 +615,7 @@ test.describe('the command chords, in a browser', () => {
     // the page after the click — while every case in `wbs-table.test.tsx`
     // stayed green, because they open it with Enter. Watched, 2026-08-09.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
-    await setProjectStart(page);
+    await setWorkPackageStart(page);
 
     await page.getByLabel('Earliest start for 010', { exact: true }).click();
 
@@ -640,7 +640,7 @@ test.describe('the command chords, in a browser', () => {
     // does stay on screen is the toolbar's, and its own test above is where
     // that half is watched.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
-    await setProjectStart(page);
+    await setWorkPackageStart(page);
 
     await learnDateOrder(page);
     await page.getByLabel('Earliest start for 010', { exact: true }).click();
@@ -668,11 +668,11 @@ test.describe('the command chords, in a browser', () => {
     await expect(page.getByLabel('Earliest start for 010', { exact: true })).toHaveValue('—');
   });
 
-  test('Escape puts the project start date back, and leaving it does not send the abandoned day', async ({
+  test('Escape puts the work package start date back, and leaving it does not send the abandoned day', async ({
     page,
   }) => {
     // The one date field on this page that is **not** unmounted by Escape: the
-    // toolbar's project start date is always on screen, so the blur an Escape
+    // toolbar's work package start date is always on screen, so the blur an Escape
     // is followed by is a real blur on a live element — and it is the only
     // place the "nothing will be sent afterwards" half of the contract can be
     // observed at all.
@@ -688,10 +688,10 @@ test.describe('the command chords, in a browser', () => {
     // "2026-06-01"` — the abandoned day committed by the blur and saved.
     // Watched, 2026-08-09.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
-    await setProjectStart(page);
+    await setWorkPackageStart(page);
 
     await learnDateOrder(page);
-    const starts = page.getByLabel('Project start date');
+    const starts = page.getByLabel('Work package start date');
     // Typed rather than `fill`ed, for the reason the row's case above gives:
     // a `fill` is a pick now and a pick is already sent, so it would leave this
     // test nothing to abandon. `pressSequentially` focuses the box itself,
@@ -709,7 +709,7 @@ test.describe('the command chords, in a browser', () => {
 
     await expect(starts).toHaveValue('2026-06-01');
     await page.reload();
-    await expect(page.getByLabel('Project start date')).toHaveValue('2026-06-01');
+    await expect(page.getByLabel('Work package start date')).toHaveValue('2026-06-01');
   });
 
   test('saves a day picked from the native calendar when the field is left', async ({ page }) => {
@@ -728,7 +728,7 @@ test.describe('the command chords, in a browser', () => {
     // `() => undefined`, this failed on `Expected: "3 Jul" / Received: "—"` —
     // the picked day never leaving the box. Watched, 2026-08-09.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
-    await setProjectStart(page);
+    await setWorkPackageStart(page);
 
     await page.getByLabel('Earliest start for 010', { exact: true }).click();
     const editor = page.locator('tbody input[type="date"]');
@@ -754,7 +754,7 @@ test.describe('the command chords, in a browser', () => {
     // `() => undefined`, this failed on `Expected: "5 Jul" / Received: "—"`.
     // Watched, 2026-08-09.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
-    await setProjectStart(page);
+    await setWorkPackageStart(page);
 
     await page.getByLabel('Earliest start for 010', { exact: true }).click();
     const editor = page.locator('tbody input[type="date"]');
@@ -783,7 +783,7 @@ test.describe('the command chords, in a browser', () => {
     // as `0002`, the refetch answering over the caret, and the rest of the
     // digits landing in a box that had already moved on. Watched, 2026-08-23.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
-    await setProjectStart(page);
+    await setWorkPackageStart(page);
 
     await learnDateOrder(page);
     await page.getByLabel('Earliest start for 010', { exact: true }).click();

@@ -31,9 +31,9 @@ const NEWER = [
   '20261023140000_add_measure',
   '20261023100000_add_claim_lease',
   '20261022213000_add_optimization_boundary_certificates',
-  '20261022212000_add_cross_project_dependency_activation',
+  '20261022212000_add_cross_work_package_dependency_activation',
   '20261022211000_add_external_dependencies',
-  '20261022210000_add_project_abbreviations',
+  '20261022210000_add_work_package_abbreviations',
 ] as const;
 const roots: string[] = [];
 
@@ -239,7 +239,7 @@ describe(AUDIT_WIDENING, () => {
       audit('a2', 'compute_provider_updated', 'compute_provider'),
       audit('a3', 'compute_provider_removed', 'compute_provider'),
       audit('a4', 'machine_credential_created', 'machine_credential'),
-      audit('a5', 'restricted_project_recovery', 'project'),
+      audit('a5', 'restricted_work_package_recovery', 'work_package'),
       // The outgoing release carries the organization limits CLI (`LIMITS_AUDIT`).
       audit('a6', 'organization_limits_changed', 'organization_limits'),
     ]);

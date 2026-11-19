@@ -1,9 +1,9 @@
-import { createProject, listMembers, listTeams, readPasswordSession } from '@wbs/contracts';
+import { createWorkPackage, listMembers, listTeams, readPasswordSession } from '@wbs/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { browserClient } from '@/lib/http';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
@@ -53,7 +53,7 @@ it.each(['no_active_organization', 'not_a_member'])(
 it('replaces services when the same account switches organizations', async () => {
   const owner = createSessionOwner({
     clientFor: fakeDirectoryApi,
-    projectClientFor: fakeProjectApi,
+    workPackageClientFor: fakeWorkPackageApi,
     streamDeps: SILENT_STREAM,
   });
   await owner.open({ ...identity, organization: { kind: 'active', organizationId: 'org-a' } });
@@ -121,12 +121,15 @@ it('context refusal sends exactly one mutation', async () => {
   );
   vi.stubGlobal('fetch', fetch);
   const refused: unknown[] = [];
-  const client = browserClient([createProject], {
+  const client = browserClient([createWorkPackage], {
     organization: { kind: 'active', organizationId: 'org-a' },
     isCurrent: () => true,
     refuse: (refusal) => refused.push(refusal),
   });
-  expect((await client.postApiProjects({ body: { name: 'plan' } })).kind).toBe('refusal');
+  expect(
+    (await client.postApiWorkPackages({ body: { projectId: 'fixture-project', name: 'plan' } }))
+      .kind,
+  ).toBe('refusal');
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(refused).toEqual([{ error: 'organization_context_changed' }]);
 });
@@ -135,7 +138,7 @@ it('failed retirement cannot publish the next organization', async () => {
   const opened: string[] = [];
   const owner = createSessionOwner({
     clientFor: () => fakeDirectoryApi(),
-    projectClientFor: () => fakeProjectApi(),
+    workPackageClientFor: () => fakeWorkPackageApi(),
     streamDeps: SILENT_STREAM,
     install: (dependencies) => {
       const runtime = installSessionRuntime(dependencies);

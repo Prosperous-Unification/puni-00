@@ -33,10 +33,10 @@ beforeEach(() => {
       "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
     );
     sqlite.run(
-      "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+      "INSERT INTO work_package (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
     );
     sqlite.run(
-      "INSERT INTO work_item (id,project_id,parent_id,position,name,revision,hold,readiness) VALUES ('a','p',NULL,1,'A',0,'on_hold','ready'),('b','p',NULL,2,'B',0,'blocked',NULL),('c','p',NULL,3,'C',0,NULL,'draft'),('d','p',NULL,4,'D',0,NULL,NULL)",
+      "INSERT INTO work_item (id,work_package_id,parent_id,position,name,revision,hold,readiness) VALUES ('a','p',NULL,1,'A',0,'on_hold','ready'),('b','p',NULL,2,'B',0,'blocked',NULL),('c','p',NULL,3,'C',0,NULL,'draft'),('d','p',NULL,4,'D',0,NULL,NULL)",
     );
   } finally {
     sqlite.close();
@@ -119,7 +119,7 @@ describe('work item status facts rollback', () => {
     withConnection((db) => removeSavedWorkItemStatusFacts(db, saved, 5));
     withSqlite((sqlite) =>
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,parent_id,position,name,revision) VALUES ('a1','p','a',1,'A1',0)",
+        "INSERT INTO work_item (id,work_package_id,parent_id,position,name,revision) VALUES ('a1','p','a',1,'A1',0)",
       ),
     );
     expect(() => withConnection((db) => restoreWorkItemStatusFacts(db, saved, 6))).toThrow(

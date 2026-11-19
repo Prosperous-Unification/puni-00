@@ -33,7 +33,7 @@ interface Reader {
   readonly asked: string[];
   readonly refusals: unknown[];
   readonly owner: PlanRefresh;
-  /** Puts a different owner in place, as a new project's effect does. */
+  /** Puts a different owner in place, as a new work package's effect does. */
   replaceOwner: (next: PlanRefresh | null) => void;
   /** Withdraws the reader, as its owner does: from then on it answers no owner at all. */
   leave: () => void;
@@ -42,19 +42,19 @@ interface Reader {
 /** The four routes, recording what each was asked for into one list. */
 function recordingRoutes(asked: string[]): CalendarMarkerRoutes {
   return {
-    createCalendarMarker: (_projectId, marker) => {
+    createCalendarMarker: (_work_packageId, marker) => {
       asked.push(`create:${String(marker.markerId)}`);
       return Promise.resolve(STORED);
     },
-    renameCalendarMarker: (_projectId, markerId, name) => {
+    renameCalendarMarker: (_work_packageId, markerId, name) => {
       asked.push(`rename:${markerId}:${name}`);
       return Promise.resolve(STORED);
     },
-    recolorCalendarMarker: (_projectId, markerId, color) => {
+    recolorCalendarMarker: (_work_packageId, markerId, color) => {
       asked.push(`recolor:${markerId}:${String(color)}`);
       return Promise.resolve(STORED);
     },
-    deleteCalendarMarker: (_projectId, markerId) => {
+    deleteCalendarMarker: (_work_packageId, markerId) => {
       asked.push(`delete:${markerId}`);
       return Promise.resolve();
     },
@@ -78,7 +78,7 @@ function readerOver(routes: Partial<CalendarMarkerRoutes> = {}): Reader {
       installed = null;
     },
     host: {
-      projectId: 'p1',
+      workPackageId: 'p1',
       api,
       readRefreshOwner: () => installed,
       announceRefusal: ({ cause }) => {
@@ -173,10 +173,10 @@ describe('the calendar markers a reader may put on the chart', () => {
       acceptWrite = resolve;
     });
     const markers = createCalendarMarkers({
-      projectId: 'p1',
+      workPackageId: 'p1',
       api: {
         ...recordingRoutes(asked),
-        deleteCalendarMarker: (_projectId, markerId) => {
+        deleteCalendarMarker: (_work_packageId, markerId) => {
           asked.push(`delete:${markerId}`);
           return held;
         },

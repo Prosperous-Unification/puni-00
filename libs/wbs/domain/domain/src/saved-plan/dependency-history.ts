@@ -23,7 +23,7 @@ const step = type({
 });
 const label = {
   name: 'string',
-  projectAbbreviation: 'string',
+  workPackageAbbreviation: 'string',
   workItemNumber: 'string',
   stepNodeId: 'string | null',
   stepReference: 'string | null',
@@ -34,14 +34,14 @@ const endpoint = type({
   '+': 'reject',
   ...label,
   scope: "'whole'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   step: 'null',
 }).or({
   '+': 'reject',
   ...label,
   scope: "'node' | 'descendant-step'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   stepId: 'string',
   step,
@@ -76,7 +76,7 @@ const blocker = type({
 });
 const readinessBase = {
   key: 'string',
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   status,
   intrinsic: { '+': 'reject', started: 'boolean', done: 'boolean' },
@@ -106,9 +106,9 @@ const placementState = type({ '+': 'reject', kind: "'scheduled'" })
   .or({
     '+': 'reject',
     kind: "'dependency_calendar_missing'",
-    projects: type({
+    workPackages: type({
       '+': 'reject',
-      projectId: 'string',
+      workPackageId: 'string',
       abbreviation: 'string',
       name: 'string',
     }).array(),
@@ -117,19 +117,19 @@ const placementState = type({ '+': 'reject', kind: "'scheduled'" })
     '+': 'reject',
     kind: "'engine_unavailable'",
     engine: "'optimized'",
-    projects: 'string[]',
+    workPackages: 'string[]',
     reason: "'adapter_missing' | 'connected_optimization_not_supported'",
   })
   .or({ '+': 'reject', kind: "'unavailable'", reason: "'cycle' | 'calendar_range'" });
 const connected = type({
   '+': 'reject',
   kind: "'connected'",
-  targetProjectId: 'string',
+  targetWorkPackageId: 'string',
   mode: "'isolated' | 'shared'",
   placementState,
-  projects: type({
+  workPackages: type({
     '+': 'reject',
-    projectId: 'string',
+    workPackageId: 'string',
     name: 'string',
     abbreviation: 'string',
     startDate: 'string | null',
@@ -152,7 +152,7 @@ const connected = type({
   relationships: type({
     '+': 'reject',
     id: 'string',
-    projectId: 'string',
+    workPackageId: 'string',
     type: "'FS' | 'SS' | 'FF'",
     predecessor: endpoint,
     successor: endpoint,
@@ -170,7 +170,7 @@ export type SavedConnectedDependencyHistory = Extract<
   { kind: 'connected' }
 >;
 /** Captured member metadata and endpoint labels retain original identities after deletion. */
-export type SavedDependencyProject = SavedConnectedDependencyHistory['projects'][number];
+export type SavedDependencyWorkPackage = SavedConnectedDependencyHistory['workPackages'][number];
 /** Authored selector scope survives independently of resolved leaf graph edges. */
 export type SavedDependencyRelationship = SavedConnectedDependencyHistory['relationships'][number];
 /** A graph node's captured execution facts, with no invented boundary node reading. */
@@ -192,11 +192,15 @@ export function readSavedDependencyHistory(raw: unknown): SavedDependencyHistory
 
 /** Validate ownership and graph/readiness references without deriving live readiness or dates. */
 export function validateDependencyReferences(captured: SavedConnectedDependencyHistory): void {
-  const projects = indexHistory(captured.projects, (project) => project.projectId, '$.projects');
-  requireHistory(projects.has(captured.targetProjectId), 'target', '$.targetProjectId');
+  const workPackages = indexHistory(
+    captured.workPackages,
+    (workPackage) => workPackage.workPackageId,
+    '$.workPackages',
+  );
+  requireHistory(workPackages.has(captured.targetWorkPackageId), 'target', '$.targetWorkPackageId');
   const rows = indexHistory(
-    captured.projects.flatMap((project) =>
-      project.workItems.map((row) => ({ ...row, projectId: project.projectId })),
+    captured.workPackages.flatMap((workPackage) =>
+      workPackage.workItems.map((row) => ({ ...row, workPackageId: workPackage.workPackageId })),
     ),
     (row) => row.id,
     '$.workItems',
@@ -204,15 +208,23 @@ export function validateDependencyReferences(captured: SavedConnectedDependencyH
   const owners = indexHistory(captured.ownership, ([id]) => id, '$.ownership');
   requireHistory(owners.size === rows.size, 'ownership', '$.ownership');
   for (const row of rows.values()) {
-    requireHistory(owners.get(row.id)?.[1] === row.projectId, 'ownership', `$.ownership.${row.id}`);
     requireHistory(
-      row.parentId === null || rows.get(row.parentId)?.projectId === row.projectId,
+      owners.get(row.id)?.[1] === row.workPackageId,
+      'ownership',
+      `$.ownership.${row.id}`,
+    );
+    requireHistory(
+      row.parentId === null || rows.get(row.parentId)?.workPackageId === row.workPackageId,
       'parent',
       `$.workItems.${row.id}`,
     );
   }
-  for (const project of projects.values())
-    indexHistory(project.steps, (entry) => entry.id, `$.projects.${project.projectId}.steps`);
+  for (const workPackage of workPackages.values())
+    indexHistory(
+      workPackage.steps,
+      (entry) => entry.id,
+      `$.workPackages.${workPackage.workPackageId}.steps`,
+    );
   const relationships = indexHistory(
     captured.relationships,
     (relationship) => relationship.id,
@@ -220,27 +232,27 @@ export function validateDependencyReferences(captured: SavedConnectedDependencyH
   );
   for (const relationship of relationships.values()) {
     requireHistory(
-      relationship.projectId === relationship.successor.projectId,
+      relationship.workPackageId === relationship.successor.workPackageId,
       'relationship_owner',
       `$.relationships.${relationship.id}`,
     );
     for (const end of [relationship.predecessor, relationship.successor]) {
-      const project = projects.get(end.projectId);
+      const workPackage = workPackages.get(end.workPackageId);
       const row = rows.get(end.workItemId);
       // Codec diagnostic only: omitting lookup changed `names the missing endpoint lookup boundary` to row.name TypeError; production proof remains pending.
       requireHistory(
-        project !== undefined && row?.projectId === end.projectId,
+        workPackage !== undefined && row?.workPackageId === end.workPackageId,
         'endpoint_lookup',
         `$.relationships.${relationship.id}`,
       );
       requireHistory(
         end.name === row.name &&
           end.workItemNumber === row.number &&
-          end.projectAbbreviation === project.abbreviation,
+          end.workPackageAbbreviation === workPackage.abbreviation,
         'endpoint_label',
         `$.relationships.${relationship.id}`,
       );
-      const isLeaf = !project.workItems.some((child) => child.parentId === row.id);
+      const isLeaf = !workPackage.workItems.some((child) => child.parentId === row.id);
       requireHistory(end.isLeaf === isLeaf, 'endpoint_scope', `$.relationships.${relationship.id}`);
       if (end.scope === 'whole')
         requireHistory(
@@ -249,7 +261,7 @@ export function validateDependencyReferences(captured: SavedConnectedDependencyH
           `$.relationships.${relationship.id}`,
         );
       else {
-        const ownStep = project.steps.find((entry) => entry.id === end.stepId);
+        const ownStep = workPackage.steps.find((entry) => entry.id === end.stepId);
         requireHistory(
           ownStep !== undefined && serializeHistory(ownStep) === serializeHistory(end.step),
           'endpoint_step',
@@ -276,24 +288,24 @@ export function validateDependencyReferences(captured: SavedConnectedDependencyH
     const rowId = node.kind === 'step' ? node.ref.workItemId : node.workItemId;
     const row = rows.get(rowId);
     requireHistory(row !== undefined, 'graph_owner', '$.graph.nodes');
-    const project = projects.get(row.projectId);
-    requireHistory(project !== undefined, 'graph_owner', '$.graph.nodes');
+    const workPackage = workPackages.get(row.workPackageId);
+    requireHistory(workPackage !== undefined, 'graph_owner', '$.graph.nodes');
     requireHistory(Number.isInteger(node.at) && node.at >= 0, 'graph_position', '$.graph.nodes');
     requireHistory(
       node.kind === 'step'
-        ? project.steps.some((entry) => entry.id === node.ref.stepId)
-        : project.steps.length === 0,
+        ? workPackage.steps.some((entry) => entry.id === node.ref.stepId)
+        : workPackage.steps.length === 0,
       'graph_step',
       '$.graph.nodes',
     );
   }
   const expectedNodes = new Map<string, number>();
-  for (const project of projects.values()) {
-    const ownSteps = [...project.steps].sort(
+  for (const workPackage of workPackages.values()) {
+    const ownSteps = [...workPackage.steps].sort(
       (left, right) => left.position - right.position || compareHistoryKeys(left.id, right.id),
     );
-    for (const row of project.workItems) {
-      if (project.workItems.some((child) => child.parentId === row.id)) continue;
+    for (const row of workPackage.workItems) {
+      if (workPackage.workItems.some((child) => child.parentId === row.id)) continue;
       if (ownSteps.length === 0) expectedNodes.set(historicalSliceKey(row.id, null), 0);
       else
         for (const [at, step] of ownSteps.entries())
@@ -320,8 +332,8 @@ export function validateDependencyReferences(captured: SavedConnectedDependencyH
       const relationship = relationships.get(edge.relationshipId);
       requireHistory(
         relationship?.type === edge.type &&
-          owners.get(edge.predecessor.leafId)?.[1] === relationship.predecessor.projectId &&
-          owners.get(edge.successor.leafId)?.[1] === relationship.successor.projectId,
+          owners.get(edge.predecessor.leafId)?.[1] === relationship.predecessor.workPackageId &&
+          owners.get(edge.successor.leafId)?.[1] === relationship.successor.workPackageId,
         'graph_relationship',
         '$.graph.edges',
       );
@@ -339,7 +351,7 @@ export function validateDependencyReferences(captured: SavedConnectedDependencyH
     requireHistory(
       node?.kind === reading.kind &&
         reading.key === historicalSliceKey(reading.workItemId, reading.stepId) &&
-        owners.get(reading.workItemId)?.[1] === reading.projectId &&
+        owners.get(reading.workItemId)?.[1] === reading.workPackageId &&
         rows.get(reading.workItemId)?.status === reading.status,
       'readiness_identity',
       '$.readiness',
@@ -362,16 +374,16 @@ export function validateDependencyReferences(captured: SavedConnectedDependencyH
       );
   }
   if (captured.placementState.kind === 'dependency_calendar_missing')
-    for (const missing of captured.placementState.projects)
+    for (const missing of captured.placementState.workPackages)
       requireHistory(
-        projects.get(missing.projectId)?.name === missing.name &&
-          projects.get(missing.projectId)?.abbreviation === missing.abbreviation,
-        'calendar_project',
+        workPackages.get(missing.workPackageId)?.name === missing.name &&
+          workPackages.get(missing.workPackageId)?.abbreviation === missing.abbreviation,
+        'calendar_work_package',
         '$.placementState',
       );
   if (captured.placementState.kind === 'engine_unavailable')
-    for (const projectId of captured.placementState.projects)
-      requireHistory(projects.has(projectId), 'engine_project', '$.placementState');
+    for (const workPackageId of captured.placementState.workPackages)
+      requireHistory(workPackages.has(workPackageId), 'engine_work_package', '$.placementState');
 }
 
 /** Frozen stable graph identity; graph positions remain a separate identity space. */
@@ -389,7 +401,7 @@ export function serializeSavedDependencyHistory(captured: SavedDependencyHistory
     [...entries].sort((left, right) => compareHistoryKeys(keyOf(left), keyOf(right)));
   return serializeHistory({
     ...checked,
-    projects: byId(checked.projects, (project) => project.projectId),
+    workPackages: byId(checked.workPackages, (workPackage) => workPackage.workPackageId),
     relationships: byId(checked.relationships, (relationship) => relationship.id),
     ownership: byId(checked.ownership, ([id]) => id),
     readiness: byId(checked.readiness, (entry) => entry.key),

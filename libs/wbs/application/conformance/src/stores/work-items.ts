@@ -7,14 +7,14 @@ import { type OpenCase, storeCase } from './store-case';
 
 interface Place {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly parentId: string | null;
   readonly position: number;
 }
 
 function placed(rows: readonly LabelledWorkItem[]): Place[] {
   return rows
-    .map(({ id, projectId, parentId, position }) => ({ id, projectId, parentId, position }))
+    .map(({ id, workPackageId, parentId, position }) => ({ id, workPackageId, parentId, position }))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -96,7 +96,7 @@ function expectJunctionWitness(
 function rowFrom(row: LabelledWorkItem, overrides: Partial<WorkItem>): WorkItem {
   return {
     id: row.id,
-    projectId: row.projectId,
+    workPackageId: row.workPackageId,
     parentId: row.parentId,
     position: row.position,
     name: row.name,
@@ -118,8 +118,11 @@ function rowFrom(row: LabelledWorkItem, overrides: Partial<WorkItem>): WorkItem 
   };
 }
 
-async function seededRows(readers: SourceReaders, projectId: string): Promise<LabelledWorkItem[]> {
-  const rows = await readers.workItems.listByProject(projectId);
+async function seededRows(
+  readers: SourceReaders,
+  workPackageId: string,
+): Promise<LabelledWorkItem[]> {
+  const rows = await readers.workItems.listByWorkPackage(workPackageId);
   return rows.sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -127,22 +130,24 @@ async function seededRows(readers: SourceReaders, projectId: string): Promise<La
 export function workItemRegistrations(open: OpenCase<'workItems'>): readonly CaseRegistration[] {
   return [
     storeCase('workItems', 'workItems.listByIds:labels-scope', open, async ({ port, seed }) => {
-      const [projectA] = seed.projectIds;
+      const [workPackageA] = seed.workPackageIds;
       const [firstId, secondId] = seed.workItemIds[0];
       await addJunctionWitness(port, secondId, seed);
 
-      const rows = await port.listByIds(projectA, [secondId, 'work-missing', firstId]);
+      const rows = await port.listByIds(workPackageA, [secondId, 'work-missing', firstId]);
       expect(rows.map(({ id }) => id)).toEqual([firstId, secondId]);
       expectJunctionWitness(rows, secondId, seed);
       // Proof: omitting any targeted label/ref join makes this exact witness fail.
-      expect(await port.listByIds(projectA, [seed.workItemIds[1][0]])).toEqual([]);
-      expect(await port.listByIds(projectA, [])).toEqual([]);
+      expect(await port.listByIds(workPackageA, [seed.workItemIds[1][0]])).toEqual([]);
+      expect(await port.listByIds(workPackageA, [])).toEqual([]);
       await port.remove([firstId], [], seed.stamps[1]);
-      expect((await port.listByIds(projectA, [firstId, secondId])).map(({ id }) => id)).toEqual([
-        secondId,
-      ]);
+      expect((await port.listByIds(workPackageA, [firstId, secondId])).map(({ id }) => id)).toEqual(
+        [secondId],
+      );
 
-      const template = (await port.listByProject(projectA)).find(({ id }) => id === secondId);
+      const template = (await port.listByWorkPackage(workPackageA)).find(
+        ({ id }) => id === secondId,
+      );
       if (template === undefined) throw new Error('targeted-order template row is missing');
       await port.remove([secondId], [], seed.stamps[1]);
       const insertedIds = ['z', 'a', 'b', 'c'] as const;
@@ -153,8 +158,8 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
           seed.stamps[0],
         );
       }
-      const complete = await port.listByProject(projectA);
-      const targeted = await port.listByIds(projectA, ['c', 'z', 'b', 'a']);
+      const complete = await port.listByWorkPackage(workPackageA);
+      const targeted = await port.listByIds(workPackageA, ['c', 'z', 'b', 'a']);
       const inserted: ReadonlySet<string> = new Set(insertedIds);
       // Proof: sorting the memory targeted reader by ID produced a,b,c,z while
       // its authoritative full reader produced the insertion order z,a,b,c.
@@ -165,9 +170,9 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
       'workItems.listPlacements:source-order',
       open,
       async ({ port, seed }) => {
-        const [projectA, projectB] = seed.projectIds;
+        const [workPackageA, workPackageB] = seed.workPackageIds;
         const requestedIds = [seed.workItemIds[0][1], seed.workItemIds[0][0]];
-        const completeIds = (await port.listByProject(projectA)).map(({ id }) => id);
+        const completeIds = (await port.listByWorkPackage(workPackageA)).map(({ id }) => id);
         const expected = completeIds
           .filter((id) => requestedIds.includes(id))
           .map((id) => {
@@ -177,17 +182,17 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
 
         // Proof: adapters returning no placements failed here with [] instead of
         // both requested identities and their source-authoritative predecessors.
-        expect(await port.listPlacements(projectA, requestedIds)).toEqual(expected);
-        expect(await port.listPlacements(projectA, [seed.workItemIds[1][0]])).toEqual([]);
-        expect(await port.listPlacements(projectB, [])).toEqual([]);
+        expect(await port.listPlacements(workPackageA, requestedIds)).toEqual(expected);
+        expect(await port.listPlacements(workPackageA, [seed.workItemIds[1][0]])).toEqual([]);
+        expect(await port.listPlacements(workPackageB, [])).toEqual([]);
       },
     ),
     storeCase('workItems', 'workItems.insert:respace', open, async ({ port, readers, seed }) => {
-      const [projectA, projectB] = seed.projectIds;
+      const [workPackageA, workPackageB] = seed.workPackageIds;
       const [firstId, secondId] = seed.workItemIds[0];
       await addJunctionWitness(port, secondId, seed);
-      const beforeA = structuredClone(await seededRows(readers, projectA));
-      const beforeB = structuredClone(await seededRows(readers, projectB));
+      const beforeA = structuredClone(await seededRows(readers, workPackageA));
+      const beforeB = structuredClone(await seededRows(readers, workPackageB));
       expect(beforeA.map(({ id }) => id)).toEqual([firstId, secondId]);
       expect(beforeB.map(({ id }) => id)).toEqual([...seed.workItemIds[1]]);
       expectJunctionWitness(beforeA, secondId, seed);
@@ -227,7 +232,7 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
         typeIds: [],
         externalRefs: [],
       };
-      const afterA = await seededRows(readers, projectA);
+      const afterA = await seededRows(readers, workPackageA);
       const expectedA = sorted([
         ...changed(beforeA, {
           [firstId]: { position: 10 },
@@ -250,20 +255,20 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
         { id: 'work-a-inserted', position: 20 },
         { id: secondId, position: 30 },
       ]);
-      expect(await seededRows(readers, projectB)).toEqual(beforeB);
+      expect(await seededRows(readers, workPackageB)).toEqual(beforeB);
     }),
     storeCase(
       'workItems',
       'workItems.patch:refusal-atomic',
       open,
       async ({ port, readers, seed }) => {
-        const [projectA, projectB] = seed.projectIds;
+        const [workPackageA, workPackageB] = seed.workPackageIds;
         const [targetId] = seed.workItemIds[0];
         expect(
           await port.patch(targetId, { teamIds: [seed.teamIds[0]] }, seed.stamps[0]),
         ).toMatchObject({ ok: true });
-        const beforeA = structuredClone(await seededRows(readers, projectA));
-        const beforeB = structuredClone(await seededRows(readers, projectB));
+        const beforeA = structuredClone(await seededRows(readers, workPackageA));
+        const beforeB = structuredClone(await seededRows(readers, workPackageB));
         expect(beforeA.find(({ id }) => id === targetId)?.teamIds).toEqual([seed.teamIds[0]]);
         expect(beforeB.map(({ id }) => id)).toEqual([...seed.workItemIds[1]]);
 
@@ -273,12 +278,12 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
           seed.stamps[1],
         );
         expect(refused).toEqual({ ok: false, reason: 'unknown_team' });
-        const afterA = await seededRows(readers, projectA);
+        const afterA = await seededRows(readers, workPackageA);
 
         // Proof: both late partial-write faults performed the scalar rename before
         // the real unknown-team refusal; this failed on name `Escaped rename`.
         expect(afterA).toEqual(beforeA);
-        expect(await seededRows(readers, projectB)).toEqual(beforeB);
+        expect(await seededRows(readers, workPackageB)).toEqual(beforeB);
       },
     ),
     storeCase(
@@ -286,10 +291,10 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
       'workItems.move:parent-position',
       open,
       async ({ port, readers, seed }) => {
-        const [projectA, projectB] = seed.projectIds;
+        const [workPackageA, workPackageB] = seed.workPackageIds;
         const [parentId, movingId] = seed.workItemIds[0];
-        const beforeB = structuredClone(await seededRows(readers, projectB));
-        const seededA = await seededRows(readers, projectA);
+        const beforeB = structuredClone(await seededRows(readers, workPackageB));
+        const seededA = await seededRows(readers, workPackageA);
         expect(seededA.map(({ id }) => id)).toEqual([parentId, movingId]);
         expect(beforeB.map(({ id }) => id)).toEqual([...seed.workItemIds[1]]);
 
@@ -306,7 +311,7 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
         );
         await addJunctionWitness(port, movingId, seed);
         await addJunctionWitness(port, 'work-a-child', seed);
-        const beforeA = structuredClone(await seededRows(readers, projectA));
+        const beforeA = structuredClone(await seededRows(readers, workPackageA));
         expectJunctionWitness(beforeA, movingId, seed);
         expectJunctionWitness(beforeA, 'work-a-child', seed);
         await port.move(
@@ -317,7 +322,7 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
           seed.stamps[1],
         );
 
-        const afterA = await seededRows(readers, projectA);
+        const afterA = await seededRows(readers, workPackageA);
         const unchangedRevision = changed(beforeA, {
           [movingId]: { parentId, position: 20 },
           'work-a-child': { position: 30 },
@@ -330,18 +335,18 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
         // every other field and all populated junctions remain exact.
         expect([unchangedRevision, bumpedRevision]).toContainEqual(afterA);
         expect(placed(afterA)).toEqual([
-          { id: 'work-a-child', projectId: projectA, parentId, position: 30 },
-          { id: parentId, projectId: projectA, parentId: null, position: 10 },
-          { id: movingId, projectId: projectA, parentId, position: 20 },
+          { id: 'work-a-child', workPackageId: workPackageA, parentId, position: 30 },
+          { id: parentId, workPackageId: workPackageA, parentId: null, position: 10 },
+          { id: movingId, workPackageId: workPackageA, parentId, position: 20 },
         ]);
-        expect(await seededRows(readers, projectB)).toEqual(beforeB);
+        expect(await seededRows(readers, workPackageB)).toEqual(beforeB);
       },
     ),
     storeCase('workItems', 'workItems.remove:promotion', open, async ({ port, readers, seed }) => {
-      const [projectA, projectB] = seed.projectIds;
+      const [workPackageA, workPackageB] = seed.workPackageIds;
       const [parentId, siblingId] = seed.workItemIds[0];
-      const beforeB = structuredClone(await seededRows(readers, projectB));
-      const seededA = await seededRows(readers, projectA);
+      const beforeB = structuredClone(await seededRows(readers, workPackageB));
+      const seededA = await seededRows(readers, workPackageA);
       expect(seededA.map(({ id }) => id)).toEqual([parentId, siblingId]);
       expect(beforeB.map(({ id }) => id)).toEqual([...seed.workItemIds[1]]);
 
@@ -365,7 +370,7 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
       await addJunctionWitness(port, children[0].id, seed);
       await addJunctionWitness(port, children[1].id, seed);
       await addJunctionWitness(port, siblingId, seed);
-      const beforeA = structuredClone(await seededRows(readers, projectA));
+      const beforeA = structuredClone(await seededRows(readers, workPackageA));
       expectJunctionWitness(beforeA, children[0].id, seed);
       expectJunctionWitness(beforeA, children[1].id, seed);
       expectJunctionWitness(beforeA, siblingId, seed);
@@ -384,7 +389,7 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
         didRefuse = true;
       }
 
-      const afterA = await seededRows(readers, projectA);
+      const afterA = await seededRows(readers, workPackageA);
       const promoted = changed(
         beforeA.filter(({ id }) => id !== parentId),
         {
@@ -406,28 +411,28 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
         { didRefuse: false, rows: promotedAndBumped },
       ]).toContainEqual({ didRefuse, rows: afterA });
       expect(placed(afterA)).toEqual([
-        { id: 'work-a-child-one', projectId: projectA, parentId: null, position: 10 },
-        { id: 'work-a-child-two', projectId: projectA, parentId: null, position: 20 },
-        { id: siblingId, projectId: projectA, parentId: null, position: 30 },
+        { id: 'work-a-child-one', workPackageId: workPackageA, parentId: null, position: 10 },
+        { id: 'work-a-child-two', workPackageId: workPackageA, parentId: null, position: 20 },
+        { id: siblingId, workPackageId: workPackageA, parentId: null, position: 30 },
       ]);
-      expect(await seededRows(readers, projectB)).toEqual(beforeB);
+      expect(await seededRows(readers, workPackageB)).toEqual(beforeB);
     }),
     storeCase(
       'workItems',
       'workItems.setFrozenNumbers:clear',
       open,
       async ({ port, readers, seed }) => {
-        const [projectA, projectB] = seed.projectIds;
+        const [workPackageA, workPackageB] = seed.workPackageIds;
         const [firstId, secondId] = seed.workItemIds[0];
-        const beforeB = structuredClone(await seededRows(readers, projectB));
-        expect((await seededRows(readers, projectA)).map(({ id }) => id)).toEqual([
+        const beforeB = structuredClone(await seededRows(readers, workPackageB));
+        expect((await seededRows(readers, workPackageA)).map(({ id }) => id)).toEqual([
           firstId,
           secondId,
         ]);
         expect(beforeB.map(({ id }) => id)).toEqual([...seed.workItemIds[1]]);
         await addJunctionWitness(port, firstId, seed);
         await addJunctionWitness(port, secondId, seed);
-        const beforeA = structuredClone(await seededRows(readers, projectA));
+        const beforeA = structuredClone(await seededRows(readers, workPackageA));
         expectJunctionWitness(beforeA, firstId, seed);
         expectJunctionWitness(beforeA, secondId, seed);
 
@@ -445,13 +450,13 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
         const frozenAndBumpedA = bumped(frozenA, { [firstId]: 1, [secondId]: 1 });
 
         // Proof: faults which let the real batch/bookkeeping run but prevent
-        // work-a-one acquiring `010` fail this first complete project snapshot.
-        expect([frozenA, frozenAndBumpedA]).toContainEqual(await seededRows(readers, projectA));
-        expect(await seededRows(readers, projectB)).toEqual(beforeB);
+        // work-a-one acquiring `010` fail this first complete work package snapshot.
+        expect([frozenA, frozenAndBumpedA]).toContainEqual(await seededRows(readers, workPackageA));
+        expect(await seededRows(readers, workPackageB)).toEqual(beforeB);
 
         await port.setFrozenNumbers([{ id: firstId, frozenNumber: null }], seed.stamps[1]);
 
-        const afterA = await seededRows(readers, projectA);
+        const afterA = await seededRows(readers, workPackageA);
         const unchangedRevision = changed(beforeA, {
           [firstId]: { frozenNumber: null },
           [secondId]: { frozenNumber: '020' },
@@ -466,7 +471,7 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
           { id: firstId, frozenNumber: null },
           { id: secondId, frozenNumber: '020' },
         ]);
-        expect(await seededRows(readers, projectB)).toEqual(beforeB);
+        expect(await seededRows(readers, workPackageB)).toEqual(beforeB);
       },
     ),
   ];

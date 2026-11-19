@@ -5,13 +5,13 @@ import { describe, expect, it } from 'bun:test';
 
 import { deriveConnectedPlan } from './connected-plan';
 import { resolveConnectedCalendar, translateConnectedCalendar } from './connected-plan-calendar';
-import { restoreConnectedSchedule, selectConnectedProject } from './connected-plan-projection';
+import { restoreConnectedSchedule, selectConnectedWorkPackage } from './connected-plan-projection';
 import type { ConnectedPlanCapture } from './connected-plan-values';
 import { prepareCapturedScheduleParts } from './schedule-parts';
 
-const work = (projectId: string, id: string): CapturedWorkItem => ({
+const work = (workPackageId: string, id: string): CapturedWorkItem => ({
   id,
-  projectId,
+  workPackageId,
   parentId: null,
   position: 0,
   name: id,
@@ -34,10 +34,10 @@ const work = (projectId: string, id: string): CapturedWorkItem => ({
   externalRefs: [],
 });
 const reads = (id: string, startDate: IsoDate | null = '2026-10-05'): PlanInputReads => ({
-  project: {
+  workPackage: {
     id,
     name: id,
-    ownerId: 'u',
+    projectId: 'captured-parent',
     restricted: false,
     estimateMethod: 'realistic',
     depReach: 'whole-item',
@@ -92,16 +92,16 @@ const capture = (a = reads('A'), b = reads('B')): ConnectedPlanCapture => ({
   kind: 'connected',
   organizationId: 'org',
   mode: 'isolated',
-  projects: [
-    { projectId: 'A', abbreviation: 'A', rank: 0, reads: a },
-    { projectId: 'B', abbreviation: 'B', rank: 1, reads: b },
+  workPackages: [
+    { workPackageId: 'A', abbreviation: 'A', rank: 0, reads: a },
+    { workPackageId: 'B', abbreviation: 'B', rank: 1, reads: b },
   ],
   relationships: [
     {
       id: 'ab',
-      projectId: 'B',
-      predecessor: { projectId: 'A', scope: 'whole', workItemId: 'a' },
-      successor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
+      workPackageId: 'B',
+      predecessor: { workPackageId: 'A', scope: 'whole', workItemId: 'a' },
+      successor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
       type: 'FS',
     },
   ],
@@ -139,14 +139,14 @@ describe('connected detached Fast placement', () => {
       relationships: [
         {
           ...first,
-          predecessor: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'design' },
+          predecessor: { workPackageId: 'A', scope: 'node', workItemId: 'a', stepId: 'design' },
         },
         {
           id: 'ba',
-          projectId: 'A',
+          workPackageId: 'A',
           type: 'FS',
-          predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-          successor: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'test' },
+          predecessor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
+          successor: { workPackageId: 'A', scope: 'node', workItemId: 'a', stepId: 'test' },
         },
       ],
     });
@@ -156,10 +156,10 @@ describe('connected detached Fast placement', () => {
       start(projection.combined, 'a', 'test'),
     ]).toEqual([0, 1, 2]);
   });
-  it('retains own Wednesday floor and projects back to each own anchor', () => {
+  it('retains own Wednesday floor and work packages back to each own anchor', () => {
     const projection = scheduled(capture(reads('A'), reads('B', '2026-10-07')));
     expect(start(projection.combined, 'b')).toBe(2);
-    expect(start(projection.byProject.get('B')!, 'b')).toBe(0);
+    expect(start(projection.byWorkPackage.get('B')!, 'b')).toBe(0);
     expect(projection.originOrdinal).not.toBeNull();
   });
   it('retains graph and capture when a required calendar is missing', () => {
@@ -169,25 +169,25 @@ describe('connected detached Fast placement', () => {
     expect(projection.authored.graph.edges).toHaveLength(1);
     expect(projection.placement).toEqual({
       kind: 'dependency_calendar_missing',
-      projects: [{ projectId: 'B', abbreviation: 'B', name: 'B' }],
+      workPackages: [{ workPackageId: 'B', abbreviation: 'B', name: 'B' }],
     });
   });
   it('inspects the nontarget required optimized member before calendar refusal', () => {
     const b = reads('B', null);
     const held = capture(reads('A'), {
       ...b,
-      project: { ...b.project, optimizationEnabled: true, scheduleEngine: 'optimized' },
+      workPackage: { ...b.workPackage, optimizationEnabled: true, scheduleEngine: 'optimized' },
     });
     expect(derive(held).placement).toEqual({
       kind: 'engine_unavailable',
       engine: 'optimized',
-      projects: ['B'],
+      workPackages: ['B'],
       reason: 'adapter_missing',
     });
     expect(derive(held, true).placement).toEqual({
       kind: 'engine_unavailable',
       engine: 'optimized',
-      projects: ['B'],
+      workPackages: ['B'],
       reason: 'connected_optimization_not_supported',
     });
   });
@@ -195,12 +195,16 @@ describe('connected detached Fast placement', () => {
     const b = reads('B');
     expect(
       scheduled(
-        capture(reads('A'), { ...b, project: { ...b.project, scheduleEngine: 'optimized' } }),
+        capture(reads('A'), {
+          ...b,
+          workPackage: { ...b.workPackage, scheduleEngine: 'optimized' },
+        }),
       ).engine,
     ).toBe('fast');
     expect(
-      scheduled(capture(reads('A'), { ...b, project: { ...b.project, optimizationEnabled: true } }))
-        .engine,
+      scheduled(
+        capture(reads('A'), { ...b, workPackage: { ...b.workPackage, optimizationEnabled: true } }),
+      ).engine,
     ).toBe('fast');
   });
   it('retains authored held endpoints but schedules no held work and needs no empty anchor', () => {
@@ -220,9 +224,9 @@ describe('connected detached Fast placement', () => {
   });
   it('selects either target without placement or calendar changes and refuses absent target', () => {
     const projection = derive(capture());
-    expect(selectConnectedProject(projection, 'A').kind).toBe('scheduled');
-    expect(selectConnectedProject(projection, 'B').kind).toBe('scheduled');
-    expect(() => selectConnectedProject(projection, 'C')).toThrow('C');
+    expect(selectConnectedWorkPackage(projection, 'A').kind).toBe('scheduled');
+    expect(selectConnectedWorkPackage(projection, 'B').kind).toBe('scheduled');
+    expect(() => selectConnectedWorkPackage(projection, 'C')).toThrow('C');
   });
   it('allows a lower ranked remote prerequisite before a high priority successor', () => {
     const held = capture();
@@ -230,7 +234,12 @@ describe('connected detached Fast placement', () => {
     const projection = scheduled({
       ...held,
       relationships: [
-        { ...first, projectId: 'A', predecessor: first.successor, successor: first.predecessor },
+        {
+          ...first,
+          workPackageId: 'A',
+          predecessor: first.successor,
+          successor: first.predecessor,
+        },
       ],
     });
     expect(start(projection.combined, 'b')).toBe(0);
@@ -246,10 +255,12 @@ describe('connected detached Fast placement', () => {
     const isolated = scheduled({ ...held, mode: 'isolated' });
     expect(start(shared.combined, 'b')).toBe(1);
     expect(start(isolated.combined, 'b')).toBe(0);
-    expect(shared.byProject.get('A')!.waitingForPerson).toBe(0);
-    expect(shared.byProject.get('B')!.waitingForPerson).toBe(1);
-    expect(shared.byProject.get('B')!.slices.get(sliceKey('b', 'build'))!.personId).toBe('same');
-    expect(shared.identities.projectIdByWorkItem.get('a')).toBe('A');
+    expect(shared.byWorkPackage.get('A')!.waitingForPerson).toBe(0);
+    expect(shared.byWorkPackage.get('B')!.waitingForPerson).toBe(1);
+    expect(shared.byWorkPackage.get('B')!.slices.get(sliceKey('b', 'build'))!.personId).toBe(
+      'same',
+    );
+    expect(shared.identities.workPackageIdByWorkItem.get('a')).toBe('A');
   });
   it('uses own rounding, units, allowance, team capacity and width before injective namespacing', () => {
     const a = reads('A');
@@ -267,7 +278,7 @@ describe('connected detached Fast placement', () => {
     });
     const projection = scheduled({
       ...capture(
-        { ...sized(a, 1), project: { ...a.project, estimateRounding: 'ceil' } },
+        { ...sized(a, 1), workPackage: { ...a.workPackage, estimateRounding: 'ceil' } },
         sized(b, 2),
       ),
       relationships: [],
@@ -277,7 +288,7 @@ describe('connected detached Fast placement', () => {
     expect(start(projection.combined, 'a')).toBe(0);
     expect(start(projection.combined, 'b')).toBe(0);
   });
-  it('keeps identical resource catalog IDs project local and restores binding identities', () => {
+  it('keeps identical resource catalog IDs work package local and restores binding identities', () => {
     const demanding = (id: string, units: number) => {
       const local = reads(id);
       const ownId = id.toLowerCase();
@@ -308,8 +319,8 @@ describe('connected detached Fast placement', () => {
     expect(
       projection.combined.slices.get(sliceKey('a2', 'build'))!.capacityResource?.resourceId,
     ).toBe('same');
-    expect(projection.byProject.get('A')!.waitingForCapacity).toBe(1);
-    expect(projection.byProject.get('B')!.waitingForCapacity).toBe(0);
+    expect(projection.byWorkPackage.get('A')!.waitingForCapacity).toBe(1);
+    expect(projection.byWorkPackage.get('B')!.waitingForCapacity).toBe(0);
   });
   it('retains fractional effort and translates a weekend manual floor and deadline under own anchor', () => {
     const a = reads('A');
@@ -337,17 +348,17 @@ describe('connected detached Fast placement', () => {
     );
     expect(projection.combined.slices.get(sliceKey('a', 'build'))!.duration).toBe(0.25);
     expect(start(projection.combined, 'b')).toBe(5);
-    expect(start(projection.byProject.get('B')!, 'b')).toBe(3);
-    expect(projection.byProject.get('B')!.slices.get(sliceKey('b', 'build'))!.lateBy).toBe(1);
+    expect(start(projection.byWorkPackage.get('B')!, 'b')).toBe(3);
+    expect(projection.byWorkPackage.get('B')!.slices.get(sliceKey('b', 'build'))!.lateBy).toBe(1);
   });
-  it('uses the earliest anchor independent of project rank and capture order', () => {
+  it('uses the earliest anchor independent of work package rank and capture order', () => {
     const held = capture(reads('A', '2026-10-07'), reads('B'));
     const forward = scheduled(held);
-    const reversed = scheduled({ ...held, projects: [...held.projects].reverse() });
+    const reversed = scheduled({ ...held, workPackages: [...held.workPackages].reverse() });
     expect(start(forward.combined, 'a')).toBe(2);
     expect(start(forward.combined, 'b')).toBe(3);
     expect([...forward.combined.slices]).toEqual([...reversed.combined.slices]);
-    expect(start(forward.byProject.get('B')!, 'b')).toBe(3);
+    expect(start(forward.byWorkPackage.get('B')!, 'b')).toBe(3);
   });
   it('reduces partial held parent selectors without losing authored pairs', () => {
     const a = reads('A');
@@ -401,7 +412,7 @@ describe('connected detached Fast placement', () => {
   it('refuses wrong relationship ownership and mismatched local captured evidence', () => {
     const held = capture();
     expect(() =>
-      derive({ ...held, relationships: [{ ...held.relationships[0], projectId: 'A' }] }),
+      derive({ ...held, relationships: [{ ...held.relationships[0], workPackageId: 'A' }] }),
     ).toThrow('owner');
     const a = reads('A');
     expect(() =>
@@ -420,7 +431,7 @@ describe('connected detached Fast placement', () => {
       ),
     ).toThrow('disagree');
   });
-  it('refuses foreign project rows, absent endpoint project and cross owned endpoint identity', () => {
+  it('refuses foreign work package rows, absent endpoint work package and cross owned endpoint identity', () => {
     const a = reads('A');
     const held = capture();
     expect(() => derive(capture({ ...a, workItems: [work('B', 'a')] }))).toThrow('foreign');
@@ -430,7 +441,7 @@ describe('connected detached Fast placement', () => {
         relationships: [
           {
             ...held.relationships[0],
-            predecessor: { projectId: 'C', scope: 'whole', workItemId: 'a' },
+            predecessor: { workPackageId: 'C', scope: 'whole', workItemId: 'a' },
           },
         ],
       }),
@@ -441,23 +452,23 @@ describe('connected detached Fast placement', () => {
         relationships: [
           {
             ...held.relationships[0],
-            predecessor: { projectId: 'B', scope: 'whole', workItemId: 'a' },
-            successor: { projectId: 'A', scope: 'whole', workItemId: 'a' },
-            projectId: 'A',
+            predecessor: { workPackageId: 'B', scope: 'whole', workItemId: 'a' },
+            successor: { workPackageId: 'A', scope: 'whole', workItemId: 'a' },
+            workPackageId: 'A',
           },
         ],
       }),
     ).toThrow('no work item');
   });
 
-  it('applies each project minute conversion, estimate method and allowance exactly once', () => {
+  it('applies each work package minute conversion, estimate method and allowance exactly once', () => {
     const a = reads('A');
     const b = reads('B');
     const placed = scheduled({
       ...capture(
         {
           ...a,
-          project: { ...a.project, estimateMethod: 'pert' },
+          workPackage: { ...a.workPackage, estimateMethod: 'pert' },
           steps: a.steps.map((step) => ({
             ...step,
             estimateUnit: 'minutes',
@@ -469,7 +480,7 @@ describe('connected detached Fast placement', () => {
         },
         {
           ...b,
-          project: { ...b.project, estimateMethod: 'pessimistic' },
+          workPackage: { ...b.workPackage, estimateMethod: 'pessimistic' },
           estimates: [
             { workItemId: 'b', stepId: 'build', optimistic: 1, realistic: 2, pessimistic: 3 },
           ],
@@ -499,13 +510,16 @@ describe('connected detached Fast placement', () => {
     ]);
     expect([...translated.deadlines]).toEqual([['a', 4.75]]);
   });
-  it('refuses corrupted project identity and nonfinite rank, and throws unknown scheduling failures', () => {
+  it('refuses corrupted work package identity and nonfinite rank, and throws unknown scheduling failures', () => {
     const held = capture();
     expect(() =>
-      derive({ ...held, projects: [{ ...held.projects[0], rank: NaN }, held.projects[1]] }),
+      derive({
+        ...held,
+        workPackages: [{ ...held.workPackages[0], rank: NaN }, held.workPackages[1]],
+      }),
     ).toThrow('invalid');
     const a = reads('A');
-    expect(() => derive(capture({ ...a, project: { ...a.project, id: 'wrong' } }))).toThrow(
+    expect(() => derive(capture({ ...a, workPackage: { ...a.workPackage, id: 'wrong' } }))).toThrow(
       'invalid',
     );
     expect(() =>
@@ -524,7 +538,7 @@ describe('connected detached Fast placement', () => {
         {
           ...relationship,
           id: 'reverse',
-          projectId: 'A',
+          workPackageId: 'A',
           predecessor: relationship.successor,
           successor: relationship.predecessor,
         },
@@ -552,7 +566,7 @@ describe('connected detached Fast placement', () => {
       relationships: [
         {
           ...held.relationships[0],
-          predecessor: { projectId: 'A', scope: 'whole', workItemId: 'parent' },
+          predecessor: { workPackageId: 'A', scope: 'whole', workItemId: 'parent' },
         },
       ],
     });
@@ -591,22 +605,27 @@ describe('connected detached Fast placement', () => {
     const b = reads('B');
     const held = capture(reads('A'), {
       ...b,
-      project: { ...b.project, optimizationEnabled: true, scheduleEngine: 'optimized' },
+      workPackage: { ...b.workPackage, optimizationEnabled: true, scheduleEngine: 'optimized' },
     });
     expect(() =>
-      derive({ ...held, projects: [{ ...held.projects[0], rank: NaN }, held.projects[1]] }),
-    ).toThrow('invalid captured project A');
+      derive({
+        ...held,
+        workPackages: [{ ...held.workPackages[0], rank: NaN }, held.workPackages[1]],
+      }),
+    ).toThrow('invalid captured work package A');
     const projection = derive(held);
-    expect(() => selectConnectedProject(projection, 'C')).toThrow('project C is not captured');
+    expect(() => selectConnectedWorkPackage(projection, 'C')).toThrow(
+      'work package C is not captured',
+    );
   });
 
-  it('resolves every project local dependency under its own reach and step order', () => {
+  it('resolves every work package local dependency under its own reach and step order', () => {
     const local = (id: string, depReach: 'whole-item' | 'anchor-slice') => {
       const source = reads(id);
       const ownId = id.toLowerCase();
       return {
         ...source,
-        project: { ...source.project, depReach },
+        workPackage: { ...source.workPackage, depReach },
         steps: ['build', 'test'].map((stepId, position) => ({
           ...source.steps[0],
           id: stepId,
@@ -636,7 +655,9 @@ describe('connected detached Fast placement', () => {
 
   it('refuses absent prepared calendars and broken reverse identities on real placements', () => {
     const held = capture();
-    expect(() => resolveConnectedCalendar(held, new Map())).toThrow('missing prepared project A');
+    expect(() => resolveConnectedCalendar(held, new Map())).toThrow(
+      'missing prepared work package A',
+    );
     const assigned = (id: string) => ({
       ...reads(id),
       assignments: [{ workItemId: id.toLowerCase(), stepId: 'build', personId: 'same' }],
@@ -653,26 +674,26 @@ describe('connected detached Fast placement', () => {
 
 it.each(['A', 'B'])(
   'selects actual mixed-engine stages before projection and keeps earlier boundaries detached: %s',
-  (selectedProject) => {
+  (selectedWorkPackage) => {
     const a = reads('A');
     const b = reads('B');
     const held = {
       ...capture(
         {
           ...a,
-          project: {
-            ...a.project,
+          workPackage: {
+            ...a.workPackage,
             optimizationEnabled: true,
-            scheduleEngine: selectedProject === 'A' ? 'optimized' : 'fast',
+            scheduleEngine: selectedWorkPackage === 'A' ? 'optimized' : 'fast',
             scheduleObjective: 'time' as const,
           },
         },
         {
           ...b,
-          project: {
-            ...b.project,
+          workPackage: {
+            ...b.workPackage,
             optimizationEnabled: true,
-            scheduleEngine: selectedProject === 'B' ? 'optimized' : 'fast',
+            scheduleEngine: selectedWorkPackage === 'B' ? 'optimized' : 'fast',
             scheduleObjective: 'time' as const,
           },
         },
@@ -694,11 +715,11 @@ it.each(['A', 'B'])(
           ),
         {
           readConnectedCaptured: ({ stage }) => {
-            seen.push(stage.projectId);
+            seen.push(stage.workPackageId);
             const question = {
-              projectId: stage.projectId,
-              inputHash: stage.projectId,
-              questionHash: stage.projectId,
+              workPackageId: stage.workPackageId,
+              inputHash: stage.workPackageId,
+              questionHash: stage.workPackageId,
               objective: 'time' as const,
               contractVersion: 'test',
               budgetMs: 100,
@@ -707,7 +728,7 @@ it.each(['A', 'B'])(
               stageBytes: canonicalConnectedStageInput(stage),
             };
             return {
-              inputHash: stage.projectId,
+              inputHash: stage.workPackageId,
               generation: 1,
               contractVersion: 'test',
               budgetMs: 100,
@@ -718,7 +739,7 @@ it.each(['A', 'B'])(
                 pri: null,
                 time: {
                   question,
-                  starts: new Map([[sliceKey(stage.projectId.toLowerCase(), 'build'), 0]]),
+                  starts: new Map([[sliceKey(stage.workPackageId.toLowerCase(), 'build'), 0]]),
                 },
               },
             };
@@ -729,12 +750,12 @@ it.each(['A', 'B'])(
     expect(projection.placement.kind).toBe('scheduled');
     if (projection.placement.kind !== 'scheduled') throw Error('expected scheduled');
     expect(seen).toEqual(['A', 'B']);
-    expect(start(projection.placement.combined, 'a')).toBe(selectedProject === 'A' ? 0 : 3);
-    expect(start(projection.placement.combined, 'b')).toBe(selectedProject === 'B' ? 0 : 4);
+    expect(start(projection.placement.combined, 'a')).toBe(selectedWorkPackage === 'A' ? 0 : 3);
+    expect(start(projection.placement.combined, 'b')).toBe(selectedWorkPackage === 'B' ? 0 : 4);
     expect(start(projection.placement.baseline, 'a')).toBe(3);
     expect(projection.placement.stages[0]?.stage.starts.get(sliceKey('b', 'build'))).toBe(4);
     expect(projection.placement.stages[1]?.stage.starts.get(sliceKey('a', 'build'))).toBe(
-      selectedProject === 'A' ? 0 : 3,
+      selectedWorkPackage === 'A' ? 0 : 3,
     );
     expect(projection.placement.stages[1]?.optimization?.variants.time.state).toBe('ready');
     const again = deriveSelected();
@@ -755,9 +776,9 @@ it('ranks real stages by ID ties, observes enabled Fast, skips disabled and empt
   const held: ConnectedPlanCapture = {
     ...capture(),
     relationships: [],
-    projects: [
+    workPackages: [
       {
-        projectId: 'D',
+        workPackageId: 'D',
         abbreviation: 'D',
         rank: 0,
         reads: {
@@ -765,28 +786,28 @@ it('ranks real stages by ID ties, observes enabled Fast, skips disabled and empt
           estimates: [],
           steps: [],
           workItems: [],
-          project: { ...d.project, optimizationEnabled: true, scheduleEngine: 'optimized' },
+          workPackage: { ...d.workPackage, optimizationEnabled: true, scheduleEngine: 'optimized' },
         },
       },
-      { projectId: 'C', abbreviation: 'C', rank: 0, reads: c },
+      { workPackageId: 'C', abbreviation: 'C', rank: 0, reads: c },
       {
-        projectId: 'B',
+        workPackageId: 'B',
         abbreviation: 'B',
         rank: 0,
-        reads: { ...b, project: { ...b.project, optimizationEnabled: true } },
+        reads: { ...b, workPackage: { ...b.workPackage, optimizationEnabled: true } },
       },
       {
-        projectId: 'A',
+        workPackageId: 'A',
         abbreviation: 'A',
         rank: 0,
-        reads: { ...a, project: { ...a.project, optimizationEnabled: true } },
+        reads: { ...a, workPackage: { ...a.workPackage, optimizationEnabled: true } },
       },
     ],
   };
   const seen: string[] = [];
   const projection = deriveConnectedPlan(held, { supports: () => false }, scheduleResolved, {
     readConnectedCaptured: ({ stage }) => {
-      seen.push(stage.projectId);
+      seen.push(stage.workPackageId);
       return {
         inputHash: 'idle',
         generation: null,
@@ -801,12 +822,12 @@ it('ranks real stages by ID ties, observes enabled Fast, skips disabled and empt
   });
   if (projection.placement.kind !== 'scheduled') throw Error('expected scheduled');
   expect(seen).toEqual(['A', 'B']);
-  expect(projection.placement.stages.map((selection) => selection.stage.projectId)).toEqual([
+  expect(projection.placement.stages.map((selection) => selection.stage.workPackageId)).toEqual([
     'A',
     'B',
     'C',
   ]);
-  expect(projection.placement.idleProjects).toEqual(['D']);
+  expect(projection.placement.idleWorkPackages).toEqual(['D']);
   expect(projection.placement.stages[0]?.optimization?.variants.time.state).toBe('pending');
   expect(projection.placement.stages[2]?.optimization).toBeNull();
 });

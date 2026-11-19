@@ -3,20 +3,20 @@ import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
-import { project } from './project-response';
 import { scheduleError } from './schedule-error-shape';
 import { requestSchema, responseSchema } from './schema-shape';
+import { workPackage } from './work-package-response';
 
 /**
  * One space as every space route answers it (`add-spaces`, spec `space-read`).
- * `virtual` is true only for All projects, addressed as `all`, which has no
+ * `virtual` is true only for All work packages, addressed as `all`, which has no
  * author, instant or revision of its own: those read `null`, `null` and 0.
  */
 const space = type({
   id: 'string',
   name: 'string',
   virtual: 'boolean',
-  projectCount: 'number',
+  workPackageCount: 'number',
   revision: 'number',
   createdById: 'string | null',
   createdAt: 'number | null',
@@ -74,7 +74,7 @@ const virtualSpace = {
 } as const;
 
 /**
- * The organization's named spaces by name then id; All projects is never
+ * The organization's named spaces by name then id; All work packages is never
  * listed. `writable` says whether the caller may create, rename, delete and
  * edit membership, so a client offers no control a write would refuse.
  */
@@ -112,8 +112,8 @@ export const createSpace = defineEndpointShape({
 });
 
 /**
- * A space and its readable projects in membership order, each as
- * `GET /api/projects` carries it. `all` answers the caller's project list.
+ * A space and its readable work packages in membership order, each as
+ * `GET /api/work-packages` carries it. `all` answers the caller's work package list.
  * `writable` says whether the caller may edit this space's membership; it is
  * false for `all`, which no write addresses.
  */
@@ -132,10 +132,10 @@ export const readSpace = defineEndpointShape({
           space,
           writable: 'boolean',
           rows: type({
-            // `updatedAt` is `GET /api/projects`' update instant (`list-reads`);
+            // `updatedAt` is `GET /api/work-packages`' update instant (`list-reads`);
             // optional so an older be-01 mid-swap still parses.
-            project: project.and({
-              ownerName: 'string',
+            workPackage: workPackage.and({
+              createdByName: 'string',
               lastOpenedAt: 'number | null',
               'updatedAt?': 'number | null',
             }),
@@ -146,10 +146,10 @@ export const readSpace = defineEndpointShape({
     },
   ],
   refusals: [...common, notFound],
-  document: { summary: 'Read a space and its projects.' },
+  document: { summary: 'Read a space and its work packages.' },
 });
 
-/** Renames a space; no project changes. */
+/** Renames a space; no work package changes. */
 export const renameSpace = defineEndpointShape({
   method: 'PATCH',
   path: '/api/spaces/:id',
@@ -168,7 +168,7 @@ export const renameSpace = defineEndpointShape({
   document: { summary: 'Rename a space.' },
 });
 
-/** Deletes a space and its membership; no project changes. */
+/** Deletes a space and its membership; no work package changes. */
 export const removeSpace = defineEndpointShape({
   method: 'DELETE',
   path: '/api/spaces/:id',
@@ -181,8 +181,8 @@ export const removeSpace = defineEndpointShape({
 });
 
 /**
- * Adds a project after `afterProjectId`, or first when it is absent or null.
- * A project the caller cannot open answers the project routes' own 404.
+ * Adds a work package after `afterWorkPackageId`, or first when it is absent or null.
+ * A work package the caller cannot open answers the work package routes' own 404.
  */
 export const addSpaceProject = defineEndpointShape({
   method: 'POST',
@@ -198,13 +198,18 @@ export const addSpaceProject = defineEndpointShape({
     notFound,
     {
       status: 409,
-      schema: responseSchema(type({ error: "'already_in_space' | 'virtual_space'" })),
+      schema: responseSchema(
+        type({ error: "'already_in_space' | 'virtual_space'" }).or({
+          error: "'project_in_other_space'",
+          spaceId: 'string > 0',
+        }),
+      ),
     },
   ],
-  document: { summary: 'Add a project to a space.' },
+  document: { summary: 'Add a work package to a space.' },
 });
 
-/** Removes a project from a space; the project is unchanged. */
+/** Removes a work package from a space; the work package is unchanged. */
 export const removeSpaceProject = defineEndpointShape({
   method: 'DELETE',
   path: '/api/spaces/:id/projects/:projectId',
@@ -213,7 +218,7 @@ export const removeSpaceProject = defineEndpointShape({
   params: memberParams,
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [...writing, notFound, virtualSpace],
-  document: { summary: 'Remove a project from a space.' },
+  document: { summary: 'Remove a work package from a space.' },
 });
 
 /** Moves a member after `afterProjectId`, or first when it is absent or null. */
@@ -227,7 +232,7 @@ export const moveSpaceProject = defineEndpointShape({
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: positionReply }],
   refusals: [...writing, notFound, virtualSpace],
-  document: { summary: 'Move a project within a space.' },
+  document: { summary: 'Move a work package within a space.' },
 });
 
 const statusCounts = type({
@@ -251,14 +256,14 @@ const rolledUp = type({
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
   displayed: 'string | null',
-  projectRevision: 'number',
+  workPackageRevision: 'number',
   seq: 'number',
 });
 const unavailable = type({ kind: "'unavailable'" });
 
 /**
  * Roll-ups for up to 50 comma-separated `projectIds`, each a member of the
- * space the caller can open (`all`: any project the caller can open). Any
+ * space the caller can open (`all`: any work package the caller can open). Any
  * other id answers 404 for the whole request; more than 50, or none, 400.
  * Separate from the space read so the rows paint first (design memo §8).
  */
@@ -268,7 +273,7 @@ export const readSpaceRollUps = defineEndpointShape({
   operationId: 'getApiSpacesByIdRoll-ups',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: spaceParams,
-  query: requestSchema(type({ projectIds: 'string' })),
+  query: requestSchema(type({ workPackageIds: 'string' })),
   responses: [
     {
       kind: 'json',
@@ -277,12 +282,12 @@ export const readSpaceRollUps = defineEndpointShape({
     },
   ],
   refusals: [...common, notFound],
-  document: { summary: 'Read roll-ups for projects of a space.' },
+  document: { summary: 'Read roll-ups for work packages of a space.' },
 });
 
 const inProgressItem = type({
-  projectId: 'string',
-  projectName: 'string',
+  workPackageId: 'string',
+  workPackageName: 'string',
   position: 'number',
   workItemId: 'string',
   number: 'string',

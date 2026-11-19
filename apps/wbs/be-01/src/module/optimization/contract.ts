@@ -8,8 +8,8 @@ import type { ConnectedSolverOutcome } from '@wbs/contracts/solver/connected-sol
 import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
 import type { OptimizationOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
 import type { ScopedPrincipal } from '@wbs/core/ports/access-decisions';
-import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
-import type { ProjectEvent } from '@wbs/core/ports/project-event';
+import type { CommittedWorkPackageEvent } from '@wbs/core/ports/committed-fanout';
+import type { WorkPackageEvent } from '@wbs/core/ports/work-package-event';
 import type { RecordedEvent } from '@wbs/core/ports/recorded-event';
 import type {
   ConnectedOptimizationQuestion,
@@ -60,7 +60,7 @@ type SolverRequest = Extract<BuiltSolverRequest, { readonly ok: true }>['request
  * without a conversion.
  */
 export interface OptimizationCacheKey {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly inputHash: string;
   readonly contractVersion: string;
   readonly budgetMs: number;
@@ -137,16 +137,16 @@ export type ReservedSpawner = (request: ReservedSpawnRequest) => Promise<Reserve
  */
 export type ScheduleInputHasher = (input: ScheduleInput) => string;
 
-/** A stored `ok` result's project event, projected from the neutral `ProjectEvent`. */
-export type ScheduleOptimizedEvent = Extract<ProjectEvent, { type: 'schedule_optimized' }>;
-/** A stored failure's project event, projected from the neutral `ProjectEvent`. */
+/** A stored `ok` result's work package event, projected from the neutral `WorkPackageEvent`. */
+export type ScheduleOptimizedEvent = Extract<WorkPackageEvent, { type: 'schedule_optimized' }>;
+/** A stored failure's work package event, projected from the neutral `WorkPackageEvent`. */
 export type ScheduleOptimizationFailedEvent = Extract<
-  ProjectEvent,
+  WorkPackageEvent,
   { type: 'schedule_optimization_failed' }
 >;
-/** A stored infeasibility certificate's project event, projected from the neutral `ProjectEvent`. */
+/** A stored infeasibility certificate's work package event, projected from the neutral `WorkPackageEvent`. */
 export type ScheduleOptimizationInfeasibleEvent = Extract<
-  ProjectEvent,
+  WorkPackageEvent,
   { type: 'schedule_optimization_infeasible' }
 >;
 /** The three events a stored solver outcome publishes, and nothing else. */
@@ -154,7 +154,7 @@ export type OptimizationOutcomeEvent =
   | ScheduleOptimizedEvent
   | ScheduleOptimizationFailedEvent
   | ScheduleOptimizationInfeasibleEvent
-  | Extract<ProjectEvent, { type: 'schedule_optimization_boundary_infeasible' }>;
+  | Extract<WorkPackageEvent, { type: 'schedule_optimization_boundary_infeasible' }>;
 
 /**
  * What a host must supply to install {@link optimizationModule}.
@@ -203,7 +203,7 @@ export type OptimizationCachedPair = Readonly<
 >;
 
 export interface SolverSlotIdentity {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly objective: SolverObjectiveName;
@@ -218,7 +218,7 @@ export interface SolverSlotRequest extends Omit<SolverSlotIdentity, 'attemptToke
 }
 export type SolverSlotAdmission =
   | ReservedSolverAdmission
-  | { readonly kind: 'already-present' | 'closed' | 'project-full' | 'global-full' };
+  | { readonly kind: 'already-present' | 'closed' | 'work-package-full' | 'global-full' };
 export type SolverSlotHeartbeatOutcome =
   | { readonly kind: 'live' }
   | { readonly kind: 'cancelled'; readonly reason: 'requested' | 'generation' }
@@ -300,7 +300,7 @@ export type OptimizationRetryDecision =
 /** A committed admission decision and its exact durable fan-out envelopes. */
 export interface CommittedDecision<T> {
   readonly decision: T;
-  readonly envelopes: readonly CommittedProjectEvent[];
+  readonly envelopes: readonly CommittedWorkPackageEvent[];
 }
 
 /** The immutable generation, pair and requests read in one source turn. */
@@ -328,7 +328,7 @@ export type OptimizationAdmissionObservation =
 /** Durable optimization decisions. Outcome recording and slot release are separate transactions. */
 export interface OptimizationRepository extends SolverSlotRepository {
   allocateGeneration(
-    projectId: string,
+    workPackageId: string,
     contractVersion: string,
     inputHash: string,
     now: number,

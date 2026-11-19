@@ -1,12 +1,14 @@
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
-import type { Broadcaster } from '../../ports/project-event';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import type { PlanCommand } from '../../service/plan-command';
 import { testClock } from '../../testing/clock-fixture';
@@ -30,7 +32,7 @@ function silentBroadcaster(): Broadcaster {
 const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
   servicesOver(stores, {
     dependencyContext: createLocalDependencyContext(stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -77,29 +79,35 @@ function captureAdmittedStores(uow: UnitOfWork): {
 
 describe('working plan batch ownership', () => {
   async function seededEstimate() {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
     await source.stores.users.create(
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const createdProject = expectCreated(
-      await publicGraph.projects.create('Working plan ownership', OWNER),
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: OWNER,
+    });
+    const createdWorkPackage = expectCreated(
+      await publicGraph.workPackages.create('Working plan ownership', 'fixture-project', OWNER),
     );
-    const projectId = createdProject.project.id;
-    const stepId = createdProject.steps[0].id;
+    const workPackageId = createdWorkPackage.workPackage.id;
+    const stepId = createdWorkPackage.steps[0].id;
     await source.stores.steps.add(
       {
         id: stepId,
-        projectId,
-        name: createdProject.steps[0].name,
+        workPackageId,
+        name: createdWorkPackage.steps[0].name,
         allowancePercent: 0,
         estimateUnit: 'workdays' as const,
       },
       { at: 1, by: OWNER },
     );
-    const created = await publicGraph.workItems.create(projectId, OWNER, {
+    const created = await publicGraph.workItems.create(workPackageId, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Owned estimate',
@@ -110,17 +118,17 @@ describe('working plan batch ownership', () => {
       realistic: 2,
       pessimistic: 3,
     });
-    return { source, direct, publicGraph, projectId, stepId, workItemId: created.value.id };
+    return { source, direct, publicGraph, workPackageId, stepId, workItemId: created.value.id };
   }
 
   it('refuses then runs another batch without leaked values', async () => {
     const fixture = await seededEstimate();
-    const { source, publicGraph, projectId, stepId, workItemId } = fixture;
+    const { source, publicGraph, workPackageId, stepId, workItemId } = fixture;
     const runner = runnerOver(source, publicGraph);
 
     try {
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId,
@@ -135,12 +143,12 @@ describe('working plan batch ownership', () => {
           },
         ]),
       ).toMatchObject({ ok: false, at: 1, reason: 'not_found' });
-      expect(await source.stores.estimates.listByWorkItems(projectId, [workItemId])).toMatchObject([
-        { optimistic: 1, realistic: 2, pessimistic: 3 },
-      ]);
+      expect(
+        await source.stores.estimates.listByWorkItems(workPackageId, [workItemId]),
+      ).toMatchObject([{ optimistic: 1, realistic: 2, pessimistic: 3 }]);
 
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId,
@@ -149,10 +157,10 @@ describe('working plan batch ownership', () => {
           },
         ]),
       ).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
-      expect(await source.stores.estimates.listByWorkItems(projectId, [workItemId])).toMatchObject([
-        { optimistic: 1, realistic: 2, pessimistic: 3 },
-      ]);
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
+      expect(
+        await source.stores.estimates.listByWorkItems(workPackageId, [workItemId]),
+      ).toMatchObject([{ optimistic: 1, realistic: 2, pessimistic: 3 }]);
     } finally {
       await source.close();
     }
@@ -160,12 +168,12 @@ describe('working plan batch ownership', () => {
 
   it('ordinary write between batches is the next before-image', async () => {
     const fixture = await seededEstimate();
-    const { source, publicGraph, projectId, stepId, workItemId } = fixture;
+    const { source, publicGraph, workPackageId, stepId, workItemId } = fixture;
     const runner = runnerOver(source, publicGraph);
 
     try {
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId,
@@ -184,7 +192,7 @@ describe('working plan batch ownership', () => {
         ).ok,
       ).toBe(true);
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId,
@@ -194,12 +202,12 @@ describe('working plan batch ownership', () => {
         ]),
       ).toMatchObject({ ok: true });
 
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
       // Proof: reusing the previous batch's working graph restored its stale
       // 4/5/6 estimate here instead of the intervening ordinary write.
-      expect(await source.stores.estimates.listByWorkItems(projectId, [workItemId])).toMatchObject([
-        { optimistic: 7, realistic: 8, pessimistic: 9 },
-      ]);
+      expect(
+        await source.stores.estimates.listByWorkItems(workPackageId, [workItemId]),
+      ).toMatchObject([{ optimistic: 7, realistic: 8, pessimistic: 9 }]);
     } finally {
       await source.close();
     }
@@ -207,18 +215,18 @@ describe('working plan batch ownership', () => {
 
   it('closes the admitted graph after success, refusal, and throw', async () => {
     const fixture = await seededEstimate();
-    const { source, publicGraph, projectId, stepId, workItemId } = fixture;
+    const { source, publicGraph, workPackageId, stepId, workItemId } = fixture;
     const retainedReads: (() => Promise<unknown>)[] = [];
     const capture = (scope: Scope, broadcast: Broadcaster) => {
-      retainedReads.push(() => scope.stores.workItems.listByProject(projectId));
+      retainedReads.push(() => scope.stores.workItems.listByWorkPackage(workPackageId));
       return compose(scope.stores, broadcast);
     };
     const runner = runnerOver(source, publicGraph, source.uow, capture);
 
     try {
-      expect(await runner.run(projectId, OWNER, [])).toMatchObject({ ok: true });
+      expect(await runner.run(workPackageId, OWNER, [])).toMatchObject({ ok: true });
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId: 'missing-row',
@@ -244,7 +252,7 @@ describe('working plan batch ownership', () => {
       };
       const throwingRunner = runnerOver(source, publicGraph, throwingUow, capture);
       expect(
-        throwingRunner.run(projectId, OWNER, [
+        throwingRunner.run(workPackageId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId,
@@ -260,7 +268,7 @@ describe('working plan batch ownership', () => {
         // let each callback keep reading after its terminal path settled.
         expect(read()).rejects.toThrow(/Working plan .* is closed/);
       }
-      expect(await source.stores.workItems.listByProject(projectId)).toHaveLength(1);
+      expect(await source.stores.workItems.listByWorkPackage(workPackageId)).toHaveLength(1);
     } finally {
       await source.close();
     }
@@ -268,16 +276,18 @@ describe('working plan batch ownership', () => {
 
   it('announces after commit through the nonworking graph', async () => {
     const fixture = await seededEstimate();
-    const { source, direct, publicGraph, projectId, stepId, workItemId } = fixture;
+    const { source, direct, publicGraph, workPackageId, stepId, workItemId } = fixture;
     let retainedRead: (() => Promise<unknown>) | undefined;
     let announcements = 0;
     const announceTreeNow = publicGraph.workItems.announceTreeNow.bind(publicGraph.workItems);
-    publicGraph.workItems.announceTreeNow = async (announcedProjectId: string) => {
+    publicGraph.workItems.announceTreeNow = async (announcedWorkPackageId: string) => {
       if (retainedRead === undefined) throw new Error('after-commit announce ran before batch');
       expect(retainedRead()).rejects.toThrow(/Working plan .* is closed/);
-      expect(await source.stores.workItems.listByProject(announcedProjectId)).toHaveLength(1);
+      expect(await source.stores.workItems.listByWorkPackage(announcedWorkPackageId)).toHaveLength(
+        1,
+      );
       announcements += 1;
-      await announceTreeNow(announcedProjectId);
+      await announceTreeNow(announcedWorkPackageId);
     };
     const runner = createPlanCommandRunner({
       commandAccess: localCommandAccess,
@@ -285,7 +295,7 @@ describe('working plan batch ownership', () => {
       announcements: direct,
       publicServices: publicGraph,
       batchServices(scope, broadcast) {
-        retainedRead = () => scope.stores.workItems.listByProject(projectId);
+        retainedRead = () => scope.stores.workItems.listByWorkPackage(workPackageId);
         return compose(scope.stores, broadcast);
       },
     });
@@ -293,7 +303,7 @@ describe('working plan batch ownership', () => {
     try {
       let runFailure: unknown;
       const outcome = await runner
-        .run(projectId, OWNER, [
+        .run(workPackageId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId,
@@ -320,12 +330,13 @@ describe('working plan batch ownership', () => {
 
 describe('working plan command before-images', () => {
   it('two patches undo to the value before the batch', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
         dependencyContext: createLocalDependencyContext(stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock: testClock,
         broadcast,
         scheduler: fastScheduler,
@@ -337,10 +348,15 @@ describe('working plan command before-images', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Detached before-images', OWNER),
-      ).project.id;
-      const created = await publicGraph.workItems.create(projectId, OWNER, {
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create('Detached before-images', 'fixture-project', OWNER),
+      ).workPackage.id;
+      const created = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Before batch',
@@ -364,11 +380,11 @@ describe('working plan command before-images', () => {
         announcements: direct,
         publicServices: publicGraph,
         batchServices(scope, broadcast) {
-          const borrowedRows = scope.stores.workItems.listByProject(projectId);
+          const borrowedRows = scope.stores.workItems.listByWorkPackage(workPackageId);
           let didMutateBorrowedBefore = false;
           const workItems = {
             ...scope.stores.workItems,
-            listByProject: async (requestedProjectId: string) => {
+            listByWorkPackage: async (requestedWorkPackageId: string) => {
               if (!didMutateBorrowedBefore) {
                 const borrowed = (await borrowedRows).find(({ id }) => id === created.value.id);
                 if (borrowed === undefined) throw new Error('working plan omitted the fixture row');
@@ -377,14 +393,14 @@ describe('working plan command before-images', () => {
                 (borrowed.tagIds as string[]).splice(0, borrowed.tagIds.length, secondTag.id);
                 didMutateBorrowedBefore = true;
               }
-              return scope.stores.workItems.listByProject(requestedProjectId);
+              return scope.stores.workItems.listByWorkPackage(requestedWorkPackageId);
             },
             patch: async (
               ...parameters: Parameters<PlanTransactionalStores['workItems']['patch']>
             ) => {
               const written = await scope.stores.workItems.patch(...parameters);
               if (written.ok) {
-                const refreshed = await scope.stores.workItems.listByIds(projectId, [
+                const refreshed = await scope.stores.workItems.listByIds(workPackageId, [
                   parameters[0],
                 ]);
                 const row = refreshed.at(0);
@@ -399,7 +415,7 @@ describe('working plan command before-images', () => {
         },
       });
 
-      const patched = await runner.run(projectId, OWNER, [
+      const patched = await runner.run(workPackageId, OWNER, [
         {
           kind: 'patchWorkItem',
           workItemId: created.value.id,
@@ -415,17 +431,17 @@ describe('working plan command before-images', () => {
       // Proof: omitting the label joins from the authoritative targeted reader
       // made this production batch observe [] after each patch, before the next command.
       expect(observedTagSets).toEqual([[firstTag.id], [secondTag.id]]);
-      expect(await source.stores.workItems.listByIds(projectId, [created.value.id])).toMatchObject([
-        { name: 'Second patch', tagIds: [secondTag.id] },
-      ]);
+      expect(
+        await source.stores.workItems.listByIds(workPackageId, [created.value.id]),
+      ).toMatchObject([{ name: 'Second patch', tagIds: [secondTag.id] }]);
 
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
       // Proof: returning the retained cache object directly lets the deliberate
       // mutation above alter the first patch's before-image; undo then restores
       // `Mutated cached name` and the second tag instead of these original values.
-      expect(await source.stores.workItems.listByIds(projectId, [created.value.id])).toMatchObject([
-        { name: 'Before batch', tagIds: [originalTag.id] },
-      ]);
+      expect(
+        await source.stores.workItems.listByIds(workPackageId, [created.value.id]),
+      ).toMatchObject([{ name: 'Before batch', tagIds: [originalTag.id] }]);
     } finally {
       await source.close();
     }
@@ -434,7 +450,8 @@ describe('working plan command before-images', () => {
 
 describe('working plan directory mutations through runner commands', () => {
   it('delegates person reads and target-refreshes an assignment before the next patch', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -443,12 +460,17 @@ describe('working plan directory mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Assignment refresh', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Assignment refresh', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
-      const row = await publicGraph.workItems.create(projectId, OWNER, {
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
+      const row = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Before assignment',
@@ -466,17 +488,17 @@ describe('working plan directory mutations through runner commands', () => {
                 ...scope.stores,
                 workItems: {
                   ...scope.stores.workItems,
-                  listByProject: (requestedProjectId) => {
+                  listByWorkPackage: (requestedWorkPackageId) => {
                     fullReads += 1;
-                    return scope.stores.workItems.listByProject(requestedProjectId);
+                    return scope.stores.workItems.listByWorkPackage(requestedWorkPackageId);
                   },
-                  listByIds: (requestedProjectId, ids) => {
+                  listByIds: (requestedWorkPackageId, ids) => {
                     targetedHydrations.push([...ids]);
-                    return scope.stores.workItems.listByIds(requestedProjectId, ids);
+                    return scope.stores.workItems.listByIds(requestedWorkPackageId, ids);
                   },
-                  listPlacements: (requestedProjectId, ids) => {
+                  listPlacements: (requestedWorkPackageId, ids) => {
                     placementCalls += 1;
-                    return scope.stores.workItems.listPlacements(requestedProjectId, ids);
+                    return scope.stores.workItems.listPlacements(requestedWorkPackageId, ids);
                   },
                 },
               },
@@ -505,7 +527,7 @@ describe('working plan directory mutations through runner commands', () => {
         return compose({ ...scope.stores, directory }, broadcast);
       });
 
-      const createdAndAssigned = await runner.run(projectId, OWNER, [
+      const createdAndAssigned = await runner.run(workPackageId, OWNER, [
         { kind: 'createPerson', ref: 'created-person', name: 'Created in batch', teamIds: [] },
         {
           kind: 'setAssignee',
@@ -524,7 +546,7 @@ describe('working plan directory mutations through runner commands', () => {
 
       const replacement = await publicGraph.directory.addPerson(OWNER, 'Replacement', []);
       if (!replacement.ok) throw new Error('replacement person creation refused');
-      const assignedAndPatched = await runner.run(projectId, OWNER, [
+      const assignedAndPatched = await runner.run(workPackageId, OWNER, [
         {
           kind: 'setAssignee',
           workItemId: row.value.id,
@@ -542,14 +564,14 @@ describe('working plan directory mutations through runner commands', () => {
       expect(readsAfterAssign).toEqual({ full: 2, targeted: 2, placements: 0 });
       expect(targetedHydrations).toEqual([[row.value.id], [row.value.id], [row.value.id]]);
       const journal = (
-        await source.stores.journal.entriesFor({ projectId, userId: OWNER, personId: null })
+        await source.stores.journal.entriesFor({ workPackageId, userId: OWNER, personId: null })
       ).at(0);
       if (journal === undefined) throw new Error('assignment batch wrote no journal entry');
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
       expect(await source.stores.directory.assignmentsFor(row.value.id)).toEqual([
         { workItemId: row.value.id, stepId, personId: createdPersonId },
       ]);
-      expect(await source.stores.workItems.listByIds(projectId, [row.value.id])).toMatchObject([
+      expect(await source.stores.workItems.listByIds(workPackageId, [row.value.id])).toMatchObject([
         { id: row.value.id, name: 'Before assignment' },
       ]);
     } finally {
@@ -558,7 +580,8 @@ describe('working plan directory mutations through runner commands', () => {
   });
 
   it('runs a team cascade before the next patch through the memory working graph', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -567,12 +590,21 @@ describe('working plan directory mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Directory cascade refresh', OWNER),
-      ).project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create(
+          'Directory cascade refresh',
+          'fixture-project',
+          OWNER,
+        ),
+      ).workPackage.id;
       const team = await publicGraph.directory.addTeam(OWNER, 'Removed team');
       if (team === null) throw new Error('cascade team creation refused');
-      const row = await publicGraph.workItems.create(projectId, OWNER, {
+      const row = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Before cascade',
@@ -596,7 +628,7 @@ describe('working plan directory mutations through runner commands', () => {
       });
 
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           { kind: 'deleteTeam', teamId: team.id, cascade: true },
           {
             kind: 'patchWorkItem',
@@ -606,7 +638,7 @@ describe('working plan directory mutations through runner commands', () => {
         ]),
       ).toMatchObject({ ok: true });
 
-      expect(await source.stores.workItems.listByIds(projectId, [row.value.id])).toMatchObject([
+      expect(await source.stores.workItems.listByIds(workPackageId, [row.value.id])).toMatchObject([
         { id: row.value.id, name: 'After cascade' },
       ]);
     } finally {
@@ -617,7 +649,8 @@ describe('working plan directory mutations through runner commands', () => {
 
 describe('working plan dependency mutations through runner commands', () => {
   it('lets a later command read the committed FF type after an edit', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
     try {
@@ -625,43 +658,48 @@ describe('working plan dependency mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Typed working plan', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Typed working plan', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const predecessor = await publicGraph.workItems.create(projectId, OWNER, {
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const predecessor = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Predecessor',
       });
-      const successor = await publicGraph.workItems.create(projectId, OWNER, {
+      const successor = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Successor',
       });
       if (!predecessor.ok || !successor.ok) throw new Error('typed fixture creation refused');
-      const first = { projectId, scope: 'whole' as const, workItemId: predecessor.value.id };
-      const second = { projectId, scope: 'whole' as const, workItemId: successor.value.id };
+      const first = { workPackageId, scope: 'whole' as const, workItemId: predecessor.value.id };
+      const second = { workPackageId, scope: 'whole' as const, workItemId: successor.value.id };
       const firstNode = {
-        projectId,
+        workPackageId,
         scope: 'node' as const,
         workItemId: predecessor.value.id,
-        stepId: createdProject.steps[0].id,
+        stepId: createdWorkPackage.steps[0].id,
       };
       await source.stores.typedDependencies.add(
-        { id: 'typed-working', projectId, predecessor: first, successor: second, type: 'FS' },
+        { id: 'typed-working', workPackageId, predecessor: first, successor: second, type: 'FS' },
         { at: 1, by: OWNER },
       );
       let updates = 0;
       const observedAfterEdit: Awaited<
-        ReturnType<PlanTransactionalStores['typedDependencies']['listByProject']>
+        ReturnType<PlanTransactionalStores['typedDependencies']['listByWorkPackage']>
       >[number][] = [];
       const observedLabels: string[][] = [];
       const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
         const workItems = {
           ...scope.stores.workItems,
-          listByProject: async (requestedProjectId: string) => {
-            const rows = await scope.stores.workItems.listByProject(requestedProjectId);
+          listByWorkPackage: async (requestedWorkPackageId: string) => {
+            const rows = await scope.stores.workItems.listByWorkPackage(requestedWorkPackageId);
             if (updates === 1) observedLabels.push(rows.map((row) => row.name));
             return rows;
           },
@@ -670,9 +708,9 @@ describe('working plan dependency mutations through runner commands', () => {
         // must preserve the getter without evaluating it during fixture composition.
         const typedDependencies = new Proxy(scope.stores.typedDependencies, {
           get(dependencies, property) {
-            if (property === 'listByProject')
-              return async (requestedProjectId: string) => {
-                const rows = await dependencies.listByProject(requestedProjectId);
+            if (property === 'listByWorkPackage')
+              return async (requestedWorkPackageId: string) => {
+                const rows = await dependencies.listByWorkPackage(requestedWorkPackageId);
                 if (updates === 1) observedAfterEdit.push(...rows);
                 return rows;
               };
@@ -688,7 +726,7 @@ describe('working plan dependency mutations through runner commands', () => {
         });
         return compose({ ...scope.stores, workItems, typedDependencies }, broadcast);
       });
-      const committed = await runner.run(projectId, OWNER, [
+      const committed = await runner.run(workPackageId, OWNER, [
         {
           kind: 'updateTypedDependency',
           dependencyId: 'typed-working',
@@ -707,16 +745,16 @@ describe('working plan dependency mutations through runner commands', () => {
       expect(committed).toMatchObject({ ok: true });
       expect(observedAfterEdit).toContainEqual({
         id: 'typed-working',
-        projectId,
+        workPackageId,
         predecessor: firstNode,
         successor: second,
         type: 'FF',
       });
       expect(observedLabels).toContainEqual(['Predecessor', 'Successor']);
-      expect(await source.stores.typedDependencies.listByProject(projectId)).toMatchObject([
+      expect(await source.stores.typedDependencies.listByWorkPackage(workPackageId)).toMatchObject([
         { id: 'typed-working', type: 'SS' },
       ]);
-      const refused = await runner.run(projectId, OWNER, [
+      const refused = await runner.run(workPackageId, OWNER, [
         {
           kind: 'addTypedDependency',
           predecessor: second,
@@ -725,13 +763,13 @@ describe('working plan dependency mutations through runner commands', () => {
         },
       ]);
       expect(refused).toMatchObject({ ok: false, at: 0, reason: 'cycle' });
-      expect(await source.stores.typedDependencies.listByProject(projectId)).toMatchObject([
+      expect(await source.stores.typedDependencies.listByWorkPackage(workPackageId)).toMatchObject([
         { id: 'typed-working', predecessor: firstNode, successor: second, type: 'SS' },
       ]);
       await source.stores.estimates.set(
         {
           workItemId: successor.value.id,
-          stepId: createdProject.steps[0].id,
+          stepId: createdWorkPackage.steps[0].id,
           optimistic: 2,
           realistic: 2,
           pessimistic: 2,
@@ -739,20 +777,21 @@ describe('working plan dependency mutations through runner commands', () => {
         { at: 2, by: OWNER },
       );
       await source.stores.typedDependencies.add(
-        { id: 'typed-fs', projectId, predecessor: first, successor: second, type: 'FS' },
+        { id: 'typed-fs', workPackageId, predecessor: first, successor: second, type: 'FS' },
         { at: 2, by: OWNER },
       );
-      const retained = createWorkingPlan({ stores: source.stores }, projectId);
+      const retained = createWorkingPlan({ stores: source.stores }, workPackageId);
       try {
-        const beforeRefusal = await retained.stores.typedDependencies.listByProject(projectId);
+        const beforeRefusal =
+          await retained.stores.typedDependencies.listByWorkPackage(workPackageId);
         const graph = compose(retained.stores, direct);
-        const refusedFinish = await graph.workItems.addTypedDependency(projectId, OWNER, {
+        const refusedFinish = await graph.workItems.addTypedDependency(workPackageId, OWNER, {
           predecessor: second,
           successor: first,
           type: 'FF',
         });
         expect(refusedFinish).toMatchObject({ ok: false, reason: 'cycle' });
-        expect(await retained.stores.typedDependencies.listByProject(projectId)).toEqual(
+        expect(await retained.stores.typedDependencies.listByWorkPackage(workPackageId)).toEqual(
           beforeRefusal,
         );
       } finally {
@@ -764,7 +803,8 @@ describe('working plan dependency mutations through runner commands', () => {
   });
 
   it('refuses a reversed edge through the dependency added earlier in the batch', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -773,11 +813,20 @@ describe('working plan dependency mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Retained dependency cycle', OWNER),
-      ).project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create(
+          'Retained dependency cycle',
+          'fixture-project',
+          OWNER,
+        ),
+      ).workPackage.id;
 
-      const refused = await runnerOver(source, publicGraph).run(projectId, OWNER, [
+      const refused = await runnerOver(source, publicGraph).run(workPackageId, OWNER, [
         {
           kind: 'createWorkItem',
           ref: 'first',
@@ -804,7 +853,7 @@ describe('working plan dependency mutations through runner commands', () => {
         kind: 'addDependency',
         reason: 'cycle',
       });
-      expect(await source.stores.dependencies.listByProject(projectId)).toEqual([]);
+      expect(await source.stores.dependencies.listByWorkPackage(workPackageId)).toEqual([]);
     } finally {
       await source.close();
     }
@@ -813,7 +862,8 @@ describe('working plan dependency mutations through runner commands', () => {
 
 describe('working plan subtree mutations through runner commands', () => {
   it('patches a copied descendant immediately after duplicating its subtree', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const setup = compose(source.stores, direct);
 
@@ -822,14 +872,19 @@ describe('working plan subtree mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await setup.projects.create('Retained duplicated subtree', OWNER),
-      ).project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await setup.workPackages.create('Retained duplicated subtree', 'fixture-project', OWNER),
+      ).workPackage.id;
       for (const row of [
-        workItemRow({ id: 'root', projectId, position: 10, name: 'Root' }),
+        workItemRow({ id: 'root', workPackageId, position: 10, name: 'Root' }),
         workItemRow({
           id: 'child',
-          projectId,
+          workPackageId,
           parentId: 'root',
           position: 10,
           name: 'Child',
@@ -849,7 +904,7 @@ describe('working plan subtree mutations through runner commands', () => {
       const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
         servicesOver(stores, {
           dependencyContext: createLocalDependencyContext(stores),
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock,
           broadcast,
           scheduler: fastScheduler,
@@ -863,7 +918,7 @@ describe('working plan subtree mutations through runner commands', () => {
         batchServices: (scope, broadcast) => composeBatch(scope.stores, broadcast),
       });
 
-      const copied = await runner.run(projectId, OWNER, [
+      const copied = await runner.run(workPackageId, OWNER, [
         { kind: 'duplicateWorkItem', workItemId: 'root', ref: 'copy' },
         {
           kind: 'patchWorkItem',
@@ -876,7 +931,7 @@ describe('working plan subtree mutations through runner commands', () => {
       // made the second production command refuse `not_found` at index 1.
       expect(copied).toMatchObject({ ok: true });
       expect(
-        await source.stores.workItems.listByIds(projectId, ['copy-root', 'copy-child']),
+        await source.stores.workItems.listByIds(workPackageId, ['copy-root', 'copy-child']),
       ).toMatchObject([
         { id: 'copy-root', parentId: null, name: 'Root (copy)' },
         { id: 'copy-child', parentId: 'copy-root', name: 'Patched copied child' },
@@ -925,7 +980,8 @@ function clearAllValues(workItemId: string, stepId: string): PlanCommand[] {
 
 describe('working plan value mutations through runner commands', () => {
   it('keeps mixed-case memory value groups in the full readers order after population', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
     try {
@@ -933,15 +989,24 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Mixed-case value ordering', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create(
+          'Mixed-case value ordering',
+          'fixture-project',
+          OWNER,
+        ),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
       await source.stores.steps.add(
         {
           id: stepId,
-          projectId,
+          workPackageId,
           name: 'Build',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -949,24 +1014,29 @@ describe('working plan value mutations through runner commands', () => {
         { at: 2, by: OWNER },
       );
       for (const id of ['a', 'A']) {
-        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+        await source.stores.workItems.insert(workItemRow({ id, workPackageId }), [], {
           at: 2,
           by: OWNER,
         });
       }
       expect(
-        (await runnerOver(source, publicGraph).run(projectId, OWNER, setAllValues('a', stepId, 1)))
-          .ok,
+        (
+          await runnerOver(source, publicGraph).run(
+            workPackageId,
+            OWNER,
+            setAllValues('a', stepId, 1),
+          )
+        ).ok,
       ).toBe(true);
 
       let observations = 0;
       const admitted = captureAdmittedStores(source.uow);
       const runner = runnerOver(source, publicGraph, admitted.uow, (scope, broadcast) => {
         const loaded = Promise.all([
-          scope.stores.estimates.listByProject(projectId),
-          scope.stores.actuals.listByProject(projectId),
-          scope.stores.progress.listByProject(projectId),
-          scope.stores.measures.listByProject(projectId),
+          scope.stores.estimates.listByWorkPackage(workPackageId),
+          scope.stores.actuals.listByWorkPackage(workPackageId),
+          scope.stores.progress.listByWorkPackage(workPackageId),
+          scope.stores.measures.listByWorkPackage(workPackageId),
         ]);
         const measures = {
           ...scope.stores.measures,
@@ -975,17 +1045,17 @@ describe('working plan value mutations through runner commands', () => {
             const written = await scope.stores.measures.set(...parameters);
             if (parameters[0].metric === 'hours_actual') {
               const retained = await Promise.all([
-                scope.stores.estimates.listByProject(projectId),
-                scope.stores.actuals.listByProject(projectId),
-                scope.stores.progress.listByProject(projectId),
-                scope.stores.measures.listByProject(projectId),
+                scope.stores.estimates.listByWorkPackage(workPackageId),
+                scope.stores.actuals.listByWorkPackage(workPackageId),
+                scope.stores.progress.listByWorkPackage(workPackageId),
+                scope.stores.measures.listByWorkPackage(workPackageId),
               ]);
               const authoritativeStores = admitted.current();
               const authoritative = await Promise.all([
-                authoritativeStores.estimates.listByProject(projectId),
-                authoritativeStores.actuals.listByProject(projectId),
-                authoritativeStores.progress.listByProject(projectId),
-                authoritativeStores.measures.listByProject(projectId),
+                authoritativeStores.estimates.listByWorkPackage(workPackageId),
+                authoritativeStores.actuals.listByWorkPackage(workPackageId),
+                authoritativeStores.progress.listByWorkPackage(workPackageId),
+                authoritativeStores.measures.listByWorkPackage(workPackageId),
               ]);
               // Proof: restoring binary value-group placement made retained groups A,a while
               // every authoritative memory full reader returned a,A here.
@@ -1006,7 +1076,7 @@ describe('working plan value mutations through runner commands', () => {
         return compose({ ...scope.stores, measures }, broadcast);
       });
 
-      expect((await runner.run(projectId, OWNER, setAllValues('A', stepId, 2))).ok).toBe(true);
+      expect((await runner.run(workPackageId, OWNER, setAllValues('A', stepId, 2))).ok).toBe(true);
       expect(observations).toBe(1);
     } finally {
       await source.close();
@@ -1014,7 +1084,8 @@ describe('working plan value mutations through runner commands', () => {
   });
 
   it('keeps every memory value group in source order after sets populate an earlier group', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
     try {
@@ -1022,15 +1093,20 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Value group ordering', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Value group ordering', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
       await source.stores.steps.add(
         {
           id: stepId,
-          projectId,
+          workPackageId,
           name: 'Build',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -1038,7 +1114,7 @@ describe('working plan value mutations through runner commands', () => {
         { at: 2, by: OWNER },
       );
       for (const id of ['z-existing', 'a-earlier']) {
-        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+        await source.stores.workItems.insert(workItemRow({ id, workPackageId }), [], {
           at: 2,
           by: OWNER,
         });
@@ -1065,10 +1141,10 @@ describe('working plan value mutations through runner commands', () => {
       const admitted = captureAdmittedStores(source.uow);
       const runner = runnerOver(source, publicGraph, admitted.uow, (scope, broadcast) => {
         const loaded = Promise.all([
-          scope.stores.estimates.listByProject(projectId),
-          scope.stores.actuals.listByProject(projectId),
-          scope.stores.progress.listByProject(projectId),
-          scope.stores.measures.listByProject(projectId),
+          scope.stores.estimates.listByWorkPackage(workPackageId),
+          scope.stores.actuals.listByWorkPackage(workPackageId),
+          scope.stores.progress.listByWorkPackage(workPackageId),
+          scope.stores.measures.listByWorkPackage(workPackageId),
         ]);
         const measures = {
           ...scope.stores.measures,
@@ -1077,17 +1153,17 @@ describe('working plan value mutations through runner commands', () => {
             const written = await scope.stores.measures.set(...parameters);
             if (parameters[0].metric === 'hours_actual') {
               const retained = await Promise.all([
-                scope.stores.estimates.listByProject(projectId),
-                scope.stores.actuals.listByProject(projectId),
-                scope.stores.progress.listByProject(projectId),
-                scope.stores.measures.listByProject(projectId),
+                scope.stores.estimates.listByWorkPackage(workPackageId),
+                scope.stores.actuals.listByWorkPackage(workPackageId),
+                scope.stores.progress.listByWorkPackage(workPackageId),
+                scope.stores.measures.listByWorkPackage(workPackageId),
               ]);
               const authoritativeStores = admitted.current();
               const authoritative = await Promise.all([
-                authoritativeStores.estimates.listByProject(projectId),
-                authoritativeStores.actuals.listByProject(projectId),
-                authoritativeStores.progress.listByProject(projectId),
-                authoritativeStores.measures.listByProject(projectId),
+                authoritativeStores.estimates.listByWorkPackage(workPackageId),
+                authoritativeStores.actuals.listByWorkPackage(workPackageId),
+                authoritativeStores.progress.listByWorkPackage(workPackageId),
+                authoritativeStores.measures.listByWorkPackage(workPackageId),
               ]);
               expect(retained).toEqual(authoritative);
               expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
@@ -1106,7 +1182,7 @@ describe('working plan value mutations through runner commands', () => {
 
       expect(
         (
-          await runner.run(projectId, OWNER, [
+          await runner.run(workPackageId, OWNER, [
             ...setAllValues('a-earlier', stepId, 2),
             ...clearAllValues('a-earlier', stepId),
             ...setAllValues('a-earlier', stepId, 3),
@@ -1120,7 +1196,8 @@ describe('working plan value mutations through runner commands', () => {
   });
 
   it('refreshes every set, hand-down endpoint, and measure metric before later commands', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1129,22 +1206,27 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Value hand-down refresh', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Value hand-down refresh', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
       await source.stores.steps.add(
         {
           id: stepId,
-          projectId,
+          workPackageId,
           name: 'Build',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
         },
         { at: 2, by: OWNER },
       );
-      const parent = await publicGraph.workItems.create(projectId, OWNER, {
+      const parent = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Parent',
@@ -1152,7 +1234,7 @@ describe('working plan value mutations through runner commands', () => {
       if (!parent.ok) throw new Error('value hand-down parent creation refused');
       const runner = runnerOver(source, publicGraph);
 
-      const changed = await runner.run(projectId, OWNER, [
+      const changed = await runner.run(workPackageId, OWNER, [
         ...setAllValues(parent.value.id, stepId, 1),
         {
           kind: 'createWorkItem',
@@ -1172,17 +1254,17 @@ describe('working plan value mutations through runner commands', () => {
       if (!changed.ok) throw new Error('value hand-down batch refused');
       const childId = changed.results[6]?.id;
       if (childId === undefined) throw new Error('value hand-down returned no child id');
-      expect(await source.stores.estimates.listByProject(projectId)).toEqual([
+      expect(await source.stores.estimates.listByWorkPackage(workPackageId)).toEqual([
         { workItemId: childId, stepId, optimistic: 7, realistic: 8, pessimistic: 9 },
       ]);
-      expect(await source.stores.actuals.listByProject(projectId)).toMatchObject([
+      expect(await source.stores.actuals.listByWorkPackage(workPackageId)).toMatchObject([
         { workItemId: childId, stepId, days: 7 },
       ]);
-      expect(await source.stores.progress.listByProject(projectId)).toMatchObject([
+      expect(await source.stores.progress.listByWorkPackage(workPackageId)).toMatchObject([
         { workItemId: childId, stepId, state: 'done' },
       ]);
       expect(
-        (await source.stores.measures.listByProject(projectId))
+        (await source.stores.measures.listByWorkPackage(workPackageId))
           .map(({ workItemId, stepId: storedStepId, metric, value }) => ({
             workItemId,
             stepId: storedStepId,
@@ -1196,18 +1278,19 @@ describe('working plan value mutations through runner commands', () => {
         ),
       );
 
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
-      expect(await source.stores.estimates.listByProject(projectId)).toEqual([]);
-      expect(await source.stores.actuals.listByProject(projectId)).toEqual([]);
-      expect(await source.stores.progress.listByProject(projectId)).toEqual([]);
-      expect(await source.stores.measures.listByProject(projectId)).toEqual([]);
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.estimates.listByWorkPackage(workPackageId)).toEqual([]);
+      expect(await source.stores.actuals.listByWorkPackage(workPackageId)).toEqual([]);
+      expect(await source.stores.progress.listByWorkPackage(workPackageId)).toEqual([]);
+      expect(await source.stores.measures.listByWorkPackage(workPackageId)).toEqual([]);
     } finally {
       await source.close();
     }
   });
 
   it('removes every moveAll source during the same create command', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1216,15 +1299,20 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Value move refresh', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Value move refresh', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
       await source.stores.steps.add(
         {
           id: stepId,
-          projectId,
+          workPackageId,
           name: 'Build',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -1232,14 +1320,14 @@ describe('working plan value mutations through runner commands', () => {
         { at: 2, by: OWNER },
       );
       for (const id of ['z-source', 'm-existing']) {
-        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+        await source.stores.workItems.insert(workItemRow({ id, workPackageId }), [], {
           at: 2,
           by: OWNER,
         });
       }
       expect(
         (
-          await runnerOver(source, publicGraph).run(projectId, OWNER, [
+          await runnerOver(source, publicGraph).run(workPackageId, OWNER, [
             ...setAllValues('z-source', stepId, 1),
             ...setAllValues('m-existing', stepId, 4),
           ])
@@ -1259,7 +1347,7 @@ describe('working plan value mutations through runner commands', () => {
       const orderedCompose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
         servicesOver(stores, {
           dependencyContext: createLocalDependencyContext(stores),
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock: orderedClock,
           broadcast,
           scheduler: fastScheduler,
@@ -1279,23 +1367,23 @@ describe('working plan value mutations through runner commands', () => {
               ...values,
               moveAll: async (...parameters: Parameters<typeof values.moveAll>) => {
                 await values.moveAll(parameters[0], parameters[1], parameters[2]);
-                const remaining = await values.listByProject(projectId);
+                const remaining = await values.listByWorkPackage(workPackageId);
                 if (remaining.some(({ workItemId }) => workItemId === parameters[0])) {
                   staleSources.push(name);
                 }
                 if (name === 'measures') {
                   const retained = await Promise.all([
-                    scope.stores.estimates.listByProject(projectId),
-                    scope.stores.actuals.listByProject(projectId),
-                    scope.stores.progress.listByProject(projectId),
-                    scope.stores.measures.listByProject(projectId),
+                    scope.stores.estimates.listByWorkPackage(workPackageId),
+                    scope.stores.actuals.listByWorkPackage(workPackageId),
+                    scope.stores.progress.listByWorkPackage(workPackageId),
+                    scope.stores.measures.listByWorkPackage(workPackageId),
                   ]);
                   const authoritativeStores = admitted.current();
                   const authoritative = await Promise.all([
-                    authoritativeStores.estimates.listByProject(projectId),
-                    authoritativeStores.actuals.listByProject(projectId),
-                    authoritativeStores.progress.listByProject(projectId),
-                    authoritativeStores.measures.listByProject(projectId),
+                    authoritativeStores.estimates.listByWorkPackage(workPackageId),
+                    authoritativeStores.actuals.listByWorkPackage(workPackageId),
+                    authoritativeStores.progress.listByWorkPackage(workPackageId),
+                    authoritativeStores.measures.listByWorkPackage(workPackageId),
                   ]);
                   expect(retained).toEqual(authoritative);
                   expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
@@ -1323,7 +1411,7 @@ describe('working plan value mutations through runner commands', () => {
 
       expect(
         (
-          await runner.run(projectId, OWNER, [
+          await runner.run(workPackageId, OWNER, [
             {
               kind: 'createWorkItem',
               parentId: 'z-source',
@@ -1342,7 +1430,8 @@ describe('working plan value mutations through runner commands', () => {
   });
 
   it('refreshes every delete-last-child hand-up before editing the parent', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1351,28 +1440,33 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Value hand-up refresh', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Value hand-up refresh', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
       await source.stores.steps.add(
         {
           id: stepId,
-          projectId,
+          workPackageId,
           name: 'Build',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
         },
         { at: 2, by: OWNER },
       );
-      const parent = await publicGraph.workItems.create(projectId, OWNER, {
+      const parent = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Parent',
       });
       if (!parent.ok) throw new Error('value hand-up parent creation refused');
-      const child = await publicGraph.workItems.create(projectId, OWNER, {
+      const child = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: parent.value.id,
         afterId: null,
         name: 'Only child',
@@ -1381,7 +1475,7 @@ describe('working plan value mutations through runner commands', () => {
       expect(
         (
           await runnerOver(source, publicGraph).run(
-            projectId,
+            workPackageId,
             OWNER,
             setAllValues(child.value.id, stepId, 1),
           )
@@ -1389,24 +1483,24 @@ describe('working plan value mutations through runner commands', () => {
       ).toBe(true);
       const runner = runnerOver(source, publicGraph);
 
-      const changed = await runner.run(projectId, OWNER, [
+      const changed = await runner.run(workPackageId, OWNER, [
         { kind: 'deleteWorkItem', workItemId: child.value.id, strategy: 'cascade' },
         ...setAllValues(parent.value.id, stepId, 7),
       ]);
 
       expect(changed.ok).toBe(true);
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
-      expect(await source.stores.estimates.listByProject(projectId)).toMatchObject([
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.estimates.listByWorkPackage(workPackageId)).toMatchObject([
         { workItemId: child.value.id, optimistic: 1, realistic: 2, pessimistic: 3 },
       ]);
-      expect(await source.stores.actuals.listByProject(projectId)).toMatchObject([
+      expect(await source.stores.actuals.listByWorkPackage(workPackageId)).toMatchObject([
         { workItemId: child.value.id, days: 1 },
       ]);
-      expect(await source.stores.progress.listByProject(projectId)).toMatchObject([
+      expect(await source.stores.progress.listByWorkPackage(workPackageId)).toMatchObject([
         { workItemId: child.value.id, state: 'in_progress' },
       ]);
       expect(
-        (await source.stores.measures.listByProject(projectId))
+        (await source.stores.measures.listByWorkPackage(workPackageId))
           .map(({ workItemId, metric, value }) => ({ workItemId, metric, value }))
           .sort((left, right) => left.metric.localeCompare(right.metric)),
       ).toEqual(
@@ -1420,7 +1514,8 @@ describe('working plan value mutations through runner commands', () => {
   });
 
   it('removes every value and metric from retained reads before the store method returns', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1429,22 +1524,27 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Value remove refresh', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Value remove refresh', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
       await source.stores.steps.add(
         {
           id: stepId,
-          projectId,
+          workPackageId,
           name: 'Build',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
         },
         { at: 2, by: OWNER },
       );
-      const leaf = await publicGraph.workItems.create(projectId, OWNER, {
+      const leaf = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Leaf',
@@ -1453,7 +1553,7 @@ describe('working plan value mutations through runner commands', () => {
       expect(
         (
           await runnerOver(source, publicGraph).run(
-            projectId,
+            workPackageId,
             OWNER,
             setAllValues(leaf.value.id, stepId, 1),
           )
@@ -1470,7 +1570,7 @@ describe('working plan value mutations through runner commands', () => {
             remove: async (...parameters: Parameters<typeof values.remove>) => {
               const remove = values.remove.bind(values);
               await Reflect.apply(remove, values, parameters);
-              const remaining = await values.listByProject(projectId);
+              const remaining = await values.listByWorkPackage(workPackageId);
               const removedRemains = remaining.some((row) => {
                 if (row.workItemId !== leaf.value.id || row.stepId !== stepId) return false;
                 return (
@@ -1496,9 +1596,9 @@ describe('working plan value mutations through runner commands', () => {
         );
       });
 
-      expect((await runner.run(projectId, OWNER, clearAllValues(leaf.value.id, stepId))).ok).toBe(
-        true,
-      );
+      expect(
+        (await runner.run(workPackageId, OWNER, clearAllValues(leaf.value.id, stepId))).ok,
+      ).toBe(true);
       // Proof: delegating remove left the removed identity in each retained collection during
       // the same command; every name appeared here before a later command could hide the fault.
       expect(observed).toEqual([]);
@@ -1510,7 +1610,8 @@ describe('working plan value mutations through runner commands', () => {
 
 describe('working plan row mutations through runner commands', () => {
   it('refreshes an inserted row and every densely respaced sibling before the next placement', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1519,11 +1620,16 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Inserted row refresh', OWNER),
-      ).project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create('Inserted row refresh', 'fixture-project', OWNER),
+      ).workPackage.id;
       await source.stores.workItems.insert(
-        workItemRow({ id: 'parent', projectId, position: 10, name: 'Parent' }),
+        workItemRow({ id: 'parent', workPackageId, position: 10, name: 'Parent' }),
         [],
         { at: 2, by: OWNER },
       );
@@ -1532,14 +1638,14 @@ describe('working plan row mutations through runner commands', () => {
         ['b', 2],
       ] as const) {
         await source.stores.workItems.insert(
-          workItemRow({ id, projectId, parentId: 'parent', position, name: id.toUpperCase() }),
+          workItemRow({ id, workPackageId, parentId: 'parent', position, name: id.toUpperCase() }),
           [],
           { at: 2, by: OWNER },
         );
       }
       const runner = runnerOver(source, publicGraph);
 
-      const inserted = await runner.run(projectId, OWNER, [
+      const inserted = await runner.run(workPackageId, OWNER, [
         {
           kind: 'createWorkItem',
           ref: 'x',
@@ -1556,7 +1662,7 @@ describe('working plan row mutations through runner commands', () => {
       ]);
 
       expect(inserted.ok).toBe(true);
-      const children = (await source.stores.workItems.listByProject(projectId))
+      const children = (await source.stores.workItems.listByWorkPackage(workPackageId))
         .filter(({ parentId }) => parentId === 'parent')
         .sort((left, right) => left.position - right.position);
       // Proof: omitting the first insert's respaced sibling ids from refreshRows made the
@@ -1573,7 +1679,8 @@ describe('working plan row mutations through runner commands', () => {
   });
 
   it('refreshes a moved row and dense destination siblings before the next move', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1582,26 +1689,32 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(await publicGraph.projects.create('Moved row refresh', OWNER))
-        .project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create('Moved row refresh', 'fixture-project', OWNER),
+      ).workPackage.id;
       for (const row of [
-        workItemRow({ id: 'old-parent', projectId, position: 10, name: 'Old parent' }),
-        workItemRow({ id: 'new-parent', projectId, position: 20, name: 'New parent' }),
+        workItemRow({ id: 'old-parent', workPackageId, position: 10, name: 'Old parent' }),
+        workItemRow({ id: 'new-parent', workPackageId, position: 20, name: 'New parent' }),
         workItemRow({
           id: 'moving',
-          projectId,
+          workPackageId,
           parentId: 'old-parent',
           position: 10,
           name: 'Moving',
         }),
-        workItemRow({ id: 'a', projectId, parentId: 'new-parent', position: 1, name: 'A' }),
-        workItemRow({ id: 'b', projectId, parentId: 'new-parent', position: 2, name: 'B' }),
+        workItemRow({ id: 'a', workPackageId, parentId: 'new-parent', position: 1, name: 'A' }),
+        workItemRow({ id: 'b', workPackageId, parentId: 'new-parent', position: 2, name: 'B' }),
       ]) {
         await source.stores.workItems.insert(row, [], { at: 2, by: OWNER });
       }
       const runner = runnerOver(source, publicGraph);
 
-      const moved = await runner.run(projectId, OWNER, [
+      const moved = await runner.run(workPackageId, OWNER, [
         {
           kind: 'moveWorkItem',
           workItemId: 'moving',
@@ -1620,7 +1733,7 @@ describe('working plan row mutations through runner commands', () => {
       // Proof: delegating move without refreshing its row and dense siblings made the
       // second command throw "cannot place after moving: not a sibling in this group".
       expect(
-        (await source.stores.workItems.listByProject(projectId))
+        (await source.stores.workItems.listByWorkPackage(workPackageId))
           .filter(({ parentId }) => parentId === 'new-parent')
           .sort((left, right) => left.position - right.position)
           .map(({ id, position }) => [id, position]),
@@ -1635,7 +1748,8 @@ describe('working plan row mutations through runner commands', () => {
   });
 
   it('freezes arranged numbers from the preceding command in the same batch', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1644,15 +1758,20 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = expectCreated(
-        await publicGraph.projects.create('Arranged row refresh', OWNER),
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const createdWorkPackage = expectCreated(
+        await publicGraph.workPackages.create('Arranged row refresh', 'fixture-project', OWNER),
       );
-      const projectId = createdProject.project.id;
-      const stepId = createdProject.steps[0].id;
+      const workPackageId = createdWorkPackage.workPackage.id;
+      const stepId = createdWorkPackage.steps[0].id;
       await source.stores.steps.add(
         {
           id: stepId,
-          projectId,
+          workPackageId,
           name: 'Build',
           allowancePercent: 0,
           estimateUnit: 'workdays' as const,
@@ -1664,7 +1783,7 @@ describe('working plan row mutations through runner commands', () => {
         ['b', 20],
       ] as const) {
         await source.stores.workItems.insert(
-          workItemRow({ id, projectId, position, name: id.toUpperCase() }),
+          workItemRow({ id, workPackageId, position, name: id.toUpperCase() }),
           [],
           { at: 2, by: OWNER },
         );
@@ -1677,14 +1796,14 @@ describe('working plan row mutations through runner commands', () => {
       }
       expect((await publicGraph.workItems.addDependency('a', OWNER, 'b')).ok).toBe(true);
 
-      const arranged = await runnerOver(source, publicGraph).run(projectId, OWNER, [
+      const arranged = await runnerOver(source, publicGraph).run(workPackageId, OWNER, [
         { kind: 'arrangeBySchedule' },
-        { kind: 'freezeProject' },
+        { kind: 'freezeWorkPackage' },
       ]);
 
       expect(arranged.ok).toBe(true);
       expect(
-        (await source.stores.workItems.listByProject(projectId))
+        (await source.stores.workItems.listByWorkPackage(workPackageId))
           .sort((left, right) => left.position - right.position)
           .map(({ id, position, frozenNumber }) => [id, position, frozenNumber]),
       ).toEqual([
@@ -1697,7 +1816,8 @@ describe('working plan row mutations through runner commands', () => {
   });
 
   it('refreshes every frozen row before an unfreeze in the same batch', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1706,34 +1826,38 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Frozen row refresh', OWNER),
-      ).project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create('Frozen row refresh', 'fixture-project', OWNER),
+      ).workPackage.id;
       for (const [id, position] of [
         ['a', 10],
         ['b', 20],
       ] as const) {
         await source.stores.workItems.insert(
-          workItemRow({ id, projectId, position, name: id.toUpperCase() }),
+          workItemRow({ id, workPackageId, position, name: id.toUpperCase() }),
           [],
           { at: 2, by: OWNER },
         );
       }
       const runner = runnerOver(source, publicGraph);
 
-      const frozen = await runner.run(projectId, OWNER, [
-        { kind: 'freezeProject' },
-        { kind: 'unfreezeProject' },
+      const frozen = await runner.run(workPackageId, OWNER, [
+        { kind: 'freezeWorkPackage' },
+        { kind: 'unfreezeWorkPackage' },
       ]);
 
       expect(frozen.ok).toBe(true);
       // Proof: delegating setFrozenNumbers without refreshing every update made the
       // unfreeze command see no frozen rows; the store retained "010" and "020".
       expect(
-        (await source.stores.workItems.listByProject(projectId)).map(({ id, frozenNumber }) => [
-          id,
-          frozenNumber,
-        ]),
+        (await source.stores.workItems.listByWorkPackage(workPackageId)).map(
+          ({ id, frozenNumber }) => [id, frozenNumber],
+        ),
       ).toEqual([
         ['a', null],
         ['b', null],
@@ -1744,7 +1868,8 @@ describe('working plan row mutations through runner commands', () => {
   });
 
   it('refreshes removed rows and promoted children before the next placement', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1753,15 +1878,20 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Promoted row refresh', OWNER),
-      ).project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create('Promoted row refresh', 'fixture-project', OWNER),
+      ).workPackage.id;
       for (const row of [
-        workItemRow({ id: 'sibling', projectId, position: 10, name: 'Sibling' }),
-        workItemRow({ id: 'removed', projectId, position: 20, name: 'Removed' }),
+        workItemRow({ id: 'sibling', workPackageId, position: 10, name: 'Sibling' }),
+        workItemRow({ id: 'removed', workPackageId, position: 20, name: 'Removed' }),
         workItemRow({
           id: 'promoted',
-          projectId,
+          workPackageId,
           parentId: 'removed',
           position: 10,
           name: 'Promoted',
@@ -1771,7 +1901,7 @@ describe('working plan row mutations through runner commands', () => {
       }
       const runner = runnerOver(source, publicGraph);
 
-      const removed = await runner.run(projectId, OWNER, [
+      const removed = await runner.run(workPackageId, OWNER, [
         { kind: 'deleteWorkItem', workItemId: 'removed', strategy: 'promote' },
         {
           kind: 'createWorkItem',
@@ -1785,7 +1915,7 @@ describe('working plan row mutations through runner commands', () => {
       // Proof: delegating remove without refreshing its promoted row made the next command
       // throw "cannot place after promoted: not a sibling in this group".
       expect(
-        (await source.stores.workItems.listByProject(projectId))
+        (await source.stores.workItems.listByWorkPackage(workPackageId))
           .filter(({ parentId }) => parentId === null)
           .sort((left, right) => left.position - right.position)
           .map(({ name }) => name),
@@ -1796,7 +1926,8 @@ describe('working plan row mutations through runner commands', () => {
   });
 
   it('does not advance a retained row after a refused patch', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
 
@@ -1805,10 +1936,15 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Refused patch refresh', OWNER),
-      ).project.id;
-      const created = await publicGraph.workItems.create(projectId, OWNER, {
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create('Refused patch refresh', 'fixture-project', OWNER),
+      ).workPackage.id;
+      const created = await publicGraph.workItems.create(workPackageId, OWNER, {
         parentId: null,
         afterId: null,
         name: 'Authoritative before refusal',
@@ -1822,11 +1958,13 @@ describe('working plan row mutations through runner commands', () => {
               ...scope.stores,
               workItems: {
                 ...scope.stores.workItems,
-                listByIds: async (requestedProjectId, ids) =>
-                  (await scope.stores.workItems.listByIds(requestedProjectId, ids)).map((row) => ({
-                    ...row,
-                    name: 'Invented after refusal',
-                  })),
+                listByIds: async (requestedWorkPackageId, ids) =>
+                  (await scope.stores.workItems.listByIds(requestedWorkPackageId, ids)).map(
+                    (row) => ({
+                      ...row,
+                      name: 'Invented after refusal',
+                    }),
+                  ),
               },
             };
             return act({ stores });
@@ -1842,9 +1980,9 @@ describe('working plan row mutations through runner commands', () => {
           ) => {
             const written = await scope.stores.workItems.patch(...parameters);
             if (!written.ok) {
-              observedAfterRefusal = (await scope.stores.workItems.listByProject(projectId)).find(
-                ({ id }) => id === parameters[0],
-              )?.name;
+              observedAfterRefusal = (
+                await scope.stores.workItems.listByWorkPackage(workPackageId)
+              ).find(({ id }) => id === parameters[0])?.name;
             }
             return written;
           },
@@ -1852,7 +1990,7 @@ describe('working plan row mutations through runner commands', () => {
         return compose({ ...scope.stores, workItems }, broadcast);
       });
 
-      const refused = await runner.run(projectId, OWNER, [
+      const refused = await runner.run(workPackageId, OWNER, [
         {
           kind: 'patchWorkItem',
           workItemId: created.value.id,
@@ -1864,9 +2002,9 @@ describe('working plan row mutations through runner commands', () => {
       // Proof: refreshing after the store's modeled refusal made this next production-path
       // read observe "Invented after refusal" although the store kept the prior row.
       expect(observedAfterRefusal).toBe('Authoritative before refusal');
-      expect(await source.stores.workItems.listByIds(projectId, [created.value.id])).toMatchObject([
-        { name: 'Authoritative before refusal' },
-      ]);
+      expect(
+        await source.stores.workItems.listByIds(workPackageId, [created.value.id]),
+      ).toMatchObject([{ name: 'Authoritative before refusal' }]);
     } finally {
       await source.close();
     }
@@ -1882,7 +2020,8 @@ async function expectSubtreePlacementFaultRollsBack(
   alter: (placements: Placement[]) => Placement[],
   expected: RegExp,
 ): Promise<void> {
-  const source = openMemorySource();
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
   const direct = silentBroadcaster();
   const setup = compose(source.stores, direct);
   try {
@@ -1890,12 +2029,17 @@ async function expectSubtreePlacementFaultRollsBack(
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const projectId = expectCreated(
-      await setup.projects.create('Subtree placement validation', OWNER),
-    ).project.id;
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: OWNER,
+    });
+    const workPackageId = expectCreated(
+      await setup.workPackages.create('Subtree placement validation', 'fixture-project', OWNER),
+    ).workPackage.id;
     for (const row of [
-      workItemRow({ id: 'root', projectId, position: 10, name: 'Root' }),
-      workItemRow({ id: 'child', projectId, parentId: 'root', position: 10, name: 'Child' }),
+      workItemRow({ id: 'root', workPackageId, position: 10, name: 'Root' }),
+      workItemRow({ id: 'child', workPackageId, parentId: 'root', position: 10, name: 'Child' }),
     ]) {
       await source.stores.workItems.insert(row, [], { at: 2, by: OWNER });
     }
@@ -1908,10 +2052,10 @@ async function expectSubtreePlacementFaultRollsBack(
               ...scope.stores,
               workItems: {
                 ...scope.stores.workItems,
-                listPlacements: async (requestedProjectId, ids) => {
+                listPlacements: async (requestedWorkPackageId, ids) => {
                   placementCalls += 1;
                   return alter(
-                    await scope.stores.workItems.listPlacements(requestedProjectId, ids),
+                    await scope.stores.workItems.listPlacements(requestedWorkPackageId, ids),
                   );
                 },
               },
@@ -1932,7 +2076,7 @@ async function expectSubtreePlacementFaultRollsBack(
     const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
         dependencyContext: createLocalDependencyContext(stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -1944,17 +2088,16 @@ async function expectSubtreePlacementFaultRollsBack(
 
     let failure: unknown;
     try {
-      await runner.run(projectId, OWNER, [
+      await runner.run(workPackageId, OWNER, [
         { kind: 'duplicateWorkItem', workItemId: 'root', ref: 'copy' },
       ]);
     } catch (error) {
       failure = error;
     }
     expect(placementCalls).toBe(1);
-    expect((await source.stores.workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([
-      'root',
-      'child',
-    ]);
+    expect(
+      (await source.stores.workItems.listByWorkPackage(workPackageId)).map(({ id }) => id),
+    ).toEqual(['root', 'child']);
     if (!(failure instanceof Error)) throw new Error('subtree placement fault did not reject');
     expect(() => {
       throw failure;
@@ -1968,7 +2111,8 @@ async function expectPlacementFaultRollsBack(
   alter: (placements: Placement[]) => Placement[],
   expected: RegExp,
 ): Promise<void> {
-  const source = openMemorySource();
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
   const direct = silentBroadcaster();
   const publicGraph = compose(source.stores, direct);
   try {
@@ -1976,11 +2120,16 @@ async function expectPlacementFaultRollsBack(
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const projectId = expectCreated(
-      await publicGraph.projects.create('Placement validation', OWNER),
-    ).project.id;
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: OWNER,
+    });
+    const workPackageId = expectCreated(
+      await publicGraph.workPackages.create('Placement validation', 'fixture-project', OWNER),
+    ).workPackage.id;
     await source.stores.workItems.insert(
-      workItemRow({ id: 'anchor', projectId, position: 10, name: 'Anchor' }),
+      workItemRow({ id: 'anchor', workPackageId, position: 10, name: 'Anchor' }),
       [],
       { at: 2, by: OWNER },
     );
@@ -1993,10 +2142,10 @@ async function expectPlacementFaultRollsBack(
               ...scope.stores,
               workItems: {
                 ...scope.stores.workItems,
-                listPlacements: async (requestedProjectId, ids) => {
+                listPlacements: async (requestedWorkPackageId, ids) => {
                   placementCalls += 1;
                   return alter(
-                    await scope.stores.workItems.listPlacements(requestedProjectId, ids),
+                    await scope.stores.workItems.listPlacements(requestedWorkPackageId, ids),
                   );
                 },
               },
@@ -2009,16 +2158,16 @@ async function expectPlacementFaultRollsBack(
 
     let failure: unknown;
     try {
-      await runner.run(projectId, OWNER, [
+      await runner.run(workPackageId, OWNER, [
         { kind: 'createWorkItem', parentId: null, afterId: 'anchor', name: 'Rolled back' },
       ]);
     } catch (error) {
       failure = error;
     }
     expect(placementCalls).toBe(1);
-    expect((await source.stores.workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([
-      'anchor',
-    ]);
+    expect(
+      (await source.stores.workItems.listByWorkPackage(workPackageId)).map(({ id }) => id),
+    ).toEqual(['anchor']);
     if (!(failure instanceof Error)) throw new Error('placement fault did not reject with Error');
     expect(() => {
       throw failure;
@@ -2104,7 +2253,8 @@ describe('working plan placement validation rolls back its production unit of wo
   });
 
   it('rejects a newly returned identity without an authorized insertion', async () => {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const direct = silentBroadcaster();
     const publicGraph = compose(source.stores, direct);
     try {
@@ -2112,18 +2262,23 @@ describe('working plan placement validation rolls back its production unit of wo
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = expectCreated(
-        await publicGraph.projects.create('Unauthorized refresh row', OWNER),
-      ).project.id;
+      seedLegacyPackageParent(parentFixture, {
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        creator: OWNER,
+      });
+      const workPackageId = expectCreated(
+        await publicGraph.workPackages.create('Unauthorized refresh row', 'fixture-project', OWNER),
+      ).workPackage.id;
       await source.stores.workItems.insert(
-        workItemRow({ id: 'old-parent', projectId, position: 10, name: 'Hidden old parent' }),
+        workItemRow({ id: 'old-parent', workPackageId, position: 10, name: 'Hidden old parent' }),
         [],
         { at: 2, by: OWNER },
       );
       await source.stores.workItems.insert(
         workItemRow({
           id: 'moving',
-          projectId,
+          workPackageId,
           parentId: 'old-parent',
           position: 10,
           name: 'Moving',
@@ -2139,8 +2294,8 @@ describe('working plan placement validation rolls back its production unit of wo
                 ...scope.stores,
                 workItems: {
                   ...scope.stores.workItems,
-                  listByProject: async (requestedProjectId) =>
-                    (await scope.stores.workItems.listByProject(requestedProjectId)).filter(
+                  listByWorkPackage: async (requestedWorkPackageId) =>
+                    (await scope.stores.workItems.listByWorkPackage(requestedWorkPackageId)).filter(
                       ({ id }) => id !== 'old-parent',
                     ),
                 },
@@ -2155,13 +2310,13 @@ describe('working plan placement validation rolls back its production unit of wo
       // returned old-parent enter the retained plan after an unrelated move.
       let failure: unknown;
       try {
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           { kind: 'moveWorkItem', workItemId: 'moving', parentId: null, afterId: null },
         ]);
       } catch (error) {
         failure = error;
       }
-      expect(await source.stores.workItems.listByIds(projectId, ['moving'])).toMatchObject([
+      expect(await source.stores.workItems.listByIds(workPackageId, ['moving'])).toMatchObject([
         { id: 'moving', parentId: 'old-parent' },
       ]);
       if (!(failure instanceof Error)) throw new Error('placement fault did not reject with Error');
@@ -2179,7 +2334,8 @@ type ValueFamily = 'estimates' | 'actuals' | 'progress' | 'measures';
 describe('working plan value placement validation rolls back its production unit of work', () => {
   for (const family of ['estimates', 'actuals', 'progress', 'measures'] as const) {
     it(`rejects an omitted ${family} group placement`, async () => {
-      const source = openMemorySource();
+      const parentFixture = openMemorySourceFixture();
+      const source = parentFixture.source;
       const direct = silentBroadcaster();
       const publicGraph = compose(source.stores, direct);
       try {
@@ -2187,15 +2343,20 @@ describe('working plan value placement validation rolls back its production unit
           { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
           { at: 1, by: OWNER },
         );
-        const createdProject = expectCreated(
-          await publicGraph.projects.create('Value placement fault', OWNER),
+        seedLegacyPackageParent(parentFixture, {
+          organizationId: 'fixture-legacy-org',
+          projectId: 'fixture-project',
+          creator: OWNER,
+        });
+        const createdWorkPackage = expectCreated(
+          await publicGraph.workPackages.create('Value placement fault', 'fixture-project', OWNER),
         );
-        const projectId = createdProject.project.id;
-        const stepId = createdProject.steps[0].id;
+        const workPackageId = createdWorkPackage.workPackage.id;
+        const stepId = createdWorkPackage.steps[0].id;
         await source.stores.steps.add(
           {
             id: stepId,
-            projectId,
+            workPackageId,
             name: 'Build',
             allowancePercent: 0,
             estimateUnit: 'workdays' as const,
@@ -2203,7 +2364,7 @@ describe('working plan value placement validation rolls back its production unit
           { at: 2, by: OWNER },
         );
         for (const id of ['z-existing', 'a-earlier']) {
-          await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+          await source.stores.workItems.insert(workItemRow({ id, workPackageId }), [], {
             at: 2,
             by: OWNER,
           });
@@ -2221,18 +2382,18 @@ describe('working plan value placement validation rolls back its production unit
           },
         };
         const runner = runnerOver(source, publicGraph, brokenUow, (scope, broadcast) => {
-          const loaded = scope.stores[family].listByProject(projectId);
+          const loaded = scope.stores[family].listByWorkPackage(workPackageId);
           return compose(waitForValueLoad(scope.stores, family, loaded), broadcast);
         });
 
         // Proof: omitting this adapter-owned placement used to commit the newly
         // populated group at the retained array's end instead of rejecting trusted input.
         expect(
-          runner.run(projectId, OWNER, [setFamilyCommand(family, 'a-earlier', stepId)]),
+          runner.run(workPackageId, OWNER, [setFamilyCommand(family, 'a-earlier', stepId)]),
         ).rejects.toThrow(/targeted placement omitted value group a-earlier/i);
         expect(placementCalls).toBe(1);
         expect(
-          (await source.stores[family].listByProject(projectId)).map(
+          (await source.stores[family].listByWorkPackage(workPackageId)).map(
             ({ workItemId }) => workItemId,
           ),
         ).toEqual(['z-existing']);
@@ -2354,22 +2515,36 @@ function setFamilyCommand(family: ValueFamily, workItemId: string, stepId: strin
 /** Proof: committing refused staged batches failed both exact snapshots; watched 2026-10-14. */
 describe('transactional memory move blockage closure', () => {
   async function seeded() {
-    const source = openMemorySource();
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
     const graph = compose(source.stores, silentBroadcaster());
     await source.stores.users.create(
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const created = expectCreated(await graph.projects.create('Move closure', OWNER));
-    const projectId = created.project.id;
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: OWNER,
+    });
+    const created = expectCreated(
+      await graph.workPackages.create('Move closure', 'fixture-project', OWNER),
+    );
+    const workPackageId = created.workPackage.id;
     const step = created.steps[0];
     await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+      {
+        id: step.id,
+        workPackageId,
+        name: step.name,
+        allowancePercent: 0,
+        estimateUnit: 'workdays',
+      },
       { at: 1, by: OWNER },
     );
     for (const id of ['parent', 'destination', 'moving']) {
       await source.stores.workItems.insert(
-        workItemRow({ id, projectId, parentId: id === 'moving' ? 'parent' : null }),
+        workItemRow({ id, workPackageId, parentId: id === 'moving' ? 'parent' : null }),
         [],
         { at: 1, by: OWNER },
       );
@@ -2388,20 +2563,20 @@ describe('transactional memory move blockage closure', () => {
     );
     const snapshot = () =>
       Promise.all([
-        source.stores.workItems.listByProject(projectId),
-        source.stores.progress.listByProject(projectId),
-        source.stores.blockages.listByProject(projectId),
+        source.stores.workItems.listByWorkPackage(workPackageId),
+        source.stores.progress.listByWorkPackage(workPackageId),
+        source.stores.blockages.listByWorkPackage(workPackageId),
       ]);
-    return { source, graph, projectId, stepId: step.id, snapshot };
+    return { source, graph, workPackageId, stepId: step.id, snapshot };
   }
 
   it('rolls back cleared facts and moved rows when a later batch command refuses', async () => {
-    const { source, graph, projectId, snapshot } = await seeded();
+    const { source, graph, workPackageId, snapshot } = await seeded();
     try {
       const before = await snapshot();
       const runner = runnerOver(source, graph);
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
           { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'missing', afterId: null },
         ]),
@@ -2413,11 +2588,11 @@ describe('transactional memory move blockage closure', () => {
   });
 
   it('rolls back an earlier handed blockage clear when move undo finds new progress', async () => {
-    const { source, graph, projectId, stepId, snapshot } = await seeded();
+    const { source, graph, workPackageId, stepId, snapshot } = await seeded();
     try {
       const runner = runnerOver(source, graph);
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
         ]),
       ).toMatchObject({ ok: true });
@@ -2426,7 +2601,7 @@ describe('transactional memory move blockage closure', () => {
         { at: 2, by: OWNER },
       );
       const before = await snapshot();
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: false });
       expect(await snapshot()).toEqual(before);
     } finally {
       await source.close();
@@ -2435,7 +2610,7 @@ describe('transactional memory move blockage closure', () => {
   it.each(['state', 'time', 'extra', 'missing'] as const)(
     'rolls back %s historical progress refusal through the memory runner',
     async (fault) => {
-      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      const { source, graph, workPackageId, stepId, snapshot } = await seeded();
       try {
         await source.stores.progress.set(
           { workItemId: 'parent', stepId, state: 'done', statedAt: 123 },
@@ -2443,7 +2618,7 @@ describe('transactional memory move blockage closure', () => {
         );
         const runner = runnerOver(source, graph);
         expect(
-          await runner.run(projectId, OWNER, [
+          await runner.run(workPackageId, OWNER, [
             { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
           ]),
         ).toMatchObject({ ok: true });
@@ -2461,7 +2636,7 @@ describe('transactional memory move blockage closure', () => {
           await source.stores.steps.add(
             {
               id: 'extra-step',
-              projectId,
+              workPackageId,
               name: 'QA',
               allowancePercent: 0,
               estimateUnit: 'workdays',
@@ -2476,7 +2651,7 @@ describe('transactional memory move blockage closure', () => {
         if (fault === 'missing')
           await source.stores.progress.remove('parent', stepId, { at: 2, by: OWNER });
         const before = await snapshot();
-        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: false });
         expect(await snapshot()).toEqual(before);
       } finally {
         await source.close();
@@ -2486,17 +2661,17 @@ describe('transactional memory move blockage closure', () => {
   it.each(['state', 'time', 'missing'] as const)(
     'refuses known destination progress %s before the memory redo clears it',
     async (fault) => {
-      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      const { source, graph, workPackageId, stepId, snapshot } = await seeded();
       try {
         const runner = runnerOver(source, graph);
         expect(
-          await runner.run(projectId, OWNER, [
+          await runner.run(workPackageId, OWNER, [
             { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
           ]),
         ).toMatchObject({ ok: true });
-        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
         const previous = (
-          await source.stores.progress.listByWorkItems(projectId, ['destination'])
+          await source.stores.progress.listByWorkItems(workPackageId, ['destination'])
         ).at(0);
         if (previous === undefined) throw new Error('restored destination progress missing');
         if (fault === 'missing')
@@ -2511,7 +2686,7 @@ describe('transactional memory move blockage closure', () => {
             { at: 2, by: OWNER },
           );
         const before = await snapshot();
-        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await runner.redo(workPackageId, OWNER)).toMatchObject({ ok: false });
         expect(await snapshot()).toEqual(before);
       } finally {
         await source.close();
@@ -2521,14 +2696,20 @@ describe('transactional memory move blockage closure', () => {
   it.each(['rename', 'progress'] as const)(
     'does not launder stale destination facts through memory %s replay',
     async (kind) => {
-      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      const { source, graph, workPackageId, stepId, snapshot } = await seeded();
       try {
-        const qa = (await source.stores.projects.stepsOf(projectId)).find(
+        const qa = (await source.stores.workPackages.stepsOf(workPackageId)).find(
           ({ id }) => id !== stepId,
         );
-        if (qa === undefined) throw new Error('memory project has no second step');
+        if (qa === undefined) throw new Error('memory work package has no second step');
         await source.stores.steps.add(
-          { id: qa.id, projectId, name: qa.name, allowancePercent: 0, estimateUnit: 'workdays' },
+          {
+            id: qa.id,
+            workPackageId,
+            name: qa.name,
+            allowancePercent: 0,
+            estimateUnit: 'workdays',
+          },
           { at: 1, by: OWNER },
         );
         await source.stores.progress.set(
@@ -2540,13 +2721,13 @@ describe('transactional memory move blockage closure', () => {
           kind === 'rename'
             ? { kind: 'patchWorkItem', workItemId: 'destination', patch: { name: 'Renamed' } }
             : { kind: 'setProgress', workItemId: 'destination', stepId, state: 'in_progress' };
-        expect(await runner.run(projectId, OWNER, [previous])).toMatchObject({ ok: true });
+        expect(await runner.run(workPackageId, OWNER, [previous])).toMatchObject({ ok: true });
         expect(
-          await runner.run(projectId, OWNER, [
+          await runner.run(workPackageId, OWNER, [
             { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
           ]),
         ).toMatchObject({ ok: true });
-        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
         await source.stores.progress.set(
           {
             workItemId: 'destination',
@@ -2556,10 +2737,10 @@ describe('transactional memory move blockage closure', () => {
           },
           { at: 2, by: OWNER },
         );
-        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
-        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, OWNER)).toMatchObject({ ok: true });
         const before = await snapshot();
-        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await runner.redo(workPackageId, OWNER)).toMatchObject({ ok: false });
         expect(await snapshot()).toEqual(before);
       } finally {
         await source.close();
@@ -2567,12 +2748,12 @@ describe('transactional memory move blockage closure', () => {
     },
   );
   it('rolls back memory deletion facts and rows when a later batch command refuses', async () => {
-    const { source, graph, projectId, snapshot } = await seeded();
+    const { source, graph, workPackageId, snapshot } = await seeded();
     try {
       const before = await snapshot();
       const runner = runnerOver(source, graph);
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           { kind: 'deleteWorkItem', workItemId: 'moving' },
           { kind: 'patchWorkItem', workItemId: 'missing', patch: { name: 'Lost' } },
         ]),
@@ -2584,7 +2765,7 @@ describe('transactional memory move blockage closure', () => {
   });
 
   it('preserves collected memory deletion facts and progress through undo redo', async () => {
-    const { source, graph, projectId, stepId, snapshot } = await seeded();
+    const { source, graph, workPackageId, stepId, snapshot } = await seeded();
     try {
       await source.stores.progress.set(
         { workItemId: 'moving', stepId, state: 'done', statedAt: 50 },
@@ -2593,15 +2774,15 @@ describe('transactional memory move blockage closure', () => {
       const before = await snapshot();
       const runner = runnerOver(source, graph);
       expect(
-        await runner.run(projectId, OWNER, [
+        await runner.run(workPackageId, OWNER, [
           { kind: 'deleteWorkItem', workItemId: 'moving' },
           { kind: 'patchWorkItem', workItemId: 'destination', patch: { name: 'After deletion' } },
         ]),
       ).toMatchObject({ ok: true });
       const after = await snapshot();
-      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
       expect(await snapshot()).toEqual(before);
-      expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, OWNER)).toMatchObject({ ok: true });
       expect(await snapshot()).toEqual(after);
     } finally {
       await source.close();
@@ -2611,7 +2792,7 @@ describe('transactional memory move blockage closure', () => {
   it.each(['state', 'time', 'missing', 'blockage'] as const)(
     'refuses memory parent %s changes before deletion undo',
     async (fault) => {
-      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      const { source, graph, workPackageId, stepId, snapshot } = await seeded();
       try {
         await source.stores.progress.set(
           { workItemId: 'moving', stepId, state: 'done', statedAt: 50 },
@@ -2619,7 +2800,9 @@ describe('transactional memory move blockage closure', () => {
         );
         const runner = runnerOver(source, graph);
         expect(
-          await runner.run(projectId, OWNER, [{ kind: 'deleteWorkItem', workItemId: 'moving' }]),
+          await runner.run(workPackageId, OWNER, [
+            { kind: 'deleteWorkItem', workItemId: 'moving' },
+          ]),
         ).toMatchObject({ ok: true });
         if (fault === 'state' || fault === 'time')
           await source.stores.progress.set(
@@ -2639,7 +2822,7 @@ describe('transactional memory move blockage closure', () => {
             { at: 2, by: OWNER },
           );
         const before = await snapshot();
-        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await runner.undo(workPackageId, OWNER)).toMatchObject({ ok: false });
         expect(await snapshot()).toEqual(before);
       } finally {
         await source.close();
@@ -2648,11 +2831,11 @@ describe('transactional memory move blockage closure', () => {
   );
 
   it('rolls back memory restore rows and earlier blockage writes after an injected insertion failure', async () => {
-    const { source, graph, projectId, stepId, snapshot } = await seeded();
+    const { source, graph, workPackageId, stepId, snapshot } = await seeded();
     try {
       const runner = runnerOver(source, graph);
       expect(
-        await runner.run(projectId, OWNER, [{ kind: 'deleteWorkItem', workItemId: 'moving' }]),
+        await runner.run(workPackageId, OWNER, [{ kind: 'deleteWorkItem', workItemId: 'moving' }]),
       ).toMatchObject({ ok: true });
       const before = await snapshot();
       const failed = runnerOver(source, graph, source.uow, (scope, broadcast) =>
@@ -2671,7 +2854,7 @@ describe('transactional memory move blockage closure', () => {
           broadcast,
         ),
       );
-      const rejection = await failed.undo(projectId, OWNER).then(
+      const rejection = await failed.undo(workPackageId, OWNER).then(
         () => 'resolved',
         (error: unknown) => String(error),
       );

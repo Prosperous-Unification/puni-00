@@ -1,14 +1,14 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { dependencyViewsOf, httpProjectApi, type ProjectApi } from '@/lib/wbs-api';
-import { projectServicesOver } from '@/modules/project/composition';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { dependencyViewsOf, httpWorkPackageApi, type WorkPackageApi } from '@/lib/wbs-api';
+import { workPackageServicesOver } from '@/modules/work-package/composition';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { CapturedDependencyDetails } from './dependency-navigation';
 import { serializePersistedDependencyEndpoint } from './dependency-selection';
@@ -32,7 +32,7 @@ async function mount(
   remoteScopes: false | 'ready' | 'ready-parent' | 'paged' | 'wrong-row' | 'refused' = false,
 ) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: phone ? 390 : 1024 });
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const row = await api.createWorkItem('p1', {
     parentId: null,
     afterId: null,
@@ -42,7 +42,7 @@ async function mount(
     await api.createWorkItem('p1', { parentId: row.id, afterId: null, name: 'Local child' });
   const local = {
     endpoint: {
-      projectId: 'p1',
+      workPackageId: 'p1',
       scope: successorScope,
       workItemId: row.id,
       ...(successorScope === 'whole' ? {} : { stepId: 'step-dev' }),
@@ -50,7 +50,7 @@ async function mount(
     isLeaf: true,
     revision: 2,
     name: 'Local successor',
-    projectAbbreviation: 'PLAN',
+    workPackageAbbreviation: 'PLAN',
     workItemNumber: '010',
     step: null,
     qualifiedReference: 'PLAN.010',
@@ -60,14 +60,14 @@ async function mount(
   const remote = {
     ...local,
     endpoint: {
-      projectId: 'remote-stable',
+      workPackageId: 'remote-stable',
       scope,
       workItemId: 'remote-row',
       ...(scope === 'whole' ? {} : { stepId: 'remote-dev' }),
     },
     isLeaf: scope !== 'descendant-step',
     name: 'Captured remote build',
-    projectAbbreviation: 'REMOTE',
+    workPackageAbbreviation: 'REMOTE',
     workItemNumber: '080',
     step:
       scope === 'whole'
@@ -81,15 +81,15 @@ async function mount(
   let capture = remote;
   let present = true;
   let notify: (() => void) | undefined;
-  const tree: ProjectApi['tree'] = async (projectId) => ({
-    ...(await api.tree(projectId)),
+  const tree: WorkPackageApi['tree'] = async (workPackageId) => ({
+    ...(await api.tree(workPackageId)),
     // Retain the observed persisted endpoint node while the hierarchy refreshes.
     // This isolates editor staleness from the separate node-read integrity refusal.
     ...(successorScope === 'node'
       ? {
           stepNodes: [
             ...new Map(
-              [...(retainedNodes ?? []), ...((await api.tree(projectId)).stepNodes ?? [])].map(
+              [...(retainedNodes ?? []), ...((await api.tree(workPackageId)).stepNodes ?? [])].map(
                 (node) => [node.id, node],
               ),
             ).values(),
@@ -100,11 +100,11 @@ async function mount(
       ? {
           scheduleError: {
             kind: 'dependency_calendar_missing' as const,
-            projects: [
+            workPackages: [
               {
-                projectId: 'remote-stable',
+                workPackageId: 'remote-stable',
                 abbreviation: 'REMOTE',
-                name: 'Captured remote project',
+                name: 'Captured remote work package',
               },
             ],
           },
@@ -114,7 +114,7 @@ async function mount(
       ? [
           {
             id: 'external',
-            projectId: owned ? 'p1' : 'remote-stable',
+            workPackageId: owned ? 'p1' : 'remote-stable',
             type: 'FS',
             predecessor: owned ? capture : local,
             successor: owned
@@ -124,16 +124,16 @@ async function mount(
         ]
       : [],
   });
-  const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+  const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
     notify = handlers.onChange;
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
-  const update = vi.fn<ProjectApi['updateTypedDependency']>().mockResolvedValue(undefined);
-  const remove = vi.fn<ProjectApi['removeTypedDependency']>().mockResolvedValue(undefined);
-  const add = vi.fn<ProjectApi['addTypedDependency']>();
+  const update = vi.fn<WorkPackageApi['updateTypedDependency']>().mockResolvedValue(undefined);
+  const remove = vi.fn<WorkPackageApi['removeTypedDependency']>().mockResolvedValue(undefined);
+  const add = vi.fn<WorkPackageApi['addTypedDependency']>();
   const addresses = createRefusingAddressApi();
   if (remoteScopes)
-    addresses.candidates = (_projectId, query) =>
+    addresses.candidates = (_work_packageId, query) =>
       Promise.resolve(
         remoteScopes === 'refused'
           ? {
@@ -149,16 +149,16 @@ async function mount(
               representation: 'json',
               headers: new Headers(),
               body: {
-                project: {
-                  projectId: 'remote-stable',
+                workPackage: {
+                  workPackageId: 'remote-stable',
                   abbreviation: 'REMOTE',
-                  name: 'Remote project',
+                  name: 'Remote work package',
                 },
                 addressRevision: 'current',
                 nextCursor: remoteScopes === 'paged' && query.cursor === undefined ? 'next' : null,
                 candidates: [
                   {
-                    projectId: 'remote-stable',
+                    workPackageId: 'remote-stable',
                     workItemId: 'remote-row',
                     number: '080',
                     name: 'Remote build',
@@ -166,7 +166,7 @@ async function mount(
                     reference: 'REMOTE.080',
                   },
                   {
-                    projectId: 'remote-stable',
+                    workPackageId: 'remote-stable',
                     workItemId: 'remote-row',
                     number: '080',
                     name: 'Remote build',
@@ -210,13 +210,13 @@ async function mount(
               },
             },
       );
-  const discover = vi.spyOn(addresses, 'projects');
+  const discover = vi.spyOn(addresses, 'workPackages');
   const search = vi.spyOn(addresses, 'candidates');
   const resolve = vi.spyOn(addresses, 'resolve');
   render(
     <WbsTableOverClient
-      projectId="p1"
-      projectServices={projectServicesOver(
+      workPackageId="p1"
+      workPackageServices={workPackageServicesOver(
         {
           ...api,
           tree,
@@ -248,7 +248,7 @@ async function mount(
     rename: () => {
       capture = {
         ...remote,
-        projectAbbreviation: 'RENAMED',
+        workPackageAbbreviation: 'RENAMED',
         qualifiedReference: 'RENAMED.080.s2-dev',
       };
       if (notify === undefined) throw new Error('No subscription');
@@ -269,7 +269,7 @@ for (const phone of [false, true]) {
       fireEvent.mouseEnter(screen.getByLabelText('Add a dependency to 010').closest('td')!);
     const link = await screen.findByRole('link', { name: /Open REMOTE.080.s2-dev/ });
     expect(link.getAttribute('href')).toBe(
-      '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
+      '/?workPackage=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
     );
     expect(screen.getAllByText(/Captured remote build/).length).toBeGreaterThan(0);
     expect(document.querySelector('[data-gantt-arrow]')).toBeNull();
@@ -281,14 +281,16 @@ it('uses captured step words when its reference is null', async () => {
     await screen.findByRole('link', { name: /Open REMOTE.080 · Remote development step/ }),
   ).toHaveAttribute(
     'href',
-    '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
+    '/?workPackage=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
   );
 });
 it('opens a stable work-item link and consumes it after focusing its name', async () => {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked row' });
-  window.history.replaceState(null, '', `/?project=p1&workItem=${row.id}`);
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  window.history.replaceState(null, '', `/?workPackage=p1&workItem=${row.id}`);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   await waitFor(() => expect(screen.getByLabelText('Name of 010')).toHaveFocus());
   expect(window.location.search).toBe('');
 });
@@ -299,7 +301,7 @@ it('keeps captured details inspectable instead of claiming its remote predecesso
   expect(await screen.findByRole('dialog', { name: 'Captured dependency' })).toBeVisible();
   expect(screen.getByRole('link', { name: /Open REMOTE/ })).toHaveAttribute(
     'href',
-    '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
+    '/?workPackage=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
   );
   expect(update).not.toHaveBeenCalled();
 });
@@ -311,7 +313,7 @@ it('renames the captured label while retaining its stable target', async () => {
   const link = await screen.findByRole('link', { name: /Open RENAMED.080.s2-dev/ });
   expect(link).toHaveAttribute(
     'href',
-    '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
+    '/?workPackage=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
   );
 });
 it('excludes captured foreign endpoints from local chart input while retaining local relationships', async () => {
@@ -330,10 +332,12 @@ it('excludes captured foreign endpoints from local chart input while retaining l
   ).toEqual(['local']);
 });
 it('refuses an absent stable work-item target visibly', async () => {
-  window.history.replaceState(null, '', '/?project=p1&workItem=absent');
-  const api = fakeProjectApi();
+  window.history.replaceState(null, '', '/?workPackage=p1&workItem=absent');
+  const api = fakeWorkPackageApi();
   await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Existing row' });
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Work-item link does not name a work item in this plan.',
   );
@@ -346,13 +350,15 @@ it('opens phone captured details without resolving a local predecessor', async (
   expect(await screen.findByRole('dialog', { name: 'Captured dependency' })).toBeVisible();
   expect(screen.queryByText('This predecessor was removed.')).toBeNull();
 });
-it('leaves another project’s stable work-item link untouched', async () => {
-  window.history.replaceState(null, '', '/?project=other&workItem=absent&view=plan');
-  const api = fakeProjectApi();
+it('leaves another work package’s stable work-item link untouched', async () => {
+  window.history.replaceState(null, '', '/?workPackage=other&workItem=absent&view=plan');
+  const api = fakeWorkPackageApi();
   await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Existing row' });
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   await screen.findByLabelText('Name of 010');
-  expect(window.location.search).toBe('?project=other&workItem=absent&view=plan');
+  expect(window.location.search).toBe('?workPackage=other&workItem=absent&view=plan');
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
@@ -365,7 +371,7 @@ it('keeps the mounted chart available with captured foreign endpoints absent fro
 });
 
 it('expands ancestors before focusing a stable work-item link and preserves unrelated query state', async () => {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const parent = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Parent' });
   const child = await api.createWorkItem('p1', {
     parentId: parent.id,
@@ -373,19 +379,19 @@ it('expands ancestors before focusing a stable work-item link and preserves unre
     name: 'Linked child',
   });
   let notify: (() => void) | undefined;
-  const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+  const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
     notify = handlers.onChange;
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
   render(
     <WbsTableOverClient
-      projectId="p1"
-      projectServices={projectServicesOf(api)}
+      workPackageId="p1"
+      workPackageServices={workPackageServicesOf(api)}
       subscribe={subscribe}
     />,
   );
   fireEvent.click(await screen.findByRole('button', { name: 'Collapse 010' }));
-  window.history.replaceState(null, '', `/?project=p1&workItem=${child.id}&view=plan`);
+  window.history.replaceState(null, '', `/?workPackage=p1&workItem=${child.id}&view=plan`);
   act(() => {
     if (notify === undefined) throw new Error('No subscription');
     notify();
@@ -403,7 +409,7 @@ for (const phone of [false, true]) {
           configurable: true,
           value: phone ? 390 : 1024,
         });
-        const api = fakeProjectApi();
+        const api = fakeWorkPackageApi();
         const parent = await api.createWorkItem('p1', {
           parentId: null,
           afterId: null,
@@ -430,12 +436,12 @@ for (const phone of [false, true]) {
         const stepId = '22222222-2222-4222-8222-222222222222';
         if (destination === 'step')
           localStorage.setItem('wbs.hiddenColumns.p1', JSON.stringify([stepId]));
-        const steps: ProjectApi['steps'] = async (projectId) =>
-          (await api.steps(projectId)).map((step) =>
+        const steps: WorkPackageApi['steps'] = async (workPackageId) =>
+          (await api.steps(workPackageId)).map((step) =>
             step.id === 'step-dev' ? { ...step, id: stepId } : step,
           );
-        const tree: ProjectApi['tree'] = async (projectId) => {
-          const plan = await api.tree(projectId);
+        const tree: WorkPackageApi['tree'] = async (workPackageId) => {
+          const plan = await api.tree(workPackageId);
           return {
             ...plan,
             workItems: plan.workItems.map((row) =>
@@ -457,14 +463,14 @@ for (const phone of [false, true]) {
           };
         };
         let notify: (() => void) | undefined;
-        const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+        const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
           notify = handlers.onChange;
           return { seen: () => undefined, unsubscribe: () => undefined };
         };
         render(
           <WbsTableOverClient
-            projectId="p1"
-            projectServices={projectServicesOf({ ...api, tree, steps })}
+            workPackageId="p1"
+            workPackageServices={workPackageServicesOf({ ...api, tree, steps })}
             subscribe={subscribe}
           />,
         );
@@ -492,7 +498,7 @@ for (const phone of [false, true]) {
         window.history.replaceState(
           null,
           '',
-          `/?project=p1&workItem=${workItemId}${stepQuery}&view=plan`,
+          `/?workPackage=p1&workItem=${workItemId}${stepQuery}&view=plan`,
         );
         act(() => {
           if (notify === undefined) throw new Error('No subscription');
@@ -542,9 +548,9 @@ it('keeps the persisted remote relationship inspectable when its captured calend
   await mount(true, 'REMOTE.080.s2-dev', true);
   expect(await screen.findByRole('link', { name: /Open REMOTE.080.s2-dev/ })).toHaveAttribute(
     'href',
-    '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
+    '/?workPackage=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
   );
-  expect(screen.getAllByText(/REMOTE.*Captured remote project/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/REMOTE.*Captured remote work-package/).length).toBeGreaterThan(0);
 });
 
 for (const phone of [false, true]) {
@@ -565,7 +571,7 @@ for (const phone of [false, true]) {
     expect(details).toHaveTextContent(words);
     expect(within(details).getByRole('link', { name: /Open REMOTE\.080/ })).toHaveAttribute(
       'href',
-      '/?project=remote-stable&workItem=remote-row',
+      '/?workPackage=remote-stable&workItem=remote-row',
     );
   });
 
@@ -616,7 +622,7 @@ for (const phone of [false, true])
       within(details).getByRole('link', { name: /Open REMOTE\.080\.s2-dev.*Remote development/ }),
     ).toHaveAttribute(
       'href',
-      '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
+      '/?workPackage=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
     );
   });
 
@@ -646,7 +652,7 @@ for (const phone of [false, true]) {
             'p1',
             'external',
             {
-              projectId: 'remote-stable',
+              workPackageId: 'remote-stable',
               scope,
               workItemId: 'remote-row',
               ...(scope === 'whole' ? {} : { stepId: 'remote-dev' }),
@@ -675,7 +681,9 @@ for (const phone of [false, true]) {
       ),
     );
     vi.stubGlobal('fetch', fetcher);
-    update.mockImplementation((...args) => httpProjectApi('token').updateTypedDependency(...args));
+    update.mockImplementation((...args) =>
+      httpWorkPackageApi('token').updateTypedDependency(...args),
+    );
     openEdit();
     fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'FF' } });
     const scope = screen.getByLabelText('This work item');
@@ -692,7 +700,7 @@ for (const phone of [false, true]) {
     ).toHaveTextContent('Dev step');
     expect(editor().getByRole('button', { name: 'Save' })).toBeEnabled();
     expect(
-      await screen.findByText('Dependencies between projects are not enabled on this server.'),
+      await screen.findByText('Dependencies between work packages are not enabled on this server.'),
     ).toBeVisible();
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
@@ -789,7 +797,7 @@ for (const phone of [false, true]) {
         'p1',
         'external',
         {
-          projectId: 'remote-stable',
+          workPackageId: 'remote-stable',
           scope: 'node',
           workItemId: 'remote-row',
           stepId: 'remote-dev',
@@ -816,7 +824,7 @@ for (const phone of [false, true]) {
 it('rejects a persisted scoped endpoint without its step identity before producing a write', () => {
   expect(() =>
     serializePersistedDependencyEndpoint(
-      { projectId: 'p1', scope: 'node', workItemId: 'row' },
+      { workPackageId: 'p1', scope: 'node', workItemId: 'row' },
       'p1',
     ),
   ).toThrow('Missing persisted dependency step identity');
@@ -860,7 +868,7 @@ for (const phone of [false, true]) {
           'p1',
           'external',
           {
-            projectId: 'remote-stable',
+            workPackageId: 'remote-stable',
             scope: 'node',
             workItemId: 'remote-row',
             stepId: 'remote-dev',
@@ -894,7 +902,7 @@ for (const phone of [false, true]) {
         'p1',
         'external',
         {
-          projectId: 'remote-stable',
+          workPackageId: 'remote-stable',
           scope: 'node',
           workItemId: 'remote-row',
           stepId: 'remote-dev',
@@ -935,7 +943,7 @@ for (const phone of [false, true]) {
           'p1',
           'external',
           {
-            projectId: 'remote-stable',
+            workPackageId: 'remote-stable',
             scope: 'node',
             workItemId: 'remote-row',
             stepId: 'remote-dev',
@@ -974,7 +982,7 @@ for (const phone of [false, true])
         'p1',
         'external',
         {
-          projectId: 'remote-stable',
+          workPackageId: 'remote-stable',
           scope: 'node',
           workItemId: 'remote-row',
           stepId: 'remote-dev',
@@ -1038,7 +1046,7 @@ for (const phone of [false, true]) {
           'p1',
           'external',
           {
-            projectId: 'remote-stable',
+            workPackageId: 'remote-stable',
             scope: sourceScope,
             workItemId: 'remote-row',
             ...(sourceScope === 'whole' ? {} : { stepId: 'remote-test' }),

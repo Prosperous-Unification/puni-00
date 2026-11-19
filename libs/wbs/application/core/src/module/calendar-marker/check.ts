@@ -22,7 +22,7 @@ export function installCalendarMarker(
       accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
         factoryReturnKind: 'sync-value',
       }),
-      projectStore: DiBag.createProvider(() => requirements.projects, {
+      workPackageStore: DiBag.createProvider(() => requirements.workPackages, {
         factoryReturnKind: 'sync-value',
       }),
       calendarMarkerStore: DiBag.createProvider(() => requirements.markers, {

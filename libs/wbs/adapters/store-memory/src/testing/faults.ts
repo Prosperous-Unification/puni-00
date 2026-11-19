@@ -6,7 +6,7 @@ import { openMemorySourceWithLateWriteSeam } from '../source';
 export type { MemoryLateWritePoint } from '../late-write-seam';
 
 export interface MemoryFaultSource extends Source<TransactionalStores> {
-  journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
+  journalHistoryFor(workPackageId: string): Promise<PlanEvent[]>;
 }
 
 export interface MemoryLateWriteControl<Phase extends MemoryLateWritePoint> {
@@ -78,6 +78,6 @@ export function openMemorySourceWithFault(
   });
   return {
     ...fixture.source,
-    journalHistoryFor: (projectId) => fixture.journalHistoryFor(projectId),
+    journalHistoryFor: (workPackageId) => fixture.journalHistoryFor(workPackageId),
   };
 }

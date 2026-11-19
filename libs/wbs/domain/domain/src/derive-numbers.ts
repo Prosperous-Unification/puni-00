@@ -23,7 +23,7 @@ function labelsFor(count: number, isRoot: boolean): string[] {
   const step = isRoot ? 10 : 1;
   const highest = count * step;
   // Roots never drop below three characters: `010` is the agreed shape even
-  // when a project holds one work item.
+  // when a work package holds one work item.
   const width = isRoot ? Math.max(3, String(highest).length) : String(highest).length;
   return Array.from({ length: count }, (_, i) => String((i + 1) * step).padStart(width, '0'));
 }
@@ -38,7 +38,7 @@ function labelOf(number: string, isRoot: boolean): string {
 /**
  * Every work item's number, keyed by id.
  *
- * Pure, and given the whole project at once, because a number is a fact about a
+ * Pure, and given the whole work package at once, because a number is a fact about a
  * work item's place among its siblings rather than about the work item. It reads
  * only `parentId`, `position` and `frozenNumber` and never a number it
  * previously produced, so a wrong number is repaired by running this again —
@@ -62,7 +62,7 @@ function labelOf(number: string, isRoot: boolean): string {
  * free naturals never number fewer than the unfrozen work items.
  *
  * @throws if a work item is not reachable from any root — an orphan, or a
- * parent cycle. Returning the reachable ones would hand back a project silently
+ * parent cycle. Returning the reachable ones would hand back a work package silently
  * missing rows, and a cycle would not even return.
  */
 export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<string, string> {
@@ -84,7 +84,7 @@ export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<str
       let number: string;
       if (placement.frozenNumber === null) {
         // `.at` rather than `[]`, for the reason `external-system.ts` records:
-        // this project's tsconfig has no `noUncheckedIndexedAccess`, so a
+        // this work package's tsconfig has no `noUncheckedIndexedAccess`, so a
         // bracket index is typed as always present and the guard below reads as
         // dead code to both the compiler and `no-unnecessary-condition` — which
         // is what it reported, here, on the first draft of this line.
@@ -116,9 +116,9 @@ export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<str
   numberGroup(null, null);
 
   // Every work item must have been reached. One that was not is either an
-  // orphan — its `parentId` names a work item outside this project — or part of
+  // orphan — its `parentId` names a work item outside this work package — or part of
   // a parent cycle, and both mean the caller is holding something that is not a
-  // tree. Returning the reachable ones would hand back a project silently
+  // tree. Returning the reachable ones would hand back a work package silently
   // missing rows, and a cycle would not even return.
   if (numbers.size !== placements.length) {
     const unreachable = placements.filter((p) => !numbers.has(p.id)).map((p) => p.id);

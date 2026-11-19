@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../e2e/ordinary-test';
 
 import { painted, renderingGeometry, seedRenderingPlan } from '../e2e/rendering-fixture';
 

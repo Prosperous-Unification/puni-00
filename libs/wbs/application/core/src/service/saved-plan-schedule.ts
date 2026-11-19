@@ -16,12 +16,12 @@ export {
 /** Compatibility capture adapter for direct store-based scheduling callers. */
 export function captureAndSchedulePlan(
   capture: SavedPlanCaptureStore,
-  projectId: string,
+  workPackageId: string,
   schedulePlan: (reads: PlanInputReads) => Schedule = schedulePlanInput,
 ): Promise<CapturedPlan | null> {
   return captureThroughResource(
     { capturePlan: (id) => capture.readPlanInput(id) },
-    projectId,
+    workPackageId,
     schedulePlan,
   );
 }

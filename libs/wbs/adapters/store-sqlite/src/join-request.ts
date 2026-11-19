@@ -14,7 +14,7 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import {
   encodeInitialAccess,
-  projectLegacyOfferRole,
+  workPackageLegacyOfferRole,
   readInitialAccessRefusalIn,
   readMembershipRefusalIn,
 } from './initial-access';
@@ -174,7 +174,7 @@ export class JoinRequestRepository implements JoinRequest {
             id: invitationId,
             organizationId,
             recipientEmail: email,
-            role: projectLegacyOfferRole(initialAccess),
+            role: workPackageLegacyOfferRole(initialAccess),
             initialAccess: encodeInitialAccess(initialAccess),
             tokenDigest: digest,
             expiresAt,

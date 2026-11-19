@@ -70,7 +70,7 @@ function prepared(): { path: string; db: ReturnType<typeof openDrizzle>; generat
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
@@ -89,7 +89,7 @@ function queued(
 ): void {
   expect(
     enqueueSolverRequest(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective,
@@ -222,7 +222,7 @@ describe('OptimizationCoordinator restart semantics', () => {
     for (const objective of ['pri', 'time'] as const) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective,
@@ -248,7 +248,9 @@ describe('OptimizationCoordinator restart semantics', () => {
 
     expect(calls).toEqual([]);
     expect(db.select().from(solverQueue).all()).toHaveLength(2);
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
     expect(calls).toEqual([]);
     expect(readGeneration(db, 'p-1', CONTRACT)?.generation).toBe(generation);
@@ -256,7 +258,7 @@ describe('OptimizationCoordinator restart semantics', () => {
     for (const objective of ['pri', 'time'] as const) {
       expect(
         releaseSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective,
@@ -299,11 +301,11 @@ describe('OptimizationCoordinator restart semantics', () => {
     // Proof: discarding all prior-process queue entries leaves `calls` empty.
   });
 
-  it('discards generation, cancel-epoch, and project-toggle failures without spawning', async () => {
+  it('discards generation, cancel-epoch, and work-package-toggle failures without spawning', async () => {
     const mutations = [
-      `UPDATE optimization_generation SET generation = generation + 1 WHERE project_id = 'p-1'`,
-      `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1 WHERE project_id = 'p-1'`,
-      `UPDATE project SET optimization_enabled = 0 WHERE id = 'p-1'`,
+      `UPDATE optimization_generation SET generation = generation + 1 WHERE work_package_id = 'p-1'`,
+      `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1 WHERE work_package_id = 'p-1'`,
+      `UPDATE work_package SET optimization_enabled = 0 WHERE id = 'p-1'`,
     ];
     for (const mutation of mutations) {
       const { path, db, generation } = prepared();

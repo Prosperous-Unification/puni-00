@@ -121,10 +121,10 @@ export function blockageLabelsOf(
 ): ReadonlyMap<string, string> {
   const labels = new Map(rows.map((row) => [row.id, `${row.number} · ${row.name}`]));
   const owners = new Map(rows.map((row) => [row.id, row]));
-  const projectSteps = new Map(steps.map((step) => [step.id, step]));
+  const workPackageSteps = new Map(steps.map((step) => [step.id, step]));
   for (const node of nodes ?? []) {
     const row = owners.get(node.workItemId);
-    const step = projectSteps.get(node.stepId);
+    const step = workPackageSteps.get(node.stepId);
     if (row !== undefined && step !== undefined)
       labels.set(node.id, `${node.reference ?? row.number} · ${row.name} · ${step.name}`);
   }

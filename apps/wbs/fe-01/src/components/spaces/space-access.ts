@@ -21,8 +21,11 @@ export type SpaceRefusalCode =
   | 'invalid_json'
   | 'invalid_params';
 
-/** A space route's refusal body: a code alone, or a refused credential's whole body. */
-export type SpaceRefusal = { error: SpaceRefusalCode } | CredentialRefusal;
+/** A space refusal retains required project-conflict and credential context. */
+export type SpaceRefusal =
+  | { error: SpaceRefusalCode }
+  | { error: 'project_in_other_space'; spaceId: string }
+  | CredentialRefusal;
 
 /**
  * What a spaces page does with one refusal: replace the page with a state
@@ -56,7 +59,7 @@ export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
         kind: 'page',
         text: 'This session has no organization.',
         detail:
-          'Spaces group an organization’s projects. This workspace has no organization, so every project is in All projects.',
+          'Spaces group an organization’s work packages. This workspace has no organization, so every work package is in All work packages.',
       };
     case 'not_a_member':
       return {
@@ -77,18 +80,26 @@ export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
         // F-014 (UI review 2026-10-13): this said "Until this deployment has
         // one", which is an operator's word for what a reader sees as the app.
         detail:
-          'Spaces group an organization’s projects. This workspace has no organization, so every project is in All projects.',
+          'Spaces group an organization’s work packages. This workspace has no organization, so every work package is in All work packages.',
       };
     case 'not_found':
-      return { kind: 'message', text: 'That space or project no longer exists.' };
+      return { kind: 'message', text: 'That space or work package no longer exists.' };
     case 'forbidden':
       return { kind: 'message', text: 'Your role can read spaces but not change them.' };
     case 'name_taken':
       return { kind: 'message', text: 'Another space already has that name.' };
     case 'already_in_space':
-      return { kind: 'message', text: 'That project is already in this space.' };
+      return { kind: 'message', text: 'That work package is already in this space.' };
+    // Proof: the missing arm made "keeps the space visible and explains a project
+    // already assigned elsewhere" (space-page.test.tsx) reach unreachable after409;
+    // later page-retention assertions were unreached (2026-11-15).
+    case 'project_in_other_space':
+      return {
+        kind: 'message',
+        text: 'That project already belongs to another space. Remove it there before adding it here.',
+      };
     case 'virtual_space':
-      return { kind: 'message', text: 'All projects cannot be changed.' };
+      return { kind: 'message', text: 'All work packages cannot be changed.' };
     case 'malformed':
       return { kind: 'message', text: 'A space name needs 1 to 120 characters.' };
     case 'insufficient_scope':

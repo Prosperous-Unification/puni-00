@@ -1,18 +1,19 @@
 import { NO_COMPUTE_PROVIDERS } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
 import { nodeDigest } from '../../runtime/bun-runtime';
-import { inMemoryServices } from '../../testing/harness';
+import { createTestServices } from '../../testing/harness';
 import { legacyOrganizationAccess } from '../../testing/organization-access-fixture';
-import { projectRow } from '../../testing/project-fixture';
+import { workPackageRow } from '../../testing/work-package-fixture';
 import { batchServices, testWrites } from '../../testing/writes-fixture';
 import { mountEndpoints } from './mount';
 
-function fixture(readOnly = false) {
-  const plan = inMemoryServices();
+async function fixture(readOnly = false) {
+  const plan = createTestServices((await createLegacyWorkPackageFixture('owner', 'elysia-legacy', 'elysia-parent')).source);
   const writes = testWrites(undefined, batchServices(plan));
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
@@ -42,7 +43,7 @@ function fixture(readOnly = false) {
             },
       ),
   });
-  const call = (body: unknown, path = '/api/projects/p/commands') =>
+  const call = (body: unknown, path = '/api/work-packages/p/commands') =>
     app.handle(
       new Request(`http://localhost${path}`, {
         method: 'POST',
@@ -54,7 +55,7 @@ function fixture(readOnly = false) {
 }
 
 test('mounted command classification preserves derived numbering and legacy semantic order before structural errors', async () => {
-  const f = fixture();
+  const f = await fixture();
   const run = spyOn(f.runner, 'runWithin');
   for (const [commands, expected] of [
     [
@@ -70,7 +71,7 @@ test('mounted command classification preserves derived numbering and legacy sema
     ],
     [
       [
-        { kind: 'freezeProject', extra: true },
+        { kind: 'freezeWorkPackage', extra: true },
         { kind: 'setActual', stepId: 's', days: -1 },
       ],
       { error: 'invalid_actual', at: 1, kind: 'setActual' },
@@ -84,7 +85,7 @@ test('mounted command classification preserves derived numbering and legacy sema
 });
 
 test('mounted semantic classification preserves eager common and branch field precedence', async () => {
-  const f = fixture();
+  const f = await fixture();
   const run = spyOn(f.runner, 'runWithin');
   const cases = [
     [
@@ -104,8 +105,8 @@ test('mounted semantic classification preserves eager common and branch field pr
       { error: 'afterId_must_be_id_or_null', at: 0, kind: 'moveWorkItem' },
     ],
     [
-      { kind: 'freezeProject', workItemId: 7 },
-      { error: 'workItemId_must_be_an_id', at: 0, kind: 'freezeProject' },
+      { kind: 'freezeWorkPackage', workItemId: 7 },
+      { error: 'workItemId_must_be_an_id', at: 0, kind: 'freezeWorkPackage' },
     ],
   ] as const;
   const outcomes = [];
@@ -121,7 +122,7 @@ test('mounted semantic classification preserves eager common and branch field pr
 });
 
 test('mounted command results erase internal kind after validating producer-specific requirements', async () => {
-  const f = fixture();
+  const f = await fixture();
   const run = spyOn(f.runner, 'runWithin');
   run.mockResolvedValueOnce({
     ok: true,
@@ -160,12 +161,16 @@ test('mounted command results erase internal kind after validating producer-spec
 });
 
 test('mounted runtime refusals retain status, command context and code-specific detail', async () => {
-  const f = fixture();
+  const f = await fixture();
   const run = spyOn(f.runner, 'runWithin');
   for (const [reason, detail, status] of [
     ['taken', { name: 'Existing' }, 409],
-    ['in_use', { usage: { projects: [], members: [{ id: 'p', name: 'Person' }] } }, 409],
-    ['deadline_before_project_start', { workItemId: 'w', projectDayZero: '2026-09-07' }, 422],
+    ['in_use', { usage: { workPackages: [], members: [{ id: 'p', name: 'Person' }] } }, 409],
+    [
+      'deadline_before_work_package_start',
+      { workItemId: 'w', workPackageDayZero: '2026-09-07' },
+      422,
+    ],
   ] as const) {
     run.mockResolvedValueOnce({ ok: false, reason, detail, at: 2, kind: 'patchWorkItem' } as never);
     const response = await f.call({ commands: [] });
@@ -179,8 +184,8 @@ test('mounted runtime refusals retain status, command context and code-specific 
   }
   for (const refusal of [
     { reason: 'taken', detail: {} },
-    { reason: 'in_use', detail: { usage: { projects: [] } } },
-    { reason: 'deadline_before_project_start', detail: { workItemId: 'w' } },
+    { reason: 'in_use', detail: { usage: { workPackages: [] } } },
+    { reason: 'deadline_before_work_package_start', detail: { workItemId: 'w' } },
     { reason: 'invented_failure' },
   ]) {
     run.mockResolvedValueOnce({ ok: false, ...refusal, at: 0, kind: 'patchWorkItem' } as never);
@@ -189,7 +194,7 @@ test('mounted runtime refusals retain status, command context and code-specific 
 });
 
 test('mounted command admission rejects structural extras and unknown kind before any transaction', async () => {
-  const f = fixture();
+  const f = await fixture();
   const run = spyOn(f.runner, 'runWithin');
   for (const command of [
     { kind: 'patchWorkItem', patch: { extra: true } },
@@ -202,7 +207,7 @@ test('mounted command admission rejects structural extras and unknown kind befor
       kind: 'patchWorkItem',
       patch: { externalRefs: [{ systemId: 'x', url: 'https://example.com', extra: true }] },
     },
-    { kind: 'freezeProject', extra: true },
+    { kind: 'freezeWorkPackage', extra: true },
     { kind: 'addDependency', workItemId: 'w', predecesorId: 'w' },
   ]) {
     const response = await f.call({ commands: [command] });
@@ -216,7 +221,7 @@ test('mounted command admission rejects structural extras and unknown kind befor
 });
 
 test('mounted parsing preserves priority absence and null while defaulting assignee absence', async () => {
-  const f = fixture();
+  const f = await fixture();
   const run = spyOn(f.runner, 'runWithin');
   run.mockResolvedValueOnce({
     ok: true,
@@ -255,12 +260,16 @@ test('mounted parsing preserves priority absence and null while defaulting assig
   );
 });
 
-test('mounted create without priority uses the project middle-band default', async () => {
-  const f = fixture();
-  await f.plan.stores.projects.create(projectRow({ id: 'p', ownerId: 'owner' }), [], {
-    at: 1,
-    by: 'owner',
-  });
+test('mounted create without priority uses the work package middle-band default', async () => {
+  const f = await fixture();
+  await f.plan.stores.workPackages.create(
+    workPackageRow({ id: 'p', projectId: 'elysia-parent' }),
+    [],
+    {
+      at: 1,
+      by: 'owner',
+    },
+  );
   await f.plan.stores.priorityBands.replace(
     'p',
     [
@@ -276,16 +285,16 @@ test('mounted create without priority uses the project middle-band default', asy
   const response = await f.call({ commands: [{ kind: 'createWorkItem', name: 'Unstated' }] });
 
   expect(response.status).toBe(200);
-  const rows = await f.plan.stores.workItems.listByProject('p');
+  const rows = await f.plan.stores.workItems.listByWorkPackage('p');
   expect(rows).toHaveLength(1);
   // Proof: defaulting the normalizer's absent priority to null failed here with Received: null.
   expect(rows[0]?.priority).toBe(47);
 });
 
 test('mounted command policies precede body parsing and bodyless undo refuses bytes', async () => {
-  const f = fixture();
+  const f = await fixture();
   const response = await f.app.handle(
-    new Request('http://localhost/api/projects/p/commands', {
+    new Request('http://localhost/api/work-packages/p/commands', {
       method: 'POST',
       headers: {
         cookie: '__Host-wbs_access=x',
@@ -298,19 +307,19 @@ test('mounted command policies precede body parsing and bodyless undo refuses by
   expect(response.status).toBe(403);
   expect(await response.json()).toEqual({ error: 'invalid_origin' });
   const undo = spyOn(f.runner, 'undoWithin');
-  expect((await f.call({}, '/api/projects/p/undo')).status).toBe(400);
+  expect((await f.call({}, '/api/work-packages/p/undo')).status).toBe(400);
   expect(undo).not.toHaveBeenCalled();
 });
 
-test('mounted batches parse all commands before the cap and retain directory project_required', async () => {
-  const f = fixture();
-  const commands = Array.from({ length: 201 }, () => ({ kind: 'freezeProject' }));
+test('mounted batches parse all commands before the cap and retain directory work_package_required', async () => {
+  const f = await fixture();
+  const commands = Array.from({ length: 201 }, () => ({ kind: 'freezeWorkPackage' }));
   const capped = await f.call({ commands });
   expect(capped.status).toBe(400);
   expect(await capped.json()).toEqual({
     error: 'too_many_commands',
     at: 200,
-    kind: 'freezeProject',
+    kind: 'freezeWorkPackage',
   });
   const invalid = await f.call({
     commands: [...commands.slice(0, -1), { kind: 'setActual', stepId: 's', days: -1 }],
@@ -320,23 +329,27 @@ test('mounted batches parse all commands before the cap and retain directory pro
   // `error: "too_many_commands"` instead of `error: "invalid_actual"` at index 200.
   expect(await invalid.json()).toEqual({ error: 'invalid_actual', at: 200, kind: 'setActual' });
   const directory = await f.call(
-    { commands: [{ kind: 'freezeProject' }] },
+    { commands: [{ kind: 'freezeWorkPackage' }] },
     '/api/directory/commands',
   );
   expect(directory.status).toBe(400);
   expect(await directory.json()).toEqual({
-    error: 'project_required',
+    error: 'work_package_required',
     at: 0,
-    kind: 'freezeProject',
+    kind: 'freezeWorkPackage',
   });
 });
 
 test('mounted tree validates core fields, deadline and slice lateness while preserving account undo flags', async () => {
-  const f = fixture();
-  await f.plan.stores.projects.create(projectRow({ id: 'p', ownerId: 'owner' }), [], {
-    at: 1,
-    by: 'owner',
-  });
+  const f = await fixture();
+  await f.plan.stores.workPackages.create(
+    workPackageRow({ id: 'p', projectId: 'elysia-parent' }),
+    [],
+    {
+      at: 1,
+      by: 'owner',
+    },
+  );
   const created = await f.plan.service.create('p', 'owner', {
     parentId: null,
     afterId: null,
@@ -354,7 +367,7 @@ test('mounted tree validates core fields, deadline and slice lateness while pres
     workItemId: row.id,
     stepId: null,
     personId: null,
-    boundBy: 'projectStart' as const,
+    boundBy: 'workPackageStart' as const,
     resourcePredecessorId: null,
     capacityPredecessorIds: [],
     capacityTeamId: null,
@@ -363,19 +376,19 @@ test('mounted tree validates core fields, deadline and slice lateness while pres
     lateBy: null,
   };
   const read = spyOn(f.plan.service, 'tree');
-  const path = 'http://localhost/api/projects/p/work-items';
+  const path = 'http://localhost/api/work-packages/p/work-items';
   read.mockResolvedValueOnce({ ...tree, slices: [slice] });
   const accepted = await f.app.handle(new Request(path));
   expect(accepted.status).toBe(200);
   const body: unknown = await accepted.json();
   expect(body).toMatchObject({
-    projectRevision: tree.projectRevision,
+    workPackageRevision: tree.workPackageRevision,
     undoable: true,
     redoable: false,
     workItems: [{ deadline: null }],
     slices: [{ lateBy: null }],
   });
-  const { projectRevision, ...missing } = tree;
+  const { workPackageRevision, ...missing } = tree;
   for (const malformed of [
     missing,
     { ...tree, workItems: [{ ...row, deadline: false }] },
@@ -387,9 +400,9 @@ test('mounted tree validates core fields, deadline and slice lateness while pres
 });
 
 test('mounted write scope precedes parsing and undeclared query fields remain refused', async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   const refused = await f.app.handle(
-    new Request('http://localhost/api/projects/p/commands', {
+    new Request('http://localhost/api/work-packages/p/commands', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: '{',
@@ -398,14 +411,14 @@ test('mounted write scope precedes parsing and undeclared query fields remain re
   expect(refused.status).toBe(403);
   expect(await refused.json()).toEqual({ error: 'insufficient_scope' });
   const query = await f.app.handle(
-    new Request('http://localhost/api/projects/p/work-items?extra=1'),
+    new Request('http://localhost/api/work-packages/p/work-items?extra=1'),
   );
   expect(query.status).toBe(400);
   expect(await query.json()).toEqual({ error: 'invalid_query' });
 });
 
 test('mounted parser refusals reject malformed known context instead of matching a tolerant bare alternative', async () => {
-  const f = fixture();
+  const f = await fixture();
   const reply = spyOn(f.endpoints[1], 'handle');
   for (const body of [
     { error: 'expected_object', at: 'zero' },
@@ -418,7 +431,7 @@ test('mounted parser refusals reject malformed known context instead of matching
 });
 
 test('mounted create and duplicate results require their minted top-level ids', async () => {
-  const f = fixture();
+  const f = await fixture();
   const run = spyOn(f.runner, 'runWithin');
   for (const produced of [
     { kind: 'createWorkItem' },

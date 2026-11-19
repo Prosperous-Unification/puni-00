@@ -2,7 +2,7 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { Scope } from '../../ports/unit-of-work';
 import {
   CommandNormalizationError,
@@ -28,7 +28,7 @@ async function seeded(legacy = true) {
   const broadcast = recordingBroadcaster();
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,

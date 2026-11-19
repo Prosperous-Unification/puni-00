@@ -1,4 +1,4 @@
-import { type ProjectEvent, type RecordedEvent, subscriptionFor } from '@wbs/core';
+import { type WorkPackageEvent, type RecordedEvent, subscriptionFor } from '@wbs/core';
 
 import type { Drizzle } from './db';
 import type { EventLogTransactionalWrite } from './event-log';
@@ -8,13 +8,13 @@ import {
   storeOptimizedOutcomeIn,
 } from './optimized-schedule-cache';
 
-export type ScheduleOptimizedEvent = Extract<ProjectEvent, { type: 'schedule_optimized' }>;
+export type ScheduleOptimizedEvent = Extract<WorkPackageEvent, { type: 'schedule_optimized' }>;
 export type ScheduleOptimizationFailedEvent = Extract<
-  ProjectEvent,
+  WorkPackageEvent,
   { type: 'schedule_optimization_failed' }
 >;
 export type ScheduleOptimizationInfeasibleEvent = Extract<
-  ProjectEvent,
+  WorkPackageEvent,
   { type: 'schedule_optimization_infeasible' }
 >;
 export type OptimizationOutcomeEvent =
@@ -37,7 +37,7 @@ export function storeOptimizedOutcomeAndRecord(
     const result = storeOptimizedOutcomeIn(tx, write);
     if (result !== 'stored') return { result };
     const identity = {
-      projectId: write.claim.projectId,
+      workPackageId: write.claim.workPackageId,
       generation: write.claim.generation,
       inputHash: write.inputHash,
       objective: write.claim.objective,
@@ -54,7 +54,7 @@ export function storeOptimizedOutcomeAndRecord(
               failureReason: write.outcome.reason,
             }
           : { type: 'schedule_optimization_infeasible', ...identity };
-    const subscription = subscriptionFor(write.claim.projectId);
+    const subscription = subscriptionFor(write.claim.workPackageId);
     const recorded = eventLog.recordEventIn(tx, subscription, event, write.now);
     return { result, subscription, recorded, event };
   });

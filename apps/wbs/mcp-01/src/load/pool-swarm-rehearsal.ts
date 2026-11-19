@@ -223,14 +223,14 @@ const resourceIds = idsOf(
 const ram = resourceIds.at(0);
 const disk = resourceIds.at(1);
 if (ram === undefined || disk === undefined) throw new Error('the resources were not created');
-const project = await adminOk<{ project: { id: string }; steps: { id: string }[] }>(
+const workPackage = await adminOk<{ workPackage: { id: string }; steps: { id: string }[] }>(
   'POST',
-  '/api/projects',
+  '/api/work-packages',
   { name: 'Pool swarm' },
 );
-const projectId = project.project.id;
+const workPackageId = workPackage.workPackage.id;
 const leafIds = idsOf(
-  await adminOk('POST', `/api/projects/${projectId}/commands`, {
+  await adminOk('POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: Array.from({ length: LEAVES }, (_, index) => ({
       kind: 'createWorkItem',
       parentId: null,
@@ -240,12 +240,12 @@ const leafIds = idsOf(
   }),
 );
 if (leafIds.length !== LEAVES) throw new Error('the leaves were not created');
-await adminOk('POST', `/api/projects/${projectId}/commands`, {
+await adminOk('POST', `/api/work-packages/${workPackageId}/commands`, {
   commands: [
     { kind: 'setResourceCapacity', resourceId: ram, units: RAM_CAPACITY },
     { kind: 'setResourceCapacity', resourceId: disk, units: DISK_CAPACITY },
     ...leafIds.flatMap((workItemId) => [
-      ...project.steps.map((step) => ({
+      ...workPackage.steps.map((step) => ({
         kind: 'setEstimate',
         workItemId,
         stepId: step.id,
@@ -282,14 +282,14 @@ interface Startable {
   }[];
   readonly resources?: readonly { resourceId: string; occupied: number; free: number }[];
 }
-const startable = () => adminOk<Startable>('GET', `/api/projects/${projectId}/startable`);
+const startable = () => adminOk<Startable>('GET', `/api/work-packages/${workPackageId}/startable`);
 const occupied = async (): Promise<{ ram: number; disk: number }> => {
   const read = await startable();
   const of = (id: string) => read.resources?.find((each) => each.resourceId === id)?.occupied;
   return { ram: of(ram) ?? -1, disk: of(disk) ?? -1 };
 };
 
-interface ProjectClaim {
+interface WorkPackageClaim {
   readonly claimId: string;
   readonly workItemId: string;
   readonly holder: { personId: string };
@@ -298,7 +298,12 @@ interface ProjectClaim {
   readonly leaseRevokedAt: number | null;
 }
 const claims = async () =>
-  (await adminOk<{ claims: ProjectClaim[] }>('GET', `/api/projects/${projectId}/claims`)).claims;
+  (
+    await adminOk<{ claims: WorkPackageClaim[] }>(
+      'GET',
+      `/api/work-packages/${workPackageId}/claims`,
+    )
+  ).claims;
 
 interface HistoryEvent {
   readonly kind: string;
@@ -309,7 +314,7 @@ const history = async () =>
   (
     await adminOk<{ events: HistoryEvent[] }>(
       'GET',
-      `/api/projects/${projectId}/claim-history?limit=100`,
+      `/api/work-packages/${workPackageId}/claim-history?limit=100`,
     )
   ).events;
 
@@ -340,7 +345,7 @@ interface ResourceUse {
 async function resourceUseState(useId: string): Promise<string> {
   const listed = await adminOk<{ uses: ResourceUse[] }>(
     'GET',
-    `/api/projects/${projectId}/resource-uses?limit=100`,
+    `/api/work-packages/${workPackageId}/resource-uses?limit=100`,
   );
   return listed.uses.find((each) => each.id === useId)?.state ?? 'absent';
 }
@@ -364,7 +369,7 @@ async function grantPool(document: KeysDocument): Promise<void> {
         credentialId: agent.credentialId,
         roleId: 'package-contributor',
         scopeKind: 'work_package',
-        scopeId: projectId,
+        scopeId: workPackageId,
       }),
     });
     if (response.status !== 200)
@@ -510,7 +515,7 @@ interface Held {
 
 /** Every agent claims at once; each answer is checked and noted. */
 async function claimAll(round: string, team: readonly AgentProcess[]): Promise<Held[]> {
-  const answers = await Promise.all(team.map((agent) => ask(agent, 'claim', { projectId })));
+  const answers = await Promise.all(team.map((agent) => ask(agent, 'claim', { workPackageId })));
   const held: Held[] = [];
   for (const [index, answer] of answers.entries()) {
     const agent = team.at(index);
@@ -543,8 +548,8 @@ async function claimAll(round: string, team: readonly AgentProcess[]): Promise<H
   return held;
 }
 
-/** The project's claims as the admin reads them: each held one carries its agent's own run. */
-async function checkHolders(round: string, held: readonly Held[]): Promise<ProjectClaim[]> {
+/** The work package's claims as the admin reads them: each held one carries its agent's own run. */
+async function checkHolders(round: string, held: readonly Held[]): Promise<WorkPackageClaim[]> {
   const read = await claims();
   for (const { agent, claimIds } of held) {
     const mine = read.filter((each) => claimIds.includes(each.claimId));
@@ -602,7 +607,7 @@ async function heartbeatUntilSettled(agent: AgentProcess, bound: number): Promis
 
 async function releaseAll(round: string, held: readonly Held[]): Promise<void> {
   const answers = await Promise.all(
-    held.map(({ agent, workItemId }) => ask(agent, 'release', { projectId, workItemId })),
+    held.map(({ agent, workItemId }) => ask(agent, 'release', { workPackageId, workItemId })),
   );
   for (const [index, answer] of answers.entries()) {
     const agent = held.at(index)?.agent;
@@ -660,10 +665,10 @@ try {
     expect(
       `${short(agent.personId)} lists the claim, heartbeat and resource-use tools`,
       [
-        'getApiProjectsByIdStartable',
-        'postApiProjectsByIdCommands',
+        'getApiWorkPackagesByIdStartable',
+        'postApiWorkPackagesByIdCommands',
         'postApiClaimsRenew',
-        'postApiProjectsByIdResourceUses',
+        'postApiWorkPackagesByIdResourceUses',
       ].every((name) => names.includes(name)),
       names.length,
     );
@@ -700,7 +705,7 @@ try {
   for (const { agent } of round1) {
     const work = await adminOk<{ claims: { runId: string | null }[] }>(
       'GET',
-      `/api/projects/${projectId}/people/${agent.personId}/work`,
+      `/api/work-packages/${workPackageId}/people/${agent.personId}/work`,
     );
     expect(
       `round 1: ${short(agent.personId)}'s person work lists its claim under its run`,
@@ -711,7 +716,7 @@ try {
   const uses1 = await Promise.all(
     round1.map(({ agent, workItemId }) =>
       ask(agent, 'register_use', {
-        projectId,
+        workPackageId,
         workItemId,
         resourceId: disk,
         units: DISK_PER_LEAF,
@@ -835,7 +840,7 @@ try {
   const uses3 = await Promise.all(
     round3.map(({ agent, workItemId }) =>
       ask(agent, 'register_use', {
-        projectId,
+        workPackageId,
         workItemId,
         resourceId: disk,
         units: DISK_PER_LEAF,

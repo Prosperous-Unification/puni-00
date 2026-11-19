@@ -2,14 +2,14 @@ import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { clockOf } from '../../ports/clock';
-import { type ProjectEvent, subscriptionFor } from '../../ports/project-event';
+import { type WorkPackageEvent, subscriptionFor } from '../../ports/work-package-event';
 import type { PushTransport } from '../../ports/push-transport';
 import { EventLogService } from '../event-log/event-log.resource';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { ReplayBuffer } from './replay-buffer';
 import { ReplayOrchestrator } from './replay-orchestrator';
 
-const EVENT: ProjectEvent = { type: 'tree_replaced', workItems: [] };
+const EVENT: WorkPackageEvent = { type: 'tree_replaced', workItems: [] };
 
 /** A push client that records what it was handed, or refuses everything. */
 function fakePush(mode: 'accepts' | 'refuses' = 'accepts') {
@@ -48,13 +48,13 @@ function bootstrap(mode: 'accepts' | 'refuses' = 'accepts') {
 }
 
 describe('GatewayBroadcaster', () => {
-  it('records the event and pushes it under the project subscription', async () => {
+  it('records the event and pushes it under the work package subscription', async () => {
     const { broadcaster, log, pushed } = bootstrap();
 
     await broadcaster.publish('p-1', EVENT);
 
-    expect(await log.latestSeq('project:p-1')).toBe(0);
-    expect(pushed).toEqual([{ subscription: 'project:p-1', seq: 0 }]);
+    expect(await log.latestSeq('work-package:p-1')).toBe(0);
+    expect(pushed).toEqual([{ subscription: 'work-package:p-1', seq: 0 }]);
   });
 
   it('pushes an already-recorded event without recording it a second time', async () => {
@@ -76,11 +76,11 @@ describe('GatewayBroadcaster', () => {
 
     await broadcaster.publish('p-1', EVENT);
 
-    expect(failures).toEqual(['project:p-1']);
-    expect(await log.latestSeq('project:p-1')).toBe(0);
+    expect(failures).toEqual(['work-package:p-1']);
+    expect(await log.latestSeq('work-package:p-1')).toBe(0);
   });
 
-  it('reports the project’s latest sequence', async () => {
+  it('reports the work package’s latest sequence', async () => {
     const { broadcaster } = bootstrap();
     await broadcaster.publish('p-1', EVENT);
     await broadcaster.publish('p-1', EVENT);
@@ -99,7 +99,7 @@ describe('GatewayBroadcaster', () => {
     await broadcaster.publish('p-1', EVENT);
     await broadcaster.publish('p-1', EVENT);
 
-    expect(buffer.oldestSeq('project:p-1')).toBe(0);
+    expect(buffer.oldestSeq('work-package:p-1')).toBe(0);
 
     const bufferOnly = new ReplayOrchestrator({
       log: new EventLogService({
@@ -108,8 +108,8 @@ describe('GatewayBroadcaster', () => {
       }),
       buffer,
     });
-    expect(await bufferOnly.replay({ 'project:p-1': 0 })).toEqual({
-      'project:p-1': { status: 'replaying', events: [{ seq: 1, message: EVENT }] },
+    expect(await bufferOnly.replay({ 'work-package:p-1': 0 })).toEqual({
+      'work-package:p-1': { status: 'replaying', events: [{ seq: 1, message: EVENT }] },
     });
   });
 
@@ -122,18 +122,18 @@ describe('GatewayBroadcaster', () => {
     await broadcaster.publish('p-1', EVENT);
 
     expect(pushed).toEqual([
-      { subscription: 'project:p-1', seq: 0 },
-      { subscription: 'project:p-1', message: { type: 'claims_changed' } },
-      { subscription: 'project:p-1', seq: 1 },
+      { subscription: 'work-package:p-1', seq: 0 },
+      { subscription: 'work-package:p-1', message: { type: 'claims_changed' } },
+      { subscription: 'work-package:p-1', seq: 1 },
     ]);
-    expect(await log.latestSeq('project:p-1')).toBe(1);
-    expect(buffer.since('project:p-1', -1).map(({ seq }) => seq)).toEqual([0, 1]);
+    expect(await log.latestSeq('work-package:p-1')).toBe(1);
+    expect(buffer.since('work-package:p-1', -1).map(({ seq }) => seq)).toEqual([0, 1]);
   });
 
   it('reports a refused transient push and does not throw', async () => {
     const { broadcaster, log, failures } = bootstrap('refuses');
     await broadcaster.publish('p-1', { type: 'claims_changed' });
-    expect(failures).toEqual(['project:p-1']);
-    expect(await log.latestSeq('project:p-1')).toBe(-1);
+    expect(failures).toEqual(['work-package:p-1']);
+    expect(await log.latestSeq('work-package:p-1')).toBe(-1);
   });
 });

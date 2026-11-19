@@ -33,7 +33,7 @@ export function userBoundOrganizationOf(
 
 /**
  * No session is bound to an organization yet. After activation every protected
- * project request is therefore a typed 403, which is the fail-closed answer
+ * work package request is therefore a typed 403, which is the fail-closed answer
  * for a release that must not be activated before task 2.4 ships.
  */
 export const NO_BOUND_ORGANIZATION: ActiveOrganizationOf = () => Promise.resolve(null);
@@ -123,15 +123,15 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     const userId = principal.id;
     // Proof: answering `legacy` without reading the marker made `scopes the same
     // running app once another connection activates isolation` in
-    // `project-organization.controller.db.test.ts` still list both
-    // organizations' projects after activation; watched 2026-09-27.
+    // `work-package-organization.controller.db.test.ts` still list both
+    // organizations' work packages after activation; watched 2026-09-27.
     if (readOrganizationActivation(this.db) === 'pre_activation') {
       // A delegation names one organization, which does not exist as an
       // authority before activation; it must never widen into deployment-wide
       // legacy access.
       // Proof: answering `legacy` for a delegation made `refuses a verified
       // delegation before activation` in `delegation.controller.db.test.ts`
-      // list every organization's projects; watched 2026-09-28.
+      // list every organization's work packages; watched 2026-09-28.
       if (principal.delegation !== undefined)
         return { ok: false, refusal: 'no_active_organization' };
       return { ok: true, access: { kind: 'legacy' } };
@@ -139,7 +139,7 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     // A verified delegation (task 2.5) carries its organization; a session
     // takes the one it is bound to. Membership is rechecked below either way.
     // Proof: taking the session's binding instead of the delegation's made
-    // `lists only the delegated organization's projects` in
+    // `lists only the delegated organization's workPackages` in
     // `delegation.controller.db.test.ts` answer 403; watched 2026-09-28.
     const organizationId =
       principal.delegation === undefined
@@ -147,12 +147,12 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
         : principal.delegation.organizationId;
     // Proof: answering `legacy` here instead made `refuses a session bound to no
     // organization before any lookup` in
-    // `project-organization.controller.db.test.ts` answer 200 for the list;
+    // `work-package-organization.controller.db.test.ts` answer 200 for the list;
     // watched 2026-09-27.
     if (organizationId === null) return { ok: false, refusal: 'no_active_organization' };
     // Proof: skipping this membership lookup (scoping to the bound organization
     // as a member) made `refuses a removed member on the next request` in
-    // `project-organization.controller.db.test.ts` receive 200 instead of 403;
+    // `work-package-organization.controller.db.test.ts` receive 200 instead of 403;
     // watched 2026-09-27.
     const read = readAccessFacts(this.db, organizationId, principal);
     if (read === null) return { ok: false, refusal: 'not_a_member' };

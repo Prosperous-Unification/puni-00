@@ -1,8 +1,11 @@
 import {
+  CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
   canonicalisePlanInput,
+  canonicalisePlanInputV12,
   diffPlans,
   planInputRowsOf,
   type PlanSide,
+  projectSavedPlanInput,
   sliceKey,
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -17,17 +20,17 @@ import type { PlanInputReads } from '../ports/saved-plan-capture-store';
  * One capture's reads, as the eighteen stores hand them over.
  *
  * The directory halves are deliberately **wider than the plan**: `per-3` belongs
- * to no captured team and is assigned nothing, `team-9` is a team this project
+ * to no captured team and is assigned nothing, `team-9` is a team this work package
  * never mentions, `svc-9` is delivered by nobody here, and `tag-z`, `t-epic` and
  * `bitbucket` are registry rows no item uses. All six are what the unfiltered
  * `listPeople`/`listTeams`/`listServices` reads bring back, and none may reach
  * the body.
  */
 const reads = {
-  project: {
+  workPackage: {
     id: 'p1',
     name: 'Rewire the shed',
-    ownerId: 'u1',
+    projectId: 'captured-parent',
     restricted: false,
     estimateMethod: 'pert',
     depReach: 'whole-item',
@@ -46,7 +49,7 @@ const reads = {
   steps: [
     {
       id: 's1',
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'Build',
       position: 10,
       estimateUnit: 'workdays',
@@ -55,7 +58,7 @@ const reads = {
     },
     {
       id: 's2',
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'Test',
       position: 20,
       estimateUnit: 'workdays',
@@ -66,7 +69,7 @@ const reads = {
   workItems: [
     {
       id: 'w1',
-      projectId: 'p1',
+      workPackageId: 'p1',
       parentId: null,
       position: 10,
       name: 'Electrics',
@@ -79,6 +82,8 @@ const reads = {
       serviceId: null,
       maxParallel: 1,
       revision: 3,
+      readiness: null,
+      hold: null,
       teamIds: ['team-1'],
       tagIds: ['tag-a'],
       serviceIds: ['svc-1'],
@@ -113,7 +118,7 @@ const reads = {
   ],
   measureEstimates: [],
   budgets: [],
-  dependencies: [{ id: 'd1', projectId: 'p1', predecessorId: 'w1', successorId: 'w1' }],
+  dependencies: [{ id: 'd1', workPackageId: 'p1', predecessorId: 'w1', successorId: 'w1' }],
   typedDependencies: [],
   assignments: [{ workItemId: 'w1', stepId: 's1', personId: 'per-1' }],
   capacity: new Map([['team-2', 3]]),
@@ -168,7 +173,7 @@ describe('planInputRowsOf', () => {
       capacity: new Map(),
     };
     const elsewhere = new Map([
-      ['per-1', [{ start: 0, end: 5, projectId: 'upstream', workItemId: 'held' }]],
+      ['per-1', [{ start: 0, end: 5, workPackageId: 'upstream', workItemId: 'held' }]],
     ]);
     expect(scheduleInputOfCaptured(captured, elsewhere).elsewhere).toEqual(elsewhere);
     const planned = schedulePlanInput(captured, elsewhere);
@@ -181,7 +186,7 @@ describe('planInputRowsOf', () => {
     if (first === undefined) throw new Error('fixture has no work item');
     const captured: PlanInputReads = {
       ...reads,
-      project: { ...reads.project, startDate: null },
+      workPackage: { ...reads.workPackage, startDate: null },
       steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
       workItems: [
         { ...first, id: 'A', priority: null, teamIds: [], serviceIds: [] },
@@ -219,7 +224,7 @@ describe('planInputRowsOf', () => {
     if (first === undefined) throw new Error('fixture has no work item');
     const captured: PlanInputReads = {
       ...reads,
-      project: { ...reads.project, startDate: null },
+      workPackage: { ...reads.workPackage, startDate: null },
       steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
       workItems: [
         {
@@ -271,7 +276,7 @@ describe('planInputRowsOf', () => {
     if (first === undefined) throw new Error('fixture has no work item');
     const utc: PlanInputReads = {
       ...reads,
-      project: { ...reads.project, startDate: null },
+      workPackage: { ...reads.workPackage, startDate: null },
       steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
       workItems: [{ ...first, id: 'A', priority: null, teamIds: [], serviceIds: [] }],
       estimates: [
@@ -288,19 +293,22 @@ describe('planInputRowsOf', () => {
       typedDependencies: [],
       capacity: new Map(),
     };
-    const kyiv: PlanInputReads = { ...utc, project: { ...utc.project, timezone: 'Europe/Kyiv' } };
+    const kyiv: PlanInputReads = {
+      ...utc,
+      workPackage: { ...utc.workPackage, timezone: 'Europe/Kyiv' },
+    };
     expect(scheduleInputOfCaptured(kyiv)).toEqual(scheduleInputOfCaptured(utc));
     expect(schedulePlanInput(kyiv)).toEqual(schedulePlanInput(utc));
     expect(schedulePlanInput(kyiv).slices.size).toBeGreaterThan(0);
-    expect(planInputRowsOf(kyiv).project.timezone).toBe('Europe/Kyiv');
+    expect(planInputRowsOf(kyiv).workPackage.timezone).toBe('Europe/Kyiv');
   });
 
-  it('carries the project settings the dates come from, and its solution ref split in two', () => {
-    expect(planInputRowsOf(reads).project).toEqual({
+  it('carries the work package settings the dates come from, and its solution ref split in two', () => {
+    expect(planInputRowsOf(reads).workPackage).toEqual({
       id: 'p1',
       name: 'Rewire the shed',
       restricted: false,
-      ownerId: 'u1',
+      projectId: 'captured-parent',
       solutionSlug: 'shed',
       solutionUrl: 'https://shed',
       estimateMethod: 'pert',
@@ -447,7 +455,7 @@ it('captures minute units and schedules captured 240-minute effort as half a wor
   if (first === undefined) throw new Error('capture fixture has no row');
   const captured: PlanInputReads = {
     ...reads,
-    project: { ...reads.project, startDate: null },
+    workPackage: { ...reads.workPackage, startDate: null },
     steps: reads.steps.map((step) => ({ ...step, estimateUnit: 'minutes', allowancePercent: 0 })),
     workItems: [
       { ...first, deadline: null, readiness: null, hold: null, teamIds: [], serviceIds: [] },
@@ -530,7 +538,7 @@ it('captures every measure estimate, budget, basis and the factor, and compares 
   const card = { currency: 'USD', rateCardDigest: 'sha256:a' };
   const measured = {
     ...reads,
-    project: { ...reads.project, budgetFactor: 1.5 },
+    workPackage: { ...reads.workPackage, budgetFactor: 1.5 },
     measures: [
       ...reads.measures,
       { workItemId: 'w1', stepId: 's1', metric: 'token_estimate', value: 400, recordedAt: 1 },
@@ -564,7 +572,7 @@ it('captures every measure estimate, budget, basis and the factor, and compares 
   } as unknown as PlanInputReads;
   const input = canonicalisePlanInput(planInputRowsOf(measured));
   expect({
-    factor: input.project.budgetFactor,
+    factor: input.workPackage.budgetFactor,
     cost: input.measures.find(({ metric }) => metric === 'cost'),
     trios: input.measureEstimates,
     budgets: input.budgets,
@@ -595,11 +603,15 @@ it('captures every measure estimate, budget, basis and the factor, and compares 
     ],
   });
   const side = (changed: PlanInputReads): PlanSide => ({
-    input: canonicalisePlanInput(planInputRowsOf(changed)),
+    comparison: { kind: 'captured' as const },
+    ...projectSavedPlanInput(
+      canonicalisePlanInputV12(planInputRowsOf(changed), { kind: 'local' }),
+      CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
+    ),
     schedule: { present: false, absentReason: 'pending' },
   });
   const changes: [string, PlanInputReads][] = [
-    ['settings', { ...measured, project: { ...measured.project, budgetFactor: 2 } }],
+    ['settings', { ...measured, workPackage: { ...measured.workPackage, budgetFactor: 2 } }],
     [
       'measures',
       {
@@ -636,7 +648,7 @@ it('captures every measure estimate, budget, basis and the factor, and compares 
       })),
     ),
   ).toEqual([
-    [{ category: 'settings', path: 'project.budgetFactor' }],
+    [{ category: 'settings', path: 'workPackage.budgetFactor' }],
     [{ category: 'measures', path: 'measureEstimates[w1:s2:cost].pessimistic' }],
     [{ category: 'measures', path: 'budgets[w1:tokens].policy' }],
     [{ category: 'measures', path: 'measures[w1:s2:cost].rateCardDigest' }],

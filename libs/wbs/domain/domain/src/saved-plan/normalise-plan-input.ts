@@ -1,9 +1,8 @@
 import {
   assertStepBlockages,
-  CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
-  type CanonicalPlanInput,
   readStepParallels,
 } from './canonical-plan-input';
+import { LEGACY_PLAN_INPUT_SCHEMA_VERSION } from './legacy-input-fields';
 
 /**
  * A stored plan-input body this reader cannot bring forward.
@@ -27,7 +26,7 @@ export class PlanInputVersionError extends Error {
   constructor(
     readonly reason: PlanInputNormaliseFailure,
     readonly storedVersion: number,
-    readonly readerVersion: number = CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
+    readonly readerVersion: number = LEGACY_PLAN_INPUT_SCHEMA_VERSION,
   ) {
     super(
       `plan input body at schema version ${String(storedVersion)} cannot be normalised ` +
@@ -225,9 +224,11 @@ function withZeroStepAllowances(body: Record<string, unknown>): Record<string, u
 export function normalisePlanInputForward(
   body: unknown,
   storedVersion: number,
-  readerVersion: number = CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
+  readerVersion: number = LEGACY_PLAN_INPUT_SCHEMA_VERSION,
   upgrades: ReadonlyMap<number, PlanInputUpgrade> = PLAN_INPUT_UPGRADES,
-): CanonicalPlanInput {
+): unknown {
+  if (!Number.isInteger(readerVersion) || readerVersion < 1 || readerVersion > LEGACY_PLAN_INPUT_SCHEMA_VERSION)
+    throw new Error('legacy plan input reader target must be in schemas1–9');
   if (!Number.isInteger(storedVersion) || storedVersion < 1) {
     throw new PlanInputVersionError('not-a-version', storedVersion, readerVersion);
   }
@@ -246,5 +247,5 @@ export function normalisePlanInputForward(
   // Proof: stored validation removed; duplicate current stored-read negative failed (stored-validation.txt).
   if (readerVersion >= 8) readStepParallels(current);
   if (readerVersion >= 7) assertStepBlockages(current);
-  return current as CanonicalPlanInput;
+  return current;
 }

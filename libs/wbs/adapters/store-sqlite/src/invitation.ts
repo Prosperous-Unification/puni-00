@@ -17,9 +17,9 @@ import type { Gate } from './gate';
 import {
   decodeInitialAccess,
   encodeInitialAccess,
-  projectLegacyOfferRole,
   readInitialAccessRefusalIn,
   readMembershipRefusalIn,
+  workPackageLegacyOfferRole,
 } from './initial-access';
 import { readOrganizationActivation } from './organization-activation';
 import { organizationInvitation, organizationMembership, users } from './schema';
@@ -144,13 +144,18 @@ export class InvitationRepository implements Invitation {
           id: crypto.randomUUID(),
           organizationId,
           recipientEmail: email,
-          role: projectLegacyOfferRole(initialAccess),
+          role: workPackageLegacyOfferRole(initialAccess),
           initialAccess: encodeInitialAccess(initialAccess),
           tokenDigest: digest,
           expiresAt,
-          ...auditOnCreate(stamp),
         };
-        tx.insert(organizationInvitation).values(row).run();
+        /* Proof: removing this write's auditOnCreate(stamp) spread failed
+         * stamps every insert with auditOnCreate at its first missing-list equality
+         * (audit.test.ts:315:21); exact restoration passed. This proves the source
+         * scanner detects this omitted stamp, without claiming a database effect. */
+        tx.insert(organizationInvitation)
+          .values({ ...row, ...auditOnCreate(stamp) })
+          .run();
         return {
           ok: true,
           value: {

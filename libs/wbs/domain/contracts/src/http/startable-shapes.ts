@@ -58,7 +58,7 @@ const unfitLeaf = type({
     free: 'number',
     shortfall: 'number',
     // `wbs-shared-occupancy` S3: present only for a resource with a directory capacity.
-    'scope?': "'project' | 'organization'",
+    'scope?': "'work_package' | 'organization'",
   }),
 });
 const resourceFree = type({
@@ -92,22 +92,22 @@ const heldSubtree = type({
 });
 
 /**
- * The **Startable** steps of a project, grouped by leaf in tree order, and apart
+ * The **Startable** steps of a work package, grouped by leaf in tree order, and apart
  * the claimed steps of the same leaves, each with its assignee, and every
- * subtree claim of the project (`wbs-team-claims`, spec `startable-work`).
+ * subtree claim of the work package (`wbs-team-claims`, spec `startable-work`).
  * With `wbs-resources` R6 a leaf's steps are in `leaves` only when its demand
- * fits the project's free units now; otherwise in `doesNotFit` with the first
+ * fits the work package's free units now; otherwise in `doesNotFit` with the first
  * exhausted resource and its shortfall. `resources` lists every stated
  * capacity with its occupied and free units; an unstated capacity is not
- * listed and excludes nothing. Occupancy is counted within the project only.
+ * listed and excludes nothing. Occupancy is counted within the work package only.
  * `team` narrows the first two to one team's allotment. A caller
  * the tree read refuses is refused alike: an organization's viewer reads it,
- * a foreign or absent project is 404 `not_found`.
+ * a foreign or absent work package is 404 `not_found`.
  */
 export const readStartableWork = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/startable',
-  operationId: 'getApiProjectsByIdStartable',
+  path: '/api/work-packages/:id/startable',
+  operationId: 'getApiWorkPackagesByIdStartable',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: requestSchema(type({ id: 'string' })),
   query: requestSchema(type({ 'team?': 'string' })),
@@ -123,7 +123,7 @@ export const readStartableWork = defineEndpointShape({
           claimed: claimedStep.array(),
           subtreeClaims: heldSubtree.array(),
           'resources?': resourceFree.array(),
-          'occupancyScope?': "'project'",
+          'occupancyScope?': "'work_package'",
         }),
       ),
     },
@@ -144,6 +144,6 @@ export const readStartableWork = defineEndpointShape({
   document: {
     summary: 'List the steps a team may claim now, and the steps already claimed.',
     description:
-      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the project with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits now, exactly as a claim would decide: within the project’s stated capacities, and, for a resource with a directory capacity (the units that exist for the whole organization, set by setDirectoryCapacity), within what every project of the organization holds too; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, the shortfall, and, for a resource with a directory capacity, `scope` (project or organization: which count bound it). `resources` lists each resource the project states a capacity for with capacity, occupied and free units of this project; an unstated capacity is not listed. `occupancyScope: project` means each listed number is this project’s; the fit of a resource with a directory capacity also counts the other projects. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
+      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the work package with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits now, exactly as a claim would decide: within the work package’s stated capacities, and, for a resource with a directory capacity (the units that exist for the whole organization, set by setDirectoryCapacity), within what every work package of the organization holds too; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, the shortfall, and, for a resource with a directory capacity, `scope` (work package or organization: which count bound it). `resources` lists each resource the work package states a capacity for with capacity, occupied and free units of this work package; an unstated capacity is not listed. `occupancyScope: work package` means each listed number is this work package’s; the fit of a resource with a directory capacity also counts the other work packages. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiWorkPackagesByIdCommands kind claimWorkItem.',
   },
 });

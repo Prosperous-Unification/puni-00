@@ -15,7 +15,7 @@ afterEach(cleanup);
  * Both teams **unsized** globally, deliberately.
  *
  * `TeamView.size` is the retired column, read by nothing since
- * `capacity-per-project`. A fixture that carried numbers there would let every
+ * `capacity-per-work-package`. A fixture that carried numbers there would let every
  * assertion below pass against a build that still fell back to it — which is the
  * one wrong answer this change is most likely to be written with.
  */
@@ -27,7 +27,7 @@ const DESIGN: TeamView = { id: 't-design', name: 'Design', serviceIds: [] };
  * Everything the panel is given, with each call recorded.
  *
  * Rendered bare, without the modal around it: this suite is about what the
- * section sends and says, and `project-settings-modal.test.tsx` is about the
+ * section sends and says, and `work-package-settings-modal.test.tsx` is about the
  * shell — who opens it, who closes it, and what it refuses to close over. The
  * panel's contract with that shell, `onDirtyChange`, is recorded here so the
  * cases below can watch the panel keep it.
@@ -274,7 +274,7 @@ describe('stating how many of a team are at work at once on this plan', () => {
 
   itDom('has no Done: a box applies as it is left, like every section (F-060)', () => {
     // D7. Done was the one control here whose meaning was "keep this"; the
-    // modal's ✕ carries it now (`project-settings-modal.test.tsx`, `the ✕
+    // modal's ✕ carries it now (`work-package-settings-modal.test.tsx`, `the ✕
     // applies a typed capacity and closes once it lands`).
     stubbed();
     // Proof: on 2026-10-14, against the panel with its Done, this failed on `expected
@@ -331,7 +331,7 @@ describe('stating how many of a team are at work at once on this plan', () => {
 
 describe('what the section tells the modal it is holding', () => {
   itDom('reports a draft the moment it is typed, and withdraws it once it has landed', async () => {
-    // `project-config-modal` D3: the modal refuses to close while any section
+    // `work-package-config-modal` D3: the modal refuses to close while any section
     // says it holds something, and this is the section saying so. Clean on
     // mount, dirty from the first keystroke, clean again once be-01 has the
     // number and the plan has been reread.

@@ -3,11 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { checkClaimsRead } from '@/lib/wbs-api';
-import type { OpenProjectStream } from '@/modules/project/contract';
+import type { OpenWorkPackageStream } from '@/modules/work-package/contract';
 import { CLAIMED_AT, claimedPlan } from '@/testing/claims-fixture';
-import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { CLAIM_SLOT_PX } from './claim-chip';
@@ -21,7 +21,7 @@ const itDom = hasDom ? it : it.skip;
 publishApplicationRuntimeForEachTest();
 
 beforeEach(() => {
-  // The plan remembers its collapse per project, and every case here is `p1`.
+  // The plan remembers its collapse per work package, and every case here is `p1`.
   localStorage.clear();
 });
 
@@ -51,10 +51,10 @@ const chipsIn = (scope: Element): string[] =>
 const PAINT_SENTENCE =
   "Claimed by codex since 24 Oct 10:42, run r-7, under claire's claim on 010; lease 14 min left";
 
-function drawTable(api: Parameters<typeof projectServicesOf>[0]) {
+function drawTable(api: Parameters<typeof workPackageServicesOf>[0]) {
   return render(
     <AppFaultBoundary>
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />
     </AppFaultBoundary>,
   );
 }
@@ -466,8 +466,8 @@ describe('a renewal and a refused read (wbs-claim-display 6.1, C12)', () => {
     // Eve's lease: 3.5 minutes on the first read, 14.5 after her heartbeat.
     let minutes = 3.5;
     const read = api.readClaims.bind(api);
-    api.readClaims = async (projectId) => {
-      const answer = await read(projectId);
+    api.readClaims = async (workPackageId) => {
+      const answer = await read(workPackageId);
       return {
         ...answer,
         claims: answer.claims.map((claim) => ({
@@ -479,14 +479,14 @@ describe('a renewal and a refused read (wbs-claim-display 6.1, C12)', () => {
     let announce: () => void = () => {
       throw new Error('the plan never subscribed');
     };
-    const subscribe: OpenProjectStream = (_projectId, handlers) => {
+    const subscribe: OpenWorkPackageStream = (_work_packageId, handlers) => {
       announce = handlers.onClaims;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -521,7 +521,7 @@ describe('a renewal and a refused read (wbs-claim-display 6.1, C12)', () => {
       leaseRevokedAt: null,
     });
     const read = api.readClaims.bind(api);
-    api.readClaims = async (projectId) => checkClaimsRead(await read(projectId));
+    api.readClaims = async (workPackageId) => checkClaimsRead(await read(workPackageId));
     drawTable(api);
 
     await waitFor(() => {

@@ -32,7 +32,7 @@ export const auditOnCreate = (stamp: WriteStamp) => ({
 /**
  * {@link auditOnCreate} for a row whose table dates itself.
  *
- * Two tables and no more: `users` and `project` have carried a `NOT NULL`
+ * Two tables and no more: `users` and `workPackage` have carried a `NOT NULL`
  * `created_at` since they were written, supplied by the row object the service
  * builds. This fills the two columns they gained and leaves that one exactly
  * where it was, so neither table changes behaviour and neither ends up with two
@@ -79,13 +79,13 @@ export const AUDIT_COLUMN_NAMES = ['createdBy', 'updatedAt', 'updatedBy'] as con
  *
  * Every read in this folder names its columns instead, which is better — the
  * declared return type then checks the projection is complete. This exists for
- * the one read that cannot: `project.ts`'s `toProject` is generic over the row
+ * the one read that cannot: `work-package.ts`'s `toWorkPackage` is generic over the row
  * it maps, so it has no column list to name, and it spread the rest of the row
  * straight into its answer. `createdBy` — a user id — reached
- * `GET /api/projects/{id}` that way, under a JSDoc that cited this mapper as
+ * `GET /api/work-packages/{id}` that way, under a JSDoc that cited this mapper as
  * the reason it could not.
  *
- * `createdAt` stays: it is a published field of a project and predates the
+ * `createdAt` stays: it is a published field of a work package and predates the
  * audit columns by months.
  */
 export function withoutAuditColumns<T extends object>(

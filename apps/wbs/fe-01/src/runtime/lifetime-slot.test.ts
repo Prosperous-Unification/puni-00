@@ -338,7 +338,7 @@ describe('one lifetime’s ownership', () => {
     ]);
 
     // The loser is told it lost. Handing it the winner's services would be worse
-    // than throwing: a superseded project effect would publish another project's.
+    // than throwing: a superseded work package effect would publish another work package's.
     expect(outcomes[0].status).toBe('rejected');
     expect(outcomes[0].status === 'rejected' ? outcomes[0].reason : null).toBeInstanceOf(
       TransitionSupersededError,

@@ -558,7 +558,7 @@ export function useReferenceSets({ run, commands }: { run: RunPlanWrite; command
     [commands, run],
   );
 
-  /** Changes how the project turns its trios into one number, for everybody. */
+  /** Changes how the work package turns its trios into one number, for everybody. */
   const chooseEstimateMethod = useCallback(
     (method: EstimateMethod) => {
       void run((write) => write.perform(['tree'], () => commands.setEstimateMethod(method)));

@@ -3,8 +3,8 @@ import { chmod, link, mkdir, readdir, readFile, rename, rm, writeFile } from 'no
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import * as activationStorage from '@wbs/store-sqlite/cross-project-dependency-activation';
-import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-project-dependency-activation';
+import * as activationStorage from '@wbs/store-sqlite/cross-work-package-dependency-activation';
+import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-work-package-dependency-activation';
 import * as storeDatabase from '@wbs/store-sqlite/db';
 import {
   openDatabase,

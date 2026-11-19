@@ -1,4 +1,4 @@
-import type { StoredSavedPlan } from './saved-plan';
+import type { StoredSavedPlanBytes } from './saved-plan';
 
 /** A saved-plan write mutation available only to adapter-owned test factories. */
 export interface SavedPlanWriteFault {
@@ -6,7 +6,7 @@ export interface SavedPlanWriteFault {
   readonly targetId: string;
   readonly beforeRestart?: () => void;
   readonly afterRestart?: () => void;
-  readonly observeBoundary?: (stored: StoredSavedPlan) => void;
+  readonly observeBoundary?: (stored: StoredSavedPlanBytes) => void;
 }
 
 const savedPlanWriteFaults = new WeakMap<object, SavedPlanWriteFault>();

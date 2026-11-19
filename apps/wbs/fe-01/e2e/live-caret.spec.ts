@@ -1,6 +1,6 @@
-import { type BrowserContext, expect, type Locator, type Page, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { openOrdinaryContext } from './ordinary-context';
+import { type BrowserContext, expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * The caret, while somebody else edits the same plan — task 3.3 of
@@ -92,26 +92,26 @@ interface BoxState {
   sameElement: boolean;
 }
 
-/** Signs in through the fixed local identity, on a page with no project open. */
+/** Signs in through the fixed local identity, on a page with no work package open. */
 async function signIn(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 }
 
 /**
- * Opens an existing project by name, the way a second person would.
+ * Opens an existing work package by name, the way a second person would.
  *
- * The selected project is deliberately not in the URL and not remembered across
- * contexts (`project-page.tsx`), so the peer has to pick it off the bar. The
- * picker is clicked from the heading first for `project-picker.spec.ts`'s
+ * The selected work package is deliberately not in the URL and not remembered across
+ * contexts (`work-package-page.tsx`), so the peer has to pick it off the bar. The
+ * picker is clicked from the heading first for `work-package-picker.spec.ts`'s
  * reason: the list opens on the box taking the focus, and a box that already
  * has it fires no `focus` at all.
  */
-async function openProject(page: Page, name: string): Promise<void> {
+async function openWorkPackage(page: Page, name: string): Promise<void> {
   await page.getByRole('heading', { name: 'WBS tool v2' }).click();
-  const picker = page.getByRole('combobox', { name: 'Project' });
+  const picker = page.getByRole('combobox', { name: 'Work package' });
   await picker.click();
-  await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
+  await expect(page.getByRole('listbox', { name: 'Work packages' })).toBeVisible();
   await page
     .getByRole('option', { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`) })
     .click();
@@ -155,7 +155,7 @@ test.describe('a caret survives another session’s edit', () => {
   }) => {
     const plan = `Keep the caret ${String(Date.now())}`;
     await signIn(page);
-    await createProject(page, plan);
+    await createWorkPackage(page, plan);
 
     const addRow = page.getByRole('button', { name: 'Add work item' });
     await addRow.click();
@@ -168,17 +168,14 @@ test.describe('a caret survives another session’s edit', () => {
     // Explicit rather than inherited: a context made from the `browser` fixture
     // does not take the config's `use` options, so a peer built with
     // `newContext()` alone would have no `baseURL` to `goto('/')` against and a
-    // viewport of its own. The origin is read off the page under test so the
-    // pair stays on whatever `E2E_PORT_SHIFT` this run was given.
-    peerContext = await browser.newContext({
-      baseURL: new URL(page.url()).origin,
-      locale: 'en-US',
-      timezoneId: 'UTC',
+    // viewport of its own. The ordinary helper pins this run's captured
+    // origin and credential while allocating a distinct peer preference jar.
+    peerContext = await openOrdinaryContext(browser, {
       viewport: { width: 1400, height: 900 },
     });
     const peer = await peerContext.newPage();
     await signIn(peer);
-    await openProject(peer, plan);
+    await openWorkPackage(peer, plan);
     await expect(peer.getByLabel('Name of 010')).toHaveValue(SEEDED);
 
     // A real caret, put where a real one goes: the box is focused by a click,
@@ -270,9 +267,9 @@ test.describe('a caret survives another session’s edit', () => {
   test('a peer marker appears without disturbing the editor', async ({ browser, page }) => {
     const plan = `Keep the caret through a marker ${String(Date.now())}`;
     await signIn(page);
-    await createProject(page, plan);
+    await createWorkPackage(page, plan);
 
-    const start = page.getByLabel('Project start date');
+    const start = page.getByLabel('Work package start date');
     await start.fill('2026-09-07');
     await start.blur();
     await expect(start).toHaveValue('2026-09-07');
@@ -284,15 +281,12 @@ test.describe('a caret survives another session’s edit', () => {
     await page.getByRole('button', { name: 'Gantt', exact: true }).click();
     await expect(page.locator('[data-gantt-chart]')).toBeVisible();
 
-    peerContext = await browser.newContext({
-      baseURL: new URL(page.url()).origin,
-      locale: 'en-US',
-      timezoneId: 'UTC',
+    peerContext = await openOrdinaryContext(browser, {
       viewport: { width: 1400, height: 900 },
     });
     const peer = await peerContext.newPage();
     await signIn(peer);
-    await openProject(peer, plan);
+    await openWorkPackage(peer, plan);
     await peer.getByRole('button', { name: 'Gantt', exact: true }).click();
     await expect(peer.locator('[data-gantt-chart]')).toBeVisible();
 

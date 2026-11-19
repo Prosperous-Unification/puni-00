@@ -77,7 +77,7 @@ export interface ReconnectingWsHandle {
    *
    * The caller reports it because the caller is the one doing the reading, and
    * this socket advanced the tracker **on the frame** until 2026-09-02 —
-   * contradicting the rule fe-01's live `project-stream.ts` states and proves:
+   * contradicting the rule fe-01's live `work-package-stream.ts` states and proves:
    * "`onChange` may fail — the table swallows a failed refetch on purpose, to
    * keep the last good tree on screen — and a stream that advanced on the frame
    * rather than on the read would then resume past an edit nobody ever saw."

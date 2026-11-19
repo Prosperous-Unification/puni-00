@@ -15,7 +15,7 @@ import type { StoredAttempt } from './attempt-values';
 import type { CalendarMarker } from './calendar-marker-store';
 import type { DirectoryCatalogRows } from './directory-values';
 import type { MembershipRefusal } from './organization-access';
-import type { Project } from './project-values';
+import type { WorkPackage } from './work-package-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { EngineUnavailable, ScheduleRead } from './scheduler';
 import type { StoredStepBlockage } from './step-blockage-store';
@@ -23,29 +23,29 @@ import type { StoredStepParallel } from './step-parallel-store';
 import type { Step } from './step-values';
 import type { LabelledWorkItem } from './work-item-values';
 
-/** The entire protected read is refused; this outcome carries no project projection or cache value. */
+/** The entire protected read is refused; this outcome carries no work package projection or cache value. */
 export interface AccessRefused {
   readonly kind: 'access_refused';
   readonly refusal: MembershipRefusal;
 }
 
 export interface InfluencerRead {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly name: string;
   readonly engine: 'fast' | 'optimized';
   readonly unavailable: 'cycle' | 'calendar_range' | null;
 }
 
 /**
- * A work item in another project that holds the person a target slice waited for, named as that
- * project's own plan names it (CONTEXT "Elsewhere"), so a reader is told whom a bar waits for
- * without reading the holding project.
+ * A work item in another work package that holds the person a target slice waited for, named as that
+ * work package's own plan names it (CONTEXT "Elsewhere"), so a reader is told whom a bar waits for
+ * without reading the holding work package.
  */
 export interface ElsewhereHolderLabel {
-  readonly projectId: string;
-  readonly projectName: string;
+  readonly workPackageId: string;
+  readonly workPackageName: string;
   readonly workItemId: string;
-  /** The work item's derived number in its own project, as its plan prints it. */
+  /** The work item's derived number in its own work package, as its plan prints it. */
   readonly number: string;
   readonly name: string;
 }
@@ -59,7 +59,7 @@ export type ChainAccess =
 export type SharedPeopleRead =
   | { readonly kind: 'not_found' }
   | (EngineUnavailable & {
-      readonly projectId: string;
+      readonly workPackageId: string;
       readonly name: string;
       readonly reads: PlanInputReads;
     })
@@ -88,10 +88,10 @@ export type LivePlanRead =
       readonly kind: 'connected';
       readonly projection: ConnectedPlanProjection;
       readonly readiness: ConnectedReadiness;
-      readonly metadataByProject: ReadonlyMap<
+      readonly metadataByWorkPackage: ReadonlyMap<
         string,
         {
-          readonly project: Project;
+          readonly workPackage: WorkPackage;
           readonly steps: readonly Step[];
           readonly workItems: readonly LabelledWorkItem[];
           readonly attempts: readonly StoredAttempt[];
@@ -104,11 +104,11 @@ export type LivePlanRead =
       readonly kind: 'shared';
       readonly organizationId: string;
       readonly chain: Exclude<SharedPeopleRead, { readonly kind: 'not_found' }>;
-      readonly project: Project;
+      readonly workPackage: WorkPackage;
       readonly steps: Step[];
       readonly workItems: LabelledWorkItem[];
       /**
-       * Every attempt in the project, from the same observation as the rows:
+       * Every attempt in the work package, from the same observation as the rows:
        * live metadata the work-item read carries and no saved plan captures.
        */
       readonly attempts: readonly StoredAttempt[];
@@ -123,6 +123,8 @@ export type CapturedLocalPlan = Omit<Extract<LivePlanRead, { kind: 'shared' }>, 
 
 /** Private structured-export evidence: directory closure, markers and unsupported sparse facts. */
 export interface PlanDocumentReads {
+  /** Required parent metadata, captured beside the package and tree in this observation. */
+  readonly project: { readonly id: string; readonly name: string };
   readonly stepParallels: readonly StoredStepParallel[];
   readonly directory: {
     readonly teams: DirectoryCatalogRows['teams'];
@@ -136,7 +138,7 @@ export interface PlanDocumentReads {
   /**
    * The resource facts the document carries (`wbs-resources`): the resources
    * the caller's directory holds, from which the export takes the closure its
-   * capacities and demands name, and the project's capacities and demands.
+   * capacities and demands name, and the work package's capacities and demands.
    */
   readonly resources: {
     readonly resources: readonly Resource[];
@@ -144,7 +146,7 @@ export interface PlanDocumentReads {
     readonly demands: readonly Demand[];
   };
   /**
-   * The project's measures as stored (`wbs-measure-budgets` design D63): the
+   * The work package's measures as stored (`wbs-measure-budgets` design D63): the
    * definitions of its organization (null when none owns it), every stored
    * fact with its basis, every trio and every stated budget. Version 11
    * writes them, every list empty when the plan holds none (design D71).
@@ -162,16 +164,17 @@ export interface MeasureReads {
 
 /** Export-purpose evidence is private to core callers, never part of the public tree payload. */
 export type LivePlanExportRead =
-  | Exclude<LivePlanRead, { kind: 'shared' | 'connected' }>
+  | Exclude<LivePlanRead, { kind: 'isolated' | 'shared' | 'connected' }>
+  | (CapturedLocalPlan & { readonly document: PlanDocumentReads })
   | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads })
   | (Extract<LivePlanRead, { kind: 'connected' }> & {
-      readonly projectId: string;
+      readonly workPackageId: string;
       readonly document: PlanDocumentReads;
     });
 
 /**
  * One detached aggregate observation. Component members share one captured read
- * but select their own explicit projectId. Connected entries bypass persistent
+ * but select their own explicit workPackageId. Connected entries bypass persistent
  * consumer caches with a null basis; reuse lasts only for this observation.
  */
 export type LivePlanAggregate =
@@ -180,7 +183,7 @@ export type LivePlanAggregate =
   | {
       readonly kind: 'isolated-connected';
       readonly entries: readonly {
-        readonly projectId: string;
+        readonly workPackageId: string;
         readonly rank: number;
         readonly basis: null;
         readonly plan: Extract<LivePlanRead, { kind: 'connected' }> | CapturedLocalPlan;
@@ -189,7 +192,7 @@ export type LivePlanAggregate =
   | {
       readonly kind: 'shared';
       readonly entries: readonly {
-        readonly projectId: string;
+        readonly workPackageId: string;
         readonly rank: number;
         readonly basis: string | null;
         readonly plan: Extract<LivePlanRead, { kind: 'shared' | 'connected' }>;

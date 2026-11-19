@@ -79,10 +79,10 @@ export function buildConnectedSolverRequest(
     };
   }
   if (stage.input.order.kind !== 'connected') throw new Error('connected stage has local order');
-  const ownership = stage.input.order.projectIdByWorkItem;
-  const ownRows = stage.input.rows.filter((row) => ownership.get(row.id) === stage.projectId);
+  const ownership = stage.input.order.workPackageIdByWorkItem;
+  const ownRows = stage.input.rows.filter((row) => ownership.get(row.id) === stage.workPackageId);
   const ownSlices = stage.input.slices.filter(
-    (slice) => ownership.get(slice.workItemId) === stage.projectId,
+    (slice) => ownership.get(slice.workItemId) === stage.workPackageId,
   );
   if (ownSlices.length === 0) throw new Error('empty connected stage spawns nothing');
   const allIndex = indexTree(stage.input.rows);
@@ -101,8 +101,8 @@ export function buildConnectedSolverRequest(
   const edges: SolverEdge[] = [];
   for (const edge of stage.input.graph.edges) {
     if (
-      ownership.get(edge.predecessor.leafId) !== stage.projectId ||
-      ownership.get(edge.successor.leafId) !== stage.projectId
+      ownership.get(edge.predecessor.leafId) !== stage.workPackageId ||
+      ownership.get(edge.successor.leafId) !== stage.workPackageId
     )
       continue;
     const predecessor = graphSlice(edge.predecessor.leafId, edge.predecessor.at);
@@ -139,22 +139,22 @@ export function buildConnectedSolverRequest(
   const occupancy: SolverConnectedScope['occupancy'][number][] = [];
   const elsewhere = new Map<string, ElsewhereBooking[]>();
   for (const slice of stage.input.slices) {
-    const projectId = ownership.get(slice.workItemId);
-    if (projectId === undefined) throw new Error(`slice ${slice.workItemId} has no owner`);
-    if (projectId === stage.projectId) continue;
+    const workPackageId = ownership.get(slice.workItemId);
+    if (workPackageId === undefined) throw new Error(`slice ${slice.workItemId} has no owner`);
+    if (workPackageId === stage.workPackageId) continue;
     const key = sliceKey(slice.workItemId, slice.stepId);
     const start = stage.starts.get(key);
     const finish = stage.finishes.get(key);
     if (start === undefined || finish === undefined)
       throw new Error(`fixed slice ${key} has no placement`);
-    fixed.push({ projectId: projectId, key, start, finish });
+    fixed.push({ projectId: workPackageId, key, start, finish });
     if (stage.mode !== 'shared' || slice.personId === null || finish <= start) continue;
     // Proof: omitting the holder while leaving the booking in place made the
     // provenance assertion fail (11 pass / 1 fail).
-    occupancy.push({ personId: slice.personId, projectId: projectId, key, start, finish });
+    occupancy.push({ personId: slice.personId, projectId: workPackageId, key, start, finish });
     if (namedLocalPeople.has(slice.personId)) {
       const bookings = elsewhere.get(slice.personId) ?? [];
-      bookings.push({ start, end: finish, projectId, workItemId: slice.workItemId });
+      bookings.push({ start, end: finish, workPackageId, workItemId: slice.workItemId });
       elsewhere.set(slice.personId, bookings);
     }
   }
@@ -238,12 +238,12 @@ export function buildConnectedSolverRequest(
     elsewhere: bookings.wire,
     scope: {
       kind: 'connected-stage',
-      projectId: stage.projectId,
+      projectId: stage.workPackageId,
       inputHash: identity.inputHash,
       questionHash: identity.questionHash,
       originOrdinal: stage.originOrdinal,
-      projects: stage.projects.map((entry) => ({
-        projectId: entry.projectId,
+      projects: stage.workPackages.map((entry) => ({
+        projectId: entry.workPackageId,
         rank: entry.rank,
         anchorOrdinal: entry.anchorOrdinal,
       })),

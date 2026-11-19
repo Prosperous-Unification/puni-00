@@ -69,7 +69,7 @@ test('prepares normalized names, indexes and leaf values', () => {
 
 const fieldFaults: readonly (readonly [string, Fault, string, string])[] = [
   [
-    'blank project name',
+    'blank work package name',
     (body) => {
       body.settings.name = '   ';
     },
@@ -77,7 +77,7 @@ const fieldFaults: readonly (readonly [string, Fault, string, string])[] = [
     'settings.name',
   ],
   [
-    'invalid project start',
+    'invalid work package start',
     (body) => {
       body.settings.startDate = '2026-02-31';
     },
@@ -538,7 +538,7 @@ test('deadline before day zero is refused', () => {
   at(body.workItems).deadline = '2026-09-13';
   expect(prepareImport(body, supportsAll)).toMatchObject({
     ok: false,
-    code: 'deadline_before_project_start',
+    code: 'deadline_before_work_package_start',
     path: 'workItems[0].deadline',
   });
 });
@@ -862,17 +862,17 @@ for (const [name, fault, expected] of [
   });
 }
 
-function externalRelationship(id: string, projectId = 'remote') {
+function externalRelationship(id: string, workPackageId = 'remote') {
   return {
     id,
     type: 'FS' as const,
     predecessor: {
       kind: 'external' as const,
       scope: 'whole' as const,
-      projectId,
+      workPackageId,
       workItemId: 'prerequisite',
       display: {
-        projectName: 'Remote',
+        workPackageName: 'Remote',
         abbreviation: 'REM',
         workItemName: 'Prerequisite',
         address: 'REM.1',
@@ -927,9 +927,9 @@ test('refuses semantic duplicates introduced by explicit destination mappings', 
     externalRelationship('first', 'source-a'),
     externalRelationship('second', 'source-b'),
   ];
-  document.externalMappings = ['source-a', 'source-b'].map((projectId) => ({
-    source: { scope: 'whole', projectId, workItemId: 'prerequisite' },
-    destination: { scope: 'whole', projectId: 'destination', workItemId: 'mapped' },
+  document.externalMappings = ['source-a', 'source-b'].map((workPackageId) => ({
+    source: { scope: 'whole', workPackageId, workItemId: 'prerequisite' },
+    destination: { scope: 'whole', workPackageId: 'destination', workItemId: 'mapped' },
   }));
   expect(prepareImport(document, supportsAll)).toMatchObject({
     ok: false,
@@ -949,7 +949,7 @@ test('preserves distinct mapped scopes and original source identities', () => {
   expect(prepared.ok).toBe(true);
   if (!prepared.ok) throw new Error('valid external preparation refused');
   expect(
-    prepared.value.externalDependencies.map(({ predecessor }) => predecessor.projectId),
+    prepared.value.externalDependencies.map(({ predecessor }) => predecessor.workPackageId),
   ).toEqual(['source-a', 'source-b']);
 });
 
@@ -957,8 +957,8 @@ test('final scoped tuple comparison detects collisions across declaration arms',
   const relationship = {
     path: 'typedDependencies[0]',
     type: 'FS' as const,
-    predecessor: { scope: 'whole' as const, projectId: 'destination', workItemId: 'mapped' },
-    successor: { scope: 'whole' as const, projectId: 'new-owner', workItemId: 'new-row' },
+    predecessor: { scope: 'whole' as const, workPackageId: 'destination', workItemId: 'mapped' },
+    successor: { scope: 'whole' as const, workPackageId: 'new-owner', workItemId: 'new-row' },
   };
   expect(
     findImportDependencyDuplicate([
@@ -970,13 +970,16 @@ test('final scoped tuple comparison detects collisions across declaration arms',
   expect(
     findImportDependencyDuplicate([
       relationship,
-      { ...relationship, successor: { ...relationship.successor, projectId: 'other-owner' } },
+      { ...relationship, successor: { ...relationship.successor, workPackageId: 'other-owner' } },
     ]),
   ).toBeNull();
   expect(
     findImportDependencyDuplicate([
       relationship,
-      { ...relationship, predecessor: { ...relationship.predecessor, projectId: 'other-project' } },
+      {
+        ...relationship,
+        predecessor: { ...relationship.predecessor, workPackageId: 'other-work-package' },
+      },
     ]),
   ).toBeNull();
 });

@@ -120,7 +120,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const search = useDependencySearch({
         lookup: live.current.dependencyLookup,
-        projectId: live.current.projectId,
+        workPackageId: live.current.workPackageId,
         ownerId: row.original.id,
         active: picker !== null,
         typed: picker?.typed ?? '',
@@ -169,7 +169,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       // and the mark is this cell saying so before the click rather than
       // after it.
       const pickable = entries.filter(
-        (entry) => entry.kind === 'project' || entry.refusal === undefined,
+        (entry) => entry.kind === 'work_package' || entry.refusal === undefined,
       );
       // Resolved by id at render, so a highlight whose row has left the
       // list — or has since become one be-01 would refuse — is simply
@@ -852,7 +852,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     first === undefined
                       ? null
                       : encodeDependencyEndpoint({
-                          projectId: live.current.projectId,
+                          workPackageId: live.current.workPackageId,
                           workItemId: first.id,
                           scope: 'whole',
                         }),
@@ -978,7 +978,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 e.preventDefault();
                 const typed = picker?.typed ?? e.currentTarget.value;
                 if (activeOption !== undefined) {
-                  if (activeOption.kind === 'project') search.chooseProject(activeOption.project);
+                  if (activeOption.kind === 'work_package')
+                    search.chooseWorkPackage(activeOption.workPackage);
                   else choose(activeOption);
                   return;
                 }
@@ -1027,10 +1028,10 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     key={editorSession.current.generation}
                     selection={editing.selection}
                     lookup={live.current.dependencyLookup}
-                    ownerProjectId={live.current.projectId}
+                    ownerWorkPackageId={live.current.workPackageId}
                     ownerId={row.original.id}
                     successor={buildLocalDependencyEditor(
-                      live.current.projectId,
+                      live.current.workPackageId,
                       row.original,
                       dependencyRows,
                       dependencySteps,
@@ -1051,8 +1052,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                         .run((write) =>
                           write.perform(['tree'], () =>
                             live.current.commands.addTypedDependency(
-                              serializeDependencyEndpoint(source, live.current.projectId),
-                              serializeDependencyEndpoint(target, live.current.projectId),
+                              serializeDependencyEndpoint(source, live.current.workPackageId),
+                              serializeDependencyEndpoint(target, live.current.workPackageId),
                               type,
                             ),
                           ),
@@ -1114,11 +1115,11 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     key={`${dependency.id}:${String(editorSession.current.generation)}`}
                     dependency={dependency}
                     lookup={live.current.dependencyLookup}
-                    ownerProjectId={live.current.projectId}
+                    ownerWorkPackageId={live.current.workPackageId}
                     successor={
-                      dependency.successor.projectId === live.current.projectId
+                      dependency.successor.workPackageId === live.current.workPackageId
                         ? buildPersistedSuccessorEditor(
-                            live.current.projectId,
+                            live.current.workPackageId,
                             dependency.successor,
                             dependencyRows,
                             dependencySteps,
@@ -1128,7 +1129,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     onClose={close}
                     onSave={
                       // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted desktop, 2026-10-23).
-                      dependency.successor.projectId === live.current.projectId
+                      dependency.successor.workPackageId === live.current.workPackageId
                         ? (type, target, source) =>
                             live.current.run((write) =>
                               write.perform(['tree'], () =>
@@ -1138,10 +1139,13 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                                   source === undefined
                                     ? serializePersistedDependencyEndpoint(
                                         dependency.predecessor,
-                                        live.current.projectId,
+                                        live.current.workPackageId,
                                       )
-                                    : serializeDependencyEndpoint(source, live.current.projectId),
-                                  serializeDependencyEndpoint(target, live.current.projectId),
+                                    : serializeDependencyEndpoint(
+                                        source,
+                                        live.current.workPackageId,
+                                      ),
+                                  serializeDependencyEndpoint(target, live.current.workPackageId),
                                   type,
                                 ),
                               ),
@@ -1171,7 +1175,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 );
               return (
                 <TypedDependencyEditor
-                  projectId={live.current.projectId}
+                  workPackageId={live.current.workPackageId}
                   // Proof: removing this key made `switching edit targets shows the newly selected relationship scopes` keep Whole instead of Dev; watched 2026-09-28.
                   key={`${editing.dependencyId ?? `add:${editing.predecessorId}`}:${String(editorSession.current.generation)}`}
                   predecessor={predecessor}

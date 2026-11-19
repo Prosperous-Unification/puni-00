@@ -61,7 +61,7 @@ export interface DeliveredPlan {
  * no call on it ever throws a lifecycle refusal. Whether a publication may still
  * reach it is the feed's question, answered before it writes — see
  * `plan-feed.feature.ts`'s `isLive`. Its owner today is the table's mount; the
- * project runtime of OpenSpec task 10 takes it over.
+ * work package runtime of OpenSpec task 10 takes it over.
  */
 export interface DeliveredPlanStore extends Store<DeliveredPlan> {
   /** Folds one publication in. */

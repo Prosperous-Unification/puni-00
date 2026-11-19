@@ -201,7 +201,7 @@ export interface NamedEntry {
  * writers be pure.
  */
 export interface PlanExport {
-  projectName: string;
+  workPackageName: string;
   /**
    * When this export was taken, as the caller's clock said it.
    *

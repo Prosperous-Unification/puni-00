@@ -18,8 +18,8 @@ const itDom = hasDom ? it : it.skip;
  * `openspec/changes/header-fits-a-row/verify.md`.
  *
  * **It opens no socket, since 2026-09-02.** The four cases that were about
- * frames — the `subscribe` before the `who`, the socket per project, the closed
- * connection that started no other — moved to `lib/project-stream.test.ts`,
+ * frames — the `subscribe` before the `who`, the socket per work package, the closed
+ * connection that started no other — moved to `lib/work-package-stream.test.ts`,
  * which is where the socket is now: the roster rides the plan's own stream, so
  * a browser holds one connection rather than two. `StillSocket`, the
  * `globalThis.WebSocket` swap and the `act` wrappers went with them, and what is

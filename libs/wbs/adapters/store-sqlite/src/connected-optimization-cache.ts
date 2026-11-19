@@ -56,7 +56,7 @@ export type ConnectedOutcomeToStore =
 
 // Proof: removing question validation failed `malformed request identity cannot become a cache miss`.
 function requireQuestion(question: ConnectedQuestion): void {
-  const { projectId, inputHash, objective, contractVersion, budgetMs, quantum, wireVersion } =
+  const { workPackageId, inputHash, objective, contractVersion, budgetMs, quantum, wireVersion } =
     question;
   if (
     hashConnectedBytes(question.stageBytes) !== inputHash ||
@@ -64,7 +64,7 @@ function requireQuestion(question: ConnectedQuestion): void {
     wireVersion !== 5 ||
     hashConnectedBytes(
       JSON.stringify([
-        projectId,
+        workPackageId,
         inputHash,
         objective,
         contractVersion,
@@ -84,7 +84,7 @@ function requireCorrespondence(
   bytes: string,
 ): void {
   for (const field of [
-    'projectId',
+    'workPackageId',
     'inputHash',
     'objective',
     'contractVersion',
@@ -102,9 +102,10 @@ function requireCorrespondence(
 // Proof: removing each key predicate failed `isolates cache lookup by <field>`; objective failed the local-envelope isolation case.
 function cachePredicate(question: ConnectedQuestion) {
   return and(
-    eq(optimizedScheduleCache.projectId, question.projectId),
+    eq(optimizedScheduleCache.workPackageId, question.workPackageId),
     eq(optimizedScheduleCache.inputHash, question.inputHash),
     eq(optimizedScheduleCache.objective, question.objective),
+    // Proof: cache19-success-contract removes this predicate; 'current19 connected success excludes equal-hash contract18 before payload decoding' returned corrupt instead of miss, then restored GREEN.
     eq(optimizedScheduleCache.contractVersion, question.contractVersion),
     eq(optimizedScheduleCache.budgetMs, question.budgetMs),
   );
@@ -112,9 +113,10 @@ function cachePredicate(question: ConnectedQuestion) {
 // Proof: each removed key predicate failed its isolation case; objective failed the fractional retained roundtrip.
 function certificatePredicate(question: ConnectedQuestion) {
   return and(
-    eq(optimizationBoundaryCertificate.projectId, question.projectId),
+    eq(optimizationBoundaryCertificate.workPackageId, question.workPackageId),
     eq(optimizationBoundaryCertificate.inputHash, question.inputHash),
     eq(optimizationBoundaryCertificate.objective, question.objective),
+    // Proof: cache19-certificate-contract removes this predicate; 'current19 connected certificate excludes equal-hash contract18 before payload decoding' parsed deliberately unreadable old evidence in readOutcome, then restored GREEN. This proves lookup-before-decode, not a JSON validator.
     eq(optimizationBoundaryCertificate.contractVersion, question.contractVersion),
     eq(optimizationBoundaryCertificate.budgetMs, question.budgetMs),
   );
@@ -188,7 +190,7 @@ export function readConnectedOptimizationPair(
 ) {
   const { pri, time } = ask.questions;
   if (
-    pri.projectId !== time.projectId ||
+    pri.workPackageId !== time.workPackageId ||
     pri.contractVersion !== time.contractVersion ||
     pri.inputHash !== time.inputHash ||
     pri.stageBytes !== time.stageBytes ||
@@ -197,7 +199,7 @@ export function readConnectedOptimizationPair(
     time.objective !== 'time'
   )
     throw new Error('connected pair questions differ');
-  const current = readGeneration(db, pri.projectId, pri.contractVersion);
+  const current = readGeneration(db, pri.workPackageId, pri.contractVersion);
   return {
     generation: current?.generation ?? null,
     generationInputHash: current?.inputHash ?? null,
@@ -218,7 +220,7 @@ export function storeConnectedOptimizationOutcomeIn(
   const { claim, question, outcome } = write;
   requireQuestion(question);
   if (
-    claim.projectId !== question.projectId ||
+    claim.workPackageId !== question.workPackageId ||
     claim.objective !== question.objective ||
     claim.contractVersion !== question.contractVersion ||
     claim.budgetMs !== question.budgetMs
@@ -227,7 +229,9 @@ export function storeConnectedOptimizationOutcomeIn(
   const held = currentOutcomeWriter(tx, claim, write.admittedCancelEpoch, write.now);
   if (held === null) return 'superseded';
   // Proof: removing this fence stored stale evidence in `fences changed input hash without generation change`.
-  if (readGeneration(tx, claim.projectId, claim.contractVersion)?.inputHash !== question.inputHash)
+  if (
+    readGeneration(tx, claim.workPackageId, claim.contractVersion)?.inputHash !== question.inputHash
+  )
     return 'superseded';
   let payload: string | null = null;
   if (outcome.kind === 'ok') {

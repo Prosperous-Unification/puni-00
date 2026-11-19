@@ -14,17 +14,19 @@ it('refuses changing a memory step unit while estimates remain', async () => {
   });
   const steps = inMemorySteps(
     [],
-    memoryStepTable([stepRow({ id: 'agent', projectId: 'project' })]),
+    memoryStepTable([stepRow({ id: 'agent', workPackageId: 'work_package' })]),
     estimates,
   );
-  expect(await steps.patchUnit('project', 'agent', 'minutes', { at: 1, by: 'owner' })).toEqual({
-    ok: false,
-    reason: 'estimates_present',
-    count: 1,
-  });
+  expect(await steps.patchUnit('work_package', 'agent', 'minutes', { at: 1, by: 'owner' })).toEqual(
+    {
+      ok: false,
+      reason: 'estimates_present',
+      count: 1,
+    },
+  );
   expect(await steps.findById('agent')).toMatchObject({ estimateUnit: 'workdays' });
   estimates.rows.splice(0);
   expect(
-    await steps.patchUnit('project', 'agent', 'minutes', { at: 1, by: 'owner' }),
+    await steps.patchUnit('work_package', 'agent', 'minutes', { at: 1, by: 'owner' }),
   ).toMatchObject({ ok: true, step: { estimateUnit: 'minutes' } });
 });

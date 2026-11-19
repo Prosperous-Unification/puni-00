@@ -13,6 +13,7 @@ import {
 } from '@wbs/contracts';
 import type { Permission } from '@wbs/domain';
 
+import { AnnouncementCollector } from '../ports/announcement-collector';
 import type { RefusedOrganizationAccess, ResourceAccess } from '../ports/organization-access';
 import type { OrganizationAccess } from '../ports/organization-access';
 import {
@@ -37,14 +38,14 @@ const REFUSED = {
 } as const;
 
 /**
- * The distinct ids of a `projectIds` query, or null when it names none or more
+ * The distinct ids of a `workPackageIds` query, or null when it names none or more
  * than {@link ROLL_UPS_PER_REQUEST}: a typed 400 before anything is computed.
  *
  * Proof, observed 2026-09-29: with the limit check removed, `refuses 51
- * project ids with 400 and computes nothing` in
+ * workPackage ids with 400 and computes nothing` in
  * `space-organization.controller.db.test.ts` received 404 instead of 400.
  */
-function projectIdsOf(query: string): string[] | null {
+function workPackageIdsOf(query: string): string[] | null {
   const ids = [...new Set(query.split(',').filter((id) => id !== ''))];
   return ids.length === 0 || ids.length > ROLL_UPS_PER_REQUEST ? null : ids;
 }
@@ -67,7 +68,7 @@ function limitOf(query: string | undefined): number | null {
 }
 
 /** Narrowed by the refusals the calling method can answer, so each route declares only those. */
-const refused = <R extends SpaceRefusal>(
+const refused = <R extends Exclude<SpaceRefusal, 'project_in_other_space'>>(
   refusal: R,
   permission?: Permission,
 ): (typeof REFUSED)[R] => ({
@@ -83,7 +84,7 @@ const refused = <R extends SpaceRefusal>(
 export function spaceRoutes(
   spaces: SpaceResource,
   organizations: OrganizationAccess,
-  boundary: Pick<RecoveryWriteBoundary, 'uow' | 'commandAccess'>,
+  boundary: Pick<RecoveryWriteBoundary, 'uow' | 'commandAccess' | 'announcements'>,
 ) {
   const write = async <T extends { readonly ok: boolean }>(
     actor: AuthenticatedUser,
@@ -92,7 +93,8 @@ export function spaceRoutes(
   ): Promise<T | { readonly ok: false; readonly authority: RefusedOrganizationAccess }> => {
     actor = structuredClone(actor);
     expectedAccess = structuredClone(expectedAccess);
-    return boundary.uow.run<
+    const announcements = new AnnouncementCollector(boundary.announcements);
+    const outcome = await boundary.uow.run<
       T | { readonly ok: false; readonly authority: RefusedOrganizationAccess }
     >(async (scope) => {
       const resolved = await boundary.commandAccess.resolve({
@@ -112,12 +114,14 @@ export function spaceRoutes(
       if (borrowed === undefined) throw new Error('space writer lacks its borrowed store');
       // Proof: space-no-default-grants fault failed 'real space route closed when the admitted accessDecisions' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
       const outcome = await act(
-        spaces.over(borrowed, scope.stores.accessDecisions),
+        spaces.over(borrowed, scope.stores.accessDecisions, scope.stores.settings, announcements),
         resolved.access,
         actor.id,
       );
       return { commit: outcome.ok, value: outcome };
     });
+    if (outcome.ok) await announcements.send();
+    return outcome;
   };
   return [
     bind(listSpaces, async ({ principal }) => {
@@ -159,11 +163,17 @@ export function spaceRoutes(
         : refused(outcome.refusal, outcome.permission);
     }),
     bind(readSpaceRollUps, async ({ params, query, principal }) => {
-      const projectIds = projectIdsOf(query.projectIds);
-      if (projectIds === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
+      const workPackageIds = workPackageIdsOf(query.workPackageIds);
+      if (workPackageIds === null)
+        return { ok: false, status: 400, body: { error: 'invalid_query' } };
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await spaces.rollUps(principal.id, resolved.access, params.id, projectIds);
+      const outcome = await spaces.rollUps(
+        principal.id,
+        resolved.access,
+        params.id,
+        workPackageIds,
+      );
       if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok
         ? { ok: true, status: 200, body: { rollUps: outcome.value } }
@@ -194,8 +204,8 @@ export function spaceRoutes(
     bind(removeSpace, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await write(principal, resolved.access, (writer, access) =>
-        writer.remove(access, params.id),
+      const outcome = await write(principal, resolved.access, (writer, access, actorId) =>
+        writer.remove(actorId, access, params.id),
       );
       if ('authority' in outcome) return organizationRefusal(outcome.authority);
       return outcome.ok
@@ -209,6 +219,12 @@ export function spaceRoutes(
         writer.addProject(actorId, access, params.id, body.projectId, body.afterProjectId ?? null),
       );
       if ('authority' in outcome) return organizationRefusal(outcome.authority);
+      if (!outcome.ok && outcome.refusal === 'project_in_other_space')
+        return {
+          ok: false,
+          status: 409,
+          body: { error: outcome.refusal, spaceId: outcome.spaceId },
+        };
       return outcome.ok
         ? { ok: true, status: 201, body: { position: outcome.value } }
         : refused(outcome.refusal, outcome.permission);

@@ -4,12 +4,13 @@ import { join } from 'node:path';
 
 import { stepParallelConformance } from '@wbs/conformance';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 let directory: string;
 let source: ReturnType<typeof openSqliteSource>;
@@ -18,6 +19,7 @@ beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), 'step-parallel-'));
   const path = join(directory, 'plan.db');
   runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -25,15 +27,19 @@ beforeEach(async () => {
   const { stores } = source;
   await stores.users.create({ id: 'u', username: 'u', passwordHash: 'x', createdAt: 1 }, stamp);
   for (const id of ['p', 'foreign']) {
-    await stores.projects.create(projectRow({ id, ownerId: 'u' }), [], stamp);
+    await stores.workPackages.create(
+      workPackageRow({ id, projectId: 'fixture-project' }),
+      [],
+      stamp,
+    );
   }
-  for (const [id, projectId, name] of [
+  for (const [id, workPackageId, name] of [
     ['dev', 'p', 'Dev'],
     ['qa', 'p', 'QA'],
     ['foreign', 'foreign', 'Foreign'],
   ] as const)
     await stores.steps.add(
-      { id, projectId, name, allowancePercent: 0, estimateUnit: 'workdays' },
+      { id, workPackageId, name, allowancePercent: 0, estimateUnit: 'workdays' },
       stamp,
     );
   for (const [id, parentId] of [
@@ -41,7 +47,7 @@ beforeEach(async () => {
     ['parent', null],
     ['child', 'parent'],
   ] as const)
-    await stores.workItems.insert(workItemRow({ id, parentId, projectId: 'p' }), [], stamp);
+    await stores.workItems.insert(workItemRow({ id, parentId, workPackageId: 'p' }), [], stamp);
 });
 afterEach(async () => {
   await source.close();

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 let harness: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 beforeEach(async () => {
   harness = OrganizationHarness.openComposed();
   await harness.register('actor');
@@ -10,17 +10,19 @@ beforeEach(async () => {
   harness.member('org', 'actor', 'viewer', ['org-admin']);
   harness.bind('actor', 'org');
   harness.activate();
-  const created = await harness.call('actor', 'POST', '/api/projects', { name: 'Catalogue proof' });
+  const created = await harness.call('actor', 'POST', '/api/work-packages', {
+    name: 'Catalogue proof',
+  });
   expect(created.status).toBe(200);
-  projectId = (created.body as { project: { id: string } }).project.id;
-  harness.grant('org', 'actor', 'package-manager', 'work_package', projectId);
+  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  harness.grant('org', 'actor', 'package-manager', 'work_package', workPackageId);
   harness.sqlite.run(
     "DELETE FROM access_grant WHERE organization_id='org' AND scope_kind='organization' AND subject_kind='user' AND subject_id=? AND role_id='org-admin'",
     [harness.userId('actor')],
   );
   expect(
     (
-      await harness.call('actor', 'PATCH', '/api/projects/' + projectId, {
+      await harness.call('actor', 'PATCH', '/api/work-packages/' + workPackageId, {
         name: 'Sufficient package grant',
       })
     ).status,
@@ -37,7 +39,7 @@ for (const fault of [
   'invalid-flag',
 ] as const) {
   it(
-    'refuses a mounted project mutation on selected ' +
+    'refuses a mounted work package mutation on selected ' +
       fault +
       ' beside sufficient package authority',
     async () => {
@@ -78,7 +80,7 @@ for (const fault of [
         harness.sqlite.run("DELETE FROM access_role_permission WHERE role_id='selected-corrupt'");
       const snapshot = () =>
         [
-          'project',
+          'work_package',
           'step',
           'work_item',
           'access_role',
@@ -95,7 +97,7 @@ for (const fault of [
         undefined,
       );
       try {
-        const answer = await harness.call('actor', 'PATCH', '/api/projects/' + projectId, {
+        const answer = await harness.call('actor', 'PATCH', '/api/work-packages/' + workPackageId, {
           name: 'Must not write',
         });
         expect(answer.status).toBe(500);

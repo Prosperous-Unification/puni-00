@@ -174,7 +174,7 @@ describe('machine grants at boot', () => {
     expect(issued.status).toBe(200);
     const { grant } = (await issued.json()) as { grant: string };
     const listed = await app.handle(
-      new Request('http://localhost/api/projects', {
+      new Request('http://localhost/api/work-packages', {
         headers: { authorization: `Bearer ${grant}`, [MCP_INTERNAL_SECRET_HEADER]: SECRET },
       }),
     );

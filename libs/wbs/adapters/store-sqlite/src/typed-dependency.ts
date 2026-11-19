@@ -11,7 +11,7 @@ import {
   isRelationshipType,
   type ScopedDependencyEndpoint,
 } from '@wbs/domain';
-import { eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
@@ -20,12 +20,14 @@ import { bumpWorkItems } from './revision';
 import {
   externalDependency,
   type ExternalDependencyRow,
-  project,
-  projectOrganization,
-  step,
+  organization,
+  stepDefinition,
+  workPackageStep,
   typedDependency,
   type TypedDependencyRow,
   workItem,
+  workPackage,
+  workPackageOrganization,
 } from './schema';
 
 /**
@@ -43,7 +45,7 @@ function readEndpoint(
   workItemId: string,
   scope: string,
   stepId: string | null,
-  projectId: string,
+  workPackageId: string,
 ): ScopedDependencyEndpoint {
   if (!isDependencyEndpointScope(scope)) {
     throw new Error(`typed dependency ${rowId} has unknown ${end} scope ${scope}`);
@@ -51,11 +53,11 @@ function readEndpoint(
   if (scope === 'whole') {
     if (stepId !== null)
       throw new Error(`typed dependency ${rowId} has a whole ${end} with a step`);
-    return { scope, workItemId, projectId };
+    return { scope, workItemId, workPackageId };
   }
   if (stepId === null)
     throw new Error(`typed dependency ${rowId} has a ${scope} ${end} without a step`);
-  return { scope, workItemId, stepId, projectId };
+  return { scope, workItemId, stepId, workPackageId };
 }
 
 /** Validates stored discriminants when SQLite rows cross into the domain. */
@@ -68,14 +70,14 @@ export function readTypedDependency(row: TypedDependencyRow): StoredTypedDepende
   }
   return {
     id: row.id,
-    projectId: row.projectId,
+    workPackageId: row.workPackageId,
     predecessor: readEndpoint(
       row.id,
       'predecessor',
       row.predecessorWorkItemId,
       row.predecessorScope,
       row.predecessorStepId,
-      row.projectId,
+      row.workPackageId,
     ),
     successor: readEndpoint(
       row.id,
@@ -83,7 +85,7 @@ export function readTypedDependency(row: TypedDependencyRow): StoredTypedDepende
       row.successorWorkItemId,
       row.successorScope,
       row.successorStepId,
-      row.projectId,
+      row.workPackageId,
     ),
     type: row.type,
   };
@@ -91,7 +93,7 @@ export function readTypedDependency(row: TypedDependencyRow): StoredTypedDepende
 
 function mapStoredColumns(row: StoredTypedDependency) {
   return {
-    projectId: row.projectId,
+    workPackageId: row.workPackageId,
     predecessorWorkItemId: row.predecessor.workItemId,
     predecessorScope: row.predecessor.scope,
     predecessorStepId: row.predecessor.scope === 'whole' ? null : row.predecessor.stepId,
@@ -105,19 +107,19 @@ function mapStoredColumns(row: StoredTypedDependency) {
 type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
 
 /**
- * Throws unless each endpoint names its declared project's rows in the shape
+ * Throws unless each endpoint names its declared work package's rows in the shape
  * its scope requires, with successor ownership and same-organization evidence; a node
  * endpoint's work item has no children and a descendant-step endpoint's has
- * some. Delete-pending or absent projects cannot accept new endpoint facts.
+ * some. Delete-pending or absent work packages cannot accept new endpoint facts.
  *
  * Once typed commands exist (task 4), the service must refuse these first
  * with typed 4xx. This is the persistence boundary inside the write's transaction,
  * where a concurrent tree edit cannot slip between the check and the insert.
  * Foreign keys alone prove only that the rows exist somewhere.
  *
- * Proof: the project comparison, the step-owner comparison and each of the two
+ * Proof: the work package comparison, the step-owner comparison and each of the two
  * leafhood comparisons disabled in turn made its own line of `refuses an
- * endpoint outside the project or in the wrong shape` fail on `Received:
+ * endpoint outside the workPackage or in the wrong shape` fail on `Received:
  * (resolved without throwing)` (`foreign work item`, `foreign step`, `node on a
  * parent`, `descendant-step on a leaf`); watched 2026-09-27.
  */
@@ -130,12 +132,12 @@ export function assertEndpointsHeld(
     // Proof: bypassing this fence admitted new A→B links with either endpoint
     // delete-pending in the installed deletion safety fixture (2026-10-22).
     const target = tx
-      .select({ pendingAt: project.optimizationDeletePendingAt })
-      .from(project)
-      .where(eq(project.id, endpoint.projectId))
+      .select({ pendingAt: workPackage.optimizationDeletePendingAt })
+      .from(workPackage)
+      .where(eq(workPackage.id, endpoint.workPackageId))
       .get();
     if (target?.pendingAt !== null)
-      throw new Error(`project ${endpoint.projectId} is pending deletion or unavailable`);
+      throw new Error(`work package ${endpoint.workPackageId} is pending deletion or unavailable`);
   }
 
   for (const endpoint of [row.predecessor, row.successor]) {
@@ -173,61 +175,75 @@ type PhysicalDependency =
       readonly dependency: StoredTypedDependency;
     };
 
-/** Proof: bypassing owner agreement made `rejects cross-project mismatched endpoints and foreign organizations` accept the wrong owner (2026-10-22). */
+/** Proof: bypassing owner agreement made `rejects cross-work-package mismatched endpoints and foreign organizations` accept the wrong owner (2026-10-22). */
 function assertOwner(row: StoredTypedDependency): void {
-  if (row.projectId !== row.successor.projectId) {
+  if (row.workPackageId !== row.successor.workPackageId) {
     throw new Error(`typed dependency ${row.id} has inconsistent successor ownership`);
   }
 }
 
 /** Reads external discriminants without inventing any endpoint ownership. */
 function readExternalDependency(row: ExternalDependencyRow): StoredTypedDependency {
-  const local = readTypedDependency({ ...row, projectId: row.successorProjectId });
+  const local = readTypedDependency({ ...row, workPackageId: row.successorWorkPackageId });
   return {
     ...local,
-    predecessor: { ...local.predecessor, projectId: row.predecessorProjectId },
+    predecessor: { ...local.predecessor, workPackageId: row.predecessorWorkPackageId },
   };
 }
 
-/** Stable ownership evidence, deliberately excluding transient leafhood during hand-down. */
-function assertEvidence(tx: Transaction, row: StoredTypedDependency): string | undefined {
+/**
+ * Current definition ownership and explicit package membership on the supplied snapshot.
+ * Identity evidence deliberately excludes transient leafhood during incident staging;
+ * assertEndpointsHeld separately validates node/descendant shape before writes.
+ * Explicit package values are archived identity evidence, not leaf applicability.
+ */
+function assertEvidence(
+  tx: Pick<Drizzle, 'select'>,
+  row: StoredTypedDependency,
+): string | undefined {
   assertOwner(row);
   for (const endpoint of [row.predecessor, row.successor]) {
     const owner = tx
-      .select({ projectId: workItem.projectId })
+      .select({ workPackageId: workItem.workPackageId })
       .from(workItem)
       .where(eq(workItem.id, endpoint.workItemId))
       .get();
     // Proof: removing this evidence check returned an orphan in `refuses missing work-item and organization evidence on reads` (2026-10-22).
-    if (owner?.projectId !== endpoint.projectId) {
+    if (owner?.workPackageId !== endpoint.workPackageId) {
       throw new Error(
-        `typed dependency ${row.id} names work item ${endpoint.workItemId} outside project ${endpoint.projectId}`,
+        `typed dependency ${row.id} names work item ${endpoint.workItemId} outside work package ${endpoint.workPackageId}`,
       );
     }
     if (endpoint.scope !== 'whole') {
       const owner = tx
-        .select({ projectId: step.projectId })
-        .from(step)
-        .where(eq(step.id, endpoint.stepId))
+        .select({
+          definitionOrganizationId: stepDefinition.organizationId,
+          packageOrganizationId: workPackageOrganization.organizationId,
+        })
+        .from(workPackageStep)
+        .innerJoin(stepDefinition, eq(stepDefinition.id, workPackageStep.stepId))
+        .innerJoin(workPackageOrganization, eq(workPackageOrganization.resourceId, workPackageStep.workPackageId))
+        .innerJoin(organization, eq(organization.id, workPackageOrganization.organizationId))
+        .where(and(eq(workPackageStep.workPackageId, endpoint.workPackageId), eq(workPackageStep.stepId, endpoint.stepId)))
         .get();
       // Proof: removing this check returned a missing step in `refuses missing steps and mismatched recorded organization evidence on reads` (2026-10-22).
-      if (owner?.projectId !== endpoint.projectId) {
+      if (owner === undefined || owner.definitionOrganizationId !== owner.packageOrganizationId) {
         throw new Error(
-          `typed dependency ${row.id} names step ${endpoint.stepId} outside project ${endpoint.projectId}`,
+          `typed dependency ${row.id} names step ${endpoint.stepId} outside work package ${endpoint.workPackageId}`,
         );
       }
     }
   }
-  if (row.predecessor.projectId === row.successor.projectId) return undefined;
+  if (row.predecessor.workPackageId === row.successor.workPackageId) return undefined;
   const predecessor = tx
     .select()
-    .from(projectOrganization)
-    .where(eq(projectOrganization.resourceId, row.predecessor.projectId))
+    .from(workPackageOrganization)
+    .where(eq(workPackageOrganization.resourceId, row.predecessor.workPackageId))
     .get();
   const successor = tx
     .select()
-    .from(projectOrganization)
-    .where(eq(projectOrganization.resourceId, row.successor.projectId))
+    .from(workPackageOrganization)
+    .where(eq(workPackageOrganization.resourceId, row.successor.workPackageId))
     .get();
   // Proof: bypassing matching mappings made `refuses missing work-item and organization evidence on reads` return the unmapped external row (2026-10-22).
   if (predecessor === undefined || predecessor.organizationId !== successor?.organizationId) {
@@ -245,18 +261,18 @@ function assertEvidence(tx: Transaction, row: StoredTypedDependency): string | u
  * instead of the original snapshot (2026-10-22).
  */
 function readPhysical(
-  tx: Transaction,
+  tx: Pick<Drizzle, 'select'>,
   select:
-    | { readonly projects: readonly string[] }
+    | { readonly workPackages: readonly string[] }
     | { readonly owner: string }
     | { readonly id: string }
     | { readonly workItems: readonly string[] },
 ): PhysicalDependency[] {
   const localFilter =
     'owner' in select
-      ? eq(typedDependency.projectId, select.owner)
-      : 'projects' in select
-        ? inArray(typedDependency.projectId, select.projects)
+      ? eq(typedDependency.workPackageId, select.owner)
+      : 'workPackages' in select
+        ? inArray(typedDependency.workPackageId, select.workPackages)
         : 'id' in select
           ? eq(typedDependency.id, select.id)
           : or(
@@ -265,11 +281,11 @@ function readPhysical(
             );
   const externalFilter =
     'owner' in select
-      ? eq(externalDependency.successorProjectId, select.owner)
-      : 'projects' in select
+      ? eq(externalDependency.successorWorkPackageId, select.owner)
+      : 'workPackages' in select
         ? or(
-            inArray(externalDependency.predecessorProjectId, select.projects),
-            inArray(externalDependency.successorProjectId, select.projects),
+            inArray(externalDependency.predecessorWorkPackageId, select.workPackages),
+            inArray(externalDependency.successorWorkPackageId, select.workPackages),
           )
         : 'id' in select
           ? eq(externalDependency.id, select.id)
@@ -322,6 +338,17 @@ function readPhysical(
   return physical.sort((left, right) => left.dependency.id.localeCompare(right.dependency.id));
 }
 
+/** Borrows the caller's snapshot and strict physical/evidence decoder without acquiring another owner. */
+export function readIncidentDependenciesIn(
+  tx: Pick<Drizzle, 'select'>,
+  workPackageIds: readonly string[],
+): StoredTypedDependency[] {
+  if (workPackageIds.length === 0) return [];
+  return readPhysical(tx, { workPackages: [...new Set(workPackageIds)] }).map(
+    ({ dependency }) => dependency,
+  );
+}
+
 function requirePhysical(tx: Transaction, id: string): PhysicalDependency {
   const prior = readPhysical(tx, { id });
   const stored = prior.at(0);
@@ -350,19 +377,22 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       let deleting = false;
       for (const endpoint of [row.predecessor, row.successor]) {
         const target = tx
-          .select({ pendingAt: project.optimizationDeletePendingAt })
-          .from(project)
-          .where(eq(project.id, endpoint.projectId))
+          .select({ pendingAt: workPackage.optimizationDeletePendingAt })
+          .from(workPackage)
+          .where(eq(workPackage.id, endpoint.workPackageId))
           .get();
-        // Proof: accepting absence returned false instead of the named missing-project
+        // Proof: accepting absence returned false instead of the named missing-work-package
         // error in typed authoring admission storage tests (2026-10-22).
-        if (target === undefined) throw new Error(`missing endpoint project ${endpoint.projectId}`);
+        if (target === undefined)
+          throw new Error(`missing endpoint work package ${endpoint.workPackageId}`);
         // Proof: removing decoding accepted SQLite's quoted missing-column literal
         // after marker-column rename in the unreadable-state test (2026-10-22).
         if (target.pendingAt !== null && typeof target.pendingAt !== 'number')
-          throw new Error(`unreadable endpoint project deletion state ${endpoint.projectId}`);
+          throw new Error(
+            `unreadable endpoint work package deletion state ${endpoint.workPackageId}`,
+          );
         // Proof: forcing this predicate false restored mounted add/update HTTP500
-        // instead of project_deleting HTTP409 with complete rollback (2026-10-22).
+        // instead of work_package_deleting HTTP409 with complete rollback (2026-10-22).
         if (target.pendingAt !== null) deleting = true;
       }
       return deleting;
@@ -405,7 +435,7 @@ export class TypedDependencyRepository implements TypedDependencyStore {
         this.db.transaction((tx) => {
           const row = receipt.dependency;
           // Proof: independently removing ID or owner equality restored a replacement ID or reversed foreign ownership, 2026-10-22.
-          if (row.id !== previous.id || row.projectId !== previous.projectId)
+          if (row.id !== previous.id || row.workPackageId !== previous.workPackageId)
             throw new Error('incident restoration cannot change identity or owner');
           // Proof: omission deferred reused-ID refusal to SQLite uniqueness instead of the required staging diagnostic, 2026-10-22.
           if (readPhysical(tx, { id: row.id }).length !== 0)
@@ -431,8 +461,8 @@ export class TypedDependencyRepository implements TypedDependencyStore {
                 id: row.id,
                 ...mapStoredColumns(row),
                 organizationId,
-                predecessorProjectId: row.predecessor.projectId,
-                successorProjectId: row.successor.projectId,
+                predecessorWorkPackageId: row.predecessor.workPackageId,
+                successorWorkPackageId: row.successor.workPackageId,
                 ...auditOnCreate(stamp),
                 createdAt: receipt.createdAt,
                 createdBy: receipt.createdBy,
@@ -454,19 +484,17 @@ export class TypedDependencyRepository implements TypedDependencyStore {
     },
   };
 
-  async listByProject(projectId: string): Promise<StoredTypedDependency[]> {
+  async listByWorkPackage(workPackageId: string): Promise<StoredTypedDependency[]> {
     await Promise.resolve();
     return this.db.transaction((tx) =>
-      readPhysical(tx, { owner: projectId }).map(({ dependency }) => dependency),
+      readPhysical(tx, { owner: workPackageId }).map(({ dependency }) => dependency),
     );
   }
 
-  async listIncident(projectIds: readonly string[]): Promise<StoredTypedDependency[]> {
+  async listIncident(workPackageIds: readonly string[]): Promise<StoredTypedDependency[]> {
     await Promise.resolve();
-    if (projectIds.length === 0) return [];
-    return this.db.transaction((tx) =>
-      readPhysical(tx, { projects: [...new Set(projectIds)] }).map(({ dependency }) => dependency),
-    );
+    if (workPackageIds.length === 0) return [];
+    return this.db.transaction((tx) => readIncidentDependenciesIn(tx, workPackageIds));
   }
 
   async add(row: StoredTypedDependency, stamp: WriteStamp): Promise<void> {
@@ -484,8 +512,8 @@ export class TypedDependencyRepository implements TypedDependencyStore {
               id: row.id,
               ...mapStoredColumns(row),
               organizationId,
-              predecessorProjectId: row.predecessor.projectId,
-              successorProjectId: row.successor.projectId,
+              predecessorWorkPackageId: row.predecessor.workPackageId,
+              successorWorkPackageId: row.successor.workPackageId,
               ...auditOnCreate(stamp),
             })
             .run();
@@ -500,9 +528,11 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       await Promise.resolve();
       this.db.transaction((tx) => {
         const prior = requirePhysical(tx, row.id);
-        // Proof: bypassing only this comparison accepted a coherent destination owner and both valid destination endpoints in `refuses moving a typed dependency to another project without changing rows or revisions` (2026-10-22).
-        if (prior.dependency.projectId !== row.projectId)
-          throw new Error(`typed dependency ${row.id} cannot move to project ${row.projectId}`);
+        // Proof: bypassing only this comparison accepted a coherent destination owner and both valid destination endpoints in `refuses moving a typed dependency to another workPackage without changing rows or revisions` (2026-10-22).
+        if (prior.dependency.workPackageId !== row.workPackageId)
+          throw new Error(
+            `typed dependency ${row.id} cannot move to work package ${row.workPackageId}`,
+          );
         const organizationId = assertEndpointsHeld(tx, row);
         const isExternal = organizationId !== undefined;
         if (prior.external !== isExternal) {
@@ -524,8 +554,8 @@ export class TypedDependencyRepository implements TypedDependencyStore {
                 id: row.id,
                 ...mapStoredColumns(row),
                 organizationId,
-                predecessorProjectId: row.predecessor.projectId,
-                successorProjectId: row.successor.projectId,
+                predecessorWorkPackageId: row.predecessor.workPackageId,
+                successorWorkPackageId: row.successor.workPackageId,
                 ...auditOnCreate(stamp),
                 createdAt: prior.row.createdAt,
                 createdBy: prior.row.createdBy,
@@ -542,8 +572,8 @@ export class TypedDependencyRepository implements TypedDependencyStore {
             .set({
               ...mapStoredColumns(row),
               organizationId,
-              predecessorProjectId: row.predecessor.projectId,
-              successorProjectId: row.successor.projectId,
+              predecessorWorkPackageId: row.predecessor.workPackageId,
+              successorWorkPackageId: row.successor.workPackageId,
               ...auditOnUpdate(stamp),
             })
             .where(eq(externalDependency.id, row.id))
@@ -584,7 +614,7 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       return this.db.transaction((tx) => {
         const doomed = new Set(workItemIds);
         const losing = readPhysical(tx, { workItems: workItemIds });
-        // Proof: bypassing the guard removed a surviving project's prerequisite in `protects surviving external successors and permits deleting both ends` (2026-10-22).
+        // Proof: bypassing the guard removed a surviving work package's prerequisite in `protects surviving external successors and permits deleting both ends` (2026-10-22).
         if (
           losing.some(
             (stored) =>

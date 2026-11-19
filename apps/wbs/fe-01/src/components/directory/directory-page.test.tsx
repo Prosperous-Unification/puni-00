@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { subscribeToProject } from '@/lib/project-stream';
+import { subscribeToWorkPackage } from '@/lib/work-package-stream';
 import {
   type DirectoryApi,
   type DirectoryUsage,
@@ -27,14 +27,14 @@ const itDom = hasDom ? it : it.skip;
  * page opens a subscription with, it opens with this. Imported above so the
  * mocked module really loads.
  */
-vi.mock('@/lib/project-stream', () => ({
-  subscribeToProject: vi.fn(() => ({ seen: () => undefined, unsubscribe: () => undefined })),
+vi.mock('@/lib/work-package-stream', () => ({
+  subscribeToWorkPackage: vi.fn(() => ({ seen: () => undefined, unsubscribe: () => undefined })),
 }));
 
-const subscribed = vi.mocked(subscribeToProject);
+const subscribed = vi.mocked(subscribeToWorkPackage);
 
 // A name and an id, which is the whole of a team on this page since
-// `capacity-per-project`: how many of them are at work at once is stated per
+// `capacity-per-work-package`: how many of them are at work at once is stated per
 // plan, in the plan's own `Teams` dialog, and the retired global column is not
 // sent by be-01 at all.
 const PLATFORM: TeamView = { id: 't1', name: 'Platform', serviceIds: [] };
@@ -317,7 +317,7 @@ const CLAUDE: PersonView = { id: 'p3', name: 'Claude', kind: 'agent', teamIds: [
 
 /** The usage be-01 answers for a person somebody's plan is holding. */
 const PERSON_USAGE: DirectoryUsage = {
-  projects: [
+  workPackages: [
     {
       id: 'pr1',
       name: 'Rollout',
@@ -339,7 +339,7 @@ const PERSON_USAGE: DirectoryUsage = {
 
 /** The usage of a team nothing but memberships points at. */
 const TEAM_USAGE: DirectoryUsage = {
-  projects: [],
+  workPackages: [],
   members: [
     { id: 'p1', name: 'Kat' },
     { id: 'p2', name: 'Ada' },
@@ -405,9 +405,9 @@ describe('the directory page', () => {
    * dependency array rather than from a mount effect would survive a check that
    * only looked at the first render.
    *
-   * Proof: `void subscribeToProject({ token, projectId: 'x', sinceSeq: -1,
+   * Proof: `void subscribeToWorkPackage({ token, workPackageId: 'x', sinceSeq: -1,
    * onChange: () => undefined })` added to the page's arrival effect, this
-   * failed on `expected "subscribeToProject" to be called 0 times, but got 1
+   * failed on `expected "subscribeToWorkPackage" to be called 0 times, but got 1
    * times`. Watched 2026-08-09.
    */
   itDom('opens no subscription of its own, on mount or after', async () => {
@@ -480,7 +480,7 @@ describe('the directory page', () => {
     });
   });
 
-  itDom('carries the navigation and the account, and no project controls', async () => {
+  itDom('carries the navigation and the account, and no work package controls', async () => {
     pageWith(fakeDirectory([], []));
     await waitFor(() => {
       expect(screen.getByRole('banner')).toBeDefined();
@@ -489,11 +489,11 @@ describe('the directory page', () => {
 
     expect(bar.textContent).toContain('nav slot');
     expect(bar.textContent).toContain('me');
-    // Absent rather than drawn dead: a project picker on a page with no project
+    // Absent rather than drawn dead: a work package picker on a page with no work package
     // is a control that can only disappoint.
-    expect(within(bar).queryByRole('combobox', { name: 'Project' })).toBeNull();
-    expect(within(bar).queryByRole('button', { name: 'Rename project' })).toBeNull();
-    expect(within(bar).queryByRole('button', { name: 'Create new project' })).toBeNull();
+    expect(within(bar).queryByRole('combobox', { name: 'Work package' })).toBeNull();
+    expect(within(bar).queryByRole('button', { name: 'Rename work package' })).toBeNull();
+    expect(within(bar).queryByRole('button', { name: 'Create new work package' })).toBeNull();
   });
 });
 
@@ -752,7 +752,7 @@ describe('the directory page re-reads', () => {
    * C3's cross-review found it through a sharper case than a stale name:
    * `commitSize` short-circuited on `asNumber === team.size`, so typing the
    * number a stale screen already showed sent **nothing**. That box is on the
-   * plan now (`capacity-per-project`, D5) and the short-circuit went with it, so
+   * plan now (`capacity-per-work-package`, D5) and the short-circuit went with it, so
    * what is left here is the stale-name hazard — which is enough on its own, and
    * all three call sites are still ungated without the guard. C3's cross-review,
    * P2-3.
@@ -1024,7 +1024,7 @@ describe('removing from the directory', () => {
 
   itDom('names the machine credentials a person’s removal revokes', async () => {
     const api = fakeDirectory([KAT], [PLATFORM]);
-    api.refuseRemovalWith({ projects: [], members: [], machineCredentials: 2 });
+    api.refuseRemovalWith({ workPackages: [], members: [], machineCredentials: 2 });
     pageWith(api);
     await drawn('Kat');
 
@@ -1122,13 +1122,13 @@ describe('how many of a team are at work at once', () => {
   itDom('is not asked here at all, because the number is one plan’s', async () => {
     // C3 put a size box on this page, beside each team's name, and that was right
     // for a global number: the directory is the global page. Dany's call on
-    // 2026-08-13 — "The global number should not matter, only per project capacity
+    // 2026-08-13 — "The global number should not matter, only per work package capacity
     // configuration matters" — made the number a **plan's**, and this page has no
     // plan. So the box is gone rather than disabled or left showing a number from
     // somewhere: a control that writes a value no schedule reads is worse than no
-    // control at all. `capacity-per-project`'s design.md D4 and D5, and the box
-    // itself is `components/wbs/teams-panel.tsx`, a section of the project
-    // settings modal since `project-config-modal`.
+    // control at all. `capacity-per-work-package`'s design.md D4 and D5, and the box
+    // itself is `components/wbs/teams-panel.tsx`, a section of the work package
+    // settings modal since `work-package-config-modal`.
     //
     // The whole of C3's block about the box moved with it — 160 lines, including
     // both of its watched negatives — and is in `teams-panel.test.tsx`.
@@ -1155,7 +1155,7 @@ describe('how many of a team are at work at once', () => {
 describe('what removing a sized team says it takes', () => {
   /** A sized team labelling a parent, with a leaf beneath it that inherits the pool. */
   const SIZED_TEAM_USAGE: DirectoryUsage = {
-    projects: [
+    workPackages: [
       {
         id: 'pr1',
         name: 'Rollout',
@@ -1373,7 +1373,7 @@ describe('the Services section, and the removal that had to say which dimension 
     const api = fakeDirectory([], []);
     api.putServices([{ id: 's1', name: 'Payments' }]);
     api.refuseRemovalWith({
-      projects: [
+      workPackages: [
         {
           id: 'pr1',
           name: 'Ledger',
@@ -1406,7 +1406,7 @@ describe('the Services section, and the removal that had to say which dimension 
     const api = fakeDirectory([], []);
     api.putTags([{ id: 'g1', name: 'regulatory' }]);
     api.refuseRemovalWith({
-      projects: [
+      workPackages: [
         {
           id: 'pr1',
           name: 'Ledger',
@@ -1432,7 +1432,7 @@ describe('the Services section, and the removal that had to say which dimension 
     const api = fakeDirectory([], []);
     api.putServices([{ id: 's1', name: 'Payments' }]);
     api.refuseRemovalWith({
-      projects: [
+      workPackages: [
         {
           id: 'pr1',
           name: 'Ledger',

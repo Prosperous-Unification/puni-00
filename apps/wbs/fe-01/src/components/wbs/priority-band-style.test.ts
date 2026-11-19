@@ -41,7 +41,7 @@ describe('how a priority is drawn', () => {
   });
 
   it('keys the colour on the rung and never on the name', () => {
-    // A project may rename `Critical` to `Blocker`, and a colour that followed
+    // A work package may rename `Critical` to `Blocker`, and a colour that followed
     // the word would follow it out of the ladder. Both ladders' most important
     // rung is the same ink; the labels are not.
     const critical = priorityBandStyleOf(DEFAULT_PRIORITY_BANDS, 10);

@@ -96,10 +96,10 @@ export interface PrioritiesPanelProps extends SettingsSectionReport {
 /**
  * What this plan calls its priority numbers.
  *
- * **A panel and not a dialog since `project-config-modal`** (2026-08-30): one of
- * three sections of `ProjectSettingsModal`, which owns the shell, the trigger,
+ * **A panel and not a dialog since `work-package-config-modal`** (2026-08-30): one of
+ * three sections of `WorkPackageSettingsModal`, which owns the shell, the trigger,
  * the title and the close. `openspec/changes/priority-bands/design.md` D5 put
- * this beside the teams box as the same class of fact — a project's own
+ * this beside the teams box as the same class of fact — a work package's own
  * configuration, edited from the plan's toolbar — and the modal is that
  * sentence made into one surface.
  *

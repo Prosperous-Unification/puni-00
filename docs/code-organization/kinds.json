@@ -100,8 +100,8 @@
     {
       "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
       "kind": "support",
-      "disposition": "shared by the work item, project and step resources; stays in the core's service/ because it reads stores (dependency.ts moved to @wbs/domain without it)",
-      "rationale": "WorkItemService, ProjectService and StepService use the same bound DependencyGraphGuard facade over ConnectedDependencyGraphReader; each proposed structural or relationship write reads fresh incident components through the admitted context"
+      "disposition": "shared by the work item, work package and step resources; stays in the core's service/ because it reads stores (dependency.ts moved to @wbs/domain without it)",
+      "rationale": "WorkItemService, WorkPackageService and StepService use the same bound DependencyGraphGuard facade over ConnectedDependencyGraphReader; each proposed structural or relationship write reads fresh incident components through the admitted context"
     },
     {
       "path": "libs/wbs/application/core/src/service/directory-usage.ts",
@@ -137,7 +137,7 @@
       "path": "libs/wbs/application/core/src/service/node-readings.ts",
       "kind": "support",
       "disposition": "application support beside dependency-graph.ts; the reading rule itself is nodeReadingOf in @wbs/domain",
-      "rationale": "work-item.resource.ts's projectTree asks it for each leaf node's reading over the resolved step-node graph (resolveDependencyGraph), memoised predecessor first; it reads no store and holds no clock"
+      "rationale": "work-item.resource.ts's workPackageTree asks it for each leaf node's reading over the resolved step-node graph (resolveDependencyGraph), memoised predecessor first; it reads no store and holds no clock"
     },
     {
       "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",
@@ -149,7 +149,7 @@
       "path": "libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts",
       "kind": "support",
       "disposition": "private member of compose.ts",
-      "rationale": "composeServices is its only production importer and uses it to decorate that composition's Broadcaster with optimizer invalidation after selected project events"
+      "rationale": "composeServices is its only production importer and uses it to decorate that composition's Broadcaster with optimizer invalidation after selected work package events"
     },
     {
       "path": "libs/wbs/application/core/src/service/plan-command.ts",
@@ -209,25 +209,25 @@
       "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
       "kind": "feature",
       "capability": "Organization capacity mode write",
-      "rationale": "The standalone capacity-mode facade acquires one write unit, rechecks current super-admin authority on the writer, sets and audits the mode, records one elsewhere_changed per organization project atomically, then delivers after release"
+      "rationale": "The standalone capacity-mode facade acquires one write unit, rechecks current super-admin authority on the writer, sets and audits the mode, records one elsewhere_changed per organization work package atomically, then delivers after release"
     },
     {
       "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
       "kind": "feature",
-      "capability": "Organization project rank write",
+      "capability": "Organization work package rank write",
       "rationale": "The standalone rank facade acquires one write unit, rechecks current rank authority, captures before and after scheduling observations, records fan-out events atomically, then delivers after release"
     },
     {
       "path": "libs/wbs/application/core/src/service/list-query.ts",
       "kind": "support",
-      "disposition": "application support shared by the project and work-item list routes; stays in the core's service/ while two modules read it",
+      "disposition": "application support shared by the work package and work-item list routes; stays in the core's service/ while two modules read it",
       "rationale": "parses the closed list query grammar (limit, cursor, q, updatedSince, repeated keys) and encodes and decodes the opaque base64url cursor for both paged reads, with no store or clock access"
     },
     {
-      "path": "libs/wbs/application/core/src/service/project-page.ts",
+      "path": "libs/wbs/application/core/src/service/work-package-page.ts",
       "kind": "support",
-      "disposition": "application support; move into module/project",
-      "rationale": "orders, filters and cuts the already access-filtered project list into one page newest update first, keyed by [updatedAt, id], with no store access"
+      "disposition": "application support; move into module/work-package",
+      "rationale": "orders, filters and cuts the already access-filtered work package list into one page newest update first, keyed by [updatedAt, id], with no store access"
     },
     {
       "path": "libs/wbs/application/core/src/service/work-item-page.ts",
@@ -238,26 +238,26 @@
     {
       "path": "libs/wbs/application/core/src/service/connected-dependency-graph.ts",
       "kind": "support",
-      "disposition": "shared transaction dependency graph support for work-item, project and step resources",
+      "disposition": "shared transaction dependency graph support for work-item, work-package and step resources",
       "rationale": "ConnectedDependencyGraphReader captures incident components through scoped read authority and resolves complete proposed owner facts; it owns no command, store or scheduler"
     },
     {
       "path": "libs/wbs/application/core/src/service/connected-plan-calendar.ts",
       "kind": "support",
       "disposition": "shared calendar preparation support beside connected-plan",
-      "rationale": "Connected plan preparation resolves and translates each captured project calendar before scheduling and owner projection"
+      "rationale": "Connected plan preparation resolves and translates each captured work package calendar before scheduling and owner projection"
     },
     {
       "path": "libs/wbs/application/core/src/service/connected-plan-projection.ts",
       "kind": "support",
       "disposition": "shared owner projection support beside connected-plan",
-      "rationale": "Connected schedule restoration and owner projection map qualified identities back into one project without exposing remote work items as local rows"
+      "rationale": "Connected schedule restoration and owner projection map qualified identities back into one work package without exposing remote work items as local rows"
     },
     {
       "path": "libs/wbs/application/core/src/service/connected-plan-values.ts",
       "kind": "support",
       "disposition": "shared captured-input vocabulary beside connected-plan",
-      "rationale": "ConnectedPlanCapture names detached organization calendar, project input and relationship evidence consumed by connected preparation"
+      "rationale": "ConnectedPlanCapture names detached organization calendar, work package input and relationship evidence consumed by connected preparation"
     },
     {
       "path": "libs/wbs/application/core/src/service/connected-plan.ts",
@@ -275,25 +275,25 @@
       "path": "libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts",
       "kind": "support",
       "disposition": "shared detached endpoint evidence support owned by dependency-context",
-      "rationale": "createEndpointEvidence authorizes scoped projects before reading exact row, step, label and revision facts, checks continuation lifetime and never exports remote writers or trees"
+      "rationale": "createEndpointEvidence authorizes scoped work packages before reading exact row, step, label and revision facts, checks continuation lifetime and never exports remote writers or trees"
     },
     {
       "path": "libs/wbs/application/core/src/service/local-typed-dependency.ts",
       "kind": "support",
       "disposition": "shared local endpoint conversion support beside connected preparation",
-      "rationale": "captureLocalTypedDependency refuses an external row before removing its project qualifiers for local domain resolution"
+      "rationale": "captureLocalTypedDependency refuses an external row before removing its work package qualifiers for local domain resolution"
     },
     {
-      "path": "libs/wbs/application/core/src/service/project-address-revision.ts",
+      "path": "libs/wbs/application/core/src/service/work-package-address-revision.ts",
       "kind": "support",
-      "disposition": "shared qualified address revision support beside project-address-search",
-      "rationale": "digestQualifiedAddressSpace includes stable project identity and current abbreviation in a detached address-space digest"
+      "disposition": "shared qualified address revision support beside work-package-address-search",
+      "rationale": "digestQualifiedAddressSpace includes stable work package identity and current abbreviation in a detached address-space digest"
     },
     {
-      "path": "libs/wbs/application/core/src/service/project-address-search.ts",
+      "path": "libs/wbs/application/core/src/service/work-package-address-search.ts",
       "kind": "support",
-      "disposition": "read observation support shared by project address endpoints",
-      "rationale": "ProjectAddressSearch reads current organization address candidates and query revisions; command transactions independently reauthorize selected stable IDs"
+      "disposition": "read observation support shared by work package address endpoints",
+      "rationale": "WorkPackageAddressSearch reads current organization address candidates and query revisions; command transactions independently reauthorize selected stable IDs"
     },
     {
       "path": "libs/wbs/application/core/src/service/schedule-parts.ts",
@@ -317,13 +317,13 @@
       "path": "libs/wbs/application/core/src/service/connected-optimization-view.ts",
       "kind": "support",
       "disposition": "private connected optimization presentation support of connected-tree.ts",
-      "rationale": "connected-tree.ts projects retained stage comparisons and foreign holder labels through projectConnectedOptimization; ports/plan-tree.ts shares its detached scope type without owning a store or solver"
+      "rationale": "connected-tree.ts derives retained stage comparisons and foreign holder labels through deriveConnectedOptimizationView; ports/plan-tree.ts shares its detached scope type without owning a store or solver"
     },
     {
       "path": "libs/wbs/application/core/src/service/connected-optimization.ts",
       "kind": "support",
       "disposition": "shared connected optimization preparation and publication support for live and saved-plan schedules",
-      "rationale": "Builds and validates detached connected optimization stages, restores project-local schedules and selects captured publication decisions without owning a store or solver process"
+      "rationale": "Builds and validates detached connected optimization stages, restores work-package-local schedules and selects captured publication decisions without owning a store or solver process"
     },
     {
       "path": "libs/wbs/application/core/src/service/connected-readiness.ts",

@@ -1,11 +1,12 @@
-import type { RuntimeAuthority, RuntimeScope } from '@wbs/contracts';
+import type { RuntimeAuthority, RuntimeScope1 as RuntimeScope } from '@wbs/contracts';
 
 import type { ArtifactDigest, ArtifactRef, Ownership, Revision } from './records';
 import type { RecoveryHistory } from './recovery-records';
 
+/** Published Dash pin/snapshots1–3 retain the immutable local address; projectId names the WBS work package, not an Nx project. */
 export type { RuntimeAuthority, RuntimeScope };
 
-/** Immutable receiver installation identity at a complete organization/project/person address. */
+/** Immutable receiver installation identity at a complete organization/work-package/person address; projectId is its frozen local wire key. */
 export interface RuntimePin {
   readonly version: 1;
   readonly scope: RuntimeScope;

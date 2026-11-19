@@ -22,7 +22,10 @@ The shapes two tiers have to agree about, and the one place each is written.
 - **`commands/definitions.ts`** — `commandDefinitions`, the plan and directory
   command catalogue the command batch parses against.
 - **`runtime-receipt.ts`** — shared scope, immutable claim and complete retained-request receipt correspondence predicates.
-- **`runtime-request.ts`** — the public runtime payload identity codec and strict request parsers.
+- **`runtime-request.ts`** — current canonical2 identity, explicit historical1 read projection and unchanged request-body1 parsers.
+- **`runtime-canonical1.ts`** — strict frozen version1 canonical grammar and exact original key-order reconstruction.
+- **`runtime-history1.ts`** — immutable historical runtime scope and original receipt1 types.
+- **`http/runtime-receipt1-shapes.ts`** — frozen original receipt1 response grammar, independently of current receipt2 fields.
 - **`plan-command-values.ts`** — the shared command batch bound.
 - **`auth-methods.ts`** — the sign-in methods WBS offers as direct buttons.
 - **`oidc-identity.ts`** — the identity read from a verified upstream OIDC

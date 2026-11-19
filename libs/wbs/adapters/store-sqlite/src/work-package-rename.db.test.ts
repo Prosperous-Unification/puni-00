@@ -3,10 +3,16 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { clockOf } from '@wbs/core';
+import { EventLogService } from '@wbs/core/module/event-log/event-log.resource';
+import { GatewayBroadcaster } from '@wbs/core/module/realtime/gateway-broadcaster';
+import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
-import { openDatabase } from './db';
+import { openConnection, openDatabase } from './db';
+import { DrizzleEventLogStore } from './event-log';
+import { WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
 
@@ -466,7 +472,10 @@ it('the window migration renames every schema object and column while preserving
         .sort((a, b) => (a.type + a.name).localeCompare(b.type + b.name)),
     ).toEqual(
       before
-        .map((row) => ({ type: row.type, name: row.name.replaceAll('project', 'work_package') }))
+        .map((row) => ({
+          type: row.type,
+          name: row.name.replaceAll('project', 'work_package'),
+        }))
         .sort((a, b) => (a.type + a.name).localeCompare(b.type + b.name)),
     );
     for (const row of before.filter((row) => row.type === 'table')) {
@@ -654,4 +663,94 @@ it('the historical recovery audit remaps only its vocabulary and preserves prove
       sqlite.query('SELECT * FROM organization_audit WHERE id=?').get('historical-recovery'),
     ).toEqual(integrity.recoveryAfter);
   });
+});
+
+it('real rename retains old transport frames while current publisher starts independent zero and one', async () => {
+  const store = prepareCapturedStore(),
+    oldKey = 'project:' + captured.workPackageId,
+    currentKey = 'work-package:' + captured.workPackageId;
+  const before = withinStore(store.path, (sqlite) => ({
+    frames: sqlite.query('SELECT * FROM event_log ORDER BY id').all(),
+    sequencers: sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all(),
+    history: sqlite.query('SELECT id FROM plan_event ORDER BY id').all(),
+    old: sqlite
+      .query<{ subscription: string; seq: number; message: string; created_at: number }, [string]>(
+        'SELECT subscription,seq,message,created_at FROM event_log WHERE subscription=? ORDER BY seq',
+      )
+      .all(oldKey),
+  }));
+  expect(before.old.length).toBeGreaterThan(0);
+  expect(before.old[0]?.seq).toBe(0);
+  expect(before.sequencers).toContainEqual({ subscription: oldKey, next_seq: before.old.length });
+  expect(before.history.length).toBe(captured.historyRows);
+  installRename(store);
+  expect(
+    withinStore(store.path, (sqlite) => ({
+      frames: sqlite.query('SELECT * FROM event_log ORDER BY id').all(),
+      sequencers: sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all(),
+      history: sqlite.query('SELECT id FROM plan_event ORDER BY id').all(),
+    })),
+  ).toEqual({ frames: before.frames, sequencers: before.sequencers, history: before.history });
+  const connection = openConnection(store.path),
+    events = new DrizzleEventLogStore(connection.db, new WriteCoordinator());
+  const pushed: { subscription: string; seq?: number; message: unknown }[] = [];
+  const publisher = new GatewayBroadcaster({
+    eventLog: new EventLogService(events),
+    clock: clockOf({ now: () => 12345, newId: () => crypto.randomUUID() }),
+    buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 100000, now: () => 12345 }),
+    push: {
+      push: (payload) => {
+        pushed.push(structuredClone(payload));
+        return Promise.resolve({ delivered: 1 });
+      },
+    },
+  });
+  const oldRange = before.old.map((row) => ({
+    subscription: row.subscription,
+    seq: row.seq,
+    message: JSON.parse(row.message) as unknown,
+    createdAt: row.created_at,
+  }));
+  try {
+    expect(await events.latestSeq(currentKey)).toBe(-1);
+    expect(await events.rangeSince(currentKey, -1)).toEqual([]);
+    expect(await events.rangeSince(oldKey, -1)).toEqual(oldRange);
+    await publisher.publish(captured.workPackageId, { type: 'tree_replaced', workItems: [] });
+    await publisher.publish(captured.workPackageId, { type: 'calendar_markers_changed' });
+    expect(pushed).toEqual([
+      { subscription: currentKey, seq: 0, message: { type: 'tree_replaced', workItems: [] } },
+      { subscription: currentKey, seq: 1, message: { type: 'calendar_markers_changed' } },
+    ]);
+    expect(await publisher.latestSeq(captured.workPackageId)).toBe(1);
+    expect(await events.rangeSince(currentKey, -1)).toEqual([
+      {
+        subscription: currentKey,
+        seq: 0,
+        message: { type: 'tree_replaced', workItems: [] },
+        createdAt: 12345,
+      },
+      {
+        subscription: currentKey,
+        seq: 1,
+        message: { type: 'calendar_markers_changed' },
+        createdAt: 12345,
+      },
+    ]);
+    expect(await events.rangeSince(oldKey, -1)).toEqual(oldRange);
+    expect(
+      withinStore(store.path, (sqlite) => ({
+        frames: sqlite
+          .query("SELECT * FROM event_log WHERE subscription LIKE 'project:%' ORDER BY id")
+          .all(),
+        sequencers: sqlite
+          .query(
+            "SELECT * FROM event_sequencer WHERE subscription LIKE 'project:%' ORDER BY subscription",
+          )
+          .all(),
+        history: sqlite.query('SELECT id FROM plan_event ORDER BY id').all(),
+      })),
+    ).toEqual({ frames: before.frames, sequencers: before.sequencers, history: before.history });
+  } finally {
+    connection.close();
+  }
 });

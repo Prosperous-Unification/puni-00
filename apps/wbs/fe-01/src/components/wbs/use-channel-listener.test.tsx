@@ -36,7 +36,7 @@ function PublishOnMount({ channel, event }: { channel: Channel<string>; event: s
   return null;
 }
 
-describe('listening to a project channel', () => {
+describe('listening to a work package channel', () => {
   itDom('hears an event a child publishes from its own mount effect', () => {
     const channel = createChannel<string>();
     const heard: string[] = [];

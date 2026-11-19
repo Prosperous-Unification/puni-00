@@ -78,22 +78,20 @@
       `claim_step_project_*` pair); the `down.sql` guard removed (the refusal test sees a
       reversal); watched. _Ordering (WP-14):_ the store-level assertions read through the renamed
       store code, so 1.3 lands red with its migration and goes green only with 1.4's
-      mechanical commit; its R5 faults are watched after 1.4.
+      mechanical component and required repair integration; its R5 faults are watched after 1.4.
 - [ ] 1.4 Run `tool-rename-work-package apply` over store-sqlite, store-memory, conformance,
-      core, contracts, domain, validation, adapters, be-01, gw-01, mcp-01, fe-01 as one
-      mechanical commit with the pinned deterministic formatting phase and exact generated path list (E12); semantic/codec hand fixes in a separate commit after it; `check`
-      exits 0. Review rule: the reviewer runs `apply` on the mechanical commit's parent and
-      the diff must be byte-identical to that commit. Tests that prove it: the whole existing
+      core, contracts, domain, validation, adapters, be-01, gw-01, mcp-01, fe-01 as a reproducible mechanical component, with the pinned deterministic formatting phase and exact generated path list (E12). Seal its tree/patch; archive and review semantic/codec repairs separately. If mandatory lint requires them, an ordinary implementation commit composes both diffs with exact composition identity and all normal hooks; it is never called purely mechanical. `check`
+      exits 0. Review rule: independently reproduce the sealed mechanical component from its exact recorded parent, then prove the ordinary implementation commit equals that component composed with its separately reviewed repair diff. Tests that prove it: the whole existing
       suite under the new names, the OpenAPI scenario (no `projects` segment, no `Project`
       operationId, no `projectId` property; `GET /api/work-packages/:id/budget-headroom`
       answers as `GET /api/projects/:id/budget-headroom` did), the gateway subscription
       scenario (`project:<id>` refused, `work-package:<id>` admitted), with retained old event_log/event_sequencer bytes and a fresh independent current namespace: actual client/gateway old persisted cursor→anchored full state→new replay, seq0 collision and denied resume/refetch. Never relabel old frames or translate cursors; mcp-01's README count
       ("91 tools in all") unchanged and still asserted by `openapi-tools.test.ts`. R5 fault:
       `project:` left admitted in `ws.controller.ts`; the subscription test fails; watched.
-- [ ] 1.5 Plan document12 and current saved input11 (base9 and published dependencyHistory10 already exist):
-      `plan-document-shapes.test.ts` (export is 12 with `workPackage`; 10 and 11 files convert
-      on read, budgets' v11 branch kept, `settings.budgetFactor` carried; 13 refused
-      `unsupported_version`), `canonical-plan-input.test.ts` and actual stored fixtures (freeze legacy1–9→9→published10, explicit10→11 rename; old9 local and old10 local/connected compare equal to current11 re-saves; original bytes/hashes untouched; mixed/future versions refuse; current11 requires captured dependencyHistory). R5 faults: the 11 → 12 converter dropped (import of
+- [ ] 1.5 Plan document ordinary13/connected14 and current saved input11 (base9 and published dependencyHistory10 already exist):
+      `plan-document-rename.test.ts` (export ordinary13/connected14 with `workPackage`;
+      genuine11/12 captures import through strict historical leaves, feature thresholds10/11
+      retained, mixed external fields refused;15 refused `unsupported_version`), `canonical-plan-input.test.ts` and actual stored fixtures (freeze legacy1–9→9→published10, explicit10→11 rename; old9 local and old10 local/connected compare equal to current11 re-saves; original bytes/hashes untouched; mixed/future versions refuse; current11 requires captured dependencyHistory). R5 faults: the historical12→current14 leaf projection dropped (import of
       the v11 fixture fails); the upgrade step removed (`input_version_unreadable`); watched.
 - [ ] 1.6 Frozen solver wire v5 with explicit host mapping (E26): rename host fields
       everywhere, mapping current work-package ownership/member/fixed/occupancy/boundary
@@ -103,31 +101,40 @@
       unchanged installed Python CLI; response scope/input/question identity validation;
       corpus prefix `19+0.4.0` and explicitly permitted version/hash request differences.
       Advance host-shaped stored connected stage DTO to 2, success DTO to 3, certificate
-      DTO to 2 and public connected boundary to 2. Test old contract-18 cache rejection
+      DTO to 2, stored schedule cache DTO4 to5 and public connected boundary to2;
+      retain result-envelope1 and infeasible1. Test three independent local/success/certificate
+      cache readers with valid current generation/control and same hash. Test old contract-18 cache rejection
       before decoding, including equal input hashes, and current exported nested stageBytes
       and boundary.canonical for renamed vocabulary. Historical saved body/header hashes
       validate before read-time upgrade and remain untouched. R5 faults: mutate each owner
       projection/response identity check, bypass old-cache contract matching or historical
       integrity validation; watch each named production-path negative fail, then restore.
-- [ ] 1.7 Twilight Navigator: `plan-reference.test.ts` reads `plan-export.v12.json` and keeps
-      v7–v11; JSDoc and README name `/api/work-packages`. R5 fault: the v12 reader keyed on
-      `project` again; the v12 fixture fails; watched.
+- [x] 1.7 Twilight Navigator: preserve v7–11 output bytes and schemas1/2; newly admit complete frozen connected12 and current ordinary13/connected14 through strict public descriptor reads. Allocate PlanTasks3 for12–14: local leaf tasks plus every authored document-level typed dependency in input order, discriminated internal/external endpoints, preserved external ownership/display and parent successors, no expansion. Lazy frozen12 includes detached published project history/boundary1; current13/14 reuse one selected strict requestSchema from the public raw declaration. Explicit reference/task pairs6/7→1,8–11→2,12–14→3;15+ refuse. Receipt2 binds the complete reference; local leaf receipt targets and selected-package command destination only, external-only refusal and cross-owner collision coverage; receipt1 semantics unchanged. Ordered TDD: frozen response, persisted contracts/pairing, projection, Nav/Burokrat/Dash receipt integration, then quality/lazy memory checks. Current route docs name /api/work-packages/:id/commands. Finite R5 source recipes require independent review before formal faults: wrong root key; skipped complete history; mixed names; omitted external/parent edge; local-ref substitution; pair bypass; stale bound receipt after external/history replacement. Task stays open until integration and proof review.
+
+  Historical qualification: checked1.7 records its original slice1 allocation, including the then-current13/14 descriptor and15+ refusal. Its captures and Proof history stay unchanged; task3.4 below owns current15/16 consumer readiness.
+
 - [ ] 1.8 Docs, terms and synced specs: `CONTEXT.md` (the work package, project and step-set
       terms done in planning; the remaining definition bodies that still say "project" for
       one WBS are swept by hand under `check`), `LLM_README.md` tables line, current docs by
-      script, module READMEs under the renamed module directories; the ten synced specs under
+      script, module READMEs under the renamed module directories; the current synced specs under
       `openspec/specs/` edited in place (E29: scenario titles and `## Purpose` included,
       scenario ids kept) and `project-assignment-reads` moved to
       `work-package-assignment-reads` with `git mv`; `check-indexes working . HEAD` exits 0;
       `openspec validate --all --json` passes and its output is in `verify.md`.
 - [ ] 1.9 Runbook `docs/runbook-dev-deploy.md#work-package-rename-window` (pause the poller,
-      stop, backup with `--report`, gate, merge, reset, start, health, smoke, resume; the
-      rollback in E38's order) and a paragraph in `docs/runbook-prod-deploy.md` saying prod
+      authenticated read handoff, stop live-store owners, backup with `--report`, gate,
+      merge/reset, complete baseline ledger capture, explicitly admitted stopped one-off
+      candidate migration under permissions 6.4b/6.4e, post-ledger/schema validation, current
+      startup/health/read checks, old-authorizer retirement before grant/write exposure and
+      supported poller resumption; rollback in E38's order only when permissions 6.4f admits it) and a paragraph in `docs/runbook-prod-deploy.md` saying prod
       is out of scope until an activation change defines its window (E36); the rehearsal of
       E38 on a copy of the dev database with non-default settings and an injected failed
       `/health`; `verify.md` with commands, results and the failure-proof table; the dev
       window executed and its receipt (report file, snapshot path and sha, gate output,
-      health commit) recorded. The same runbook section serves 3.8 and 4.9.
+      health commit, transition-owner/candidate/ledger attribution, read continuity,
+      retirement and exposure facts) recorded. Unknown or failed one-off transition blocks
+      startup/resumption; raw migrate-cli and a successful verifier alone are not a permit.
+      The same runbook section serves 3.8 and 4.9.
 
 ## 2. Dev cleanup and curated regrouping (runbook, between slice 1 and slice 2's window)
 
@@ -176,7 +183,8 @@ executed on dev.
 - [ ] 3.2 Red: `ProjectStore` conformance (`projects.create:name-taken`,
       `projects.create:with-first-work-package` (all rows or none),
       `projects.delete:not-empty`, `projects.delete:only-project` (an empty only project is
-      deleted), `projects.move:cross-organization` (the store-level refusal, E45)) on SQLite
+      deleted), CP14 nonlowering/zero-grant deletion refusal with exact rollback,
+      `projects.move:cross-organization` (the store-level refusal, E45)) on SQLite
       and the memory twin; `combined-create.db.test.ts` (E41, E49): one transaction writes
       the project, the package, the creator's `project-manager` and `package-manager`
       grants (origin `creation`) and the audit rows `project_created` and one
@@ -194,17 +202,30 @@ executed on dev.
       (the audit-count assertion fails); each watched.
 - [ ] 3.3 Red: `project.routes.test.ts` (create 201, create with `workPackage` 201 with both
       rows and the package's `projectId` the new project, `409 name_taken` leaving neither,
-      list with counts, read with entries, patch 409/404, delete 204/409 `not_empty`/404, the
+      list with counts, read with entries, patch 409/404, delete 204/409 `not_empty`/404,
+      CP14 deletion refusal409 `last_super_admin` with no effects even for zero grants, the
       organization's only empty project deleted 204, E41's interim authority:
       `organization.create_project` for writes, every member reads) and
-      `work-package-move.routes.test.ts` (E45: 200 with both projects' revisions up by one
-      and the audit row; `404 not_found` with identical bodies for a missing package, an
-      unreadable package, a missing target and a foreign target, in that order before the
-      permission check); `POST /api/work-packages` and `POST /api/work-packages/import`
+      `work-package-move.routes.test.ts` (E45: typed200 IDs/committed-revisions reply; an
+      authorized same-parent200 writes/audits nothing; a real move bumps the package and
+      each distinct project's revision once, with one project-kind destination-subject audit
+      carrying flat IDs/revisions; `404 not_found` with identical bodies for a missing
+      package, an unreadable package, a missing target and a foreign target, in that order
+      before BOTH current `organization.create_project` then `package.write` and any content
+      check. Use actual current grants/credential intersection; preserve queued context,
+      restricted-package, parent/map and rollback failure controls); `POST /api/work-packages` and `POST /api/work-packages/import`
       (body `{ projectId, document }`, E44) with `projectId` missing, `null`, `42`, foreign
       and nonexistent answer `422 project_required` twice, `422 invalid_body`, and `404`
       twice, creating nothing; an import whose document names another project lands in the
-      body's project. Callers updated to name a project (E30), each by a named test: fe-01's
+      body's project. Every direct/internal create/import caller, explicitly legacy calls
+      included, supplies a nonempty parent. Add SQLite/memory caller controls for owner-time
+      scoped or actual legacy-organization parent validation, identical absent/foreign
+      not-found, missing parent refusal with no effects, and stale legacy admission after
+      activation, including an actual full-memory source-owned mode transition while queued.
+      A legacy-organization flag or isolated fixture does not prove that transition control.
+      Preserve usable explicit preactivation calls and existing delegation/unbound
+      refusals; seed real parent identities, never select a first/migrated/automatic parent.
+      Callers updated to name a project (E30), each by a named test: fe-01's
       create (`project-page.tsx`) and import (`import-with-ai.ts`, `wbs-api.ts`, the new
       envelope) and the e2e seeding (`apps/wbs/fe-01/e2e/create-project.ts`, which creates
       a project first). Green: routes, contracts, OpenAPI, MCP tools by derivation, and
@@ -213,25 +234,104 @@ executed on dev.
       removed from the target lookup (the foreign target reaches the store and answers its
       refusal instead of `404`); the audit append removed; `classifyBodyFailure` mutated so
       the missing-`projectId` case falls through to `invalid_body` (the mounted missing
-      case fails, E44); each watched. `dependency_crosses_project` is not tested here (E45).
-- [ ] 3.4 Plan document 13 (`project: { id, name }`, informational on import) with its test;
-      the work package read carries `projectId`.
+      case fails, E44); each watched. Actual dependencies now exist: this move slice owns
+      the mounted `dependency_crosses_project` test in BOTH directions, including a
+      successor-owned incoming edge, held edge, destination-counterpart/local-edge positives,
+      deterministic unique blocker IDs and permission-before-content opacity. Preserve
+      original dependency SQL/receipts; no historical-branch or fixture-flag proof credit.
+      Add actual package/source-project/target-project/audit failure rollback, overflow,
+      explicit same-parent no-op and unchanged grants/journal/step/address controls. These
+      new move negatives and any finite R5 omissions remain prospective until observed;
+      step-code matching and future settings/type policy remain deferred (E45).
+- [ ] 3.4 Freeze the complete actual owner-bearing document13/14 schemas and reachable leaves
+      independently of live response types. Add ownerless ordinary15/connected16 with required
+      `workPackage.projectId` and `project: { id, name }` from one source-owned capture in
+      every supported mode, including pre-activation legacy and scoped isolated/shared/connected;
+      refuse mismatched or foreign trusted parent identities. Require the purpose export reader
+      at route composition, retain optional ordinary livePlans, and retire independent async
+      export/later package-tree rereads. Co-land ownerless current capture/input12 first. Tests
+      use actual SQLite observations and detached MemorySource epochs, with rival parent rename,
+      missing/foreign parent, stale authority, detachment and no optimizer admission controls.
+      Scoped capture checks target package.read before topology and every retained shared-chain
+      or connected-component member before complete success, under the current interim chain;
+      hidden-member refusal is opaque not_found, never filtered/rehashed evidence. Test actual
+      creator grant, no grant, membership/grant removal, restricted roles, exact credential
+      noninheritance and a malformed selected role; memory selected unsupported group/custom
+      state throws. Keep legacy and general scheduler/read behavior unchanged.
+      Explicitly retain historical13/14 classifier branches;
+      connected12/14/16 remain distinct from ordinary13/15. Test original13/14 bytes and
+      owner validation, new15/16 owner absence, current parent consistency, and writable
+      15/16 imports with read-only response metadata omitted. The outer import parent is
+      authoritative. Frozen owner-bearing document13/14 validation, original bytes/hashes and
+      recorded Proof history stay exact; compatibility decoding grants no live authority.
+      Update Navigator/Burokrat/Dash consumers before declaring delivery.
+      Consumer sub-slice (ordered TDD, still part of open3.4):
+
+  1. Preserve frozen7–14 fixtures/bytes; separately select lazy strict public13/14
+     owner-bearing and current15/16 ownerless request declarations. Require complete
+     current export parent metadata and matching parent IDs; refuse mixed/unknown
+     fields and17+ before publication, without changing HTTP response tolerance.
+  2. Keep reference1/receipt1/2 and PlanTasks3 unchanged; extend exact pairs to
+     6/7→1,8–11→2,12–16→3. Cover raw export/reference digests, parent/history-only
+     replacements, receipt2/selected-reference mismatch, local leaf/external collision
+     and selected work-package destination. Parent consistency grants no authority;
+     historical receipt1 conversion and its admission refusal stay unchanged.
+  3. Coordinate the active CLI write lease, then compose the complete versioned
+     providers/contracts with the PUNI CLI root. Verify current15/16 and frozen12/13/14
+     through one installed canonical PUNI Navigator/Burokrat/Dash artifact and aliases
+     outside the checkout. Update current docs/help to work-package routes; do not infer
+     installed delivery from source checks or change activation/manifest schemas or old bytes.
+  4. Run owning ordinary, lazy-memory and quality checks, then separately review
+     finite R5 recipes for changed checks before faults or new Proof claims. Retain
+     all old captures/Proof history and leave3.4 open until complete delivery review.
+
 - [ ] 3.5 Owner removal (E40): `ownerId` out of the port, the store selects, the work package
       response and `canonical-plan-input.ts`; `ownerName` replaced by `createdByName` in the
       list metadata (`project-shapes.ts`), the space rows (`space-shapes.ts`), the port and
       the store's `users` join on `created_by`; `ProjectResource.create` and plan import
       take the actor as `createdBy`; fe-01's picker entry meta and hover card show the
-      creator; current input12 with the11→12 step moving
-      `ownerId` into `retired`, and `diff-plans.ts`' `retired-field` category. Tests: the
-      mounted list-metadata test (`createdByName` required); `canonical-plan-input.test.ts`
-      (a current11 body upgrades and compares equal to its12 re-save; legacy10 first upgrades through11; pre-retirement bodies with
-      different owners report `retired-field`; a pre-retirement and a12 body report nothing); the
+      creator; freeze actual input11 grammar/semantics, then write strict current12 with
+      mandatory captured parent and no owner/creator audit metadata. After original
+      byte/hash/header/link validation, project historical reads into one internal
+      comparison view with only actually captured `retired.ownerId` and explicit recorded
+      or unrecorded parent evidence. Comparison side summaries expose required parent evidence
+      separately from dependency provenance, including empty diffs; add retired-field to the
+      HTTP category union and its deliberate frontend rank without weakening unknown-category
+      refusal. Never fabricate raw12 or consult live parent/creator.
+      Remove live `SavedPlanPrincipals.workPackageOwnerId` and SQLite/memory projections.
+      Legacy saved-plan rename/delete admits only nonnull `saved_plan.created_by_id`, never
+      package `created_by` or retired owner evidence; scoped touch retains current
+      `package.write` and saved-plan authorship or `package.manage_settings` in its writer.
+      Add legacy author success, another actor/package-creator refusal, null-author refusal,
+      and unchanged scoped author/manager/current-admission/header-only maintenance controls.
+      Retain explicit legacy actor/context and recheck actual activation plus current saved-plan
+      author inside the queued touch owner; Resource preflight/double resolution is insufficient.
+      Add queued activation-change and saved-plan-author-change refusal with no effects on both
+      touch verbs, retaining header-only and `snapshot_busy` behavior. Full memory source tests
+      stage real source-owned activation state with their other state and exercise queued
+      creation/import/touch transitions; no caller/env/legacy-flag or absent-state mode fallback,
+      and isolated old fixtures establish no full-source current-mode parity.
+      Replace the ordinary legacy owner predicate with explicit unrestricted-only admission
+      and rename its creator-named injections; preserve scoped granted/NO_ADMISSION paths.
+      Add former-owner/current-creator/other-actor restricted refusal with no effects,
+      unrestricted legacy edit success, real current-schema resource-use without owner_id,
+      and restricted scoped create/import plus current-grant edit positives. Preserve the
+      distinct saved-author header-maintenance and read/navigation contracts.
+      Keep strict frozen input1–11/document13/14 owner decoding, original fixture bytes/hashes
+      and recorded Proof history; change live test setup/authorization expectations only in
+      explicit successors, with no compatibility alias or blocked comparison edit.
+      Tests: mounted required `createdByName`; original11 versus fresh12 unchanged facts;
+      preserved historical10→11 decoding; different old owners report `retired-field`,
+      one-sided retirement reports no owner change; two recorded parents differ as
+      `reparented`, unknown parent stays unknown after live move/deletion; integrity
+      and schedule-link refusals precede projection. Keep pre10 dependency uncertainty; the
       picker's unit test; `git grep -n -E 'ownerId|ownerName|owner_id'` over
-      `libs/wbs` and `apps/wbs` outside migrations, tests of the old migrations and the
+      `libs/wbs` and `apps/wbs` outside migrations, their tests, named frozen input1–11
+      and document1–14 readers/fixtures, explicit retired-owner comparison evidence and
       optimization `ownerId` (another sense) answers nothing. R5 faults: `createdByName`
       made optional in the contract (the mounted test receives a row without it); the
       `retired` move dropped (the two-owner case reports nothing); the one-side rule dropped
-      (the v10/11 case reports a change); each watched.
+      (a pre-retirement versus12 comparison reports an invented owner change); each watched.
 - [ ] 3.6 fe-01: picker grouped by project, a required project picker on "New work package",
       a "New project" dialog creating the project and its first work package together, a
       projects page (create, rename, delete, move) with an empty state for an organization
@@ -240,6 +340,31 @@ executed on dev.
       required check removed (the browser test sees the `422 project_required` refusal
       instead of a disabled create); each watched. UI reviewed by eye (pretty UI and fluent
       UX) before merge.
+
+      **Open current-cohort sub-slice (ordered; E50, no completed evidence implied):**
+
+  1. Own fresh run/store identity, native registration, actual direct grants/activation,
+     run-bound readiness and controlled same-owner restart; retain real main optimizer
+     and `superviseBe` composition. Observe failed/unknown close with preserved primary
+     plus cleanup failure and retained owned evidence before declaring safe cleanup.
+  2. Bind exact BE/GW/FE descriptors and Performance's independent expected stack and
+     sanitized run/state identity. Prove absent-state `--list` stays discovery-only,
+     while missing/mismatched worker state refuses before a fixture mutation.
+  3. Publish actual native-cookie bridge, organization selection/discovery and API-parent
+     readback state last/exclusively. Isolate destructive login/logout credentials from
+     an empty jar; prove revoking one does not revoke the default credential. Carry
+     explicit state/baseURL into manual contexts without implicit authority.
+  4. Supply captured parent/expected organization in create/seed/import helpers and
+     select the parent after navigation. Keep recipe pre-write negatives and normal
+     protected dependency-client headers; exercise real selected GW peer delivery and
+     missing-selection/origin/revoked-state refusals without fake access callbacks.
+  5. Preserve explicit local quiet-load/refusal/layout and dedicated profiles; add current
+     quiet loading separately. Keep actual activated organization/measure discovery.
+     Observe any unavailable-Project regression before a bounded production correction;
+     no warning suppression, fake Project success or automatic re-login. Retain budgets,
+     retries0/workers1, Performance120s/1200 cells and its exact measurement denominator.
+     Record actual failures/limits later; ordinary fixture health is not R5 or task closure.
+
 - [ ] 3.7 mcp-01: the create and import tools (`postApiWorkPackages`,
       `postApiWorkPackagesImport`) take a required `projectId` in their derived input
       schema; the README tells an agent to list projects (`getApiProjects`) first. Tests:
@@ -250,7 +375,7 @@ executed on dev.
       `projectId` made optional in the contract (the schema assertion fails); the be-01
       classifier mutated as in 3.3 (the transport case receives `invalid_body`); each
       watched.
-- [ ] 3.8 Runbook window executed on dev (E36–E38: rehearsal, report, gate, deploy, health;
+- [ ] 3.8 Runbook window executed on dev (E36–E38 and 1.9: rehearsal, report, gate, admitted stopped transition, post-validation, startup/health/handoff;
       precondition: `wbs-permissions`' `add_access_grants` applied and its tasks 3.3 and 4.1
       merged, E41); `verify.md`.
 
@@ -342,7 +467,7 @@ Precondition (design "Dependency graph"): 3.8 executed and `wbs-permissions` 3.4
       cross-organization trigger dropped; the `project_in_other_space` check removed (the
       second add silently moves the project); the organization scope on `space_team`
       removed (a service team of another organization is linked); each watched.
-- [ ] 4.7 Plan document 14 (settings with provenance, markers as the union with provenance;
+- [ ] 4.7 Plan documents17/18 (settings with provenance, markers as the union with provenance;
       import writes only `work_package` provenance values) and saved-plan input13; tests as
       in 1.5.
 - [ ] 4.8 fe-01: provenance in the settings modal ("inherited from space S", "inherited from
@@ -353,7 +478,7 @@ Precondition (design "Dependency graph"): 3.8 executed and `wbs-permissions` 3.4
       that renders `409 types_in_use` with its work item list as a state removed; the dry-run
       preview shown before a narrowing or a space change skipped; the browser tests naming those
       refusals fail; each watched. UI reviewed by eye.
-- [ ] 4.9 Runbook window executed on dev (E36–E38; precondition: one budget factor per
+- [ ] 4.9 Runbook window executed on dev (E36–E38 and 1.9, including admitted stopped transition and post-validation; precondition: one budget factor per
       project, E20); `verify.md`.
 
 ## 5. Step catalogue (replaces the superseded slice 3b)
@@ -372,3 +497,17 @@ operator inputs with fingerprint and applicability checks.
       window rehearsal/activation and all R5 proofs. Verify the combined scope against
       that change's spec and the work-package/permissions integration before marking
       this parent obligation complete.
+
+- [ ] Coupled1.5/1.6 comparison adapter: real old9/plain1 and old10/connected2 against equivalent renamed11/plain3/connected4; preserve per-side original provenance/bytes/hashes, symmetric meaning diff, same-format identity changes, known18→19-only normalization and nonrename/unknown-field differences. Keep all original hash checks; no live engine or new derived hash during projection.
+
+- [ ] Coupled runtime identity boundary: genuine outgoing authority/claim/write1 bytes and receipts; strict frozen1 read/current canonical+acceptance+receipt+state2 write; original-format recanonicalization/digest/replay, current2-only insertions, raw1|2 reads and original lookup receipts. Keep ledger/body1/rb1 and current admission. Separate tagged resource identity2 versus untagged history with exact-order comparisons, old/new snapshots and linked/unlinked infrastructure controls. Actual adapters/mounted negatives, exact native schema and R5 required.
+
+- [ ] Coupled1.3–1.6 recovery-backup identity, before Navigator1.7: (a) freeze actual shared-save1/projectId canonical bytes and ea65189d digest; new shared-save2/workPackageId only producer plus strict old/current CLI codecs, exact standalone project-rank-save1/work-package-rank-save2 pairs; (b) separate post-validation current-row projection, complete mode/rank/audit removal equality and all-or-none restore; (c) genuine outgoing110 pending/completed operation+approval+receipt+consumption evidence, actual111 migration preservation, current-authority pending restore and byte/digest-preserving cold retry; equivalent2 must not reuse1 approval; (d) host once-read versioned snapshot across fencing/path replacement, exact original digest diagnostics and unchanged owner/capability failures; (e) fresh bounded codec/DB/CLI/host/type/lint checks, reviewed finite R5 before faults, adjacent actualProof and exact source/evidence bridges. Preserve historical add_project_rank directory/hash and repair only its current JSDoc reference. No SQL digest/approval rewrite, version1 reinterpretation or golden replacement.
+
+- [x] Coupled Dash local identity (R1/R2): immutable RuntimeScope1 for published pin/snapshots1–3 and tuple keys; full current/local maps and exact canonical1|2→local request view. TDD equality positive and independent organization/owner/person negatives, original scope/pin/snapshot/key bytes, genuine old canonical/digest preservation, current2 view and malformed/noncanonical refusal.
+- [x] Coupled Dash raw receipts (R3): retain original receipt1|2 and full correspondence after original artifact integrity; current matcher input and local accessors. Genuine authority/claim/write receipts, current2 counterparts, wrong owner, additions and original tag/bytes/digest controls.
+- [x] Coupled Dash state/recovery raw pairs (R4/R5): genuine7b state1 capture, complete frozen1/current2 retained grammar, live current2-only, unversioned view; repair recovery codec/types/evidence together. Raw body.value and complete independently reread envelope/body equality remain original, including permitted additions; reject corruption/mixed/unknown shapes before projection.
+- [x] Coupled Dash fresh API boundary: three live canonical encoders map full current scope and emit envelope2/body1; current state/authority/claim/write/lookup and delegated preparation calls use current WBS SDK fields. Submitted mismatches refuse before send, retained old1 requests are never rebuilt/rehash.
+- [x] Coupled Dash native integration: old accepted store/fixture→current receiver→cold reopen, deleted-reference replay, changed-command conflict, removed current write grant refusal for all3 POSTs AND lookups while ordinary package GET remains readable, independent read-credential/writer-permission lookup control, and new2 success after named write restoration. Preserve local keys, canonical/receipt bytes, receiver checks, owner/lifetime and memory/SQLite contracts; finite source/proof plan review before broad mutations. Historical broad637/73 diagnostics are retained; the current six affected strict roots pass. These scoped owning tests do not claim a full Dash test target or parent closure.
+
+- [x] Coupled organization activation namespace repair: reconcile exact retained `project:<id>` and current `work-package:<id>` keys against current ownership; explicitly prune sorted unique physical orphans only, preserve both live raw histories/counters and durable plan history; prove unknown/lookalike and late-live-unmapped atomic rollback through store and CLI, retain current-only gateway authority. Ordinary implementation precedes a separately reviewed finite R5 sweep and complete source/proof review; leave unchecked until that review.

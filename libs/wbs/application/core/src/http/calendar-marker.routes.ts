@@ -181,7 +181,7 @@ function createProblem(fields: MarkerFields): NewMarkerBody | BodyProblem {
     return { reason: 'malformed', field: 'markerId' };
   // `isIsoDate` rather than a regexp of this file's own: it rejects
   // `2026-02-31`, which matches the shape and is not a day, and it is what
-  // `projectService.patch` already answers `startDate` against. A second
+  // `workPackageService.patch` already answers `startDate` against. A second
   // spelling would be a second rule free to disagree with the one the rest of
   // the API applies. An absent `date` fails it for the same reason a
   // present-but-wrong one does — `required` in the document, `malformed`/`date`
@@ -218,8 +218,8 @@ function bareState(reason: CalendarMarkerRefusal, permission?: Permission) {
 
 /** A field is blamed only when the service says marker and the request named one. */
 function stateRefused(outcome: CalendarMarkerRefused, named: boolean) {
-  // Proof: removing the project subject branch added field: markerId to the direct missing-project reply.
-  if (!named || outcome.about === 'project' || outcome.reason === 'forbidden')
+  // Proof: removing the work package subject branch added field: markerId to the direct missing-work-package reply.
+  if (!named || outcome.about === 'work_package' || outcome.reason === 'forbidden')
     return bareState(outcome.reason, outcome.permission);
   return outcome.reason === 'not_found'
     ? ({ ok: false, status: 404, body: { error: 'not_found', field: 'markerId' } } as const)
@@ -284,7 +284,7 @@ export function calendarMarkerRoutes(
   /** Records a scoped marker recovery and publishes only after commit. */
   const write = (
     access: ResourceAccess,
-    projectId: string,
+    workPackageId: string,
     actor: AuthenticatedUser,
     detail: { readonly marker: 'create' | 'rename' | 'recolor' | 'remove' },
     perform: (
@@ -298,7 +298,7 @@ export function calendarMarkerRoutes(
     return runRecoveryWrite(
       recovery,
       access,
-      projectId,
+      workPackageId,
       actor,
       detail,
       (services, freshAccess, retainedActorId) =>
@@ -306,7 +306,7 @@ export function calendarMarkerRoutes(
       (reason, permission) => ({
         ok: false,
         reason,
-        about: 'project',
+        about: 'work_package',
         ...(permission === undefined ? {} : { permission }),
       }),
     );

@@ -20,7 +20,7 @@ export interface ExecutionReads {
   readonly rows: readonly LabelledWorkItem[];
   /** Every row's derived status: the folds the table shows (`workItemStatusesOf`). */
   readonly statuses: ReadonlyMap<string, WorkItemStatus>;
-  /** The project's steps in project order. */
+  /** The work package's steps in work package order. */
   readonly stepIds: readonly string[];
   readonly stated: readonly Pick<StoredProgress, 'workItemId' | 'stepId' | 'state'>[];
   readonly claims: readonly StampedClaim[];
@@ -35,16 +35,16 @@ export interface ExecutionReads {
   readonly teamNames: ReadonlyMap<string, string>;
   /** The team to filter by, or null for every leaf. */
   readonly teamId: string | null;
-  /** The project's stated capacities. */
+  /** The work package's stated capacities. */
   readonly capacities: readonly ResourceCapacity[];
-  /** Every demand stated on a work item of the project. */
+  /** Every demand stated on a work item of the work package. */
   readonly demands: readonly Demand[];
-  /** The project's occupancy rows: one per claim and resource (`ClaimStore.occupancyOf`). */
+  /** The work package's occupancy rows: one per claim and resource (`ClaimStore.occupancyOf`). */
   readonly occupancy: readonly OccupancyRow[];
   /** Directory capacities for demanded resources in this read. */
   readonly directoryCapacities: readonly ResourceCapacity[];
   /** Organization-wide held units for those directory capacities. */
   readonly organizationOccupied: readonly ResourceUnits[];
-  /** Every resource a project or directory capacity names, by id, under the caller's names. */
+  /** Every resource a work package or directory capacity names, by id, under the caller's names. */
   readonly resources: ReadonlyMap<string, Resource>;
 }

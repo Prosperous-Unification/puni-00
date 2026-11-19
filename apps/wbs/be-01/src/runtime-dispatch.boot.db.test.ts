@@ -109,16 +109,18 @@ async function runIntegration(
     harness.bind('ada', 'org-a');
     harness.activate();
     const created = await awaitPhase(
-      harness.call('ada', 'POST', '/api/projects', { name: 'Runtime dispatch' }),
-      'project',
+      harness.call('ada', 'POST', '/api/work-packages', { name: 'Runtime dispatch' }),
+      'work_package',
     );
-    assert(created.body !== null && typeof created.body === 'object' && 'project' in created.body);
-    const project = created.body.project;
     assert(
-      project !== null &&
-        typeof project === 'object' &&
-        'id' in project &&
-        typeof project.id === 'string',
+      created.body !== null && typeof created.body === 'object' && 'workPackage' in created.body,
+    );
+    const workPackage = created.body.workPackage;
+    assert(
+      workPackage !== null &&
+        typeof workPackage === 'object' &&
+        'id' in workPackage &&
+        typeof workPackage.id === 'string',
     );
     harness.sqlite.run("INSERT INTO person (id, name) VALUES ('person', 'Person')");
     harness.sqlite.run(
@@ -127,12 +129,12 @@ async function runIntegration(
     // Proof: position 100 produced a real FS workflow prerequisite refusal;
     // placing Plan before default Dev/QA restored the same conditional integration.
     harness.sqlite.run(
-      "INSERT INTO step (id, project_id, name, position, code) VALUES ('step', ?, 'Plan', 0, 'plan')",
-      [project.id],
+      "INSERT INTO step (id, work_package_id, name, position, code) VALUES ('step', ?, 'Plan', 0, 'plan')",
+      [workPackage.id],
     );
     harness.sqlite.run(
-      "INSERT INTO work_item (id, project_id, position, name, readiness) VALUES ('work', ?, 10, 'Work', 'ready')",
-      [project.id],
+      "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES ('work', ?, 10, 'Work', 'ready')",
+      [workPackage.id],
     );
     const credential = harness.token('ada');
     const actorId = harness.userId('ada');
@@ -196,6 +198,13 @@ async function runIntegration(
           assert(source !== undefined, 'boot source missing');
           const app = buildApp({
             ...options,
+            workPackageObservation: source.createWorkPackageObservation({
+              activeOrganizationOf: () =>
+                userBoundOrganizationOf((userId) =>
+                  Promise.resolve(userId === actorId ? 'org-a' : null),
+                ),
+              now: Date.now,
+            }),
             organizations: new SqliteOrganizationAccess(
               source.db,
               userBoundOrganizationOf((userId) =>
@@ -257,8 +266,8 @@ async function runIntegration(
           fetch(
             'http://127.0.0.1:' +
               String(running.port) +
-              '/api/projects/' +
-              encodeURIComponent(project.id) +
+              '/api/work-packages/' +
+              encodeURIComponent(workPackage.id) +
               '/runtime-state?personId=person',
             { headers },
           ),
@@ -279,7 +288,7 @@ async function runIntegration(
         base: 'http://127.0.0.1:' + String(running.port),
         credential,
         organizationId: 'org-a',
-        projectId: project.id,
+        workPackageId: workPackage.id,
         path: join(directory, 'runs.sqlite'),
         ...(variant === 'delayed-ready'
           ? { readyHold: 'after-build' }

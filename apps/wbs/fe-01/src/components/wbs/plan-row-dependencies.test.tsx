@@ -1,9 +1,9 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { shortIsoDate } from './short-date';
@@ -16,7 +16,7 @@ const itDom = hasDom ? it : it.skip;
 
 publishApplicationRuntimeForEachTest();
 
-// The table remembers each project's open branches and hidden columns in
+// The table remembers each work package's open branches and hidden columns in
 // localStorage, so one test's shape would arrive as the next test's start.
 beforeEach(() => {
   localStorage.clear();
@@ -38,7 +38,7 @@ const showEveryColumn = (): void => {
 };
 
 /**
- * Two rows, a project start date, and a way to make a **peer's** edit land.
+ * Two rows, a work package start date, and a way to make a **peer's** edit land.
  *
  * The peer is the whole subject: a second person's write arrives as a socket
  * event, this client refetches, and every cell's committed reading is replaced
@@ -51,14 +51,14 @@ async function twoRowsAndAPeer() {
   let notify: () => void = () => {
     throw new Error('the table never subscribed');
   };
-  const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+  const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
     notify = handlers.onChange;
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
   render(
     <WbsTableOverClient
-      projectId="p1"
-      projectServices={projectServicesOf(api)}
+      workPackageId="p1"
+      workPackageServices={workPackageServicesOf(api)}
       subscribe={subscribe}
     />,
   );
@@ -66,7 +66,7 @@ async function twoRowsAndAPeer() {
   await screen.findByLabelText('Name of 010');
   click('Add work item');
   await screen.findByLabelText('Name of 020');
-  typeIntoDate('Project start date', '2026-08-06');
+  typeIntoDate('Work package start date', '2026-08-06');
   await waitFor(() => {
     expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 020').disabled).toBe(false);
   });

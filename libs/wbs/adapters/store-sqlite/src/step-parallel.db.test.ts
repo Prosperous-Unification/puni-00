@@ -38,9 +38,9 @@ const newer = [
   '20261023140000_add_measure',
   '20261023100000_add_claim_lease',
   '20261022213000_add_optimization_boundary_certificates',
-  '20261022212000_add_cross_project_dependency_activation',
+  '20261022212000_add_cross_work_package_dependency_activation',
   '20261022211000_add_external_dependencies',
-  '20261022210000_add_project_abbreviations',
+  '20261022210000_add_work_package_abbreviations',
   '20261022140100_widen_organization_audit_compute_providers',
   '20261022140000_add_resource_provider',
   '20261022130100_widen_organization_audit_organization_limits',
@@ -70,16 +70,16 @@ beforeEach(() => {
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)",
   );
   connection.db.run(
-    "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
+    "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
   );
   connection.db.run(
-    "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','foreign','Foreign',1)",
+    "INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','foreign','Foreign',1)",
   );
   connection.db.run(
-    "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0),('parent','p','Parent',2,0)",
+    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0),('parent','p','Parent',2,0)",
   );
   connection.db.run(
-    "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','parent','Child',1,0)",
+    "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','p','parent','Child',1,0)",
   );
   store = new StepParallelRepository(connection.db, OPEN);
 });
@@ -103,7 +103,7 @@ describe('sparse parallelism SQL contract', () => {
   for (const [name, owner, step] of [
     ['owner reference', 'absent', 'dev'],
     ['step reference', 'a', 'absent'],
-    ['project', 'a', 'foreign'],
+    ['work_package', 'a', 'foreign'],
     ['leaf', 'parent', 'dev'],
   ]) {
     it(`SQL rejects insert ${name}`, () => {
@@ -142,10 +142,10 @@ describe('sparse parallelism SQL contract', () => {
   for (const [name, fault] of [
     ['owner', "PRAGMA foreign_keys=OFF; DELETE FROM work_item WHERE id='a'"],
     ['step', "PRAGMA foreign_keys=OFF; DELETE FROM step WHERE id='dev'"],
-    ['project', "UPDATE step SET project_id='foreign' WHERE id='dev'"],
+    ['work_package', "UPDATE step SET work_package_id='foreign' WHERE id='dev'"],
     [
       'leaf',
-      "INSERT INTO work_item(id,project_id,parent_id,name,position,revision) VALUES('new','p','a','New',1,0)",
+      "INSERT INTO work_item(id,work_package_id,parent_id,name,position,revision) VALUES('new','p','a','New',1,0)",
     ],
     ['range', 'PRAGMA ignore_check_constraints=ON; UPDATE step_parallel SET max_parallel=1001'],
   ])
@@ -153,7 +153,7 @@ describe('sparse parallelism SQL contract', () => {
       insert();
       for (const statement of fault.split(';')) connection.db.run(statement);
       expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
-      await assertStepParallelRefusal(store.listByProject('p'));
+      await assertStepParallelRefusal(store.listByWorkPackage('p'));
       await assertStepParallelRefusal(store.listByWorkItems('p', ['a']));
     });
   it('down refuses retained facts and preserves table and applied ledger', () => {
@@ -180,13 +180,13 @@ describe('sparse parallelism SQL contract', () => {
 
 for (const [name, owner, value, message] of [
   ['owner', 'absent', 2, 'invalid work-item reference'],
-  ['project', 'other', 2, 'project mismatch'],
+  ['work_package', 'other', 2, 'work package mismatch'],
   ['leaf', 'parent', 2, 'not a leaf'],
   ['range', 'a', 1001, 'integer from 1 to 1000'],
 ] as const)
   it(`removal throws on corrupt retained SQLite ${name}`, async () => {
     connection.db.run(
-      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('other','foreign','Other',1,0)",
+      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('other','foreign','Other',1,0)",
     );
     connection.db.run('PRAGMA foreign_keys = OFF');
     connection.db.run('PRAGMA ignore_check_constraints = ON');
@@ -207,7 +207,7 @@ for (const cascade of [false, true])
       createRepairScope: () => ({ stores: stores }),
     });
     connection.db.run(
-      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('foreign-owner','foreign','Other',1,0)",
+      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('foreign-owner','foreign','Other',1,0)",
     );
     await stores.stepParallels.set(
       { workItemId: 'foreign-owner', stepId: 'foreign', maxParallel: 3 },
@@ -215,7 +215,7 @@ for (const cascade of [false, true])
     );
     await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
     const tables = [
-      'project',
+      'work_package',
       'work_item',
       'step',
       'step_parallel',
@@ -255,7 +255,7 @@ it('preserves retained cascade families before refusing sparse parallelism', asy
   expect(await stores.directory.assign('a', 'dev', 'worker', stamp)).toEqual({ ok: true });
   await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
   const tables = [
-    'project',
+    'work_package',
     'work_item',
     'step',
     'step_parallel',

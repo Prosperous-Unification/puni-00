@@ -1,9 +1,9 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { DAY_PX } from './gantt-panel';
@@ -131,7 +131,7 @@ const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -141,12 +141,12 @@ beforeEach(() => {
  * Every column on screen, for a describe whose tests read the Teams or
  * Services cells: both are hidden by default since `configurable-columns`, and
  * those tests are about the cells, not about the default column set. Stored as
- * the reader would have stored it — an empty hide-list — under both project ids
+ * the reader would have stored it — an empty hide-list — under both work package ids
  * the file renders. The tests that ARE about the default never call this.
  */
 const showEveryColumn = (): void => {
-  for (const projectId of ['p1', 'p2']) {
-    localStorage.setItem(`wbs.hiddenColumns.${projectId}`, '[]');
+  for (const workPackageId of ['p1', 'p2']) {
+    localStorage.setItem(`wbs.hiddenColumns.${workPackageId}`, '[]');
   }
 };
 
@@ -184,8 +184,8 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
   // These layout mechanics deliberately exercise the refs-shown geometry while
   // retaining the original hidden Teams/Services/Types baseline.
-  for (const projectId of ['p1', 'p2']) {
-    const key = `wbs.hiddenColumns.${projectId}`;
+  for (const workPackageId of ['p1', 'p2']) {
+    const key = `wbs.hiddenColumns.${workPackageId}`;
     if (localStorage.getItem(key) === null) {
       // `deadline` with them since `work-item-deadline` 9.1: it ships hidden
       // for the same reason `type` does, and a baseline that showed it would
@@ -211,7 +211,9 @@ async function threeRoots() {
   }
 
   const api = fakeApi();
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -488,7 +490,7 @@ describe('the widths the table is laid out by', () => {
     //
     // Delivered as somebody else's edit, which is the gesture that makes the
     // claim: the width really does change — `not-before` goes 56 → 84 the
-    // moment any row in the project sets a day — and the reader whose focus
+    // moment any row in the work package sets a day — and the reader whose focus
     // must survive it is not the one who caused it.
     //
     // Proof: `frameState` added to the `columns` dependency array, this failed
@@ -498,14 +500,14 @@ describe('the widths the table is laid out by', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -608,7 +610,7 @@ describe('the widths the table is laid out by', () => {
     await threeRoots();
     // With an editor open, so the one deliberate exception below is a case this
     // really walks rather than a branch nothing reaches.
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -781,7 +783,9 @@ describe('the outline past the Number cap', () => {
    */
   itDom('hands the Name cell the share of the indent the Number cap withheld', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -847,7 +851,7 @@ describe('the outline past the Number cap', () => {
 });
 
 describe('the widths this browser has dragged', () => {
-  /** Where the key lives for the project every test in here opens. */
+  /** Where the key lives for the work package every test in here opens. */
   const KEY = 'wbs.columnWidths.p1';
 
   /** What the `<colgroup>` declares, by the column each `<col>` belongs to. */
@@ -871,7 +875,7 @@ describe('the widths this browser has dragged', () => {
    * One row on p1, and a way to hand the table somebody else's edit.
    *
    * The peer's edit is how the `not-before` column's resolved default is made
-   * to move — 56px to 84px the moment any row in the project sets a day — which
+   * to move — 56px to 84px the moment any row in the work package sets a day — which
    * is the only way to ask whether an override outranks a default that changes.
    */
   async function planWithAPeer() {
@@ -879,14 +883,14 @@ describe('the widths this browser has dragged', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );
@@ -1089,7 +1093,7 @@ describe('the widths this browser has dragged', () => {
     // And the pinned column behind it moved with it, which is the whole of why
     // the override lives in the frame layout rather than in the `<colgroup>`.
     expect([...rowFor('020').querySelectorAll('td')][2]?.style.left).toBe(`${String(16 + 240)}px`);
-    // Read, not written back: nothing about opening a project changes what is
+    // Read, not written back: nothing about opening a work package changes what is
     // remembered about it.
     expect(stored()).toBe(JSON.stringify({ number: 240 }));
   });
@@ -1198,7 +1202,7 @@ describe('the widths this browser has dragged', () => {
     },
   );
 
-  itDom('leaves a step this project no longer holds alone', async () => {
+  itDom('leaves a step this work package no longer holds alone', async () => {
     // Never looked at rather than dropped: expansion's deleted row ids are
     // harmless for the same reason, and a width for a column nothing renders
     // costs nothing to keep. The step coming back would find its width waiting.
@@ -1217,7 +1221,9 @@ describe('the widths this browser has dragged', () => {
     const api = fakeApi();
     const root = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Root' });
     await api.createWorkItem('p1', { parentId: root.id, afterId: null, name: 'Child' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
 
     expect(laidOut()['number']).toBe('68px');
@@ -1239,7 +1245,9 @@ describe('the widths this browser has dragged', () => {
       name: 'Child',
     });
     await api.createWorkItem('p1', { parentId: child.id, afterId: null, name: 'Grandchild' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1.1');
 
     expect(laidOut()['number']).toBe('98px');
@@ -1247,7 +1255,7 @@ describe('the widths this browser has dragged', () => {
   });
 
   itDom('freezes a width that would otherwise move with the plan', async () => {
-    // The `not-before` column is 56px until any row in the project sets a day
+    // The `not-before` column is 56px until any row in the work package sets a day
     // and 84px afterwards. A reader who has said how wide they want it has said
     // so about both states.
     // Proof: the precedence reversed in `widthFor`, so a plan width outranks
@@ -1292,7 +1300,7 @@ describe('the widths this browser has dragged', () => {
   itDom('offers the reset only while there is a width to reset', async () => {
     // A control that provably does nothing reads as a broken one.
     // Proof: the `size > 0` condition removed, this failed on `expected
-    // <button …(3)></button> to be null` on a project nobody had dragged a
+    // <button …(3)></button> to be null` on a workPackage nobody had dragged a
     // column in. Watched, 2026-08-09.
     await threeRoots();
     expect(screen.queryByRole('button', { name: 'Reset layout' })).toBe(null);
@@ -1321,7 +1329,9 @@ describe('the widths this browser has dragged', () => {
     // half-typed name gone with it. Watched, 2026-08-09.
     storedWidths({ number: 240 });
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const name = await screen.findByLabelText('Name of 010');
     name.focus();
@@ -1334,8 +1344,8 @@ describe('the widths this browser has dragged', () => {
     expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
   });
 
-  itDom('reads the next project’s widths rather than stamping this one’s on it', async () => {
-    // This component is not remounted between projects (`project-page.tsx`
+  itDom('reads the next work package’s widths rather than stamping this one’s on it', async () => {
+    // This component is not remounted between work packages (`work-package-page.tsx`
     // renders it without a `key`), so the state and the key it is written under
     // have to be swapped together — exactly as the remembered expansion beside
     // it is.
@@ -1343,13 +1353,15 @@ describe('the widths this browser has dragged', () => {
     localStorage.setItem('wbs.columnWidths.p2', JSON.stringify({ number: 300 }));
     const api = fakeApi();
     const { rerender } = render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
     );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     expect(laidOut()['number']).toBe('240px');
 
-    rerender(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
+    rerender(
+      <WbsTableOverClient workPackageId="p2" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     await waitFor(() => {
       expect(laidOut()['number']).toBe('300px');
@@ -1358,8 +1370,8 @@ describe('the widths this browser has dragged', () => {
   });
 });
 
-describe('the day scale this browser picked for this project', () => {
-  /** Where the key lives for the project every test in here opens. */
+describe('the day scale this browser picked for this work package', () => {
+  /** Where the key lives for the work package every test in here opens. */
   const KEY = 'wbs.ganttDayPx.p1';
 
   const openTheChart = async (): Promise<HTMLSelectElement> => {
@@ -1381,7 +1393,7 @@ describe('the day scale this browser picked for this project', () => {
     expect(cell?.style.width).toBe('4px');
   });
 
-  itDom('opening a project does not change what is remembered about it', async () => {
+  itDom('opening a work package does not change what is remembered about it', async () => {
     localStorage.setItem(KEY, '12');
     await openTheChart();
     expect(localStorage.getItem(KEY)).toBe('12');
@@ -1404,18 +1416,20 @@ describe('the day scale this browser picked for this project', () => {
     expect(localStorage.getItem(KEY)).toBe('"15m"');
   });
 
-  itDom('switching projects clears the old rung refusal notice', async () => {
+  itDom('switching work packages clears the old rung refusal notice', async () => {
     localStorage.setItem(KEY, '9');
     const api = fakeApi();
-    const services = projectServicesOf(api);
-    const { rerender } = render(<WbsTableOverClient projectId="p1" projectServices={services} />);
+    const services = workPackageServicesOf(api);
+    const { rerender } = render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={services} />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
     await waitFor(() => {
       expect(document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title).toContain(
         'reset to Days',
       );
     });
-    rerender(<WbsTableOverClient projectId="p2" projectServices={services} />);
+    rerender(<WbsTableOverClient workPackageId="p2" workPackageServices={services} />);
     await waitFor(() => {
       expect(
         document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title,
@@ -1451,8 +1465,8 @@ describe('the day scale this browser picked for this project', () => {
   });
 });
 
-describe('the row names this browser left shown for this project', () => {
-  /** Where the key lives for the project every test in here opens. */
+describe('the row names this browser left shown for this work package', () => {
+  /** Where the key lives for the work package every test in here opens. */
   const KEY = 'wbs.ganttLabels.p1';
 
   const openTheChart = async (): Promise<HTMLButtonElement> => {
@@ -1472,7 +1486,7 @@ describe('the row names this browser left shown for this project', () => {
     expect(document.querySelectorAll('[data-gantt-labels]')).toHaveLength(0);
   });
 
-  itDom('opening a project does not change what is remembered about it', async () => {
+  itDom('opening a work package does not change what is remembered about it', async () => {
     localStorage.setItem(KEY, 'false');
     await openTheChart();
     expect(localStorage.getItem(KEY)).toBe('false');
@@ -1514,7 +1528,7 @@ describe('the row names this browser left shown for this project', () => {
 });
 
 describe('the chart height this browser has dragged', () => {
-  /** Where the key lives for the project every test in here opens. */
+  /** Where the key lives for the work package every test in here opens. */
   const KEY = 'wbs.ganttHeight.p1';
 
   const openTheChart = async (): Promise<HTMLElement> => {
@@ -1531,7 +1545,7 @@ describe('the chart height this browser has dragged', () => {
     expect(panel.style.height).toBe('500px');
   });
 
-  itDom('opening a project does not change what is remembered about it', async () => {
+  itDom('opening a work package does not change what is remembered about it', async () => {
     // The write happens when a drag is let go of and at no other time; a
     // sanitize-and-write-back on read would quietly rewrite a preference the
     // reader never touched.
@@ -1685,7 +1699,7 @@ describe('the chart height this browser has dragged', () => {
 });
 
 describe('the columns a reader has hidden', () => {
-  /** Where the hide-list lives for the project every test in here opens. */
+  /** Where the hide-list lives for the work package every test in here opens. */
   const KEY = 'wbs.hiddenColumns.p1';
   const RESET_MARKER = 'wbs.linksResetShown.p1';
 
@@ -1702,7 +1716,9 @@ describe('the columns a reader has hidden', () => {
   const stored = (): string | null => localStorage.getItem(KEY);
 
   async function oneRow(api = fakeApi()) {
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -1739,13 +1755,15 @@ describe('the columns a reader has hidden', () => {
   });
 
   itDom(
-    'keeps Links hidden on a first visit even when the project already has a link',
+    'keeps Links hidden on a first visit even when the work package already has a link',
     async () => {
       localStorage.removeItem(KEY);
       const api = fakeApi();
       const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
       api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await screen.findByLabelText('Name of 010');
       expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
       expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
@@ -1756,7 +1774,9 @@ describe('the columns a reader has hidden', () => {
       expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
 
       cleanup();
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await screen.findByLabelText('Name of 010');
       expect(headerIds()).toContain('refs');
     },
@@ -1772,28 +1792,35 @@ describe('the columns a reader has hidden', () => {
     }
   });
 
-  itDom('keeps each project’s reset marker while the selected project changes', async () => {
-    localStorage.setItem(RESET_MARKER, 'true');
-    const api = fakeApi();
-    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'One row' });
-    const view = render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
-    );
-    await screen.findByLabelText('Name of 010');
-    expect(headerIds()).toContain('refs');
-
-    view.rerender(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
-    await waitFor(() => {
-      expect(headerIds()).not.toContain('refs');
-    });
-    expect(localStorage.getItem(RESET_MARKER)).toBe('true');
-    expect(localStorage.getItem('wbs.linksResetShown.p2')).toBeNull();
-
-    view.rerender(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-    await waitFor(() => {
+  itDom(
+    'keeps each work package’s reset marker while the selected work package changes',
+    async () => {
+      localStorage.setItem(RESET_MARKER, 'true');
+      const api = fakeApi();
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'One row' });
+      const view = render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
+      await screen.findByLabelText('Name of 010');
       expect(headerIds()).toContain('refs');
-    });
-  });
+
+      view.rerender(
+        <WbsTableOverClient workPackageId="p2" workPackageServices={workPackageServicesOf(api)} />,
+      );
+      await waitFor(() => {
+        expect(headerIds()).not.toContain('refs');
+      });
+      expect(localStorage.getItem(RESET_MARKER)).toBe('true');
+      expect(localStorage.getItem('wbs.linksResetShown.p2')).toBeNull();
+
+      view.rerender(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
+      await waitFor(() => {
+        expect(headerIds()).toContain('refs');
+      });
+    },
+  );
 
   itDom('offers no reset until the first tree read succeeds, including an empty tree', async () => {
     localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
@@ -1806,7 +1833,9 @@ describe('the columns a reader has hidden', () => {
     const read = vi.fn(() => held);
     api.tree = read;
 
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(read).toHaveBeenCalledTimes(1);
     });
@@ -1824,7 +1853,9 @@ describe('the columns a reader has hidden', () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
     api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/held' }]);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     api.tree = () => Promise.reject(new Error('offline'));
 
@@ -1840,7 +1871,9 @@ describe('the columns a reader has hidden', () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
     api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     click('Reset layout');
     expect(headerIds()).toContain('refs');
@@ -1874,7 +1907,12 @@ describe('the columns a reader has hidden', () => {
       linkedApi.linkTo(linkedRow.id, [
         { systemId: 'github', url: 'https://example.test/before-removal' },
       ]);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(linkedApi)} />);
+      render(
+        <WbsTableOverClient
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(linkedApi)}
+        />,
+      );
       await screen.findByLabelText('Name of 010');
 
       const linkedTree = linkedApi.tree.bind(linkedApi);
@@ -1910,7 +1948,12 @@ describe('the columns a reader has hidden', () => {
         afterId: null,
         name: 'Unlinked',
       });
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(emptyApi)} />);
+      render(
+        <WbsTableOverClient
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(emptyApi)}
+        />,
+      );
       await screen.findByLabelText('Name of 010');
       fireEvent.click(within(openColumns()).getByLabelText('Links'));
       expect(headerIds()).toContain('refs');
@@ -1955,7 +1998,9 @@ describe('the columns a reader has hidden', () => {
       name: 'Linked child',
     });
     api.linkTo(child.id, [{ systemId: 'github', url: 'https://example.test/child' }]);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
     click('Collapse all');
     expect(screen.queryByLabelText('Name of 010.1')).toBeNull();
@@ -2024,7 +2069,7 @@ describe('the columns a reader has hidden', () => {
     for (const id of ['depends', 'team', 'tag', 'service', 'step-dev-final', 'step-qa-final']) {
       expect(ids).toContain(id);
     }
-    // Not written back on read: opening a project must not change what is
+    // Not written back on read: opening a work package must not change what is
     // remembered about it.
     expect(stored()).toBe(claimed);
     // And the Steps section, which quotes the folded width of the columns on
@@ -2035,8 +2080,8 @@ describe('the columns a reader has hidden', () => {
     // Proof: `hiddenColumnIds` handed `storedHiddenColumns` unfiltered, this
     // failed with `UnknownColumnError: No declared width for column "step-
     // nope"` on the click below. Watched, 2026-08-28.
-    click('Project settings');
-    expect(screen.getByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
+    click('Work package settings');
+    expect(screen.getByRole('dialog', { name: 'Work package settings' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Steps' }));
     expect(screen.getByLabelText('New step')).toBeVisible();
   });
@@ -2045,7 +2090,9 @@ describe('the columns a reader has hidden', () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.setEstimate(row.id, 'step-qa', { optimistic: 2, realistic: 3, pessimistic: 4 });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010']);
     });
@@ -2057,7 +2104,9 @@ describe('the columns a reader has hidden', () => {
     cleanup();
 
     storedHidden(['step-qa']);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010']);
     });

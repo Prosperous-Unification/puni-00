@@ -161,7 +161,7 @@ describe('the respelling', () => {
     [
       'a.ts',
       "it('[PROJECT-ASSIGNMENT-READS-001] reads project rows')",
-      "it('[PROJECT-ASSIGNMENT-READS-001] reads project rows')",
+      "it('[PROJECT-ASSIGNMENT-READS-001] reads work package rows')",
     ],
   ];
   it.each(cases)('respells %s line %s', (path, before, after) => {

@@ -6,7 +6,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { projectOrganization, workItem, workItemBudget } from './schema';
+import { workPackageOrganization, workItem, workItemBudget } from './schema';
 import { measureIdFor } from './step-measure';
 
 /**
@@ -22,12 +22,12 @@ export class WorkItemBudgetRepository implements BudgetStore {
   ) {}
 
   /**
-   * Every stated budget in the project, in work item then key order.
+   * Every stated budget in the work package, in work item then key order.
    *
    * @throws on a stored policy outside the two: the CHECK refuses one, so it
    * is a schema that drifted from its constraint.
    */
-  async listByProject(projectId: string): Promise<StoredBudget[]> {
+  async listByWorkPackage(workPackageId: string): Promise<StoredBudget[]> {
     await Promise.resolve();
     return (
       this.db
@@ -41,7 +41,7 @@ export class WorkItemBudgetRepository implements BudgetStore {
         .from(workItemBudget)
         // Inner: `work_item_id` is a foreign key.
         .innerJoin(workItem, eq(workItemBudget.workItemId, workItem.id))
-        .where(eq(workItem.projectId, projectId))
+        .where(eq(workItem.workPackageId, workPackageId))
         .orderBy(workItemBudget.workItemId, workItemBudget.measureKey)
         .all()
         .map((row) => {
@@ -104,16 +104,19 @@ export class WorkItemBudgetRepository implements BudgetStore {
 
   /**
    * The definition id a budget in `key` references: the owning
-   * organization's, or null for one of the seeded four on a project no
+   * organization's, or null for one of the seeded four on a work package no
    * organization owns (design D19).
    */
   private referenceOf(tx: SQLiteBunDatabase, workItemId: string, key: string): string | null {
     const resolved = measureIdFor(tx, workItemId, key);
     if (resolved !== null) return resolved;
     const owned = tx
-      .select({ organizationId: projectOrganization.organizationId })
+      .select({ organizationId: workPackageOrganization.organizationId })
       .from(workItem)
-      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .innerJoin(
+        workPackageOrganization,
+        eq(workPackageOrganization.resourceId, workItem.workPackageId),
+      )
       .where(eq(workItem.id, workItemId))
       .get();
     // Proof: with this throw removed, the SQLite certification's

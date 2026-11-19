@@ -50,7 +50,7 @@ export interface LabSchema {
   columns: string[];
   migrations: { name: string; hash: string }[];
   tables: string[];
-  projects: { id: string; name: string }[];
+  workPackages: { id: string; name: string }[];
 }
 
 /** Compare the full SQLite evidence observed before the candidate image was admitted. */
@@ -76,8 +76,8 @@ export function assertRestoredSchema(observed: LabSchema, baseline: LabSchema): 
   // Proof: bypassing the sentinel comparison made the watched schema test accept a missing
   // or replaced project row even though its complete ledger and table names matched.
   assert(
-    JSON.stringify(observed.projects) === JSON.stringify(baseline.projects),
-    'project sentinel rows returned unchanged',
+    JSON.stringify(observed.workPackages) === JSON.stringify(baseline.workPackages),
+    'work-package sentinel rows returned unchanged',
   );
 }
 const CLUSTER = 'puni-f8-lab';
@@ -621,22 +621,23 @@ async function inBackend(script: string): Promise<string> {
   return k(['-n', 'wbs-solver', 'exec', 'deployment/wbs-backend', '--', 'bun', '-e', script]);
 }
 
-async function insertProject(name: string): Promise<void> {
+async function insertWorkPackage(name: string): Promise<void> {
   const out = await inBackend(
-    `const r = await fetch('http://127.0.0.1:3100/api/projects', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: JSON.stringify({ name: ${JSON.stringify(name)} }) }); console.log(r.status); if (!r.ok) { console.log(await r.text()); process.exit(1); }`,
+    `const r = await fetch('http://127.0.0.1:3100/api/work-packages', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: JSON.stringify({ name: ${JSON.stringify(name)} }) }); console.log(r.status); if (!r.ok) { console.log(await r.text()); process.exit(1); }`,
   );
-  log(`inserted project ${name}: HTTP ${out.trim()}`);
+  log(`inserted work package ${name}: HTTP ${out.trim()}`);
 }
 
-async function projectNames(): Promise<string[]> {
+async function readWorkPackageNames(): Promise<string[]> {
   const out = await inBackend(
-    "const r = await fetch('http://127.0.0.1:3100/api/projects'); if (!r.ok) process.exit(1); console.log(JSON.stringify((await r.json()).projects.map((p) => p.name)));",
+    "const r = await fetch('http://127.0.0.1:3100/api/work-packages'); if (!r.ok) process.exit(1); console.log(JSON.stringify((await r.json()).workPackages.map((workPackage) => workPackage.name)));",
   );
   return JSON.parse(out) as string[];
 }
 
-const SCHEMA_FACTS_SCRIPT =
-  "const { Database } = require('bun:sqlite'); const db = new Database('/data/wbs.sqlite', { readonly: true }); console.log(JSON.stringify({ columns: db.query('PRAGMA table_info(work_item)').all().map((column) => column.name), migrations: db.query('SELECT name, hash FROM __drizzle_migrations ORDER BY created_at, name').all(), tables: db.query(\"SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name\").all().map((table) => table.name), projects: db.query('SELECT id, name FROM project ORDER BY id').all() }));";
+/** Complete columns, name/hash ledger, table set and sorted current sentinels at the fixed lab DB path. */
+export const SCHEMA_FACTS_SCRIPT =
+  "const { Database } = require('bun:sqlite'); const db = new Database('/data/wbs.sqlite', { readonly: true }); console.log(JSON.stringify({ columns: db.query('PRAGMA table_info(work_item)').all().map((column) => column.name), migrations: db.query('SELECT name, hash FROM __drizzle_migrations ORDER BY created_at, name').all(), tables: db.query(\"SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name\").all().map((table) => table.name), workPackages: db.query('SELECT id, name FROM work_package ORDER BY id').all() }));";
 
 async function schemaFacts(): Promise<LabSchema> {
   const out = await inBackend(SCHEMA_FACTS_SCRIPT);
@@ -785,7 +786,7 @@ async function expectRestored(
     !schema.migrations.some((migration) => migration.name === LAB_MIGRATION),
     'the lab migration is not recorded as applied',
   );
-  const names = await projectNames();
+  const names = await readWorkPackageNames();
   for (const row of rows) assert(names.includes(row), `row ${row} survived`);
   assert(await writesOpen(), 'the write fence is open again');
   const lease = await run(
@@ -950,7 +951,7 @@ async function main(): Promise<void> {
       namespaces: NAMESPACES,
       stateDir: state,
       overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local'),
-      anonymousProjectsStatus: 200 as const,
+      anonymousWorkPackagesStatus: 200 as const,
       rolloutTimeoutSeconds: 90,
       jobTimeoutSeconds: 180,
       drainTimeoutMs: 60_000,
@@ -974,8 +975,11 @@ async function main(): Promise<void> {
       (await readLabSession()) === LAB_UPSTREAM,
       'MCP OAuth session survives a failed rollout and key restore',
     );
-    await insertProject('f8-row-before');
-    assert((await projectNames()).includes('f8-row-before'), 'row inserted through the v1 API');
+    await insertWorkPackage('f8-row-before');
+    assert(
+      (await readWorkPackageNames()).includes('f8-row-before'),
+      'row inserted through the v1 API',
+    );
     const baselineSchema = await schemaFacts();
     assert(
       baselineSchema.migrations.some(
@@ -1121,12 +1125,12 @@ async function main(): Promise<void> {
         upgraded.migrations.some((migration) => migration.name === LAB_OLDER_MIGRATION),
       'the older candidate table and migration identity were applied',
     );
-    assert((await projectNames()).includes('f8-row-before'), 'row survived the upgrade');
+    assert((await readWorkPackageNames()).includes('f8-row-before'), 'row survived the upgrade');
     assert(
       JSON.stringify(await runningImages()) === JSON.stringify(v2.images),
       'every tier runs the candidate digest',
     );
-    await insertProject('f8-row-after-promotion');
+    await insertWorkPackage('f8-row-after-promotion');
     assert(
       seen.max <= 1,
       `at most one writer pod during the upgrade (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
@@ -1177,7 +1181,7 @@ async function main(): Promise<void> {
       JSON.stringify(await runningImages()) === JSON.stringify(v3.images),
       'the cluster runs the one promoted release',
     );
-    assert((await projectNames()).includes('f8-row-after-promotion'), 'rows survived');
+    assert((await readWorkPackageNames()).includes('f8-row-after-promotion'), 'rows survived');
     assert(
       seen.max <= 1,
       `at most one writer pod with two coordinators (max ${String(seen.max)} over ${String(seen.samples)} samples)`,

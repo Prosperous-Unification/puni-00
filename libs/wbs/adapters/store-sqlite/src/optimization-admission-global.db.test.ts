@@ -30,12 +30,12 @@ describe('reserveSolverSlot cross-coordinator capacity', () => {
         `INSERT INTO users (id, username, password_hash, created_at)
          VALUES ('u-1', 'owner', 'hash', 1)`,
       );
-      for (let project = 1; project <= 5; project += 1) {
+      for (let workPackage = 1; workPackage <= 5; workPackage += 1) {
         raw.run(
-          `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+          `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                                 optimization_enabled, schedule_engine, schedule_objective)
            VALUES (?, ?, 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
-          [`p-${String(project)}`, `Plan ${String(project)}`],
+          [`p-${String(workPackage)}`, `Plan ${String(workPackage)}`],
         );
       }
     } finally {
@@ -45,18 +45,21 @@ describe('reserveSolverSlot cross-coordinator capacity', () => {
     const blue = openDrizzle(path);
     const green = openDrizzle(path);
     const generations = new Map<string, number>();
-    for (let project = 1; project <= 5; project += 1) {
-      const projectId = `p-${String(project)}`;
-      generations.set(projectId, allocateGeneration(blue, projectId, CONTRACT, 'hash-1', 2));
+    for (let workPackage = 1; workPackage <= 5; workPackage += 1) {
+      const workPackageId = `p-${String(workPackage)}`;
+      generations.set(
+        workPackageId,
+        allocateGeneration(blue, workPackageId, CONTRACT, 'hash-1', 2),
+      );
     }
 
     for (let index = 0; index < 16; index += 1) {
-      const projectId = `p-${String(Math.floor(index / 4) + 1)}`;
+      const workPackageId = `p-${String(Math.floor(index / 4) + 1)}`;
       expect(
         reserveSolverSlot(index % 2 === 0 ? blue : green, {
-          projectId,
+          workPackageId,
           contractVersion: CONTRACT,
-          generation: generations.get(projectId)!,
+          generation: generations.get(workPackageId)!,
           objective: index % 2 === 0 ? 'pri' : 'time',
           budgetMs: 60_000 + (index % 4),
           ownerId: `owner-${String(index)}`,
@@ -68,7 +71,7 @@ describe('reserveSolverSlot cross-coordinator capacity', () => {
 
     expect(
       reserveSolverSlot(green, {
-        projectId: 'p-5',
+        workPackageId: 'p-5',
         contractVersion: CONTRACT,
         generation: generations.get('p-5')!,
         objective: 'pri',
@@ -82,19 +85,19 @@ describe('reserveSolverSlot cross-coordinator capacity', () => {
 
     expect(
       reserveSolverSlot(green, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation: generations.get('p-1')!,
         objective: 'pri',
         budgetMs: 70_001,
-        ownerId: 'fifth-project-owner',
-        attemptToken: 'fifth-project-token',
+        ownerId: 'fifth-work-package-owner',
+        attemptToken: 'fifth-work-package-token',
         now: 20_000,
       }),
-    ).toEqual({ kind: 'project-full' });
+    ).toEqual({ kind: 'work-package-full' });
     expect(
       reserveSolverSlot(green, {
-        projectId: 'p-5',
+        workPackageId: 'p-5',
         contractVersion: CONTRACT,
         generation: generations.get('p-5')!,
         objective: 'pri',
@@ -106,7 +109,7 @@ describe('reserveSolverSlot cross-coordinator capacity', () => {
     ).toEqual({ kind: 'global-full' });
     expect(
       reserveSolverSlot(green, {
-        projectId: 'p-5',
+        workPackageId: 'p-5',
         contractVersion: CONTRACT,
         generation: generations.get('p-5')!,
         objective: 'pri',

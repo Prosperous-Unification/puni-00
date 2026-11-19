@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 import { seedStepReadings } from './step-readings-seed';
 
 /**
@@ -75,9 +75,9 @@ async function showColumn(page: Page, label: string, columnId: string): Promise<
 async function seedALongRow(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Status browser evidence');
+  await createWorkPackage(page, 'Status browser evidence');
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
-  await setDate(page, 'Project start date', mondayWeeksAgo(2));
+  await setDate(page, 'Work package start date', mondayWeeksAgo(2));
   await page.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
   const estimate = page.getByLabel('Dev estimate for 010');

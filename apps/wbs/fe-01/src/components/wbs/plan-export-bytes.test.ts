@@ -9,7 +9,7 @@ import { planToMermaid, planToMermaidDocument } from './plan-mermaid';
 
 /** Fixed input captured before extracting the export model. */
 const document: PlanExport = {
-  projectName: 'A, "quoted" | plan',
+  workPackageName: 'A, "quoted" | plan',
   generatedAt: '2026-08-07T09:15:00.000Z',
   method: 'pert',
   startDate: '2026-09-01',

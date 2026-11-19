@@ -9,18 +9,18 @@ import type {
   Days,
   NewCalendarMarkerView,
   PersonView,
-  ProjectApi,
   SliceView,
   StepView,
   TeamView,
   WorkItemView,
+  WorkPackageApi,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { createDepLights } from './dep-light-store';
 import { GanttFaultBoundary } from './gantt-fault';
@@ -2006,7 +2006,7 @@ describe('the chart is drawn in calendar days', () => {
   itDom('leaves no line blank where a fact is missing', () => {
     // Every absence at once, on one chart: a slice under no step, nobody
     // assigned, no estimate for that step, and no team. Each says so in words —
-    // the whole of the "nothing is blank" scenario, on a project holding no
+    // the whole of the "nothing is blank" scenario, on a work package holding no
     // steps at all.
     render(
       <GanttPanel
@@ -3713,7 +3713,7 @@ const sliceOf = (workItemId: string, start: number, finish: number): SliceView =
   latestFinish: finish,
   float: 0,
   critical: false,
-  boundBy: 'projectStart',
+  boundBy: 'workPackageStart',
   resourcePredecessorId: null,
   width: 1,
   effort: finish - start,
@@ -3751,7 +3751,7 @@ const DRIFTED_SLICES: SliceView[] = [
  * models.
  */
 const notImplemented = (what: string): never => {
-  throw new Error(`the Gantt tests' fake project API has no ${what}`);
+  throw new Error(`the Gantt tests' fake work package API has no ${what}`);
 };
 
 /**
@@ -3793,7 +3793,7 @@ interface ReadSkew {
 }
 
 /**
- * A read-only `ProjectApi` over {@link PLAN}.
+ * A read-only `WorkPackageApi` over {@link PLAN}.
  *
  * Read-only because nothing about the chart is an edit: these tests collapse a
  * branch, type in the Find box and click a bar, and every one of those is
@@ -3802,14 +3802,14 @@ interface ReadSkew {
  *
  * **Every writer on the interface is listed**, and the list is only true
  * because it is typechecked. It had drifted: seven names this fake stubbed —
- * `assign`, `patch`, `move` and four more — had been renamed on `ProjectApi`,
+ * `assign`, `patch`, `move` and four more — had been renamed on `WorkPackageApi`,
  * and nine real ones were missing. A stub under the wrong name is worse than no
  * stub: the method the code actually calls is `undefined`, so a chart test that
  * reached a writer crashed on "not a function" instead of naming what it asked
- * for. `nx typecheck` does not read this project (see AGENTS.md), so the drift
+ * for. `nx typecheck` does not read this work package (see AGENTS.md), so the drift
  * was invisible until `tsc -p tsconfig.spec.json` was pointed at it.
  */
-function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
+function fakeApi(startDate: string | null, skew: ReadSkew = {}): WorkPackageApi {
   const people: PersonView[] = [{ id: 'kat', name: 'Kat', kind: 'person', teamIds: [] }];
   /** One label as be-01 sends it now: the column, and the join beside it. */
   const teamsOf = (serviceTeamId: string | null): string[] =>
@@ -3847,7 +3847,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
         estimateRounding: 'ceil' as const,
         startDate,
-        projectRevision: 0,
+        workPackageRevision: 0,
         undoable: false,
         redoable: false,
       }),
@@ -3863,9 +3863,11 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     listServices: () => Promise.resolve([]),
     listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),
-    createProject: () => notImplemented('createProject'),
-    openProject: () => notImplemented('openProject'),
-    renameProject: () => notImplemented('renameProject'),
+    createProjectWithWorkPackage: () => notImplemented('createProjectWithWorkPackage'),
+    listWorkPackages: () => notImplemented('listWorkPackages'),
+    createWorkPackage: () => notImplemented('createWorkPackage'),
+    openWorkPackage: () => notImplemented('openWorkPackage'),
+    renameWorkPackage: () => notImplemented('renameWorkPackage'),
     setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
     undo: () => notImplemented('undo'),
     redo: () => notImplemented('redo'),
@@ -3902,8 +3904,8 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     setBudget: () => notImplemented('setBudget'),
     clearBudget: () => notImplemented('clearBudget'),
     arrangeBySchedule: () => notImplemented('arrangeBySchedule'),
-    freezeProject: () => notImplemented('freezeProject'),
-    unfreezeProject: () => notImplemented('unfreezeProject'),
+    freezeWorkPackage: () => notImplemented('freezeWorkPackage'),
+    unfreezeWorkPackage: () => notImplemented('unfreezeWorkPackage'),
     unfreezeWorkItem: () => notImplemented('unfreezeWorkItem'),
     claimWorkItem: () => notImplemented('claimWorkItem'),
     releaseWorkItem: () => notImplemented('releaseWorkItem'),
@@ -3944,8 +3946,8 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
 async function showTheChart(startDate: string | null = MONDAY, skew: ReadSkew = {}): Promise<void> {
   render(
     <WbsTableOverClient
-      projectId="p1"
-      projectServices={projectServicesOf(fakeApi(startDate, skew))}
+      workPackageId="p1"
+      workPackageServices={workPackageServicesOf(fakeApi(startDate, skew))}
     />,
   );
   await screen.findByDisplayValue('Hull');
@@ -4013,7 +4015,7 @@ function columnDay(columnId: string, at: number): string {
   // the `[data-finish]` span inside, in `data-fact`: since
   // `hints-are-the-page-s-own` no control in this app carries a `title` it
   // means as a hint, and since `tool-hints-wait` a day this row finishes on is
-  // a project fact rather than a tool hint. Read the Start attribute, then this
+  // a work package fact rather than a tool hint. Read the Start attribute, then this
   // cell's own words of either kind, then a child's.
   const said = (node: Element): string | null =>
     node.getAttribute('data-fact') ?? node.getAttribute('data-hint');
@@ -4113,7 +4115,10 @@ describe('the chart mirrors the plan', () => {
   itDom('takes the plan to a row on the cards face too', async () => {
     widthIs(PHONE);
     render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(fakeApi(MONDAY))} />,
+      <WbsTableOverClient
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(fakeApi(MONDAY))}
+      />,
     );
     await screen.findByLabelText('Name of 010');
     fireEvent.click(screen.getByRole('button', { name: 'Plan actions' }));
@@ -4471,14 +4476,14 @@ describe('a chart that cannot be drawn', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(fakeApi(MONDAY, skew))}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(fakeApi(MONDAY, skew))}
         subscribe={subscribe}
       />,
     );
@@ -4928,7 +4933,7 @@ describe('the detail switch', () => {
   );
 
   /**
-   * A project switch hands the panel generation 0 before the next plan's first
+   * A work package switch hands the panel generation 0 before the next plan's first
    * read; with nothing remembered the default is decided again from that read,
    * both ways (ui-review F-088).
    *
@@ -6021,7 +6026,7 @@ describe('the undated axis cell announces which cell it is and why it is unavail
     // the run log for counts; this case failed on the query alone.
     drawUndated();
 
-    const named = screen.getByRole('button', { name: 'Workday 3, no project start date' });
+    const named = screen.getByRole('button', { name: 'Workday 3, no work package start date' });
 
     expect(named.getAttribute('data-axis-day')).toBe('3');
   });
@@ -6029,7 +6034,7 @@ describe('the undated axis cell announces which cell it is and why it is unavail
 
 describe('an undated plan refuses the mark and names the date it is missing', () => {
   // Slice 7.2, **all three assertions now**. The third — "the fake API received
-  // no create call" — was left out at chunk 27 because nothing on `ProjectApi`
+  // no create call" — was left out at chunk 27 because nothing on `WorkPackageApi`
   // could be posted through, so the fault it exists to catch could not be
   // written either and the assertion would have been the vacuous form this plan
   // rejects by name (9.2b). 7.2a gave the client its writer and 3.5 gave the
@@ -6067,7 +6072,7 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
   };
 
   itDom('clicking a cell renders the refusal, opens no composer and writes nothing', () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const creates = recordCalls(api, 'createCalendarMarker');
     render(
       undatedPanel(null, (marker) => {
@@ -6082,7 +6087,7 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
     // on the missing thing itself rather than on the whole sentence, so the
     // wording stays editable and the contract does not.
     expect(document.querySelector('[data-marker-refusal]')?.textContent).toMatch(
-      /project start date/,
+      /work-package start date/,
     );
     expect(screen.queryByRole('dialog')).toBeNull();
     // **7.2's third assertion, and it is last on purpose**: the two above have
@@ -6111,7 +6116,7 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
     // click case looks at, so a refusal outside the region is silence for the
     // only person the tab stop was added for. Asserting the region's own text
     // is what says the sentence is *in* it rather than beside it.
-    expect(screen.getByRole('status').textContent).toMatch(/project start date/);
+    expect(screen.getByRole('status').textContent).toMatch(/work-package start date/);
     expect(screen.getByRole('status')).toBe(document.querySelector('[data-marker-refusal]'));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
@@ -6130,7 +6135,7 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
 
     fireEvent.keyDown(cellAt(3), { key: ' ' });
 
-    expect(screen.getByRole('status').textContent).toMatch(/project start date/);
+    expect(screen.getByRole('status').textContent).toMatch(/work-package start date/);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -8867,7 +8872,7 @@ describe('a plan with no start date is drawn on cells that hold no date', () => 
     // directness is the slice. Section 7's whole refusal hangs off this one
     // field: a calendar marker is an absolute date, an undated plan has none,
     // and the cell says so by having no date. Routed through a render, the same
-    // assertion would go green the day some future change gave every project a
+    // assertion would go green the day some future change gave every work package a
     // start date — the exact regression it exists to catch, made invisible.
     //
     // Proof: `date: null` replaced by `date: addWorkdays('2026-01-01', workday)`
@@ -9088,7 +9093,7 @@ describe('the day scale', () => {
 
     fireEvent.change(control, { target: { value: '4' } });
     // Reported and **not** applied here: the panel draws what it is handed and
-    // remembers nothing, which is what lets the scale be a per-project answer
+    // remembers nothing, which is what lets the scale be a per-work-package answer
     // the table stores. A panel that moved its own scale would show one thing
     // while storage held another.
     expect(picked).toEqual([4]);
@@ -9202,7 +9207,7 @@ describe('the day scale', () => {
   itDom('reports the names switch and does not act on it', () => {
     // The same bargain the rung makes, for the same reason: the panel draws
     // what it is handed and stores nothing, because the answer is remembered
-    // per project and the table is the only place that knows which project this
+    // per work package and the table is the only place that knows which work package this
     // is. `aria-pressed` is asserted against **shown**, not against collapsed —
     // the pressed state of a control has to be the state of the thing it is
     // named after.
@@ -9503,7 +9508,7 @@ describe('the day sheet renames a listed marker', () => {
    * behaved — and the shape here is the one `wbs-table.tsx` will have, a write
    * followed by a read.
    */
-  function OwnedMarkers({ api }: { api: ProjectApi & { markers: CalendarMarkerView[] } }) {
+  function OwnedMarkers({ api }: { api: WorkPackageApi & { markers: CalendarMarkerView[] } }) {
     const [markers, setMarkers] = useState<readonly CalendarMarkerView[]>(() =>
       api.markers.map((marker) => ({ ...marker })),
     );
@@ -9536,8 +9541,10 @@ describe('the day sheet renames a listed marker', () => {
   }
 
   /** The fake, already holding one marker on {@link CUTOVER_DAY}. */
-  const apiHoldingCutover = async (): Promise<ProjectApi & { markers: CalendarMarkerView[] }> => {
-    const api = fakeProjectApi();
+  const apiHoldingCutover = async (): Promise<
+    WorkPackageApi & { markers: CalendarMarkerView[] }
+  > => {
+    const api = fakeWorkPackageApi();
     // The store's own create rather than a hand-pushed object, so the marker
     // under test is one this fake could really have answered.
     await api.createCalendarMarker('p1', {
@@ -9609,7 +9616,7 @@ describe('the day sheet recolours a listed marker', () => {
   const CUTOVER_DAY: IsoDate = '2026-08-19';
 
   /** The panel with an owner over it — see the rename block for why. */
-  function OwnedMarkers({ api }: { api: ProjectApi & { markers: CalendarMarkerView[] } }) {
+  function OwnedMarkers({ api }: { api: WorkPackageApi & { markers: CalendarMarkerView[] } }) {
     const [markers, setMarkers] = useState<readonly CalendarMarkerView[]>(() =>
       api.markers.map((marker) => ({ ...marker })),
     );
@@ -9654,7 +9661,7 @@ describe('the day sheet recolours a listed marker', () => {
     // Same three oracles as the rename: the recorded call, the fake's own
     // store, and the chip drawn from what the owner read back — a handler that
     // repainted optimistically and sent nothing passes on the chip alone.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     await api.createCalendarMarker('p1', {
       markerId: 'm-cut',
       date: CUTOVER_DAY,
@@ -9705,7 +9712,7 @@ describe('the day sheet takes a listed marker off the chart', () => {
   const CUTOVER_DAY: IsoDate = '2026-08-19';
 
   /** The panel with an owner over it — see the rename block for why. */
-  function OwnedMarkers({ api }: { api: ProjectApi & { markers: CalendarMarkerView[] } }) {
+  function OwnedMarkers({ api }: { api: WorkPackageApi & { markers: CalendarMarkerView[] } }) {
     const [markers, setMarkers] = useState<readonly CalendarMarkerView[]>(() =>
       api.markers.map((marker) => ({ ...marker })),
     );
@@ -9742,7 +9749,7 @@ describe('the day sheet takes a listed marker off the chart', () => {
     // Two markers on the day, because deleting the only one leaves an empty
     // sheet whatever the handler did: the surviving row is what says the right
     // marker went.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     await api.createCalendarMarker('p1', {
       markerId: 'm-cut',
       date: CUTOVER_DAY,
@@ -9812,7 +9819,7 @@ describe('the composer creates the marker whose colour it previewed', () => {
     api,
     newMarkerId,
   }: {
-    api: ProjectApi & { markers: CalendarMarkerView[] };
+    api: WorkPackageApi & { markers: CalendarMarkerView[] };
     newMarkerId: () => string;
   }) {
     const [markers, setMarkers] = useState<readonly CalendarMarkerView[]>([]);
@@ -9862,7 +9869,7 @@ describe('the composer creates the marker whose colour it previewed', () => {
     // on passing while proving nothing. Failing here says which.
     expect(automaticColor(PREVIEW_ID)).not.toBe(automaticColor(FRESH_ID));
 
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const creates = recordCalls(api, 'createCalendarMarker');
     render(<OwnedMarkers api={api} newMarkerId={twoIds()} />);
 
@@ -9936,7 +9943,7 @@ describe('the composer creates the marker whose colour it previewed', () => {
     // refusal" is green under a composer that never validates; only "nothing
     // invalid left the client" is not. Same oracle as 4.3a: a fake API that
     // records what it was sent.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const creates = recordCalls(api, 'createCalendarMarker');
     render(<OwnedMarkers api={api} newMarkerId={twoIds()} />);
 
@@ -9972,7 +9979,7 @@ describe('the composer creates the marker whose colour it previewed', () => {
     // only knows about themes; this backdrop is the one a validator that
     // composites the three tints over `--background` and stops there never
     // builds at all.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const creates = recordCalls(api, 'createCalendarMarker');
     render(<OwnedMarkers api={api} newMarkerId={twoIds()} />);
 
@@ -9997,7 +10004,7 @@ describe('the composer creates the marker whose colour it previewed', () => {
     // so a palette fill picked by hand reaches the create body as `color` —
     // which is also what says the `undefined` in the case above is the absence
     // of a choice rather than a colour the composer cannot send at all.
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const creates = recordCalls(api, 'createCalendarMarker');
     render(<OwnedMarkers api={api} newMarkerId={twoIds()} />);
 
@@ -10936,7 +10943,7 @@ for (const refusal of [
   {
     error: {
       kind: 'dependency_calendar_missing' as const,
-      projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
+      workPackages: [{ workPackageId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
     },
     words: 'PUNI · Remote plan',
   },
@@ -10944,7 +10951,7 @@ for (const refusal of [
     error: {
       kind: 'engine_unavailable' as const,
       engine: 'optimized' as const,
-      projects: ['remote'],
+      workPackages: ['remote'],
       reason: 'adapter_missing' as const,
     },
     words: 'The required optimized scheduling engine is unavailable',

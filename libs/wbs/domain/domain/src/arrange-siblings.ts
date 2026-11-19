@@ -25,7 +25,7 @@ export interface Arrangement {
    * position — including the ones whose place in the group is unchanged, which
    * are respaced with the rest so one group is written as one set.
    *
-   * Empty when the project already reads in schedule order, and that is the
+   * Empty when the work package already reads in schedule order, and that is the
    * whole of the no-op: no write, no journal entry, no broadcast.
    */
   placements: Repositioned[];
@@ -44,7 +44,7 @@ export interface Arrangement {
 /**
  * Every sibling group put in the order its bars start, at every depth.
  *
- * Pure, and given the whole project at once, because "which sibling starts
+ * Pure, and given the whole work package at once, because "which sibling starts
  * first" is a question about a group rather than about a work item. Groups
  * already in schedule order contribute nothing at all — the caller writes,
  * journals and announces only when something came back.
@@ -64,12 +64,12 @@ export interface Arrangement {
  * would hand the tie rule a pair that is not tied.
  *
  * @throws if a work item has no scheduled start. be-01 cannot produce that
- * today — `projectOntoWorkItems` answers for every row or throws itself — but a
- * partial map is exactly the argument that would sort half a project to the
+ * today — `workPackageOntoWorkItems` answers for every row or throws itself — but a
+ * partial map is exactly the argument that would sort half a work package to the
  * front under a default, and an absent start is not a start of zero.
  * @throws if a work item is unreachable from any root, through
  * {@link treeOrder}, which is also what makes the groups' own order the order
- * the project is drawn in rather than the caller's argument order.
+ * the work package is drawn in rather than the caller's argument order.
  */
 export function arrangeBySchedule(
   placements: readonly TreePlacement[],
@@ -83,7 +83,7 @@ export function arrangeBySchedule(
     if (projection === undefined) throw new Error(`no scheduled start for work item ${id}`);
     return projection.earliestStart;
   };
-  // Roots first, then each parent where the project draws it, so one project
+  // Roots first, then each parent where the work package draws it, so one work package
   // yields one arrangement whatever order its rows arrived in. Without this the
   // groups come back in `placements` order and the journal step — which is an
   // array — would differ between two callers holding the same plan.

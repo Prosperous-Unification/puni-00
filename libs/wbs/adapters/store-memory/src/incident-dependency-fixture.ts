@@ -15,12 +15,12 @@ export function bindIncidentDependencies(
       const relationship = receipt.dependency;
       for (const endpoint of [relationship.predecessor, relationship.successor]) {
         const row = state.tables.workItems.byId.get(endpoint.workItemId);
-        if (row?.projectId !== endpoint.projectId)
+        if (row?.workPackageId !== endpoint.workPackageId)
           throw new Error('incident work-item ownership is missing or inconsistent');
         if (
           endpoint.scope !== 'whole' &&
-          !state.tables.projects.steps
-            .get(endpoint.projectId)
+          !state.tables.workPackages.steps
+            .get(endpoint.workPackageId)
             ?.some((step) => step.id === endpoint.stepId)
         )
           throw new Error('incident step ownership is missing or inconsistent');
@@ -32,12 +32,12 @@ export function bindIncidentDependencies(
         if (endpoint.scope === 'descendant-step' && !isParent)
           throw new Error('incident descendant endpoint is a leaf');
       }
-      if (relationship.predecessor.projectId !== relationship.successor.projectId) {
-        const predecessorOrganization = state.tables.projects.owning.get(
-          relationship.predecessor.projectId,
+      if (relationship.predecessor.workPackageId !== relationship.successor.workPackageId) {
+        const predecessorOrganization = state.tables.workPackages.owning.get(
+          relationship.predecessor.workPackageId,
         );
-        const successorOrganization = state.tables.projects.owning.get(
-          relationship.successor.projectId,
+        const successorOrganization = state.tables.workPackages.owning.get(
+          relationship.successor.workPackageId,
         );
         if (
           predecessorOrganization === undefined ||

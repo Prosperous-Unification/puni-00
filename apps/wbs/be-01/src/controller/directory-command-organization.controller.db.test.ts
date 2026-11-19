@@ -106,9 +106,9 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const projectId = (answer.body as { project: { id: string } }).project.id;
+  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
   if (
     h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
       ?.state === 'activated'
@@ -118,9 +118,9 @@ async function create(username: string, name: string): Promise<string> {
       username,
       'package-manager',
       'work_package',
-      projectId,
+      workPackageId,
     );
-  return projectId;
+  return workPackageId;
 }
 
 function directory(username: string, commands: unknown[]): Promise<Answer> {
@@ -150,7 +150,7 @@ function snapshot(): unknown {
   return [
     'person',
     'person_organization',
-    'project_team_capacity',
+    'work_package_team_capacity',
     'assignment',
     'person_team',
     'service_team',
@@ -200,21 +200,20 @@ async function list(username: string, path: string, key: string): Promise<unknow
   return (answer.body as Record<string, unknown>)[key];
 }
 
-async function seedSharedStandalonePerson(projectIds: readonly string[]): Promise<void> {
-  for (const [index, projectId] of projectIds.entries()) {
-    const read = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+async function seedSharedStandalonePerson(workPackageIds: readonly string[]): Promise<void> {
+  for (const [index, workPackageId] of workPackageIds.entries()) {
+    const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}`);
     const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
     if (stepId === undefined) throw new Error('standalone directory fixture has no step');
     const workItemId = `standalone-person-row-${String(index)}`;
     h.sqlite.run(
-      "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-      [projectId],
+      "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+      [workPackageId],
     );
-    h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-      workItemId,
-      projectId,
-      workItemId,
-    ]);
+    h.sqlite.run(
+      'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+      [workItemId, workPackageId, workItemId],
+    );
     h.sqlite.run(
       'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
       [workItemId, stepId],
@@ -325,12 +324,12 @@ describe('after activation', () => {
     expect(snapshot()).toEqual(before);
   });
 
-  it('throws for a trusted assignment reaching a foreign project before standalone capture', async () => {
-    const read = await h.call('grace', 'GET', `/api/projects/${foreign}`);
+  it('throws for a trusted assignment reaching a foreign work package before standalone capture', async () => {
+    const read = await h.call('grace', 'GET', `/api/work-packages/${foreign}`);
     const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
-    if (stepId === undefined) throw new Error('foreign project has no step');
+    if (stepId === undefined) throw new Error('foreign work package has no step');
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, position, name) VALUES ('corrupt-reach-row', ?, 10, 'Corrupt reach')",
+      "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('corrupt-reach-row', ?, 10, 'Corrupt reach')",
       [foreign],
     );
     h.sqlite.run(
@@ -428,7 +427,7 @@ describe('after activation', () => {
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       if (scenario.catalog !== 'services')
         h.sqlite.run(
-          "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('foreign-reach-row', ?, NULL, 0, 'Foreign reach')",
+          "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('foreign-reach-row', ?, NULL, 0, 'Foreign reach')",
           [foreign],
         );
       const actorId = h.userId('ada');
@@ -462,13 +461,13 @@ describe('after activation', () => {
 
   it('rechecks an assignment foreign step after preflight on the owning writer', async () => {
     const foreignStep = (
-      (await h.call('grace', 'GET', `/api/projects/${foreign}`)).body as {
+      (await h.call('grace', 'GET', `/api/work-packages/${foreign}`)).body as {
         steps: { id: string }[];
       }
     ).steps.at(0)?.id;
     if (foreignStep === undefined) throw new Error('foreign step is missing');
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('own-reach-row', ?, NULL, 0, 'Own row')",
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('own-reach-row', ?, NULL, 0, 'Own row')",
       [own],
     );
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
@@ -894,7 +893,7 @@ describe('after activation', () => {
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all(`project:${own}`)
+      .all(`work-package:${own}`)
       .map(({ message }) => JSON.parse(message) as { type: string });
     expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
     expect(pushes).toBe(1);
@@ -950,7 +949,7 @@ describe('after activation', () => {
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all(`project:${own}`)
+      .all(`work-package:${own}`)
       .map(({ message }) => JSON.parse(message) as { type: string });
     expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
     expect(pushes).toBe(1);
@@ -1197,7 +1196,7 @@ describe('after activation', () => {
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all(`project:${own}`)
+      .all(`work-package:${own}`)
       .map(({ message }) => JSON.parse(message) as { type: string });
     expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
     expect(pushes).toBe(1);
@@ -1211,7 +1210,7 @@ describe('after activation', () => {
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all(`project:${lower}`)
+        .all(`work-package:${lower}`)
         .map(({ message }) => JSON.parse(message) as unknown);
     const count = recorded().length;
     expect(
@@ -1223,24 +1222,24 @@ describe('after activation', () => {
     ).toEqual({ ok: true });
     expect(recorded().slice(count)).toContainEqual({
       type: 'elsewhere_changed',
-      projectId: lower,
-      causeProjectId: own,
+      workPackageId: lower,
+      causeWorkPackageId: own,
     });
   });
 
   interface ElsewhereChangedPair {
     type: 'elsewhere_changed';
-    projectId: string;
-    causeProjectId: string;
+    workPackageId: string;
+    causeWorkPackageId: string;
   }
-  const byProjectThenCause = (left: ElsewhereChangedPair, right: ElsewhereChangedPair) =>
-    left.projectId.localeCompare(right.projectId) ||
-    left.causeProjectId.localeCompare(right.causeProjectId);
+  const byWorkPackageThenCause = (left: ElsewhereChangedPair, right: ElsewhereChangedPair) =>
+    left.workPackageId.localeCompare(right.workPackageId) ||
+    left.causeWorkPackageId.localeCompare(right.causeWorkPackageId);
   /*
-    The ledger orders a project's events by seq, which for the two events a
-    third project receives from one cascade is the cascade's iteration order,
-    not the causing projects' id order. Projects get random ids, so an
-    expectation sorted by (projectId, causeProjectId) matched the ledger order
+    The ledger orders a work package's events by seq, which for the two events a
+    third work package receives from one cascade is the cascade's iteration order,
+    not the causing work packages' id order. Work packages get random ids, so an
+    expectation sorted by (workPackageId, causeWorkPackageId) matched the ledger order
     only when the ids happened to sort the same way; both sides are sorted the
     same way now. Seen failing on PR #663's CI (run 40084221725) with the two
     `third` pairs swapped, while the same tree passed locally and on h2puni.
@@ -1253,9 +1252,9 @@ describe('after activation', () => {
       .all()
       // The LIKE filter selects only elsewhere_changed messages, so the parse yields that shape.
       .map(({ message }) => JSON.parse(message) as ElsewhereChangedPair)
-      .sort(byProjectThenCause);
+      .sort(byWorkPackageThenCause);
 
-  it('records every real pair in the three-project standalone cascade control', async () => {
+  it('records every real pair in the three-work-package standalone cascade control', async () => {
     const second = await create('ada', 'Second A plan');
     const third = await create('ada', 'Third A plan');
     await seedSharedStandalonePerson([own, second, third]);
@@ -1271,11 +1270,11 @@ describe('after activation', () => {
     expect(pairs).toEqual(
       (
         [
-          { type: 'elsewhere_changed', projectId: second, causeProjectId: own },
-          { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
-          { type: 'elsewhere_changed', projectId: third, causeProjectId: second },
+          { type: 'elsewhere_changed', workPackageId: second, causeWorkPackageId: own },
+          { type: 'elsewhere_changed', workPackageId: third, causeWorkPackageId: own },
+          { type: 'elsewhere_changed', workPackageId: third, causeWorkPackageId: second },
         ] satisfies ElsewhereChangedPair[]
-      ).sort(byProjectThenCause),
+      ).sort(byWorkPackageThenCause),
     );
   });
 
@@ -1297,7 +1296,7 @@ describe('after activation', () => {
     countOwners = true;
     countCaptures = true;
     h.sqlite.run(
-      `CREATE TRIGGER fail_standalone_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:${second}' BEGIN SELECT RAISE(FAIL, 'injected directory fan-out failure'); END`,
+      `CREATE TRIGGER fail_standalone_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:${second}' BEGIN SELECT RAISE(FAIL, 'injected directory fan-out failure'); END`,
     );
     try {
       await rejectedError(
@@ -1341,36 +1340,36 @@ describe('after activation', () => {
     });
     await entered.promise;
     try {
-      h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', ['second writer entered', own]);
+      h.sqlite.run('UPDATE work_package SET name = ? WHERE id = ?', ['second writer entered', own]);
     } finally {
       held.resolve(undefined);
     }
     expect(await pending).toEqual({ ok: true });
     expect(
-      h.sqlite.query<{ name: string }, [string]>('SELECT name FROM project WHERE id = ?').get(own)
-        ?.name,
+      h.sqlite
+        .query<{ name: string }, [string]>('SELECT name FROM work_package WHERE id = ?')
+        .get(own)?.name,
     ).toBe('second writer entered');
   });
 
-  it('records one final fan-out for a project-null directory batch with two used people', async () => {
+  it('records one final fan-out for a work-package-null directory batch with two used people', async () => {
     const lower = await create('ada', 'Second A plan');
     const third = await create('ada', 'Third A plan');
-    const projects = [own, lower, third];
-    await seedSharedStandalonePerson(projects);
+    const workPackages = [own, lower, third];
+    await seedSharedStandalonePerson(workPackages);
     h.sqlite.run("INSERT INTO person (id, name) VALUES ('pe-ben', 'Ben')");
     h.sqlite.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('pe-ben', 'org-a', 'Ben')",
     );
-    for (const [index, projectId] of projects.entries()) {
-      const read = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+    for (const [index, workPackageId] of workPackages.entries()) {
+      const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}`);
       const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
       if (stepId === undefined) throw new Error('directory batch fixture has no step');
       const rowId = `directory-ben-${String(index)}`;
-      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 20, ?)', [
-        rowId,
-        projectId,
-        rowId,
-      ]);
+      h.sqlite.run(
+        'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 20, ?)',
+        [rowId, workPackageId, rowId],
+      );
       h.sqlite.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
         [rowId, stepId],
@@ -1398,11 +1397,11 @@ describe('after activation', () => {
     expect(pairs).toEqual(
       (
         [
-          { type: 'elsewhere_changed', projectId: lower, causeProjectId: own },
-          { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
-          { type: 'elsewhere_changed', projectId: third, causeProjectId: lower },
+          { type: 'elsewhere_changed', workPackageId: lower, causeWorkPackageId: own },
+          { type: 'elsewhere_changed', workPackageId: third, causeWorkPackageId: own },
+          { type: 'elsewhere_changed', workPackageId: third, causeWorkPackageId: lower },
         ] satisfies ElsewhereChangedPair[]
-      ).sort(byProjectThenCause),
+      ).sort(byWorkPackageThenCause),
     );
   });
 
@@ -1594,9 +1593,9 @@ describe('after activation', () => {
 
   it('shows removal usage under organization-local names only', async () => {
     const step = (
-      (await h.call('ada', 'GET', `/api/projects/${own}`)).body as { steps: { id: string }[] }
+      (await h.call('ada', 'GET', `/api/work-packages/${own}`)).body as { steps: { id: string }[] }
     ).steps[0]?.id;
-    const created = await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    const created = await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [
         { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' },
         { kind: 'setAssignee', workItemRef: 'w', stepId: step, personId: 'pe-a' },
@@ -1621,24 +1620,23 @@ describe('after activation', () => {
 
   it('refreshes the mounted Working Plan after a team cascade before duplicating its leaf', async () => {
     const later = await create('ada', 'Later A plan');
-    const ownRead = await h.call('ada', 'GET', `/api/projects/${own}`);
-    const laterRead = await h.call('ada', 'GET', `/api/projects/${later}`);
+    const ownRead = await h.call('ada', 'GET', `/api/work-packages/${own}`);
+    const laterRead = await h.call('ada', 'GET', `/api/work-packages/${later}`);
     const ownStep = (ownRead.body as { steps: { id: string }[] }).steps.at(0)?.id;
     const laterStep = (laterRead.body as { steps: { id: string }[] }).steps.at(0)?.id;
     if (ownStep === undefined || laterStep === undefined) throw new Error('fixture step is absent');
-    for (const [projectId, rowId, stepId] of [
+    for (const [workPackageId, rowId, stepId] of [
       [own, 'reload-leaf', ownStep],
       [later, 'reload-later', laterStep],
     ]) {
       h.sqlite.run(
-        "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-        [projectId],
+        "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+        [workPackageId],
       );
-      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-        rowId,
-        projectId,
-        rowId,
-      ]);
+      h.sqlite.run(
+        'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+        [rowId, workPackageId, rowId],
+      );
       h.sqlite.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
         [rowId, stepId],
@@ -1653,14 +1651,16 @@ describe('after activation', () => {
     );
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const before = await h.captureFanout('org-a');
-    const beforeLater = before.observation.projects.find((project) => project.projectId === later);
+    const beforeLater = before.observation.workPackages.find(
+      (workPackage) => workPackage.workPackageId === later,
+    );
     if (beforeLater?.outcome.kind !== 'scheduled') throw new Error('later plan is not scheduled');
     expect(
       [...beforeLater.outcome.fast.slices.values()]
         .filter((slice) => slice.workItemId === 'reload-later' && slice.stepId === laterStep)
         .map((slice) => slice.earliestStart),
     ).toEqual([1]);
-    const batch = await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    const batch = await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [
         {
           kind: 'setEstimate',
@@ -1676,7 +1676,7 @@ describe('after activation', () => {
     expect(batch.status).toBe(200);
     const copy = h.sqlite
       .query<{ id: string }, [string]>(
-        "SELECT id FROM work_item WHERE project_id = ? AND name = 'reload-leaf (copy)'",
+        "SELECT id FROM work_item WHERE work_package_id = ? AND name = 'reload-leaf (copy)'",
       )
       .get(own)?.id;
     if (copy === undefined) throw new Error('duplicate command returned no copy');
@@ -1694,7 +1694,9 @@ describe('after activation', () => {
         .map(({ person_id }) => person_id),
     ).toEqual(['pe-a']);
     const after = await h.captureFanout('org-a');
-    const afterLater = after.observation.projects.find((project) => project.projectId === later);
+    const afterLater = after.observation.workPackages.find(
+      (workPackage) => workPackage.workPackageId === later,
+    );
     if (afterLater?.outcome.kind !== 'scheduled') throw new Error('later plan lost its schedule');
     expect(
       [...afterLater.outcome.fast.slices.values()]
@@ -1705,19 +1707,23 @@ describe('after activation', () => {
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all(`project:${later}`)
+      .all(`work-package:${later}`)
       .map(
         ({ message }) =>
-          JSON.parse(message) as { type: string; projectId: string; causeProjectId?: string },
+          JSON.parse(message) as {
+            type: string;
+            workPackageId: string;
+            causeWorkPackageId?: string;
+          },
       );
     expect(sharedEvents.filter(({ type }) => type === 'elsewhere_changed')).toEqual([
-      { type: 'elsewhere_changed', projectId: later, causeProjectId: own },
+      { type: 'elsewhere_changed', workPackageId: later, causeWorkPackageId: own },
     ]);
   });
 
-  it('fails closed on a directory entry a foreign project names', async () => {
+  it('fails closed on a directory entry a foreign work package names', async () => {
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 0, 'Theirs')",
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 0, 'Theirs')",
       [foreign],
     );
     h.sqlite.run("INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-b', 'tg-a')");
@@ -1736,13 +1742,15 @@ describe('after activation', () => {
 
   it('fails closed on an entry another organization reaches, whatever the write', async () => {
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 0, 'Theirs')",
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 0, 'Theirs')",
       [foreign],
     );
     const step = (
-      (await h.call('grace', 'GET', `/api/projects/${foreign}`)).body as { steps: { id: string }[] }
+      (await h.call('grace', 'GET', `/api/work-packages/${foreign}`)).body as {
+        steps: { id: string }[];
+      }
     ).steps.at(0)?.id;
-    if (step === undefined) throw new Error('the foreign project started with no step');
+    if (step === undefined) throw new Error('the foreign work package started with no step');
     const reaches: [string, [string, unknown[]][], unknown[]][] = [
       [
         "B's person in A's team",
@@ -1756,7 +1764,7 @@ describe('after activation', () => {
         "B's capacity for A's team",
         [
           [
-            'INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES (?, ?, 2)',
+            'INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES (?, ?, 2)',
             [foreign, 'tm-a'],
           ],
         ],
@@ -1784,7 +1792,7 @@ describe('after activation', () => {
         "A's assignment of A's person on B's step",
         [
           [
-            "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-a', ?, NULL, 0, 'Mine')",
+            "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-a', ?, NULL, 0, 'Mine')",
             [own],
           ],
           [
@@ -1849,7 +1857,7 @@ describe('after activation', () => {
       }
       expect(snapshot()).toEqual(before);
       h.sqlite.run("DELETE FROM person_team WHERE person_id = 'pe-b'");
-      h.sqlite.run('DELETE FROM project_team_capacity WHERE project_id = ?', [foreign]);
+      h.sqlite.run('DELETE FROM work_package_team_capacity WHERE work_package_id = ?', [foreign]);
       h.sqlite.run("DELETE FROM team_service WHERE team_id = 'tm-b'");
       h.sqlite.run("DELETE FROM assignment WHERE work_item_id IN ('w-a', 'w-b')");
       h.sqlite.run("DELETE FROM work_item WHERE id = 'w-a'");

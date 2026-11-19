@@ -1,14 +1,14 @@
-import type { ProjectApi } from '@/lib/wbs-api';
+import type { WorkPackageApi } from '@/lib/wbs-api';
 
 /**
- * The routes a plan command or a project-scoped read (`exportPlan`,
- * `readClaimHistory`) sends to one project as a whole, each taking that
- * project's id first.
+ * The routes a plan command or a work-package-scoped read (`exportPlan`,
+ * `readClaimHistory`) sends to one work package as a whole, each taking that
+ * work package's id first.
  *
  * A value and not only a type, so a test can walk the list and a command that
  * forgot one is named rather than silently absent.
  */
-export const PROJECT_COMMAND_ROUTES = [
+export const WORK_PACKAGE_COMMAND_ROUTES = [
   'undo',
   'redo',
   'exportPlan',
@@ -29,8 +29,8 @@ export const PROJECT_COMMAND_ROUTES = [
   'removeStep',
   'createWorkItem',
   'arrangeBySchedule',
-  'freezeProject',
-  'unfreezeProject',
+  'freezeWorkPackage',
+  'unfreezeWorkPackage',
   'addTypedDependency',
   'updateTypedDependency',
   'removeTypedDependency',
@@ -41,7 +41,7 @@ export const PROJECT_COMMAND_ROUTES = [
 /**
  * The routes a plan command sends about one work item, or one directory entry a
  * picker creates on the way to attaching it, or the server list a settings
- * control picks from — none of them names the project.
+ * control picks from — none of them names the work package.
  */
 export const WORK_ITEM_COMMAND_ROUTES = [
   'patchWorkItem',
@@ -76,7 +76,7 @@ export const WORK_ITEM_COMMAND_ROUTES = [
   'addPerson',
 ] as const;
 
-export type ProjectCommandRoute = (typeof PROJECT_COMMAND_ROUTES)[number];
+export type WorkPackageCommandRoute = (typeof WORK_PACKAGE_COMMAND_ROUTES)[number];
 export type WorkItemCommandRoute = (typeof WORK_ITEM_COMMAND_ROUTES)[number];
 
 /**
@@ -85,27 +85,33 @@ export type WorkItemCommandRoute = (typeof WORK_ITEM_COMMAND_ROUTES)[number];
  *
  * Narrowed to these routes rather than taken whole, as
  * `modules/calendar-markers/contract.ts`'s `CalendarMarkerRoutes` is, so the
- * module's surface states what it can do to a project: nothing here lists the
- * projects, renames one, imports one, or reads the plan. Only the project
- * composition root (`modules/project/composition.ts`) supplies it; delivery
+ * module's surface states what it can do to a work package: nothing here lists the
+ * work packages, renames one, imports one, or reads the plan. Only the work package
+ * composition root (`modules/work-package/composition.ts`) supplies it; delivery
  * never sees it (rule K2).
  */
-export type PlanCommandRoutes = Pick<ProjectApi, ProjectCommandRoute | WorkItemCommandRoute>;
+export type PlanCommandRoutes = Pick<
+  WorkPackageApi,
+  WorkPackageCommandRoute | WorkItemCommandRoute
+>;
 
 /**
- * A project route with the project it is about already bound: the same call,
+ * A work package route with the work package it is about already bound: the same call,
  * less its first argument.
  */
-type BoundToProject<Route> = Route extends (projectId: string, ...rest: infer Rest) => infer Answer
+type BoundToWorkPackage<Route> = Route extends (
+  workPackageId: string,
+  ...rest: infer Rest
+) => infer Answer
   ? (...rest: Rest) => Answer
   : never;
 
 /**
- * Every request a plan gesture sends, for one project.
+ * Every request a plan gesture sends, for one work package.
  *
  * The **feature**-service delivery sees (rule K2) in place of the broad
- * `ProjectApi`. The project is bound when it is built, so a table cannot send a
- * write to a project it did not open; a work item's route is passed through as
+ * `WorkPackageApi`. The work package is bound when it is built, so a table cannot send a
+ * write to a work package it did not open; a work item's route is passed through as
  * it is. Every member reaches its route at the moment it is called, never
  * earlier, and hands back the route's own promise — answer or refusal —
  * unchanged, because the plan writer and the gestures classify a refusal by
@@ -116,13 +122,13 @@ type BoundToProject<Route> = Route extends (projectId: string, ...rest: infer Re
  * services of the code organization design are extracted one by one.
  */
 export type PlanCommands = {
-  readonly [Route in ProjectCommandRoute]: BoundToProject<ProjectApi[Route]>;
+  readonly [Route in WorkPackageCommandRoute]: BoundToWorkPackage<WorkPackageApi[Route]>;
 } & {
-  readonly [Route in WorkItemCommandRoute]: ProjectApi[Route];
+  readonly [Route in WorkItemCommandRoute]: WorkPackageApi[Route];
 };
 
 /** What the commands need from whoever built them. */
 export interface PlanCommandPorts {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly routes: PlanCommandRoutes;
 }

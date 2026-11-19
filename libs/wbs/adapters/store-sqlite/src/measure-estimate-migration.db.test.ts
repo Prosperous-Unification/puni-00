@@ -20,22 +20,24 @@ let path: string;
 let db: Database;
 
 /**
- * A store at {@link BASELINE} shaped like dev: project `p` owned by `org-a`,
- * project `q` owned by nobody, legacy token estimates on both beside token and
+ * A store at {@link BASELINE} shaped like dev: work package `p` owned by `org-a`,
+ * work package `q` owned by nobody, legacy token estimates on both beside token and
  * hours facts, written with audit columns the way the outgoing release writes.
  */
 function seedBaseline(): void {
   db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'u', 'x', 1)");
   db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
   db.run(
-    "INSERT INTO project (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
-  );
-  db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('p', 'org-a')");
-  db.run(
-    "INSERT INTO step (id, project_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('p-qa', 'p', 'QA', 20), ('q-dev', 'q', 'Dev', 10)",
+    "INSERT INTO work_package (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
   );
   db.run(
-    "INSERT INTO work_item (id, project_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('p-two', 'p', 'Two', 2, 0), ('q-one', 'q', 'One', 1, 0)",
+    "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('p', 'org-a')",
+  );
+  db.run(
+    "INSERT INTO step (id, work_package_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('p-qa', 'p', 'QA', 20), ('q-dev', 'q', 'Dev', 10)",
+  );
+  db.run(
+    "INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('p-two', 'p', 'Two', 2, 0), ('q-one', 'q', 'One', 1, 0)",
   );
   db.run(
     `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at, created_at, updated_at, created_by) VALUES
@@ -210,8 +212,10 @@ describe(MIGRATION, () => {
 
   // Proof: with the keying trigger's UPDATE replaced by `SELECT 1`, this case
   // read q's trio unkeyed; watched 2026-10-23.
-  it('keys an unowned project’s trios when an organization takes it', () => {
-    db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('q', 'org-a')");
+  it('keys an unowned work package’s trios when an organization takes it', () => {
+    db.run(
+      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('q', 'org-a')",
+    );
     expect(trios()).toContainEqual(single('q-one', 'q-dev', 50, 'tokens'));
   });
 

@@ -12,7 +12,7 @@ import {
 it('refuses an endpoint conflict missing its relationship ids at the command boundary', () => {
   const context = new CommandContext(
     'actor',
-    'project',
+    'work_package',
     0,
     'moveWorkItem',
     new Map(),
@@ -70,7 +70,7 @@ export function bindingTypeCases(
   };
 }
 
-it('binds local aliases to the owner and preserves explicit endpoint projects', () => {
+it('binds local aliases to the owner and preserves explicit endpoint work packages', () => {
   const context = new CommandContext(
     'actor',
     'owner',
@@ -84,12 +84,17 @@ it('binds local aliases to the owner and preserves explicit endpoint projects', 
   expect(bindTypedEndpoint({ scope: 'whole', workItemRef: 'named' }, context)).toEqual({
     scope: 'whole',
     workItemId: 'minted',
-    projectId: 'owner',
+    workPackageId: 'owner',
   });
   expect(
     bindTypedEndpoint(
-      { scope: 'node', workItemId: 'predecessor', stepId: 'design', projectId: 'remote' },
+      { scope: 'node', workItemId: 'predecessor', stepId: 'design', workPackageId: 'remote' },
       context,
     ),
-  ).toEqual({ scope: 'node', workItemId: 'predecessor', stepId: 'design', projectId: 'remote' });
+  ).toEqual({
+    scope: 'node',
+    workItemId: 'predecessor',
+    stepId: 'design',
+    workPackageId: 'remote',
+  });
 });

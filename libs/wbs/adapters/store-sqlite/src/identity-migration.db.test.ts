@@ -39,25 +39,25 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
 /**
  * The newest, and the optimizer's own: four tables plus one nullable column on
- * `project`. Additive forward and dropped whole by its own `down.sql`, so it
+ * `workPackage`. Additive forward and dropped whole by its own `down.sql`, so it
  * appears in the order and in nothing else this file checks — except that it
  * now **heads** every descending reversal list below, because the newest
  * migration is the first thing any rollback reverses.
  */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 /**
- * The newest: the three project settings the optimizer is steered by, on
- * `project`. Additive forward and dropped column by named column on the way
+ * The newest: the three work package settings the optimizer is steered by, on
+ * `workPackage`. Additive forward and dropped column by named column on the way
  * back, so it now **heads** every descending reversal list below and tails
  * every ascending one — the newest migration is the first thing any rollback
  * reverses.
  */
-const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
 /**
- * The newest: the `(project_id, id)` index that serves
- * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * The newest: the `(work_package_id, id)` index that serves
+ * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
- * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
  * was newest.
  */
 const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
@@ -104,7 +104,7 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -150,9 +150,9 @@ function beforeIdentity(dbPath: string): void {
     '20261023140000_add_measure',
     '20261023100000_add_claim_lease',
     '20261022213000_add_optimization_boundary_certificates',
-    '20261022212000_add_cross_project_dependency_activation',
+    '20261022212000_add_cross_work_package_dependency_activation',
     '20261022211000_add_external_dependencies',
-    '20261022210000_add_project_abbreviations',
+    '20261022210000_add_work_package_abbreviations',
     '20261022140100_widen_organization_audit_compute_providers',
     '20261022140000_add_resource_provider',
     '20261022130100_widen_organization_audit_organization_limits',
@@ -182,13 +182,13 @@ function beforeIdentity(dbPath: string): void {
     '20261011120000_add_browser_auth_lifecycle',
     '20261005110000_add_shared_people',
     '20261001010000_add_browser_credential_revocations',
-    '20260929180000_add_project_rank',
+    '20260929180000_add_work_package_rank',
     '20260929100000_add_spaces',
     '20260928200000_add_work_item_status_facts',
     '20260928040000_add_email_challenge',
     '20260928030000_add_delegation_use',
     '20260928020000_add_email_verification',
-    '20260928010000_add_project_solution',
+    '20260928010000_add_work_package_solution',
     '20260927220000_add_organization_audit',
     TYPED_DEPENDENCY,
     ORGANIZATION_FROZEN,
@@ -203,7 +203,7 @@ function beforeIdentity(dbPath: string): void {
     WORK_ITEM_DEADLINE,
     READ_ORDER_INDEX,
     CALENDAR_MARKER,
-    PROJECT_SETTINGS,
+    WORK_PACKAGE_SETTINGS,
     OPTIMIZER_TABLES,
     CREATED_BY_ID,
     SAVED_PLAN,
@@ -224,7 +224,7 @@ function beforeIdentity(dbPath: string): void {
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('legacy', 'ada', 'hash', 1)",
     );
     db.run(
-      "INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('p', 'Existing plan', 'legacy', 0, 'pert', NULL, 0, 1)",
+      "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('p', 'Existing plan', 'legacy', 0, 'pert', NULL, 0, 1)",
     );
   } finally {
     db.close();
@@ -250,9 +250,9 @@ describe('the OIDC identity migration', () => {
             )
             .all(),
         ).toEqual([{ id: 'legacy', password_hash: 'hash', email: null }]);
-        expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM project').get()?.n).toBe(
-          1,
-        );
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_package').get()?.n,
+        ).toBe(1);
         sqlite.run(
           "INSERT INTO users (id, username, password_hash, email, idp_issuer, idp_sub, created_at) VALUES ('oidc', 'dany', NULL, 'dany@puni.show', 'https://issuer.example', 'sub-1', 2)",
         );
@@ -317,9 +317,9 @@ describe('the OIDC identity migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -349,13 +349,13 @@ describe('the OIDC identity migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -370,7 +370,7 @@ describe('the OIDC identity migration', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -399,9 +399,9 @@ describe('the OIDC identity migration', () => {
           { name: 'created_at', notnull: 1 },
         ]);
         expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM users').get()?.n).toBe(1);
-        expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM project').get()?.n).toBe(
-          1,
-        );
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_package').get()?.n,
+        ).toBe(1);
       } finally {
         sqlite.close();
       }
@@ -424,7 +424,7 @@ describe('the OIDC identity migration', () => {
           "INSERT INTO users (id, username, password_hash, email, idp_issuer, idp_sub, created_at) VALUES ('oidc', 'dany', NULL, 'dany@puni.show', 'https://issuer.example', 'sub-1', 2)",
         );
         sqlite.run(
-          "INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('oidc-plan', 'OIDC plan', 'oidc', 0, 'pert', NULL, 0, 2)",
+          "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('oidc-plan', 'OIDC plan', 'oidc', 0, 'pert', NULL, 0, 2)",
         );
       } finally {
         sqlite.close();
@@ -449,9 +449,9 @@ describe('the OIDC identity migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -481,13 +481,13 @@ describe('the OIDC identity migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -502,7 +502,7 @@ describe('the OIDC identity migration', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -525,15 +525,18 @@ describe('the OIDC identity migration', () => {
         expect(await Bun.password.verify('not-the-locked-value', locked ?? '')).toBe(false);
         expect(
           downgraded
-            .query<{ users: number; projects: number; identities: number; migrations: number }, []>(
+            .query<
+              { users: number; workPackages: number; identities: number; migrations: number },
+              []
+            >(
               `SELECT
               (SELECT COUNT(*) FROM users) AS users,
-              (SELECT COUNT(*) FROM project) AS projects,
+              (SELECT COUNT(*) FROM work_package) AS work_packages,
               (SELECT COUNT(*) FROM oidc_identity_downgrade) AS identities,
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
-        ).toEqual({ users: 2, projects: 2, identities: 2, migrations: 26 });
+        ).toEqual({ users: 2, workPackages: 2, identities: 2, migrations: 26 });
       } finally {
         downgraded.close();
       }
@@ -572,10 +575,10 @@ describe('the OIDC identity migration', () => {
         ]);
         expect(
           restored
-            .query<{ users: number; projects: number; migrations: number }, []>(
+            .query<{ users: number; workPackages: number; migrations: number }, []>(
               `SELECT
               (SELECT COUNT(*) FROM users) AS users,
-              (SELECT COUNT(*) FROM project) AS projects,
+              (SELECT COUNT(*) FROM work_package) AS work_packages,
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
@@ -586,7 +589,7 @@ describe('the OIDC identity migration', () => {
           // 20260901120000_add_audit_columns, 34 until
           // 20260902120000_add_lookup_indexes, and every one of those changes
           // broke this line in a way that said nothing about identity.
-        ).toEqual({ users: 2, projects: 2, migrations: readMigrationFolders(FOLDER).length });
+        ).toEqual({ users: 2, workPackages: 2, migrations: readMigrationFolders(FOLDER).length });
         expect(
           restored
             .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM oidc_identity_downgrade')

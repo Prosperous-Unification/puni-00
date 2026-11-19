@@ -12,12 +12,12 @@ import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PlanWriter, PlanWriterHost } from './contract';
 
 /**
- * Builds the writer for one reader: one project runtime's refresh owner, its
+ * Builds the writer for one reader: one work package runtime's refresh owner, its
  * reread and its busy state.
  *
- * A plain factory rather than a DI Bag module of its own: the project runtime
- * registers it as one binding (`installProjectRuntime` in
- * `runtime/project-runtime.ts`), so the module moves no policy into a graph.
+ * A plain factory rather than a DI Bag module of its own: the work package runtime
+ * registers it as one binding (`installWorkPackageRuntime` in
+ * `runtime/work-package-runtime.ts`), so the module moves no policy into a graph.
  */
 export function createPlanWriter({
   readRefreshOwner,
@@ -62,7 +62,7 @@ export function createPlanWriter({
      * know that the screen may be behind before releasing a peer value.
      */
     async run(action) {
-      // Proof: guarding only projectId leaked one refusal toast into the new API
+      // Proof: guarding only workPackageId leaked one refusal toast into the new API
       // owner in `does not toast an old API mutation refusal into its replacement`.
       const owner = readRefreshOwner();
       /** Still this reader's gesture: the owner it began under is the one still answered. */
@@ -83,9 +83,9 @@ export function createPlanWriter({
         try {
           await action(write);
         } catch (thrown: unknown) {
-          // A refusal from a project the reader has left is not a refusal of
+          // A refusal from a work package the reader has left is not a refusal of
           // anything on the screen now. The old burst stops without putting
-          // its toast or refetch into the next project.
+          // its toast or refetch into the next work package.
           // Proof: removing this guard published a terminal refusal in `a retired writer
           // does not publish or reread a typed terminal Retry refusal` (2026-10-22).
           if (!isCurrent()) return 'refused';
@@ -141,9 +141,9 @@ export function createPlanWriter({
         return readInstalled ? 'landed' : 'landed-unread';
       } finally {
         // Lowered however the gesture ended, and with nothing asked of the
-        // reader: busy is this project runtime's own, so a gesture whose reader
+        // reader: busy is this work package runtime's own, so a gesture whose reader
         // has left lowers only a busy state nobody draws any more, and never
-        // the next project's.
+        // the next work package's.
         busy.lower();
       }
     },

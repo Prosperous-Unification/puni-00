@@ -8,14 +8,25 @@ import type { WriteStamp } from './write-stamp';
 
 export type { Step } from './step-values';
 
+/** A selected catalogue binding lacks the package's explicit values; this is corrupt trusted state, not an optional default. */
+export class WorkPackageStepMissing extends Error {
+  override readonly name = 'WorkPackageStepMissing';
+  constructor(
+    readonly workPackageId: string,
+    readonly stepId: string,
+  ) {
+    super('work package ' + workPackageId + ' has no explicit values for step ' + stepId);
+  }
+}
+
 /**
- * A step as a caller offers it. The project decides where in its order the step
+ * A step as a caller offers it. The work package decides where in its order the step
  * lands, in the same transaction that writes it: two clients adding a step at
  * once would otherwise both read the same last place.
  *
  * `code` is the code the caller chose, already checked against the grammar and
  * the reserved namespace; absent, the store suggests one from the name against
- * the codes the project holds, inside the same transaction.
+ * the codes the work package holds, inside the same transaction.
  */
 export type NewStep = Omit<Step, 'position' | 'code' | 'estimateUnit'> & {
   code?: string;
@@ -23,7 +34,7 @@ export type NewStep = Omit<Step, 'position' | 'code' | 'estimateUnit'> & {
 };
 
 /**
- * Why a step could not be added or renamed. All are states of the project, not
+ * Why a step could not be added or renamed. All are states of the work package, not
  * faults: `taken` is the name, `code_taken` the code.
  */
 type StepWriteRefusal = 'taken' | 'code_taken' | 'not_found';
@@ -48,7 +59,7 @@ export type StepUnitWritten =
  * What points at one step, read for the refusal that names it.
  *
  * The estimates are a count because a count is all anyone can act on. The
- * assignments are **every assignment in the project**, not only this step's:
+ * assignments are **every assignment in the work package**, not only this step's:
  * whether a work item's assumed assignee moves when this step goes depends on
  * what it holds for the *other* steps, so the answer cannot be computed from
  * this step's rows alone. See `assumedAssigneeFlips`.
@@ -132,7 +143,7 @@ export interface StepRemoval {
  * confirmation is what this refusal is for.
  *
  * `not_found` is the loser of two removals of one step — and a step id that
- * belongs to another project, which is the same absence from this project's
+ * belongs to another work package, which is the same absence from this work package's
  * point of view.
  */
 export type StepRemoved =
@@ -142,45 +153,54 @@ export type StepRemoved =
   | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] };
 
 export interface StepStore {
-  /** In step order, which is the order every reader of a project's steps gets. */
-  listByProject(projectId: string): Promise<Step[]>;
-  /** By id alone: the caller checks the step belongs to the project it was asked about. */
+  /**
+   * Current project-chain binding union for any type, in SC18 order, with explicit package values.
+   * Position is the controlling binding's scope-local position; array order also accounts for scope rank.
+   * @throws {WorkPackageStepMissing} when a selected definition has no explicit package values.
+   */
+  listByWorkPackage(workPackageId: string): Promise<Step[]>;
+  /** By id alone: the caller checks the step belongs to the work package it was asked about. */
   findById(stepId: string): Promise<Step | null>;
   /**
-   * Adds a step, or refuses a name the project already holds.
+   * Adds a step, or refuses a name the work package already holds.
    *
    * Refused by the unique index rather than by asking first: two clients adding
    * `Design` at the same moment both pass a check-then-insert. Moves the
-   * project's revision in the same transaction — a step is a satellite of the
-   * project, and adding one changes what every estimate in it means.
+   * work package's revision in the same transaction — a step is a satellite of the
+   * work package, and adding one changes what every estimate in it means.
    *
-   * The step lands last in the project's step order, and the written step
+   * The step lands last in the work package's step order, and the written step
    * carries the place it took.
    */
   add(step: NewStep, stamp: WriteStamp): Promise<StepWritten>;
   /**
    * The same rules as {@link StepStore.add}, and `not_found` for a step that
-   * has gone or is not `projectId`'s: the project is part of the write's own
+   * has gone or is not `workPackageId`'s: the work package is part of the write's own
    * predicate, so a check made before the write cannot be outrun.
    */
   /** Writes a new unit only when no estimate holds the old unit, in the same transaction. */
   patchUnit(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     unit: EstimateUnit,
     stamp: WriteStamp,
   ): Promise<StepUnitWritten>;
-  rename(projectId: string, stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten>;
+  rename(
+    workPackageId: string,
+    stepId: string,
+    name: string,
+    stamp: WriteStamp,
+  ): Promise<StepWritten>;
   /**
    * What points at the step right now — a **fast path** for the refusal, never
    * the authority for it. Between this answer and any delete, anybody may write.
    * {@link StepStore.remove} is what decides.
    */
-  usageOf(projectId: string, stepId: string): Promise<StepUsageRows>;
+  usageOf(workPackageId: string, stepId: string): Promise<StepUsageRows>;
   /**
    * Counts what points at the step, refuses an unconfirmed removal that would
    * take any of it, and otherwise deletes the step's estimates, its assignments
-   * and the step row — all in **one** transaction, bumping the project and every
+   * and the step row — all in **one** transaction, bumping the work package and every
    * work item that lost one of them.
    *
    * The count lives inside the transaction because it is the decision: a caller
@@ -199,7 +219,7 @@ export interface StepStore {
    * references; corrupt selected facts throw before mutation.
    */
   remove(
-    projectId: string,
+    workPackageId: string,
     stepId: string,
     cascade: boolean,
     stamp: WriteStamp,

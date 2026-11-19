@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, Step, WriteStamp } from '@wbs/core';
+import type { Step, WorkPackage, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from './actual';
@@ -13,17 +13,18 @@ import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 import { WorkItemBudgetRepository } from './work-item-budget';
+import { WorkPackageRepository } from './work-package';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const OWNER = 'targeted-owner';
-const PROJECT = 'targeted-project';
-const FOREIGN_PROJECT = 'targeted-foreign-project';
+const WORK_PACKAGE = 'targeted-work-package';
+const FOREIGN_WORK_PACKAGE = 'targeted-foreign-work-package';
 const STEP = 'targeted-step';
 const FOREIGN_STEP = 'targeted-foreign-step';
 const ROW = 'targeted-row';
@@ -40,6 +41,7 @@ beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-targeted-readers-'));
   path = join(directory, 'test.db');
   runMigrations(path, MIGRATIONS);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const db = openDrizzle(path);
   estimates = new EstimateRepository(db, OPEN);
   actuals = new ActualRepository(db, OPEN);
@@ -49,11 +51,14 @@ beforeEach(async () => {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     STAMP,
   );
-  const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
+  const workPackage: WorkPackage = workPackageRow({
+    id: WORK_PACKAGE,
+    projectId: 'fixture-project',
+  });
   const steps: Step[] = [
     {
       id: STEP,
-      projectId: PROJECT,
+      workPackageId: WORK_PACKAGE,
       name: 'Build',
       position: 10,
       code: 'build',
@@ -61,9 +66,9 @@ beforeEach(async () => {
       estimateUnit: 'workdays' as const,
     },
   ];
-  await new ProjectRepository(db, OPEN).create(project, steps, STAMP);
+  await new WorkPackageRepository(db, OPEN).create(workPackage, steps, STAMP);
   await new WorkItemRepository(db, OPEN).insert(
-    workItemRow({ id: ROW, projectId: PROJECT }),
+    workItemRow({ id: ROW, workPackageId: WORK_PACKAGE }),
     [],
     STAMP,
   );
@@ -104,7 +109,7 @@ function corrupt(statements: readonly string[], ignoreChecks = false): void {
 }
 
 describe('targeted SQLite readers reject malformed stored state', () => {
-  it('seeks one immediate predecessor instead of aggregating the project prefix', async () => {
+  it('seeks one immediate predecessor instead of aggregating the work package prefix', async () => {
     const sqlite = openDatabase(path);
     try {
       sqlite.run(`
@@ -113,8 +118,8 @@ describe('targeted SQLite readers reject malformed stored state', () => {
           UNION ALL
           SELECT n + 1 FROM sequence WHERE n < 9999
         )
-        INSERT INTO work_item (id, project_id, position)
-        SELECT printf('row-%05d', n), '${PROJECT}', n + 1 FROM sequence
+        INSERT INTO work_item (id, work_package_id, position)
+        SELECT printf('row-%05d', n), '${WORK_PACKAGE}', n + 1 FROM sequence
       `);
     } finally {
       sqlite.close();
@@ -127,7 +132,7 @@ describe('targeted SQLite readers reject malformed stored state', () => {
       },
     });
     const repository = new WorkItemRepository(db, OPEN);
-    expect(await repository.listPlacements(PROJECT, ['row-09999'])).toEqual([
+    expect(await repository.listPlacements(WORK_PACKAGE, ['row-09999'])).toEqual([
       { id: 'row-09999', afterId: 'row-09998' },
     ]);
     const read = statements.at(0);
@@ -161,8 +166,8 @@ describe('targeted SQLite readers reject malformed stored state', () => {
         WITH RECURSIVE sequence(n) AS (
           SELECT 0 UNION ALL SELECT n + 1 FROM sequence WHERE n < 9999
         )
-        INSERT INTO work_item (id, project_id, position)
-        SELECT printf('row-%05d', n), '${PROJECT}', n + 1 FROM sequence
+        INSERT INTO work_item (id, work_package_id, position)
+        SELECT printf('row-%05d', n), '${WORK_PACKAGE}', n + 1 FROM sequence
       `);
       sqlite.run(`INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic)
         SELECT id, '${STEP}', 1, 2, 3 FROM work_item WHERE id LIKE 'row-%'`);
@@ -187,7 +192,7 @@ describe('targeted SQLite readers reject malformed stored state', () => {
       new StepMeasureRepository(db, OPEN),
     ] as const;
     for (const repository of repositories) {
-      expect(await repository.listPlacements(PROJECT, ['row-09999'])).toEqual([
+      expect(await repository.listPlacements(WORK_PACKAGE, ['row-09999'])).toEqual([
         { id: 'row-09999', afterId: 'row-09998' },
       ]);
     }
@@ -230,16 +235,16 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     ]);
 
     // Proof: inner joins hid all four missing owners; the left-join readers name them.
-    expect(estimates.listByWorkItems(PROJECT, ['missing-owner'])).rejects.toThrow(
+    expect(estimates.listByWorkItems(WORK_PACKAGE, ['missing-owner'])).rejects.toThrow(
       /invalid work-item reference/,
     );
-    expect(actuals.listByWorkItems(PROJECT, ['missing-owner'])).rejects.toThrow(
+    expect(actuals.listByWorkItems(WORK_PACKAGE, ['missing-owner'])).rejects.toThrow(
       /invalid work-item reference/,
     );
-    expect(progress.listByWorkItems(PROJECT, ['missing-owner'])).rejects.toThrow(
+    expect(progress.listByWorkItems(WORK_PACKAGE, ['missing-owner'])).rejects.toThrow(
       /invalid work-item reference/,
     );
-    expect(measures.listByWorkItems(PROJECT, ['missing-owner'])).rejects.toThrow(
+    expect(measures.listByWorkItems(WORK_PACKAGE, ['missing-owner'])).rejects.toThrow(
       /invalid work-item reference/,
     );
   });
@@ -254,20 +259,22 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     ]);
 
     // Proof: inner joins hid missing steps; each targeted left join now names its broken row.
-    expect(estimates.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
-    expect(actuals.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
-    expect(progress.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
-    expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
+    expect(estimates.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(
+      /invalid step reference/,
+    );
+    expect(actuals.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid step reference/);
+    expect(progress.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid step reference/);
+    expect(measures.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid step reference/);
   });
 
-  it('names foreign-project step references in all four families', async () => {
+  it('names foreign-work-package step references in all four families', async () => {
     const db = openDrizzle(path);
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: FOREIGN_PROJECT, ownerId: OWNER }),
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({ id: FOREIGN_WORK_PACKAGE, projectId: 'fixture-project' }),
       [
         {
           id: FOREIGN_STEP,
-          projectId: FOREIGN_PROJECT,
+          workPackageId: FOREIGN_WORK_PACKAGE,
           name: 'Foreign',
           position: 10,
           code: 'foreign',
@@ -285,11 +292,13 @@ describe('targeted SQLite readers reject malformed stored state', () => {
       `UPDATE step_measure SET step_id = '${FOREIGN_STEP}' WHERE work_item_id = '${ROW}'`,
     ]);
 
-    // Proof: checking only step existence admitted four references owned by another project.
-    expect(estimates.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
-    expect(actuals.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
-    expect(progress.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
-    expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid step reference/);
+    // Proof: checking only step existence admitted four references owned by another work package.
+    expect(estimates.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(
+      /invalid step reference/,
+    );
+    expect(actuals.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid step reference/);
+    expect(progress.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid step reference/);
+    expect(measures.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid step reference/);
   });
 
   it('rejects malformed values representable by SQLite dynamic typing', async () => {
@@ -305,10 +314,10 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     );
 
     // Proof: unchecked typed projections returned all four malformed values.
-    expect(estimates.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid day value/);
-    expect(actuals.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid day value/);
-    expect(progress.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid state/);
-    expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid value/);
+    expect(estimates.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid day value/);
+    expect(actuals.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid day value/);
+    expect(progress.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid state/);
+    expect(measures.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid value/);
   });
 
   it('rejects malformed measure metrics after constraint-bypassing corruption', async () => {
@@ -316,7 +325,7 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     corrupt([`UPDATE step_measure SET metric = 'broken' WHERE work_item_id = '${ROW}'`], true);
 
     // Proof: without the reader check a constraint-bypassing metric projected as typed state.
-    expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid metric/);
+    expect(measures.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid metric/);
   });
 
   it('rejects a stored budget policy outside the two after constraint-bypassing corruption', () => {
@@ -327,7 +336,7 @@ describe('targeted SQLite readers reject malformed stored state', () => {
       true,
     );
     expect(
-      new WorkItemBudgetRepository(openDrizzle(path), OPEN).listByProject(PROJECT),
+      new WorkItemBudgetRepository(openDrizzle(path), OPEN).listByWorkPackage(WORK_PACKAGE),
     ).rejects.toThrow(`budget ${ROW}/tokens holds policy firm`);
   });
 
@@ -341,10 +350,10 @@ describe('targeted SQLite readers reject malformed stored state', () => {
       true,
     );
     const half = 'a stored money figure carries half a basis';
-    expect(measures.listByProject(PROJECT)).rejects.toThrow(half);
-    expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(half);
+    expect(measures.listByWorkPackage(WORK_PACKAGE)).rejects.toThrow(half);
+    expect(measures.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(half);
     expect(
-      new MeasureEstimateRepository(openDrizzle(path), OPEN).listByProject(PROJECT),
+      new MeasureEstimateRepository(openDrizzle(path), OPEN).listByWorkPackage(WORK_PACKAGE),
     ).rejects.toThrow(half);
   });
 
@@ -354,7 +363,7 @@ describe('targeted SQLite readers reject malformed stored state', () => {
       [`UPDATE step_measure SET metric = NULL, measure_id = NULL WHERE work_item_id = '${ROW}'`],
       true,
     );
-    expect(measures.listByProject(PROJECT)).rejects.toThrow(
+    expect(measures.listByWorkPackage(WORK_PACKAGE)).rejects.toThrow(
       `measure ${ROW}/${STEP} names no metric and no definition`,
     );
   });
@@ -373,8 +382,8 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     expect(trios.set(trio, STAMP)).rejects.toThrow(
       `measure estimate ${ROW}/${STEP}/tokens is not a single point`,
     );
-    expect(await trios.listByProject(PROJECT)).toEqual([]);
-    expect(await measures.listByProject(PROJECT)).toEqual([]);
+    expect(await trios.listByWorkPackage(WORK_PACKAGE)).toEqual([]);
+    expect(await measures.listByWorkPackage(WORK_PACKAGE)).toEqual([]);
   });
 
   it('rejects non-finite numeric values and timestamps SQLite can store', async () => {
@@ -387,10 +396,10 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     ]);
 
     // Proof: without finite-number checks SQLite's infinities reached all four answers.
-    expect(estimates.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid day value/);
-    expect(actuals.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid recorded time/);
-    expect(progress.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid stated time/);
-    expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid recorded time/);
+    expect(estimates.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid day value/);
+    expect(actuals.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid recorded time/);
+    expect(progress.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid stated time/);
+    expect(measures.listByWorkItems(WORK_PACKAGE, [ROW])).rejects.toThrow(/invalid recorded time/);
   });
 
   it('records the constraints that prevent malformed closed sets and bound NaN', async () => {

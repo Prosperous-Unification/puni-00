@@ -1,8 +1,8 @@
 import type { CommandAccess } from '../ports/command-access';
-import type { ProjectRankStore, RankMoved } from '../ports/project-rank-store';
+import type { WorkPackageRankStore, RankMoved } from '../ports/work-package-rank-store';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import { authorize } from './authorize';
-import type { CommittedFanoutDelivery, CommittedProjectEvent } from './committed-fanout';
+import type { CommittedFanoutDelivery, CommittedWorkPackageEvent } from './committed-fanout';
 import { recordCommittedFanout } from './committed-fanout';
 
 /**
@@ -12,14 +12,20 @@ import { recordCommittedFanout } from './committed-fanout';
  * with the rank; delivery starts after release.
  */
 export function standaloneRankStore(
-  publicRanks: ProjectRankStore,
+  publicRanks: WorkPackageRankStore,
   uow: UnitOfWork,
   delivery: CommittedFanoutDelivery,
   commandAccess: CommandAccess,
-): ProjectRankStore {
+): WorkPackageRankStore {
   return {
     orderIn: (organizationId) => publicRanks.orderIn(organizationId),
-    async moveAfter(organizationId, projectId, afterProjectId, stamp, caller): Promise<RankMoved> {
+    async moveAfter(
+      organizationId,
+      workPackageId,
+      afterWorkPackageId,
+      stamp,
+      caller,
+    ): Promise<RankMoved> {
       if (caller === undefined) throw new Error('rank writer lacks authenticated caller evidence');
       // Proof: rank-owner-caller: retaining queued command-caller aliases.
       // retains standalone rank queued caller authority and expected context
@@ -35,10 +41,10 @@ export function standaloneRankStore(
       stamp = { ...stamp };
       const settled = await uow.run<{
         moved: RankMoved;
-        events: readonly CommittedProjectEvent[];
+        events: readonly CommittedWorkPackageEvent[];
       }>(async (scope) => {
         const capture = scope.fanoutCapture;
-        const ranks = scope.stores.projectRanks;
+        const ranks = scope.stores.workPackageRanks;
         // Proof: rank-required-capture: omitting required borrowed capture before a no-op.
         // requires capture before a standalone rank no-op
         // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
@@ -94,8 +100,9 @@ export function standaloneRankStore(
           };
         const order = await ranks.orderIn(organizationId);
         if (
-          !order.some(({ projectId: id }) => id === projectId) ||
-          (afterProjectId !== null && !order.some(({ projectId: id }) => id === afterProjectId))
+          !order.some(({ workPackageId: id }) => id === workPackageId) ||
+          (afterWorkPackageId !== null &&
+            !order.some(({ workPackageId: id }) => id === afterWorkPackageId))
         )
           return {
             commit: false as const,
@@ -104,13 +111,23 @@ export function standaloneRankStore(
               events: [],
             },
           };
-        if (afterProjectId === projectId) {
-          const moved = await ranks.moveAfter(organizationId, projectId, afterProjectId, stamp);
+        if (afterWorkPackageId === workPackageId) {
+          const moved = await ranks.moveAfter(
+            organizationId,
+            workPackageId,
+            afterWorkPackageId,
+            stamp,
+          );
           return { commit: moved.ok, value: { moved, events: [] } };
         }
         // Proof: capturing after the move lost the old ordered bridge and its recipient.
         const before = await capture.capture(organizationId);
-        const moved = await ranks.moveAfter(organizationId, projectId, afterProjectId, stamp);
+        const moved = await ranks.moveAfter(
+          organizationId,
+          workPackageId,
+          afterWorkPackageId,
+          stamp,
+        );
         if (!moved.ok) return { commit: false as const, value: { moved, events: [] } };
         const after = await capture.capture(organizationId);
         // Proof: recording after UoW settlement left rank rows committed when a later

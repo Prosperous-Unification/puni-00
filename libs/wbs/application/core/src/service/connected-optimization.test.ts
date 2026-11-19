@@ -42,9 +42,9 @@ function prepared(): PreparedConnectedOptimization {
     mode: 'isolated',
     originOrdinal: 20000,
     relationships: [],
-    projects: ['C', 'B', 'A'].map((projectId) => ({
-      projectId,
-      rank: projectId === 'C' ? 1 : 0,
+    workPackages: ['C', 'B', 'A'].map((workPackageId) => ({
+      workPackageId,
+      rank: workPackageId === 'C' ? 1 : 0,
       anchorOrdinal: 20000,
       engine: 'optimized',
       objective: 'time',
@@ -54,12 +54,12 @@ function prepared(): PreparedConnectedOptimization {
       ...resolved,
       order: {
         kind: 'connected',
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
           ['c', 'C'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 0],
           ['C', 1],
@@ -82,9 +82,9 @@ function ready(
   stage: Parameters<ConnectedOptimizedCapturedAdapter['readConnectedCaptured']>[0]['stage'],
 ): ConnectedOptimizedRead {
   const question = {
-    projectId: stage.projectId,
-    inputHash: stage.projectId,
-    questionHash: `question-${stage.projectId}`,
+    workPackageId: stage.workPackageId,
+    inputHash: stage.workPackageId,
+    questionHash: `question-${stage.workPackageId}`,
     objective: 'time' as const,
     contractVersion: 'test',
     budgetMs: 100,
@@ -93,7 +93,7 @@ function ready(
     stageBytes: canonicalConnectedStageInput(stage),
   };
   return {
-    inputHash: stage.projectId,
+    inputHash: stage.workPackageId,
     generation: 1,
     contractVersion: 'test',
     budgetMs: 100,
@@ -102,7 +102,7 @@ function ready(
     variants: { pri: { state: 'idle' }, time: { state: 'ready', proof: 'proven' } },
     candidates: {
       pri: null,
-      time: { question, starts: new Map([[key(stage.projectId.toLowerCase()), 0]]) },
+      time: { question, starts: new Map([[key(stage.workPackageId.toLowerCase()), 0]]) },
     },
   };
 }
@@ -111,7 +111,7 @@ test('visits rank then bytewise ID once, fixing earlier choices in later immutab
   const seen: string[] = [];
   const selected = selectConnectedOptimizations(component, baseline(component), {
     readConnectedCaptured: ({ stage }) => {
-      seen.push(stage.projectId);
+      seen.push(stage.workPackageId);
       return ready(stage);
     },
   });
@@ -141,7 +141,7 @@ test('stage detaches input maps and validates the real captured placement', () =
   slices.set(key('a'), { ...a, earliestFinish: 100 });
   expect(() => buildConnectedOptimizationStage(prepared(), { ...plan, slices }, 'A')).toThrow();
 });
-test('missing connected capability refuses required engine even beside Fast projects', () => {
+test('missing connected capability refuses required engine even beside Fast work packages', () => {
   const component = prepared();
   expect(selectConnectedOptimizations(component, baseline(component), null).kind).toBe(
     'engine_unavailable',
@@ -151,16 +151,16 @@ test('Fast and disabled members keep their placement; enabled Fast still observe
   const component = prepared();
   const configured = {
     ...component,
-    projects: component.projects.map((project) => ({
-      ...project,
+    workPackages: component.workPackages.map((workPackage) => ({
+      ...workPackage,
       engine: 'fast' as const,
-      enabled: project.projectId !== 'C',
+      enabled: workPackage.workPackageId !== 'C',
     })),
   };
   const seen: string[] = [];
   const selected = selectConnectedOptimizations(configured, baseline(component), {
     readConnectedCaptured: ({ stage }) => {
-      seen.push(stage.projectId);
+      seen.push(stage.workPackageId);
       return ready(stage);
     },
   });
@@ -246,11 +246,14 @@ test('boundary infeasible preserves a valid real composite and captured certific
   expect(selected.placement).toBe(selected.baseline);
   expect(selected.stages[0]?.optimization?.variants.time.state).toBe('boundary-infeasible');
 });
-test('a ready nonselected objective remains comparison evidence without moving the project', () => {
+test('a ready nonselected objective remains comparison evidence without moving the work package', () => {
   const component = prepared();
   const configured = {
     ...component,
-    projects: component.projects.map((project) => ({ ...project, objective: 'pri' as const })),
+    workPackages: component.workPackages.map((workPackage) => ({
+      ...workPackage,
+      objective: 'pri' as const,
+    })),
   };
   const selected = selectConnectedOptimizations(configured, baseline(component), {
     readConnectedCaptured: ({ stage }) => ready(stage),
@@ -260,7 +263,7 @@ test('a ready nonselected objective remains comparison evidence without moving t
   expect(selected.placement).toBe(selected.baseline);
   expect(selected.stages[0]?.decisions.time?.scope).toEqual({
     kind: 'connected-stage',
-    projectId: 'A',
+    workPackageId: 'A',
   });
   expect(selected.stages[0]?.decisions.time?.baselineValues.makespan).toBe(4);
 });
@@ -298,10 +301,10 @@ test('empty local members produce idle metadata without invoking the adapter', (
   const component = prepared();
   const empty = {
     ...component,
-    projects: [
-      ...component.projects,
+    workPackages: [
+      ...component.workPackages,
       {
-        projectId: 'D',
+        workPackageId: 'D',
         rank: 2,
         anchorOrdinal: null,
         engine: 'optimized' as const,
@@ -313,12 +316,12 @@ test('empty local members produce idle metadata without invoking the adapter', (
       ...component.input,
       order: {
         kind: 'connected' as const,
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
           ['c', 'C'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 0],
           ['C', 1],
@@ -330,17 +333,17 @@ test('empty local members produce idle metadata without invoking the adapter', (
   const seen: string[] = [];
   const selected = selectConnectedOptimizations(empty, baseline(empty), {
     readConnectedCaptured: ({ stage }) => {
-      seen.push(stage.projectId);
+      seen.push(stage.workPackageId);
       return ready(stage);
     },
   });
   expect(selected.kind).toBe('selected');
   if (selected.kind !== 'selected') throw new Error('expected selection');
-  expect(selected.idleProjects).toEqual(['D']);
+  expect(selected.idleWorkPackages).toEqual(['D']);
   expect(seen).toEqual(['A', 'B', 'C']);
 });
 test.each([
-  'projectId',
+  'workPackageId',
   'objective',
   'inputHash',
   'contractVersion',
@@ -387,22 +390,22 @@ test('whole-component replay rejects a local start violating its fixed foreign p
       ...resolved,
       order: {
         kind: 'connected' as const,
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
           ['c', 'C'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 2],
           ['C', 1],
         ]),
       },
     },
-    projects: component.projects.map((project) => ({
-      ...project,
-      rank: project.projectId === 'B' ? 2 : project.rank,
-      enabled: project.projectId === 'B',
+    workPackages: component.workPackages.map((workPackage) => ({
+      ...workPackage,
+      rank: workPackage.workPackageId === 'B' ? 2 : workPackage.rank,
+      enabled: workPackage.workPackageId === 'B',
     })),
   };
   const selected = selectConnectedOptimizations(constrained, baseline(constrained), {
@@ -412,7 +415,7 @@ test('whole-component replay rejects a local start violating its fixed foreign p
   if (selected.kind !== 'selected') throw new Error('expected selection');
   expect(selected.placement).toBe(selected.baseline);
   expect(
-    selected.stages.find((stage) => stage.stage.projectId === 'B')?.optimization?.variants.time
+    selected.stages.find((stage) => stage.stage.workPackageId === 'B')?.optimization?.variants.time
       .state,
   ).toBe('corrupt');
 });
@@ -451,7 +454,10 @@ test('an entirely empty component needs neither calendar origin nor optimizer ca
   const empty = {
     ...source,
     originOrdinal: null,
-    projects: source.projects.map((project) => ({ ...project, anchorOrdinal: null })),
+    workPackages: source.workPackages.map((workPackage) => ({
+      ...workPackage,
+      anchorOrdinal: null,
+    })),
     input: {
       ...source.input,
       rows: [],
@@ -459,8 +465,8 @@ test('an entirely empty component needs neither calendar origin nor optimizer ca
       graph: { nodes: [], edges: [] },
       order: {
         kind: 'connected' as const,
-        projectIdByWorkItem: new Map<string, string>(),
-        rankByProject: new Map([
+        workPackageIdByWorkItem: new Map<string, string>(),
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 0],
           ['C', 1],
@@ -472,12 +478,12 @@ test('an entirely empty component needs neither calendar origin nor optimizer ca
   expect(selected.kind).toBe('selected');
   if (selected.kind !== 'selected') throw new Error('expected empty selection');
   expect(selected.stages).toEqual([]);
-  expect(selected.idleProjects).toEqual(['A', 'B', 'C']);
+  expect(selected.idleWorkPackages).toEqual(['A', 'B', 'C']);
 });
-test('unknown stage ownership refuses before being mistaken for an idle project', () => {
+test('unknown stage ownership refuses before being mistaken for an idle work package', () => {
   const component = prepared();
   expect(() => buildConnectedOptimizationStage(component, baseline(component), 'unknown')).toThrow(
-    'uncaptured optimization project unknown',
+    'uncaptured optimization work package unknown',
   );
 });
 test('an active stage refuses an absent calendar origin', () => {
@@ -495,7 +501,10 @@ function emptyComponent(): PreparedConnectedOptimization {
   return {
     ...source,
     originOrdinal: null,
-    projects: source.projects.map((project) => ({ ...project, anchorOrdinal: null })),
+    workPackages: source.workPackages.map((workPackage) => ({
+      ...workPackage,
+      anchorOrdinal: null,
+    })),
     input: {
       ...source.input,
       rows: [],
@@ -503,8 +512,8 @@ function emptyComponent(): PreparedConnectedOptimization {
       graph: { nodes: [], edges: [] },
       order: {
         kind: 'connected',
-        projectIdByWorkItem: new Map(),
-        rankByProject: new Map([
+        workPackageIdByWorkItem: new Map(),
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 0],
           ['C', 1],
@@ -526,7 +535,7 @@ test.each(['builder', 'selector'] as const)(
   },
 );
 test.each([undefined, 'unknown'])(
-  'unmapped active ownership %s refuses before treating every project as idle',
+  'unmapped active ownership %s refuses before treating every work package as idle',
   (owner) => {
     const component = prepared();
     const ownership = new Map([
@@ -540,8 +549,8 @@ test.each([undefined, 'unknown'])(
         ...component.input,
         order: {
           kind: 'connected' as const,
-          projectIdByWorkItem: ownership,
-          rankByProject: new Map([
+          workPackageIdByWorkItem: ownership,
+          rankByWorkPackage: new Map([
             ['A', 0],
             ['B', 0],
             ['C', 1],
@@ -560,7 +569,7 @@ test.each([undefined, 'unknown'])(
 test('an idle member still validates real foreign placement evidence', () => {
   const component = prepared();
   const extra = {
-    projectId: 'D',
+    workPackageId: 'D',
     rank: 2,
     anchorOrdinal: null,
     engine: 'fast' as const,
@@ -569,17 +578,17 @@ test('an idle member still validates real foreign placement evidence', () => {
   };
   const extended = {
     ...component,
-    projects: [...component.projects, extra],
+    workPackages: [...component.workPackages, extra],
     input: {
       ...component.input,
       order: {
         kind: 'connected' as const,
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
           ['c', 'C'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 0],
           ['C', 1],
@@ -615,25 +624,25 @@ test('empty components validate their resolved graph without fabricating a calen
     'resolved graph node',
   );
 });
-test.each(['duplicate-project', 'missing-rank', 'nonfinite-rank'] as const)(
+test.each(['duplicate-work-package', 'missing-rank', 'nonfinite-rank'] as const)(
   'empty components refuse invalid membership %s',
   (fault) => {
     const empty = emptyComponent();
-    const first = empty.projects.at(0);
+    const first = empty.workPackages.at(0);
     if (first === undefined || empty.input.order.kind !== 'connected')
       throw new Error('invalid empty fixture');
-    const ranks = new Map(empty.input.order.rankByProject);
-    if (fault === 'missing-rank') ranks.delete(first.projectId);
-    const projects =
-      fault === 'duplicate-project'
-        ? [...empty.projects, first]
+    const ranks = new Map(empty.input.order.rankByWorkPackage);
+    if (fault === 'missing-rank') ranks.delete(first.workPackageId);
+    const workPackages =
+      fault === 'duplicate-work-package'
+        ? [...empty.workPackages, first]
         : fault === 'nonfinite-rank'
-          ? empty.projects.map((project) => ({ ...project, rank: NaN }))
-          : empty.projects;
+          ? empty.workPackages.map((workPackage) => ({ ...workPackage, rank: NaN }))
+          : empty.workPackages;
     const malformed = {
       ...empty,
-      projects,
-      input: { ...empty.input, order: { ...empty.input.order, rankByProject: ranks } },
+      workPackages,
+      input: { ...empty.input, order: { ...empty.input.order, rankByWorkPackage: ranks } },
     };
     const placement = scheduleResolved(empty.input);
     expect(() => buildConnectedOptimizationStage(malformed, placement, 'A')).toThrow('membership');
@@ -667,7 +676,10 @@ test('fractional Fast baseline scores movement against the captured integer ques
         ...observation,
         candidates: {
           pri: null,
-          time: { ...candidate, starts: new Map([[key(stage.projectId.toLowerCase()), 10 / 48]]) },
+          time: {
+            ...candidate,
+            starts: new Map([[key(stage.workPackageId.toLowerCase()), 10 / 48]]),
+          },
         },
       };
     },

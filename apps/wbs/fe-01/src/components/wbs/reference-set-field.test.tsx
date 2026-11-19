@@ -593,7 +593,7 @@ describe('the reference strip on one rest line', () => {
   });
 
   itDom('drops an inherited member the row has since stated, so it is drawn once', () => {
-    // The window the sheet leaves open: it re-projects `ownIds` the moment a
+    // The window the sheet leaves open: it re-work-packages `ownIds` the moment a
     // write lands, and the tree read that would drop the tag from the inherited
     // list arrives after it. Without the filter the cell draws `Core` twice —
     // once as the row's own chip and once as the ancestor's — for as long as

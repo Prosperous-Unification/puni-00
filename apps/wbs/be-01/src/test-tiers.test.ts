@@ -38,7 +38,7 @@ const SRC = new URL('.', import.meta.url).pathname;
  * `openScimWorld` also opens a database: it opens an `OrganizationHarness` for the
  * SCIM suites.
  * `openFixture` and `seedIncidents` open the composed organization harness
- * from controller/cross-project-dependency-fixture.ts.
+ * from controller/cross-work-package-dependency-fixture.ts.
  * `openSpaceDatabase` migrates and opens SQLite for the space and runtime controller suites.
  */
 // Proof: 2026-10-13, omitting openComposedWith failed `names a suite

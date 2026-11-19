@@ -66,9 +66,9 @@ export function teamsOnThePlan(
 }
 
 /**
- * What every section of the project-settings modal reports back to it.
+ * What every section of the work-package-settings modal reports back to it.
  *
- * `onDirtyChange` is the contract `project-config-modal`'s design D3 rests on:
+ * `onDirtyChange` is the contract `work-package-config-modal`'s design D3 rests on:
  * the modal refuses to close while any section says `true`, and switches to the
  * first one that does. A section says `true` for an uncommitted draft **and**
  * for a write in flight — both are things a close would lose or leave
@@ -104,14 +104,14 @@ export interface TeamsPanelProps extends SettingsSectionReport {
  *
  * **This is where C3's directory size box went.** C3 put it in the directory,
  * beside the team's name, and that was right for a global number: the directory is
- * the global page. Dany's call on 2026-08-13 made the number a **project's**, and
- * the directory page has no project — so a box there could only ever have meant
+ * the global page. Dany's call on 2026-08-13 made the number a **work package's**, and
+ * the directory page has no work package — so a box there could only ever have meant
  * "the plan you last had open", which reads as global and is not. The full argument
- * is `capacity-per-project`'s design.md D5.
+ * is `capacity-per-work-package`'s design.md D5.
  *
- * **A panel and not a dialog since `project-config-modal`** (2026-08-30). It was
+ * **A panel and not a dialog since `work-package-config-modal`** (2026-08-30). It was
  * `TeamsDialog`, one of three toolbar surfaces each carrying its own `Modal`;
- * the three are sections of one `ProjectSettingsModal` now, which owns the
+ * the three are sections of one `WorkPackageSettingsModal` now, which owns the
  * shell, the trigger, the title and the close. What this component kept is
  * everything inside the shell: the same boxes, the same writes, the same
  * refusals and the same words. What it gave up is deciding when the surface
@@ -164,7 +164,7 @@ export function TeamsPanel({
    * What the modal must not close over: a draft in any box. A number on its way
    * to be-01 counts too and is {@link useSettingsSection}'s to add.
    *
-   * Proof: `dirty` forced to `false`, and `project-settings-modal.test.tsx`'s
+   * Proof: `dirty` forced to `false`, and `work-package-settings-modal.test.tsx`'s
    * `the ✕ is refused the same way, and says which section is holding` let the ✕
    * close over a typed capacity; watched 2026-08-30.
    */
@@ -190,7 +190,7 @@ export function TeamsPanel({
   /**
    * Sends the number typed over this plan's, if it says something different.
    *
-   * **The number is not validated here.** `capacity-per-project` owns what a
+   * **The number is not validated here.** `capacity-per-work-package` owns what a
    * capacity may be, at be-01's boundary, and a second copy of that rule in this
    * component is a rule free to disagree with it — so `0`, `-1`, `1.5` and `1001`
    * are all sent and answered on. C3's D6, one tier along, and the Prio column's

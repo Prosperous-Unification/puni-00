@@ -28,7 +28,8 @@ import {
   machineCredential,
   organization,
   organizationMembership,
-  projectOrganization,
+  project,
+  workPackageOrganization,
 } from './schema';
 import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 
@@ -446,6 +447,26 @@ export function writeGrantIn(
   return { kind: 'granted', grant: recordOf(grantRow(tx, organizationId, draft.id)) };
 }
 
+/** Removes only this project's direct grants on the caller's owner; the caller audits each returned record before commit. */
+export function deleteProjectGrantsIn(
+  tx: Pick<SQLiteBunDatabase, 'delete'>,
+  organizationId: string,
+  projectId: string,
+): readonly AccessGrantRecord[] {
+  return tx
+    .delete(accessGrant)
+    .where(
+      and(
+        eq(accessGrant.organizationId, organizationId),
+        eq(accessGrant.scopeKind, 'project'),
+        eq(accessGrant.scopeId, projectId),
+      ),
+    )
+    .returning()
+    .all()
+    .map(recordOf);
+}
+
 /** Deletes one addressed group's authority, returning actual removed rows; the owner audits N+M+1 events. */
 function deleteGroupAccessIn(
   tx: Pick<SQLiteBunDatabase, 'select' | 'delete'>,
@@ -636,7 +657,7 @@ function grantRefusal(tx: Reader, organizationId: string, draft: GrantDraft): Gr
   // 2026-11-08.
   if (role === undefined) return 'unknown_role';
   // Proof: with this check removed, `refuses org-admin at a work package and
-  // project-manager there, …` in `access-grant-store.db.test.ts` granted
+  // work-package-manager there, …` in `access-grant-store.db.test.ts` granted
   // `org-admin` on the package; watched 2026-11-08.
   if (!roleFitsScope(role.objectKind, draft.scope.kind)) return 'role_scope_mismatch';
   if (!isScopeOf(tx, organizationId, draft.scope)) return 'not_found';
@@ -666,9 +687,9 @@ function grantRefusal(tx: Reader, organizationId: string, draft: GrantDraft): Gr
 
 /**
  * Whether `scope` exists and belongs to `organizationId`. A work package is
- * today's `project` row, owned through `project_organization` (design.md
+ * today's `workPackage` row, owned through `work_package_organization` (design.md
  * "Tables": `work_package_organization` after `wbs-work-packages` slice 1).
- * No project entity exists yet, so a project scope never does.
+ * An engagement project's own row holds its organization directly.
  */
 function isScopeOf(tx: Reader, organizationId: string, scope: GrantScope): boolean {
   switch (scope.kind) {
@@ -681,21 +702,27 @@ function isScopeOf(tx: Reader, organizationId: string, scope: GrantScope): boole
           .get() !== undefined
       );
     case 'project':
-      return false;
+      return (
+        tx
+          .select({ id: project.id })
+          .from(project)
+          .where(and(eq(project.id, scope.projectId), eq(project.organizationId, organizationId)))
+          .get() !== undefined
+      );
     case 'work_package': {
       const packageId = scope.workPackageId;
       // Proof: with the organization predicate dropped from this read,
       // `refuses another organization’s work package, an absent one and a
-      // project scope as not_found` in `access-grant-store.db.test.ts`
+      // work package scope as not_found` in `access-grant-store.db.test.ts`
       // granted B's package in A; watched 2026-11-08.
       return (
         tx
-          .select({ id: projectOrganization.resourceId })
-          .from(projectOrganization)
+          .select({ id: workPackageOrganization.resourceId })
+          .from(workPackageOrganization)
           .where(
             and(
-              eq(projectOrganization.resourceId, packageId),
-              eq(projectOrganization.organizationId, organizationId),
+              eq(workPackageOrganization.resourceId, packageId),
+              eq(workPackageOrganization.organizationId, organizationId),
             ),
           )
           .get() !== undefined

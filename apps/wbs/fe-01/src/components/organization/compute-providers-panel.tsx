@@ -400,7 +400,7 @@ export function ComputeProvidersPanel({
     <OrganizationSection id="compute-providers-heading" title="Compute providers">
       <p className={STATUS_CLASS}>
         The hosts and clusters this organization brings for its agents. Twilight Dash measures each
-        one and reports beside the capacity a project states; WBS never connects to them, and a
+        one and reports beside the capacity a work package states; WBS never connects to them, and a
         report never changes a plan.
       </p>
       {view.kind === 'failure' && (
@@ -439,7 +439,7 @@ export function ComputeProvidersPanel({
         (view.providers.length === 0 ? (
           <p className={STATUS_CLASS}>
             No compute provider is registered yet. Register the hosts your agents run on, then name
-            one on each resource it fulfils in a project’s settings.
+            one on each resource it fulfils in a work package’s settings.
           </p>
         ) : (
           <ul className={`${LIST_CLASS} gap-3`} aria-label="Compute providers list">

@@ -20,7 +20,7 @@ const HOST = new URL(
   import.meta.url,
 ).pathname;
 const CLIENT = '/app/apps/wbs/be-01/scripts/solver-supervisor-orphan-client.ts';
-const PROJECT = '11111111-1111-4111-8111-111111111111';
+const WORK_PACKAGE = '11111111-1111-4111-8111-111111111111';
 const CONTRACT = '7+0.1.0';
 
 interface CommandResult {
@@ -153,18 +153,18 @@ realProcessDescribe('solver supervisor orphan process boundaries', () => {
              VALUES ('u-1', 'owner', 'hash', 1)`,
         );
         raw.run(
-          `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+          `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                                   optimization_enabled, schedule_engine, schedule_objective)
-             VALUES ('${PROJECT}', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+             VALUES ('${WORK_PACKAGE}', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
         );
       } finally {
         raw.close();
       }
       const connection = openConnection(dbPath);
       closeDatabase = connection.close;
-      const generation = allocateGeneration(connection.db, PROJECT, CONTRACT, 'hash-1', 1);
+      const generation = allocateGeneration(connection.db, WORK_PACKAGE, CONTRACT, 'hash-1', 1);
       const admission = reserveSolverSlot(connection.db, {
-        projectId: PROJECT,
+        workPackageId: WORK_PACKAGE,
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -191,7 +191,7 @@ realProcessDescribe('solver supervisor orphan process boundaries', () => {
       const pid = Number(readFileSync(firstMarker, 'utf8'));
       expect(
         bindSolverSlot(connection.db, {
-          projectId: PROJECT,
+          workPackageId: WORK_PACKAGE,
           contractVersion: CONTRACT,
           generation,
           objective: 'pri',

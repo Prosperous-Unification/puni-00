@@ -1,9 +1,12 @@
+import {openTestSource} from '@wbs/store-memory/testing/owned-source-fixture';
+import {testWorkItemService} from '@wbs/store-memory/testing/service-fixtures';
 import type { AuthenticatedUser } from '@wbs/contracts';
 import type { Permission } from '@wbs/domain';
 import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
-import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import type {
@@ -18,6 +21,7 @@ import { createLocalDependencyContext } from '../service/dependency-context';
 import type { PlanCommand } from '../service/plan-command';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 import { localCommandAccess } from '../testing/organization-access-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -35,6 +39,21 @@ const request = {
 
 /** Named subjects/scopes used by the fake owner; no legacy role implies a grant. */
 const stepAccessDecisions: AccessDecisions = {
+  packageTargetOf: (id, organizationId) => {
+    if (organizationId !== 'org-a' || !['work_package', 'granted', 'other'].includes(id))
+      throw new Error('unexpected step fixture target address');
+    return Promise.resolve({
+      kind: 'work_package',
+      chain: {
+        level: 'work_package',
+        organizationId,
+        spaceId: null,
+        projectId: 'step-parent',
+        workPackageId: id,
+      },
+      restricted: false,
+    });
+  },
   effectiveRoleAt: (principal, target) => {
     if (
       principal.id !== 'sam' ||
@@ -43,7 +62,7 @@ const stepAccessDecisions: AccessDecisions = {
     )
       throw new Error('unexpected step fixture grant subject/scope');
     const permissions = new Set<Permission>(['package.read']);
-    if (target.chain.workPackageId === 'project' || target.chain.workPackageId === 'granted')
+    if (target.chain.workPackageId === 'work_package' || target.chain.workPackageId === 'granted')
       permissions.add('package.write');
     else if (target.chain.workPackageId !== 'other')
       throw new Error('unexpected step fixture package');
@@ -62,7 +81,10 @@ test('publishes a granted dependent write only after its unit of work commits', 
         const decision = await act({
           stores: {
             typedDependencies: inMemoryTypedDependencies(),
-            projects: { findInOrganization: (id: string) => Promise.resolve(projectRow({ id })) },
+            workPackages: {
+              findInOrganization: (id: string) =>
+                Promise.resolve(workPackageRow({ id, projectId: 'step-parent' })),
+            },
             accessDecisions: stepAccessDecisions,
           },
         });
@@ -90,13 +112,13 @@ test('publishes a granted dependent write only after its unit of work commits', 
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: 'sam' },
       },
-      'project',
+      'work_package',
       { id: 'sam', username: 'sam', scopes: ['write'] },
       { step: 'add' },
       async () => {
         const broadcast = held;
         if (broadcast === null) throw new Error('batch did not receive a broadcaster');
-        await broadcast.publish('project', { type: 'step_removed', stepId: 'step' });
+        await broadcast.publish('work_package', { type: 'step_removed', stepId: 'step' });
         order.push('write');
         return { ok: true };
       },
@@ -107,18 +129,38 @@ test('publishes a granted dependent write only after its unit of work commits', 
 });
 
 test('scoped step service preserves exact grant scope actor coherence and working-plan lifetime', async () => {
-  const projects = inMemoryProjects();
-  await projects.createInOrganization(
-    projectRow({ id: 'granted', restricted: true }),
-    [],
+  const fixture = openMemorySourceFixture();
+  fixture.addOrganization('org-a', { legacy: false });
+  await fixture.source.stores.users.create(
+    { id: 'owner', username: 'Owner', passwordHash: null, createdAt: 1 },
     { at: 1, by: 'owner' },
-    'org-a',
   );
-  await projects.createInOrganization(
-    projectRow({ id: 'other', restricted: true }),
+  fixture.setPackageCreationMembers('org-a', ['owner']);
+  fixture.seedPackageParent({
+    spaceId: null,
+    spacePosition: null,
+    id: 'step-parent',
+    organizationId: 'org-a',
+    name: 'Step parent',
+    createdBy: 'owner',
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
+  });
+  const workPackages = fixture.source.stores.workPackages;
+  await workPackages.createInOrganization(
+    workPackageRow({ id: 'granted', projectId: 'step-parent', restricted: true }),
     [],
     { at: 1, by: 'owner' },
     'org-a',
+    { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
+  );
+  await workPackages.createInOrganization(
+    workPackageRow({ id: 'other', projectId: 'step-parent', restricted: true }),
+    [],
+    { at: 1, by: 'owner' },
+    'org-a',
+    { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
   );
   const stored = inMemorySteps([]);
   const access = {
@@ -128,7 +170,7 @@ test('scoped step service preserves exact grant scope actor coherence and workin
   };
   const stores = {
     ...inMemoryStores(),
-    projects,
+    workPackages,
     steps: stored,
     accessDecisions: stepAccessDecisions,
   };
@@ -148,11 +190,11 @@ test('scoped step service preserves exact grant scope actor coherence and workin
     batch: (_scope: unknown, broadcast: RecoveryWriteBoundary['announcements']) => {
       const service = new StepService({
         accessDecisions: plan.stores.accessDecisions,
-        projects,
+        workPackages,
         steps: stored,
         broadcast,
         clock: testClock,
-        dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects }),
+        dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), workPackages }),
       });
       retained = service;
       return { steps: service };
@@ -167,7 +209,7 @@ test('scoped step service preserves exact grant scope actor coherence and workin
     { step: 'add' },
     async (services) => {
       expect(
-        await services.steps.addWithin('other', 'sam', 'Wrong project', 0, undefined, access),
+        await services.steps.addWithin('other', 'sam', 'Wrong work package', 0, undefined, access),
       ).toEqual({ ok: false, reason: 'forbidden', permission: 'package.write' });
       expect(
         await services.steps
@@ -188,24 +230,38 @@ test('scoped step service preserves exact grant scope actor coherence and workin
       (failure: unknown) => (failure instanceof Error ? failure.message : failure),
     ),
   ).toContain('closed');
-  expect(await stored.listByProject('granted')).toEqual([]);
-  expect(await stored.listByProject('other')).toEqual([]);
+  expect(await stored.listByWorkPackage('granted')).toEqual([]);
+  expect(await stored.listByWorkPackage('other')).toEqual([]);
 });
 
 async function fixture(restricted = false) {
-  const projects = inMemoryProjects();
-  await projects.create(projectRow({ id: 'project', restricted }), [], { at: 1, by: principal.id });
+  const { workPackages } = await createLegacyWorkPackageFixture(
+    principal.id,
+    'route-legacy',
+    'step-parent',
+  );
+  await workPackages.create(
+    workPackageRow({ id: 'work_package', projectId: 'step-parent', restricted }),
+    [],
+    {
+      at: 1,
+      by: principal.id,
+    },
+  );
   const stored = inMemorySteps([
-    stepRow({ id: 'step', projectId: 'project', name: 'Design' }),
-    stepRow({ id: 'other', projectId: 'project', name: 'QA', position: 20 }),
-    stepRow({ id: 'foreign', projectId: 'elsewhere', name: 'Foreign' }),
+    stepRow({ id: 'step', workPackageId: 'work_package', name: 'Design' }),
+    stepRow({ id: 'other', workPackageId: 'work_package', name: 'QA', position: 20 }),
+    stepRow({ id: 'foreign', workPackageId: 'elsewhere', name: 'Foreign' }),
   ]);
   const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
   const service = new StepService({
-    dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: projects }),
+    dependencyContext: createLocalDependencyContext({
+      ...inMemoryStores(),
+      workPackages: workPackages,
+    }),
     clock: testClock,
-    projects,
+    workPackages,
     steps: stored,
     broadcast,
   });
@@ -214,7 +270,7 @@ async function fixture(restricted = false) {
   // runner runs it over the batch's graph; the batch itself only records.
   const commands = {
     runAfterWithin: async <R>(
-      projectId: string,
+      workPackageId: string,
       actor: AuthenticatedUser,
       prelude: BatchPrelude<R>,
       batch: readonly PlanCommand[],
@@ -225,12 +281,12 @@ async function fixture(restricted = false) {
         LEGACY_ACCESS,
       );
       if (refused !== null) return { ok: false as const, prelude: refused };
-      commandsRun.push({ projectId, actorId: actor.id, batch });
+      commandsRun.push({ workPackageId, actorId: actor.id, batch });
       return { ok: true as const, results: [], undoable: true, redoable: false };
     },
   };
   return {
-    projects,
+    workPackages,
     stored,
     addWrite,
     broadcast,
@@ -240,7 +296,7 @@ async function fixture(restricted = false) {
       service,
       commands,
       legacyOrganizationAccess,
-      testWrites(undefined, { steps: service }),
+      testWrites(undefined, { steps: service,workItems:testWorkItemService(openTestSource()) }),
     ),
   };
 }
@@ -253,7 +309,7 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
     broadcast,
   } = await fixture();
   const added = await add.handle({
-    params: { id: 'project' },
+    params: { id: 'work_package' },
     query: undefined,
     body: { name: '  Build  ' },
     principal,
@@ -271,7 +327,7 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
     expect.objectContaining({ by: 'owner' }),
   );
   const renamed = await rename.handle({
-    params: { id: 'project', stepId: 'step' },
+    params: { id: 'work_package', stepId: 'step' },
     query: undefined,
     body: { name: '  Review  ' },
     principal,
@@ -283,7 +339,7 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
     body: {
       step: {
         id: 'step',
-        projectId: 'project',
+        workPackageId: 'work_package',
         name: 'Review',
         position: 10,
         code: 'design',
@@ -301,12 +357,12 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
 test('typed name bindings preserve every modeled service refusal without a status fallback', async () => {
   const {
     endpoints: [add, rename],
-  } = await fixture(true);
+  } = await fixture();
   for (const [id, name, actor, status, error] of [
-    ['project', ' ', principal, 422, 'name_required'],
+    ['work_package', ' ', principal, 422, 'name_required'],
     ['missing', 'New', principal, 404, 'not_found'],
-    ['project', 'New', { ...principal, id: 'stranger' }, 403, 'forbidden'],
-    ['project', 'QA', principal, 409, 'taken'],
+
+    ['work_package', 'QA', principal, 409, 'taken'],
   ] as const) {
     const addReply: unknown = await add.handle({
       params: { id },
@@ -327,7 +383,7 @@ test('typed name bindings preserve every modeled service refusal without a statu
   }
   expect(
     await rename.handle({
-      params: { id: 'project', stepId: 'foreign' },
+      params: { id: 'work_package', stepId: 'foreign' },
       query: undefined,
       body: { name: 'New' },
       principal,
@@ -336,12 +392,34 @@ test('typed name bindings preserve every modeled service refusal without a statu
   ).toEqual({ ok: false, status: 404, body: { error: 'not_found' } });
 });
 
+test('typed name bindings refuse both actors on a restricted legacy package', async () => {
+  const {
+    endpoints: [add, rename],
+  } = await fixture(true);
+  for (const actor of [principal, { ...principal, id: 'stranger' }]) {
+    for (const endpoint of [add, rename]) {
+      expect(
+        await endpoint.handle({
+          params: { id: 'work_package', stepId: 'step' },
+          query: undefined,
+          body: { name: 'New' },
+          principal: actor,
+          request,
+        }),
+      ).toEqual({ ok: false, status: 403, body: { error: 'forbidden' } });
+    }
+  }
+});
+
 test('typed removal carries every usage field and only literal true confirms cascade', async () => {
-  const { projects, stored, broadcast } = await fixture();
+  const { workPackages, stored, broadcast } = await fixture();
   const service = new StepService({
-    dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: projects }),
+    dependencyContext: createLocalDependencyContext({
+      ...inMemoryStores(),
+      workPackages: workPackages,
+    }),
     clock: testClock,
-    projects,
+    workPackages,
     broadcast,
     steps: {
       ...stored,
@@ -363,11 +441,11 @@ test('typed removal carries every usage field and only literal true confirms cas
     service,
     { runAfterWithin: () => Promise.reject(new Error('a removal ran a command batch')) },
     legacyOrganizationAccess,
-    testWrites(undefined, { steps: service }),
+    testWrites(undefined, { steps: service,workItems:testWorkItemService(openTestSource()) }),
   )[2];
   for (const cascade of [undefined, '1', 'TRUE', 'false']) {
     const removeReply: unknown = await remove.handle({
-      params: { id: 'project', stepId: 'step' },
+      params: { id: 'work_package', stepId: 'step' },
       query: { cascade },
       body: undefined,
       principal,
@@ -395,7 +473,7 @@ test('typed removal carries every usage field and only literal true confirms cas
   }
   expect(
     await remove.handle({
-      params: { id: 'project', stepId: 'step' },
+      params: { id: 'work_package', stepId: 'step' },
       query: { cascade: 'true' },
       body: undefined,
       principal,
@@ -406,14 +484,14 @@ test('typed removal carries every usage field and only literal true confirms cas
   expect(broadcast.published.map((entry) => entry.event.type)).toEqual(['step_removed']);
 });
 
-test('typed removal preserves project refusals and unknown repository failures reject', async () => {
+test('typed removal preserves work package refusals and unknown repository failures reject', async () => {
   const {
     endpoints: [add, , remove],
-    projects,
+    workPackages,
   } = await fixture(true);
   for (const [id, actor, status, error] of [
     ['missing', principal, 404, 'not_found'],
-    ['project', { ...principal, id: 'stranger' }, 403, 'forbidden'],
+    ['work_package', { ...principal, id: 'stranger' }, 403, 'forbidden'],
   ] as const) {
     const removeReply: unknown = await remove.handle({
       params: { id, stepId: 'step' },
@@ -424,12 +502,12 @@ test('typed removal preserves project refusals and unknown repository failures r
     });
     expect(removeReply).toEqual({ ok: false, status, body: { error } });
   }
-  const outage = new Error('project store unavailable');
-  const lookup = spyOn(projects, 'findById').mockRejectedValue(outage);
+  const outage = new Error('work package store unavailable');
+  const lookup = spyOn(workPackages, 'findById').mockRejectedValue(outage);
   try {
     const added = await add
       .handle({
-        params: { id: 'project' },
+        params: { id: 'work_package' },
         query: undefined,
         body: { name: 'Valid' },
         principal,
@@ -439,7 +517,7 @@ test('typed removal preserves project refusals and unknown repository failures r
     expect(added).toBe(outage);
     const removed = await remove
       .handle({
-        params: { id: 'project', stepId: 'step' },
+        params: { id: 'work_package', stepId: 'step' },
         query: {},
         body: undefined,
         principal,
@@ -458,7 +536,7 @@ test('adds a step with the allowance it names, and refuses one with three decima
     stored,
   } = await fixture();
   const added = await add.handle({
-    params: { id: 'project' },
+    params: { id: 'work_package' },
     query: undefined,
     body: { name: 'Review', allowancePercent: 12.5 },
     principal,
@@ -469,7 +547,7 @@ test('adds a step with the allowance it names, and refuses one with three decima
   expect((await stored.findById(added.body.step.id))?.allowancePercent).toBe(12.5);
 
   const defaulted = await add.handle({
-    params: { id: 'project' },
+    params: { id: 'work_package' },
     query: undefined,
     body: { name: 'Ship' },
     principal,
@@ -482,7 +560,7 @@ test('adds a step with the allowance it names, and refuses one with three decima
   // Proof: see the route's comment — without the refusal this stored the step.
   expect(
     await add.handle({
-      params: { id: 'project' },
+      params: { id: 'work_package' },
       query: undefined,
       body: { name: 'Precise', allowancePercent: 12.345 },
       principal,
@@ -498,7 +576,7 @@ test('a patched allowance runs as the one journalled setStepAllowance command', 
     commandsRun,
   } = await fixture();
   const reply = await patch.handle({
-    params: { id: 'project', stepId: 'step' },
+    params: { id: 'work_package', stepId: 'step' },
     query: undefined,
     body: { allowancePercent: 30 },
     principal,
@@ -507,7 +585,7 @@ test('a patched allowance runs as the one journalled setStepAllowance command', 
   expect(reply.ok).toBe(true);
   expect(commandsRun).toEqual([
     {
-      projectId: 'project',
+      workPackageId: 'work_package',
       actorId: 'owner',
       batch: [{ kind: 'setStepAllowance', stepId: 'step', allowancePercent: 30 }],
     },
@@ -516,7 +594,7 @@ test('a patched allowance runs as the one journalled setStepAllowance command', 
   for (const allowancePercent of [-1, 1000.01, 0.001]) {
     expect(
       await patch.handle({
-        params: { id: 'project', stepId: 'step' },
+        params: { id: 'work_package', stepId: 'step' },
         query: undefined,
         body: { allowancePercent },
         principal,
@@ -526,7 +604,7 @@ test('a patched allowance runs as the one journalled setStepAllowance command', 
   }
   expect(
     await patch.handle({
-      params: { id: 'project', stepId: 'step' },
+      params: { id: 'work_package', stepId: 'step' },
       query: undefined,
       body: {},
       principal,
@@ -544,7 +622,7 @@ test('a rename sent with an allowance is the batch prelude, and its refusal runs
   } = await fixture();
   expect(
     await patch.handle({
-      params: { id: 'project', stepId: 'step' },
+      params: { id: 'work_package', stepId: 'step' },
       query: undefined,
       body: { name: 'QA', allowancePercent: 30 },
       principal,
@@ -554,7 +632,7 @@ test('a rename sent with an allowance is the batch prelude, and its refusal runs
   expect(commandsRun).toEqual([]);
 
   const renamed = await patch.handle({
-    params: { id: 'project', stepId: 'step' },
+    params: { id: 'work_package', stepId: 'step' },
     query: undefined,
     body: { name: 'Review', allowancePercent: 30 },
     principal,

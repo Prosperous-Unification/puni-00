@@ -9,7 +9,7 @@ import { SectionProblem, useSettingsSection } from './use-settings-section';
 
 export interface TimezonePanelProps extends SettingsSectionReport {
   /**
-   * The project's zone as the plan on screen was read in, or `null` from a
+   * The work package's zone as the plan on screen was read in, or `null` from a
    * be-01 whose tree read predates it — the panel then says so and offers
    * nothing to change.
    */
@@ -44,7 +44,7 @@ type ZoneList =
   | { state: 'ready'; zones: readonly string[] };
 
 /**
- * The project's timezone (`step-node-attempts` D3): the zone every day read
+ * The work package's timezone (`step-node-attempts` D3): the zone every day read
  * off a moment is read in — an attempt's start and end on a card, the day a
  * finished step fills in — whoever is looking.
  *
@@ -133,7 +133,8 @@ export function TimezonePanel({
   if (timezone === null) {
     return (
       <p className="text-muted-foreground text-sm">
-        This server does not keep a timezone for the project yet, so attempt times are not shown.
+        This server does not keep a timezone for the work package yet, so attempt times are not
+        shown.
       </p>
     );
   }
@@ -180,7 +181,7 @@ export function TimezonePanel({
     return `Saved as ${saved}. Press Enter or leave the box to read the plan in ${typed === '' ? 'the zone you pick' : typed}.`;
   };
 
-  const listId = 'project-timezone-zones';
+  const listId = 'work-package-timezone-zones';
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-sm">
@@ -219,10 +220,10 @@ export function TimezonePanel({
           apply();
         }}
       >
-        <Label htmlFor="project-timezone">Timezone</Label>
+        <Label htmlFor="work-package-timezone">Timezone</Label>
         <div className="flex items-center gap-2">
           <Input
-            id="project-timezone"
+            id="work-package-timezone"
             className="h-8 flex-1"
             list={listId}
             autoComplete="off"

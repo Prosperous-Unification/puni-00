@@ -27,8 +27,8 @@ export interface ResourceUse {
   id: string;
   source: 'reported' | 'runtime';
   organizationId: string | null;
-  projectId: string;
-  projectName: string;
+  workPackageId: string;
+  workPackageName: string;
   resourceId: string;
   resourceName: string;
   unitLabel: string;

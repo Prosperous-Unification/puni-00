@@ -1,14 +1,15 @@
-import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import {
   inMemoryStepParallels,
   memoryStepParallelTable,
 } from '@wbs/store-memory/step-parallel-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
@@ -32,13 +33,23 @@ async function rejectedMessage(promise: Promise<unknown>): Promise<string> {
 const stamp = { at: 1, by: 'owner' };
 
 async function seeded() {
-  const source = openMemorySource();
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
+  await source.stores.users.create(
+    { id: 'owner', username: 'owner', passwordHash: null, createdAt: 1 },
+    stamp,
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: 'owner',
+  });
   const { stores } = source;
-  await stores.projects.create(
-    projectRow({ id: 'p', ownerId: 'owner', restricted: true }),
+  await stores.workPackages.create(
+    workPackageRow({ id: 'p', projectId: 'fixture-project', restricted: false }),
     ['dev', 'qa'].map((id, index) => ({
       id,
-      projectId: 'p',
+      workPackageId: 'p',
       name: id,
       position: (index + 1) * 10,
       code: id,
@@ -49,12 +60,12 @@ async function seeded() {
   );
   for (const id of ['dev', 'qa']) {
     await stores.steps.add(
-      { id, projectId: 'p', name: id, allowancePercent: 0, estimateUnit: 'workdays' },
+      { id, workPackageId: 'p', name: id, allowancePercent: 0, estimateUnit: 'workdays' },
       stamp,
     );
   }
   await stores.workItems.insert(
-    workItemRow({ id: 'parent', projectId: 'p', readiness: 'ready', hold: 'on_hold' }),
+    workItemRow({ id: 'parent', workPackageId: 'p', readiness: 'ready', hold: 'on_hold' }),
     [],
     stamp,
   );
@@ -69,7 +80,7 @@ async function seeded() {
   const requirements = {
     dependencyContext: createLocalDependencyContext(stores),
     ...stores,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     scheduler: fastScheduler,
     broadcast,
     clock: clockOf({
@@ -82,17 +93,17 @@ async function seeded() {
   };
   const snapshot = () =>
     Promise.all([
-      stores.workItems.listByProject('p'),
-      stores.projects.findById('p'),
-      stores.estimates.listByProject('p'),
-      stores.actuals.listByProject('p'),
-      stores.measures.listByProject('p'),
-      stores.progress.listByProject('p'),
-      stores.blockages.listByProject('p'),
-      stores.attempts.listByProject('p'),
-      stores.directory.assignmentsInProject('p'),
-      stores.typedDependencies.listByProject('p'),
-      stores.journal.entriesFor({ projectId: 'p', userId: 'owner', personId: null }),
+      stores.workItems.listByWorkPackage('p'),
+      stores.workPackages.findById('p'),
+      stores.estimates.listByWorkPackage('p'),
+      stores.actuals.listByWorkPackage('p'),
+      stores.measures.listByWorkPackage('p'),
+      stores.progress.listByWorkPackage('p'),
+      stores.blockages.listByWorkPackage('p'),
+      stores.attempts.listByWorkPackage('p'),
+      stores.directory.assignmentsInWorkPackage('p'),
+      stores.typedDependencies.listByWorkPackage('p'),
+      stores.journal.entriesFor({ workPackageId: 'p', userId: 'owner', personId: null }),
       stores.planEvents.listFor('p', {}),
     ]);
   return { source, stores, broadcast, requirements, snapshot, counts: () => ({ stamps, ids }) };
@@ -108,7 +119,7 @@ describe('first-child sparse step parallel preservation', () => {
       for (const stepId of ['dev', 'qa'].slice(0, count)) {
         await stores.stepParallels.set({ workItemId: 'parent', stepId, maxParallel: 1 }, stamp);
       }
-      await stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+      await stores.workItems.insert(workItemRow({ id: 'sibling', workPackageId: 'p' }), [], stamp);
       await stores.stepParallels.set(
         { workItemId: 'sibling', stepId: 'qa', maxParallel: 2 },
         stamp,
@@ -141,17 +152,25 @@ describe('first-child sparse step parallel preservation', () => {
       ok: false,
       reason: 'not_found',
     });
+    await fixture.stores.workPackages.update('p', { restricted: true }, stamp);
+    const restrictedBefore = await fixture.snapshot();
     expect(await workItems.create('p', 'stranger', create)).toEqual({
       ok: false,
       reason: 'forbidden',
     });
-    await fixture.stores.projects.create(
-      projectRow({ id: 'foreign', ownerId: 'owner' }),
+    expect(await workItems.create('p', 'owner', create)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
+    expect(await fixture.snapshot()).toEqual(restrictedBefore);
+    await fixture.stores.workPackages.update('p', { restricted: false }, stamp);
+    await fixture.stores.workPackages.create(
+      workPackageRow({ id: 'foreign', projectId: 'fixture-project' }),
       [],
       stamp,
     );
     await fixture.stores.workItems.insert(
-      workItemRow({ id: 'foreign-parent', projectId: 'foreign' }),
+      workItemRow({ id: 'foreign-parent', workPackageId: 'foreign' }),
       [],
       stamp,
     );
@@ -172,7 +191,7 @@ describe('first-child sparse step parallel preservation', () => {
   it('allows an empty parent policy and a new root while a sibling retains a fact', async () => {
     const fixture = await seeded();
     await fixture.stores.workItems.insert(
-      workItemRow({ id: 'sibling', projectId: 'p' }),
+      workItemRow({ id: 'sibling', workPackageId: 'p' }),
       [],
       stamp,
     );
@@ -194,10 +213,10 @@ it('reads the admitted sparse store and rolls a preceding patch back with its jo
   const graph = servicesOver(source.stores, requirements);
   const snapshot = () =>
     Promise.all([
-      source.stores.workItems.listByProject('p'),
-      source.stores.journal.entriesFor({ projectId: 'p', userId: 'owner', personId: null }),
+      source.stores.workItems.listByWorkPackage('p'),
+      source.stores.journal.entriesFor({ workPackageId: 'p', userId: 'owner', personId: null }),
       source.stores.planEvents.listFor('p', {}),
-      source.stores.stepParallels.listByProject('p'),
+      source.stores.stepParallels.listByWorkPackage('p'),
     ]);
   const before = await snapshot();
   const runner = createPlanCommandRunner({
@@ -209,7 +228,7 @@ it('reads the admitted sparse store and rolls a preceding patch back with its jo
             { workItemId: 'parent', stepId: 'dev', maxParallel: 1 },
             stamp,
           );
-          expect(await source.stores.stepParallels.listByProject('p')).toEqual([]);
+          expect(await source.stores.stepParallels.listByWorkPackage('p')).toEqual([]);
           return act(scope);
         }),
     },
@@ -240,12 +259,12 @@ it('reads the admitted sparse store and rolls a preceding patch back with its jo
   await source.close();
 });
 
-it('confines borrowed sparse reads to their project and open working-plan scope', async () => {
+it('confines borrowed sparse reads to their work package and open working-plan scope', async () => {
   const fixture = await seeded();
   await fixture.source.uow.run(async (scope) => {
     const working = createWorkingPlan(scope, 'p');
     const read = working.stores.stepParallels.listByWorkItems.bind(working.stores.stepParallels);
-    expect(() => read('foreign', ['parent'])).toThrow('cannot read project');
+    expect(() => read('foreign', ['parent'])).toThrow('cannot read work package');
     expect(await read('p', ['parent'])).toEqual([]);
     working.close();
     expect(() => read('p', ['parent'])).toThrow('closed');
@@ -254,15 +273,19 @@ it('confines borrowed sparse reads to their project and open working-plan scope'
   await fixture.source.close();
 });
 
-for (const fault of ['maximum', 'step', 'project', 'parent', 'duplicate'] as const) {
+for (const fault of ['maximum', 'step', 'workPackage', 'parent', 'duplicate'] as const) {
   it(`throws on trusted ${fault} corruption without creating or clearing statements`, async () => {
     const fixture = await seeded();
     const { stores } = fixture;
-    await stores.projects.create(projectRow({ id: 'foreign', ownerId: 'owner' }), [], stamp);
+    await stores.workPackages.create(
+      workPackageRow({ id: 'foreign', projectId: 'fixture-project' }),
+      [],
+      stamp,
+    );
     await stores.steps.add(
       {
         id: 'foreign-step',
-        projectId: 'foreign',
+        workPackageId: 'foreign',
         name: 'Foreign',
         allowancePercent: 0,
         estimateUnit: 'workdays',
@@ -272,7 +295,7 @@ for (const fault of ['maximum', 'step', 'project', 'parent', 'duplicate'] as con
     if (fault === 'parent') {
       await stores.blockages.remove('parent', 'dev', stamp);
       await stores.workItems.insert(
-        workItemRow({ id: 'existing', projectId: 'p', parentId: 'parent' }),
+        workItemRow({ id: 'existing', workPackageId: 'p', parentId: 'parent' }),
         [],
         stamp,
       );
@@ -280,7 +303,7 @@ for (const fault of ['maximum', 'step', 'project', 'parent', 'duplicate'] as con
     const table = memoryStepParallelTable();
     table.rows.push({
       workItemId: 'parent',
-      stepId: fault === 'step' ? 'missing' : fault === 'project' ? 'foreign-step' : 'dev',
+      stepId: fault === 'step' ? 'missing' : fault === 'workPackage' ? 'foreign-step' : 'dev',
       maxParallel: fault === 'maximum' ? 1001 : 1,
     });
     if (fault === 'duplicate') table.rows.push({ ...table.rows[0] });
@@ -290,7 +313,7 @@ for (const fault of ['maximum', 'step', 'project', 'parent', 'duplicate'] as con
     const messages = {
       maximum: 'integer from 1 to 1000',
       step: 'invalid step reference',
-      project: 'project mismatch',
+      workPackage: 'work package mismatch',
       parent: 'owner is not a leaf',
       duplicate: 'duplicate step parallelism',
     };
@@ -368,11 +391,11 @@ it('preserves empty-policy first-child undo and redo', async () => {
     readiness: 'ready',
     hold: 'on_hold',
   });
-  expect(await fixture.stores.workItems.listByProject('p')).toHaveLength(1);
-  expect(await fixture.stores.blockages.listByProject('p')).toEqual([
+  expect(await fixture.stores.workItems.listByWorkPackage('p')).toHaveLength(1);
+  expect(await fixture.stores.blockages.listByWorkPackage('p')).toEqual([
     { workItemId: 'parent', stepId: 'dev', blockedAt: 1 },
   ]);
   expect((await runner.redo('p', 'owner')).ok).toBe(true);
-  expect(await fixture.stores.workItems.listByProject('p')).toHaveLength(2);
+  expect(await fixture.stores.workItems.listByWorkPackage('p')).toHaveLength(2);
   await fixture.source.close();
 });

@@ -1,0 +1,27 @@
+{
+  "sourceParent": "7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf",
+  "qualification": "Actual published canonical9/V10 writers executed against their original local and connected test capture rows; not a live deployment or reconstructed JSON emitter.",
+  "records": [
+    {
+      "name": "legacy-input9-local",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-input9-local.txt",
+      "sha256": "99e16e612a7220eba51bbccb21569f8bf2b3c7c7ef99cf0003d6771e5ab4f998",
+      "bytes": 4240,
+      "schemaVersion": 9
+    },
+    {
+      "name": "legacy-input10-local",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-input10-local.txt",
+      "sha256": "f0e4a1de8a838d5a052a8baaf30e8d9edc8da3933866e20d9dbf5d4a00742088",
+      "bytes": 4278,
+      "schemaVersion": 10
+    },
+    {
+      "name": "legacy-input10-connected",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-input10-connected.txt",
+      "sha256": "2177a13d1c8649f8fa0a705644d828de6360e415a1fa5fe46080783e39b92e60",
+      "bytes": 6572,
+      "schemaVersion": 10
+    }
+  ]
+}

@@ -14,13 +14,13 @@ import { readSharedPeople, selectInfluencers } from './shared-people';
 function plan(
   id: string,
   people: readonly string[],
-  startDate: PlanInputReads['project']['startDate'] = '2026-10-05',
+  startDate: PlanInputReads['workPackage']['startDate'] = '2026-10-05',
 ): PlanInputReads {
   return {
-    project: {
+    workPackage: {
       id,
       name: id,
-      ownerId: 'owner',
+      projectId: 'captured-parent',
       restricted: false,
       estimateMethod: 'pert',
       depReach: 'whole-item',
@@ -45,7 +45,7 @@ function plan(
     workItems: [
       {
         id,
-        projectId: id,
+        workPackageId: id,
         parentId: null,
         position: 10,
         name: id,
@@ -148,7 +148,7 @@ describe('readSharedPeople', () => {
     );
     expect(chain.kind).toBe('scheduled');
     if (chain.kind !== 'scheduled') throw new Error('expected schedule');
-    expect(chain.influencers.map((each) => each.projectId)).toEqual(['A', 'B']);
+    expect(chain.influencers.map((each) => each.workPackageId)).toEqual(['A', 'B']);
     expect(chain.scheduled.kind).toBe('scheduled');
     if (chain.scheduled.kind !== 'scheduled') throw new Error('expected target');
     expect(chain.scheduled.fast.slices.get(sliceKey('C', 's0'))?.earliestStart).toBe(3);
@@ -193,9 +193,9 @@ describe('readSharedPeople', () => {
     );
     if (shifted.kind !== 'scheduled' || shifted.scheduled.kind !== 'scheduled')
       throw new Error('expected shifted target');
-    expect(shifted.influencers.map((each) => each.projectId)).toEqual(['A']);
+    expect(shifted.influencers.map((each) => each.workPackageId)).toEqual(['A']);
     expect(shifted.input.elsewhere?.get('ana')).toEqual([
-      { start: -1, end: 0.5, projectId: 'A', workItemId: 'A' },
+      { start: -1, end: 0.5, workPackageId: 'A', workItemId: 'A' },
     ]);
     expect(shifted.scheduled.fast.slices.get(sliceKey('B', 's0'))?.earliestStart).toBe(0.5);
     const touching = readSharedPeople(
@@ -208,7 +208,7 @@ describe('readSharedPeople', () => {
     expect(touching.scheduled.fast.slices.get(sliceKey('B', 's0'))?.earliestStart).toBe(0);
   });
 
-  it('does not traverse from an earlier influencer down to unrelated later projects', () => {
+  it('does not traverse from an earlier influencer down to unrelated later work packages', () => {
     const chain = readSharedPeople(
       [
         plan('A', ['ana', 'ben']),
@@ -220,7 +220,7 @@ describe('readSharedPeople', () => {
       scheduler,
     );
     if (chain.kind !== 'scheduled') throw new Error('expected target');
-    expect(chain.influencers.map((each) => each.projectId)).toEqual(['A', 'B']);
+    expect(chain.influencers.map((each) => each.workPackageId)).toEqual(['A', 'B']);
   });
 
   it('records cyclic and calendar-range influencers without supplying bookings', () => {
@@ -248,7 +248,7 @@ describe('readSharedPeople', () => {
       if (chain.kind !== 'scheduled' || chain.scheduled.kind !== 'scheduled')
         throw new Error('expected target');
       expect(chain.influencers).toEqual([
-        { projectId: 'A', name: 'A', engine: 'fast', unavailable: reason },
+        { workPackageId: 'A', name: 'A', engine: 'fast', unavailable: reason },
       ]);
       expect(chain.input.elsewhere?.size ?? 0).toBe(0);
       expect(chain.scheduled.fast.slices.get(sliceKey('B', 's0'))?.earliestStart).toBe(0);
@@ -283,7 +283,7 @@ describe('readSharedPeople', () => {
         'B',
         capturedScheduler((ask) => {
           const scheduled = scheduler.read(ask);
-          if (ask.projectId === 'A' && scheduled.kind === 'scheduled')
+          if (ask.workPackageId === 'A' && scheduled.kind === 'scheduled')
             assignedSlices = [...scheduled.fast.slices.values()].filter(
               (slice) => slice.personId !== null,
             ).length;
@@ -294,7 +294,7 @@ describe('readSharedPeople', () => {
         throw new Error('expected target');
       expect(assignedSlices).toBe(held ? 0 : 1);
       expect(chain.influencers).toEqual([
-        { projectId: 'A', name: 'A', engine: 'fast', unavailable: 'calendar_range' },
+        { workPackageId: 'A', name: 'A', engine: 'fast', unavailable: 'calendar_range' },
       ]);
       expect(chain.input.elsewhere?.size ?? 0).toBe(0);
       expect(chain.scheduled.fast.slices.get(sliceKey('B', 's0'))?.earliestStart).toBe(0);
@@ -324,8 +324,8 @@ describe('readSharedPeople', () => {
     const authored = plan('A', ['ana']);
     const first = {
       ...authored,
-      project: {
-        ...authored.project,
+      workPackage: {
+        ...authored.workPackage,
         scheduleEngine: 'optimized' as const,
         optimizationEnabled: true,
       },
@@ -342,12 +342,12 @@ describe('readSharedPeople', () => {
     ).toThrow('optimized chain returned no optimization state');
   });
 
-  it('throws when the trusted rank list contains a missing project', () => {
+  it('throws when the trusted rank list contains a missing work package', () => {
     const broken = [plan('A', ['ana']), plan('B', ['ana'])];
     spyOn(broken, 'at').mockImplementation((index) =>
       index === 0 ? undefined : plan('B', ['ana']),
     );
-    expect(() => selectInfluencers(broken, 'B')).toThrow('rank index has no captured project');
+    expect(() => selectInfluencers(broken, 'B')).toThrow('rank index has no captured work package');
   });
 
   it('supplies no booking for an assigned slice holding no time', () => {
@@ -372,8 +372,8 @@ describe('readSharedPeople', () => {
     const authored = plan('A', ['ana']);
     const first = {
       ...authored,
-      project: {
-        ...authored.project,
+      workPackage: {
+        ...authored.workPackage,
         scheduleEngine: 'optimized' as const,
         optimizationEnabled: true,
       },
@@ -422,7 +422,11 @@ describe('readSharedPeople', () => {
       [
         {
           ...first,
-          project: { ...first.project, scheduleEngine: 'optimized', optimizationEnabled: true },
+          workPackage: {
+            ...first.workPackage,
+            scheduleEngine: 'optimized',
+            optimizationEnabled: true,
+          },
         },
         plan('B', ['ana']),
       ],
@@ -433,7 +437,7 @@ describe('readSharedPeople', () => {
       kind: 'engine_unavailable',
       error: 'engine_unavailable',
       engine: 'optimized',
-      projectId: 'A',
+      workPackageId: 'A',
       name: 'A',
     });
   });
@@ -441,7 +445,7 @@ describe('readSharedPeople', () => {
     const above = plan('A', ['ana']);
     const named = {
       ...above,
-      project: { ...above.project, name: 'Platform' },
+      workPackage: { ...above.workPackage, name: 'Platform' },
       workItems: above.workItems.map((row) => ({ ...row, name: 'Rewire' })),
     };
     const chain = readSharedPeople([named, plan('B', ['ana'])], 'B', scheduler);
@@ -450,8 +454,8 @@ describe('readSharedPeople', () => {
     if (number === undefined) throw new Error('A has no number');
     expect(chain.holders).toEqual([
       {
-        projectId: 'A',
-        projectName: 'Platform',
+        workPackageId: 'A',
+        workPackageName: 'Platform',
         workItemId: 'A',
         number,
         name: 'Rewire',
@@ -465,12 +469,12 @@ describe('readSharedPeople', () => {
   it('throws when a target slice names a holder the chain read no label for', () => {
     const lost = capturedScheduler((ask) => {
       const read = scheduler.read(ask);
-      if (ask.projectId !== 'B' || read.kind !== 'scheduled') return read;
+      if (ask.workPackageId !== 'B' || read.kind !== 'scheduled') return read;
       const slices = new Map(
         [...read.fast.slices].map(([key, slice]) => [
           key,
           slice.boundBy === 'elsewhere'
-            ? { ...slice, elsewhereHolder: { projectId: 'Z', workItemId: 'Z' } }
+            ? { ...slice, elsewhereHolder: { workPackageId: 'Z', workItemId: 'Z' } }
             : slice,
         ]),
       );

@@ -448,7 +448,7 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
     expect(selected.status).toBe(200);
     const marker = selected.setCookie?.split(';')[0];
     if (marker === undefined) throw new Error('selection did not issue a marker');
-    expect((await second.send(request('/api/projects', access, marker))).status).toBe(200);
+    expect((await second.send(request('/api/work-packages', access, marker))).status).toBe(200);
     const independentSelected = await second.send(request('/api/organization/active', independent));
     const independentMarker = independentSelected.setCookie?.split(';')[0];
     if (independentMarker === undefined) throw new Error('independent session did not select');
@@ -460,23 +460,23 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
     ).toBe(204);
     // Proof: bypassing the shared revocation lookup in mounted organization
     // access makes this old full pair answer 200 in a different process.
-    const refused = await first.send(request('/api/projects', access, marker));
+    const refused = await first.send(request('/api/work-packages', access, marker));
     expect(refused).toMatchObject({ status: 403, body: '{"error":"no_active_organization"}' });
-    const warmedRefusal = await second.send(request('/api/projects', access, marker));
+    const warmedRefusal = await second.send(request('/api/work-packages', access, marker));
     expect(warmedRefusal).toMatchObject({
       status: 403,
       body: '{"error":"no_active_organization"}',
     });
     const fresh = await openWorker(path);
-    expect((await fresh.send(request('/api/projects', access, marker))).status).toBe(403);
+    expect((await fresh.send(request('/api/work-packages', access, marker))).status).toBe(403);
     expect((await first.send(request('/api/organization/memberships', access))).status).toBe(401);
     const reselection = await fresh.send(request('/api/organization/active', access));
     expect(reselection.status).toBe(401);
     expect(reselection.setCookie).toBeNull();
     expect(
-      (await first.send(request('/api/projects', independent, independentMarker))).status,
+      (await first.send(request('/api/work-packages', independent, independentMarker))).status,
     ).toBe(200);
-    expect((await fresh.send(request('/api/projects', other, otherMarker))).status).toBe(200);
+    expect((await fresh.send(request('/api/work-packages', other, otherMarker))).status).toBe(200);
   } finally {
     sqlite.close();
   }
@@ -585,9 +585,9 @@ for (const expires of ['5m', '-1s']) {
           .query('SELECT * FROM browser_credential_revocations ORDER BY credential_digest')
           .all(),
       ).toEqual(revocationsBeforeRetry);
-      expect((await fresh.send(request('/api/projects', other, independentMarker))).status).toBe(
-        200,
-      );
+      expect(
+        (await fresh.send(request('/api/work-packages', other, independentMarker))).status,
+      ).toBe(200);
     } finally {
       sqlite.close();
     }
@@ -618,7 +618,7 @@ for (const fault of ['missing', 'unreadable'] as const) {
       expect(selected.status).toBe(200);
       const marker = selected.setCookie?.split(';')[0];
       if (marker === undefined) throw new Error('selection did not issue a marker');
-      expect((await worker.send(request('/api/projects', access, marker))).status).toBe(200);
+      expect((await worker.send(request('/api/work-packages', access, marker))).status).toBe(200);
       if (fault === 'missing') sqlite.run('DROP TABLE browser_credential_revocations');
       else await worker.send({ kind: 'shadow-revocations' });
       const fresh = fault === 'missing' ? await openWorker(path) : worker;
@@ -626,7 +626,7 @@ for (const fault of ['missing', 'unreadable'] as const) {
       // selected-resource requests acknowledge a pair with unknown revocation
       // state; both missing and unreadable existing-table faults are distinct.
       expect((await fresh.send(request('/api/organization/memberships', access))).status).toBe(500);
-      expect((await fresh.send(request('/api/projects', access, marker))).status).toBe(500);
+      expect((await fresh.send(request('/api/work-packages', access, marker))).status).toBe(500);
       const logout = await fresh.send(
         request('/api/auth/logout', access, undefined, 'authority-correlation'),
       );
@@ -640,7 +640,9 @@ for (const fault of ['missing', 'unreadable'] as const) {
       expect(exists === null || exists === undefined).toBe(fault === 'missing');
       if (fault === 'unreadable') {
         const unaffected = await openWorker(path);
-        expect((await unaffected.send(request('/api/projects', access, marker))).status).toBe(200);
+        expect((await unaffected.send(request('/api/work-packages', access, marker))).status).toBe(
+          200,
+        );
       }
     } finally {
       sqlite.close();
@@ -697,9 +699,9 @@ for (const nextSecret of ['same', 'rotated'] as const) {
           expect(selectedNext.status).toBe(200);
           nextMarker = selectedNext.setCookie?.split(';')[0];
           if (nextMarker === undefined) throw new Error('committed successor did not select');
-          expect((await closer.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            200,
-          );
+          expect(
+            (await closer.send(request('/api/work-packages', nextAccess, nextMarker))).status,
+          ).toBe(200);
         }
         const logout = await closer.send(
           request('/api/auth/logout', oldAccess, undefined, 'race-correlation'),
@@ -727,19 +729,19 @@ for (const nextSecret of ['same', 'rotated'] as const) {
           // Another process cannot clear A's memory, so shared authority
           // must deny the pair across A, B and a fresh reader.
           expect(
-            (await refresher.send(request('/api/projects', nextAccess, nextMarker))).status,
+            (await refresher.send(request('/api/work-packages', nextAccess, nextMarker))).status,
           ).toBe(403);
-          expect((await closer.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            403,
-          );
+          expect(
+            (await closer.send(request('/api/work-packages', nextAccess, nextMarker))).status,
+          ).toBe(403);
           const fresh = await openWorker(path);
-          expect((await fresh.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            403,
-          );
+          expect(
+            (await fresh.send(request('/api/work-packages', nextAccess, nextMarker))).status,
+          ).toBe(403);
         }
-        expect((await refresher.send(request('/api/projects', oldAccess, oldMarker))).status).toBe(
-          403,
-        );
+        expect(
+          (await refresher.send(request('/api/work-packages', oldAccess, oldMarker))).status,
+        ).toBe(403);
         const after = await refresher.send(
           request('/api/auth/refresh', nextAccess, undefined, 'race-correlation'),
         );

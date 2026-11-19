@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,11 +9,12 @@ import { afterEach, beforeEach, expect, it, spyOn } from 'bun:test';
 import { openConnection, openDatabase } from './db';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
-import { rollbackTo } from './migrate-down';
 import { digestSharedPeople } from './shared-people-backup';
 import { restoreApprovedSharedPeople } from './shared-people-restore';
 import { SharedPeopleRestoreApprovalRepository } from './shared-people-restore-approval';
+import { saveSharedPeople } from './shared-people-rollback';
 import { restoreSharedPeople } from './shared-people-rollback';
+import { readRecoveryState } from './testing/recovery-state';
 import { MIGRATIONS_FOLDER, openSpaceDatabase } from './testing/space-database';
 
 let directory: string;
@@ -74,7 +76,7 @@ async function invoke(
 function snapshot() {
   return [
     'organization',
-    'project_rank',
+    'work_package_rank',
     'shared_people_audit',
     'event_log',
     'event_sequencer',
@@ -108,7 +110,7 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-it('commits historical ranks, personal mode audit, every owned project event and bound receipt together', async () => {
+it('commits historical ranks, personal mode audit, every owned work package event and bound receipt together', async () => {
   const restored = await invoke();
   expect(restored).toEqual({
     operationId: 'restore-1',
@@ -122,11 +124,11 @@ it('commits historical ranks, personal mode audit, every owned project event and
   });
   expect(
     execute(
-      'SELECT project_id, organization_id, position, created_at, updated_at, created_by FROM project_rank',
+      'SELECT work_package_id, organization_id, position, created_at, updated_at, created_by FROM work_package_rank',
     ),
   ).toEqual([
     {
-      project_id: 'a1',
+      work_package_id: 'a1',
       organization_id: 'org-a',
       position: 7,
       created_at: 2,
@@ -144,18 +146,22 @@ it('commits historical ranks, personal mode audit, every owned project event and
   expect(
     execute('SELECT subscription, seq, message, created_at FROM event_log ORDER BY subscription'),
   ).toEqual(
-    ['a1', 'a2', 'a3', 'a4'].map((projectId) => ({
-      subscription: 'project:' + projectId,
+    ['a1', 'a2', 'a3', 'a4'].map((workPackageId) => ({
+      subscription: 'work-package:' + workPackageId,
       seq: 0,
-      message: JSON.stringify({ type: 'elsewhere_changed', projectId, causeProjectId: null }),
+      message: JSON.stringify({
+        type: 'elsewhere_changed',
+        workPackageId,
+        causeWorkPackageId: null,
+      }),
       created_at: 20,
     })),
   );
   expect(
     execute('SELECT subscription, next_seq FROM event_sequencer ORDER BY subscription'),
   ).toEqual(
-    ['a1', 'a2', 'a3', 'a4'].map((projectId) => ({
-      subscription: 'project:' + projectId,
+    ['a1', 'a2', 'a3', 'a4'].map((workPackageId) => ({
+      subscription: 'work-package:' + workPackageId,
       next_seq: 1,
     })),
   );
@@ -224,13 +230,13 @@ it('preserves extra isolated organizations and records shared changes for each i
     execute("SELECT shared_people, updated_at FROM organization WHERE id='org-extra'"),
   ).toEqual([{ shared_people: 0, updated_at: null }]);
   expect(execute('SELECT subscription FROM event_log ORDER BY subscription')).toEqual(
-    ['a1', 'a2', 'a3', 'a4', 'b1'].map((id) => ({ subscription: 'project:' + id })),
+    ['a1', 'a2', 'a3', 'a4', 'b1'].map((id) => ({ subscription: 'work-package:' + id })),
   );
 });
 it('returns the cold durable receipt after later edits without replay or membership rechecks', async () => {
   const receipt = await invoke();
   execute("UPDATE organization SET shared_people=0, updated_at=50 WHERE id='org-a'");
-  execute('UPDATE project_rank SET position=999');
+  execute('UPDATE work_package_rank SET position=999');
   execute("DELETE FROM organization_membership WHERE organization_id='org-a'");
   const before = snapshot();
   expect(await invoke(backup, ['approval-a'], 'restore-1', 100)).toEqual(receipt);
@@ -308,7 +314,7 @@ it('requires activated state, present saved organizations, all isolated modes an
   expect((await rejectionOf(invoke())).message).toContain('isolated modes and no ranks');
   expect(snapshot()).toEqual(shared);
   execute("UPDATE organization SET shared_people=0 WHERE id='extra'");
-  execute("INSERT INTO project_rank VALUES ('b1', 'org-b', 0, 1, NULL, 'ada')");
+  execute("INSERT INTO work_package_rank VALUES ('b1', 'org-b', 0, 1, NULL, 'ada')");
   const ranked = snapshot();
   expect((await rejectionOf(invoke())).message).toContain('isolated modes and no ranks');
   expect(snapshot()).toEqual(ranked);
@@ -379,19 +385,27 @@ it('does not add approvals to a completed operation while preserving an identica
   }
   expect(snapshot()).toEqual(before);
 });
-it('refuses rollback over receipt/consumption evidence without removing its ledger entry', async () => {
+it('immutable receipt down artifact refuses completion evidence with whole native transaction rollback', async () => {
   await invoke();
-  // The completed fixture no longer needs its explicit runtime grants; remove them to reach the historical receipt rollback boundary.
-  execute("DELETE FROM access_grant WHERE subject_id='ada'");
-  // Scope the snapshot to receipts; newer empty admission down commits independently.
-  rollbackTo(path, MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts');
-  const before = snapshot();
-  const ledger = execute('SELECT * FROM __drizzle_migrations');
-  expect(() =>
-    rollbackTo(path, MIGRATIONS_FOLDER, '20261014120000_add_shared_people_restore_approvals'),
-  ).toThrow('restore completion evidence');
-  expect(snapshot()).toEqual(before);
-  expect(execute('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+  const before = readRecoveryState(path),
+    sqlite = openDatabase(path);
+  try {
+    const temp = sqlite.query('SELECT * FROM sqlite_temp_master ORDER BY name').all();
+    const down = readFileSync(
+      join(MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts', 'down.sql'),
+      'utf8',
+    );
+    expect(() => {
+      sqlite.transaction(() => {
+        for (const statement of down.split('--> statement-breakpoint'))
+          if (statement.trim() !== '') sqlite.run(statement.trim());
+      })();
+    }).toThrow('restore completion evidence');
+    expect(sqlite.query('SELECT * FROM sqlite_temp_master ORDER BY name').all()).toEqual(temp);
+  } finally {
+    sqlite.close();
+  }
+  expect(readRecoveryState(path)).toEqual(before);
 });
 it('keeps legacy shared restore refused even if a test release supports shared', () => {
   const modes = SUPPORTED_CAPACITY_MODES as string[];
@@ -405,7 +419,7 @@ it('keeps legacy shared restore refused even if a test release supports shared',
     connection.close();
     modes.pop();
   }
-  expect(execute('SELECT * FROM project_rank')).toEqual([]);
+  expect(execute('SELECT * FROM work_package_rank')).toEqual([]);
   expect(execute('SELECT * FROM shared_people_audit')).toEqual([]);
 });
 
@@ -550,7 +564,9 @@ it('requires an approval for rank-only changes in a second isolated organization
     events: 4,
     approvalIds: ['approval-a', 'approval-b'],
   });
-  expect(execute("SELECT subscription FROM event_log WHERE subscription='project:b1'")).toEqual([]);
+  expect(
+    execute("SELECT subscription FROM event_log WHERE subscription='work_package:b1'"),
+  ).toEqual([]);
 });
 it('rejects duplicate or empty external references at their named boundary', async () => {
   for (const ids of [['approval-a', 'approval-a'], ['']])
@@ -633,4 +649,30 @@ it('retains the offline restore binding before a delayed owner entry', async () 
     enter.mockRestore();
     connection.close();
   }
+});
+
+it('consumes a newly produced current2 backup with its own fresh operation digest', async () => {
+  execute("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+  execute(
+    "INSERT INTO work_package_rank(work_package_id,organization_id,position,created_at,updated_at,created_by) VALUES('a1','org-a',7,2,3,'ada')",
+  );
+  const saved = saveSharedPeople(path);
+  expect(saved.version).toBe(2);
+  const original = JSON.stringify(saved);
+  execute('DELETE FROM work_package_rank');
+  execute('UPDATE organization SET shared_people=0');
+  prepare(saved);
+  const receipt = await invoke(saved);
+  expect(receipt).toEqual({
+    operationId: 'restore-1',
+    backupDigest: digestSharedPeople(saved),
+    completedAt: 20,
+    organizations: 2,
+    ranks: 1,
+    modeChanges: 1,
+    events: 4,
+    approvalIds: ['approval-a'],
+  });
+  expect(saveSharedPeople(path)).toEqual(saved);
+  expect(JSON.stringify(saved)).toBe(original);
 });

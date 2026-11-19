@@ -20,8 +20,8 @@ beforeEach(() => {
   db = openDatabase(path);
   for (const statement of [
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
-    "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
-    "INSERT INTO work_item (id, project_id, name, position, revision) VALUES ('w1', 'p1', 'Build', 1, 0)",
+    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
+    "INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES ('w1', 'p1', 'Build', 1, 0)",
     "INSERT INTO resource (id, name, kind, unit_label) VALUES ('ram', 'h2puni ram', 'divisible', 'GB')",
     "INSERT INTO resource (id, name, kind, unit_label) VALUES ('stage', 'staging', 'exclusive', 'env')",
   ])
@@ -56,22 +56,22 @@ describe('20261020120000_add_resources', () => {
     ).toThrow('UNIQUE constraint failed: resource.name');
   });
 
-  it('holds a capacity of 0 or more whole units, one per project and resource', () => {
+  it('holds a capacity of 0 or more whole units, one per work package and resource', () => {
     db.run(
-      "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'stage', 0)",
+      "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p1', 'stage', 0)",
     );
     for (const units of ['-1', '1.5'])
       expect(() =>
         db.run(
-          `INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'ram', ${units})`,
+          `INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p1', 'ram', ${units})`,
         ),
-      ).toThrow('CHECK constraint failed: project_resource_capacity_units');
+      ).toThrow('CHECK constraint failed: work_package_resource_capacity_units');
     db.run(
-      "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'ram', 32)",
+      "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p1', 'ram', 32)",
     );
     expect(() =>
       db.run(
-        "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'ram', 16)",
+        "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p1', 'ram', 16)",
       ),
     ).toThrow('UNIQUE constraint failed');
   });
@@ -95,7 +95,7 @@ describe('20261020120000_add_resources', () => {
 
   it('takes a demand with its work item, and demands and capacities with their resource', () => {
     db.run(
-      "INSERT INTO work_item (id, project_id, name, position, revision) VALUES ('w2', 'p1', 'Test', 2, 0)",
+      "INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES ('w2', 'p1', 'Test', 2, 0)",
     );
     db.run(
       "INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES ('w1', 'ram', 4)",
@@ -104,21 +104,21 @@ describe('20261020120000_add_resources', () => {
       "INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES ('w2', 'stage', 1)",
     );
     db.run(
-      "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'ram', 32)",
+      "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p1', 'ram', 32)",
     );
     db.run("DELETE FROM work_item WHERE id = 'w2'");
     expect(count('work_item_resource_demand')).toBe(1);
     db.run("DELETE FROM resource WHERE id = 'ram'");
     expect(count('work_item_resource_demand')).toBe(0);
-    expect(count('project_resource_capacity')).toBe(0);
+    expect(count('work_package_resource_capacity')).toBe(0);
   });
 
-  it('takes a capacity with its project', () => {
+  it('takes a capacity with its work package', () => {
     db.run(
-      "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'ram', 32)",
+      "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p1', 'ram', 32)",
     );
-    db.run("DELETE FROM work_item WHERE project_id = 'p1'");
-    db.run("DELETE FROM project WHERE id = 'p1'");
-    expect(count('project_resource_capacity')).toBe(0);
+    db.run("DELETE FROM work_item WHERE work_package_id = 'p1'");
+    db.run("DELETE FROM work_package WHERE id = 'p1'");
+    expect(count('work_package_resource_capacity')).toBe(0);
   });
 });

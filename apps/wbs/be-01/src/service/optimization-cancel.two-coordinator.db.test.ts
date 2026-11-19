@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
@@ -22,7 +22,7 @@ import { createOptimizationRepository } from '../repository/optimization';
 import { bindSolverSlot, reserveSolverSlot } from '../repository/optimization-admission';
 import { allocateGeneration } from '../repository/optimization-generation';
 import { storeOptimizedOutcome } from '../repository/optimized-schedule-cache';
-import { ProjectRepository } from '../repository/project';
+import { WorkPackageRepository } from '../repository/work-package';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -73,7 +73,7 @@ function database() {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
@@ -126,7 +126,7 @@ describe('cross-coordinator cancellation', () => {
     const running = (['pri', 'time'] as const).map((objective) => {
       const child = childProcess();
       const admission = reserveSolverSlot(blue, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective,
@@ -137,7 +137,7 @@ describe('cross-coordinator cancellation', () => {
       });
       if (admission.kind !== 'reserved') throw new Error(`expected ${objective} reservation`);
       const slot: SolverChildSlot = {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective,
@@ -162,7 +162,7 @@ describe('cross-coordinator cancellation', () => {
     blue
       .insert(solverQueue)
       .values({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         objective: 'pri',
         budgetMs: 120_000,
@@ -173,9 +173,9 @@ describe('cross-coordinator cancellation', () => {
       .run();
 
     const broadcast = recordingBroadcaster();
-    const service = new ProjectService({
-      dependencyContext: sqliteDependencyContext(green, new ProjectRepository(green, OPEN)),
-      projects: new ProjectRepository(green, OPEN),
+    const service = new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(green, new WorkPackageRepository(green, OPEN)),
+      workPackages: new WorkPackageRepository(green, OPEN),
       broadcast,
       optimizerAvailable: () => true,
       clock: clockOf({ now: () => 50, newId: () => crypto.randomUUID() }),
@@ -209,8 +209,8 @@ describe('cross-coordinator cancellation', () => {
     expect(blue.select().from(solverQueue).all()).toEqual([]);
     expect(blue.select().from(optimizedScheduleCache).all()).toEqual([]);
     expect(broadcast.published.map(({ event }) => event.type)).toEqual([
-      'project_settings_changed',
-      'project_settings_changed',
+      'work_package_settings_changed',
+      'work_package_settings_changed',
     ]);
 
     // Proof: without the OFF transaction's epoch increment, both late writes
@@ -264,7 +264,7 @@ describe('cross-coordinator cancellation', () => {
       onChildError: (error) => errors.push(error),
     });
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input })).toBeNull();
+    expect(await instance.read({ workPackageId: 'p-1', objective: 'pri', input })).toBeNull();
     await until(
       () =>
         attempts.length === 2 &&

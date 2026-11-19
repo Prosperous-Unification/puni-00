@@ -10,9 +10,9 @@
  * different function.
  *
  * **Bump it for any change to:** Fast semantics, whether an unknown length
- * takes schedule time, what a slice's days are charged at (`12`: a project
+ * takes schedule time, what a slice's days are charged at (`12`: a work package
  * step's allowance, applied before rounding —
- * `add-project-step-estimate-allowances`), which step nodes a dependency joins
+ * `add-work-package-step-estimate-allowances`), which step nodes a dependency joins
  * (`13`: typed finish-to-start dependencies resolved beside the legacy links —
  * `add-step-finish-start-dependencies`; `14`: weighted SS/FF Fast semantics),
  * `snapWorkdays`, dependency reach, numbering semantics, resource tie-breaks,
@@ -55,7 +55,7 @@
  * 5,001,000 ratios with zero hits inside the *wider* `(W, W + DRIFT)`, and so
  * none inside the band either; the nearest non-zero distance to a whole number
  * is `1e-3`, a million times `DRIFT`. But `roundDays` returns the combined
- * figure untouched under `ESTIMATE_ROUNDINGS`' `'exact'`, so a project on that
+ * figure untouched under `ESTIMATE_ROUNDINGS`' `'exact'`, so a work package on that
  * rounding puts an arbitrary double in: `days: 1.0000000005` over `width: 1`
  * gave `durationUnits` `49` before this change and `48` after.
  *
@@ -128,7 +128,9 @@
 // 17: both engines level resource demands as pools and the canonical input
 // carries demands and resource capacities (`wbs-resources` R5); every golden
 // case without a demand keeps its schedule byte for byte.
-export const SCHEDULER_CONTRACT_VERSION = 18;
+// 19: current host ownership keys rename while Python wire5 and algorithm identity stay fixed.
+// Proof: outgoing18 failed 'names the renamed current host contract19 with unchanged solver suffix'.
+export const SCHEDULER_CONTRACT_VERSION = 19;
 
 /**
  * The composite the **wire** carries and the **cache key** stores, from one

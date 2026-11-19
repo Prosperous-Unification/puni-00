@@ -139,7 +139,7 @@ export interface ResourceProviderReading {
  * Capacity reports (`compute-providers` P5, P6): one latest report per
  * resource, no history and no audit row. Nothing in planning reads this port
  * (P4): the schedule input, the claim decision, the occupancy check, the
- * startable read and the plan export take their capacity from the project's
+ * startable read and the plan export take their capacity from the work package's
  * declared figures alone.
  */
 export interface CapacityReports {

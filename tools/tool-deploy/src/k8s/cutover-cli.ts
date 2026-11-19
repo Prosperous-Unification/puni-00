@@ -50,7 +50,7 @@ function knownRows(text: string): string[] {
     parsed.length === 0 ||
     !parsed.every((n) => typeof n === 'string')
   ) {
-    throw new Error('--known must be a non-empty JSON array of project names');
+    throw new Error('--known must be a non-empty JSON array of work-package names');
   }
   return parsed;
 }
@@ -153,7 +153,7 @@ export async function main(args: readonly string[]): Promise<string> {
           '../../../../deploy/k8s/wbs/overlays',
           request.environment,
         ),
-        anonymousProjectsStatus: 401,
+        anonymousWorkPackagesStatus: 401,
         rolloutTimeoutSeconds: 300,
         jobTimeoutSeconds: 300,
         drainTimeoutMs: 5000,

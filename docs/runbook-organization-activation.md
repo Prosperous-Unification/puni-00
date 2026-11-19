@@ -221,12 +221,20 @@ Exit codes:
 
 Every refusal leaves the store unchanged.
 
-**Retained streams.** Deleting a project leaves its `event_sequencer` and `event_log` rows
-behind, and reconciliation refuses them as `event_stream` conflicts. `--prune-retained-streams`
-deletes only `project:<id>` streams whose project row is gone. They have no reader, because
-the project they replay is deleted. Each pruned stream is listed in `prunedStreams`. A
-stream that names a live project is never pruned. On 2026-10-20 dev had 333 streams and 333
-projects, with no retained stream.
+**Retained streams.** Deleting a work package leaves its `event_sequencer` and `event_log`
+rows behind, and reconciliation refuses them as `event_stream` conflicts. Activation
+recognizes retained `project:<id>` and current `work-package:<id>` storage keys against the
+same current work-package ownership. This inventory recognition does not enable legacy
+subscriptions or translate frames or cursors.
+
+`--prune-retained-streams` requires `--apply` and deletes only streams in those two known
+namespaces whose live work-package row is gone. Each exact key appears once in sorted
+`prunedStreams`. Complete live rows, raw messages and independent sequence counters remain
+unchanged. A live unmapped work package or unknown namespace still blocks activation;
+unknown streams are never pruned, and refusal rolls back all writes, including provisional
+known-orphan cleanup. Durable `plan_event` user history is outside this transport cleanup.
+
+On 2026-10-20 dev had 333 streams and 333 projects, with no retained stream.
 
 be-01 reads the marker on every request, so no restart is needed. Browsers then choose the
 organization explicitly once.

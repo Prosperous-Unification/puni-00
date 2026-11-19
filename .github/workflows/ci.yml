@@ -1756,6 +1756,11 @@ jobs:
         timeout-minutes: 25
         run: bun run e2e -- --shard=${{ matrix.shard }}/8
 
+      - name: Local quiet-load cohort
+        timeout-minutes: 5
+        if: ${{ matrix.shard == 2 }}
+        run: bunx nx run wbs-fe-01:e2e-local
+
       - name: Activated organization context
         # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
         timeout-minutes: 5
@@ -1780,6 +1785,9 @@ jobs:
           path: |
             apps/wbs/fe-01/test-results/
             apps/wbs/fe-01/playwright-report/
+            apps/wbs/fe-01/test-results-local/
+            apps/wbs/fe-01/playwright-report-local/
+            tmp/junit/wbs-fe-01.browser.local.xml
 
   # Branch protection asks for one stable `pixels` check. The matrix above has
   # changing display names, so this job reduces its aggregate result without

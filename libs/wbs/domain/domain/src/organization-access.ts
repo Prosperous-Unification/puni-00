@@ -16,14 +16,14 @@ import type { Permission } from './access-role';
  * 'does not expose mayRemoveResourceInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
  * Proof: retired-domain-mayStateDirectoryCapacityInOrganization; reintroduced the retired callable.
  * 'does not expose mayStateDirectoryCapacityInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
- * Proof: retired-domain-canEditProjectInOrganization; reintroduced the retired callable.
- * 'does not expose canEditProjectInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-canEditWorkPackageInOrganization; reintroduced the retired callable.
+ * 'does not expose canEditWorkPackageInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
  * Proof: retired-domain-mayAdministerMembership; reintroduced the retired callable.
  * 'does not expose mayAdministerMembership' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
  * Proof: retired-domain-mayInvite; reintroduced the retired callable.
  * 'does not expose mayInvite' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
- * Proof: retired-domain-classifyProjectEdit; reintroduced the retired callable.
- * 'does not expose classifyProjectEdit' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-classifyWorkPackageEdit; reintroduced the retired callable.
+ * 'does not expose classifyWorkPackageEdit' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
  * Proof: scope-type-role; restored an optional compatibility role to OrganizationScope; only the intended TS2578 appeared.
  * organization-access.test.ts rejects this scope field with the sole unused-expect-error TS2578.
  */
