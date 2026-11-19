@@ -1001,6 +1001,10 @@
         "memberships": [
           {
             "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/board/step-board-action.ts"
+          },
+          {
+            "kind": "path",
             "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx"
           },
           {
@@ -1037,6 +1041,10 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/board/step-board-action.ts"
+          },
           {
             "kind": "path",
             "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"

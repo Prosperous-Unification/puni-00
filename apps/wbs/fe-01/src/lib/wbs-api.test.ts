@@ -15,6 +15,7 @@ import {
   PlanImportRefusalError,
   STEP_REFUSALS,
   type StepUsage,
+  WbsRequestError,
 } from './wbs-api';
 
 /**
@@ -1961,6 +1962,77 @@ describe('setting a row’s status', () => {
         ],
       }),
     });
+  });
+});
+
+describe('writing one step node’s progress through the learned row', () => {
+  it.each(['in_progress', 'done'] as const)(
+    'posts exactly one setProgress command for %s',
+    async (state) => {
+      const fetched = stub((path) =>
+        response(200, path.endsWith('/work-items') ? TREE('p1', ['w1']) : APPLIED),
+      );
+      const api = httpProjectApi('t');
+      await api.tree('p1');
+
+      await api.setProgress('w1', 'step-1', state);
+
+      expect(fetched.mock.calls).toHaveLength(2);
+      expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
+      expect(fetched.mock.calls[1]?.[1]?.method).toBe('POST');
+      expect(JSON.parse(bodyOf(fetched.mock.calls[1]?.[1]))).toEqual({
+        commands: [{ kind: 'setProgress', workItemId: 'w1', stepId: 'step-1', state }],
+      });
+    },
+  );
+
+  it('posts exactly one clearProgress command without a stored Unknown value', async () => {
+    const fetched = stub((path) =>
+      response(200, path.endsWith('/work-items') ? TREE('p1', ['w1']) : APPLIED),
+    );
+    const api = httpProjectApi('t');
+    await api.tree('p1');
+
+    await api.clearProgress('w1', 'step-1');
+
+    expect(fetched.mock.calls).toHaveLength(2);
+    expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
+    expect(fetched.mock.calls[1]?.[1]?.method).toBe('POST');
+    expect(JSON.parse(bodyOf(fetched.mock.calls[1]?.[1]))).toEqual({
+      commands: [{ kind: 'clearProgress', workItemId: 'w1', stepId: 'step-1' }],
+    });
+  });
+
+  it('preserves a modeled endpoint refusal and its command detail', async () => {
+    const refusal = { error: 'unknown_step', at: 0, kind: 'setProgress' };
+    const fetched = stub((path) =>
+      path.endsWith('/work-items')
+        ? response(200, TREE('p1', ['w1']))
+        : response(404, JSON.stringify(refusal)),
+    );
+    const api = httpProjectApi('t');
+    await api.tree('p1');
+
+    await expect(api.setProgress('w1', 'missing-step', 'done')).rejects.toMatchObject({
+      name: WbsRequestError.name,
+      problem: {
+        kind: 'refusal',
+        operation: 'postApiProjectsByIdCommands',
+        refusal,
+      },
+    });
+    expect(fetched.mock.calls).toHaveLength(2);
+  });
+
+  it('does not post a clear for a row the client has not learned', async () => {
+    const fetched = stub((path) =>
+      response(200, path.endsWith('/work-items') ? TREE('p1', ['w1']) : APPLIED),
+    );
+    const api = httpProjectApi('t');
+    await api.tree('p1');
+
+    await expect(api.clearProgress('w2', 'step-1')).rejects.toThrow('unknown_work_item');
+    expect(fetched.mock.calls).toHaveLength(1);
   });
 });
 
