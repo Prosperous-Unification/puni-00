@@ -430,7 +430,7 @@
       masked, the smoke without its guard or export, and the launcher without its preflight (verify.md, 2026-11-19). A fleet apply on h2puni and
       h4claw follows the merge (S21-A2).
 - [x] 6.22 host-service containers beside a job are attributed when labelled and bounded
-      (A-ATTR-HOSTSVC-1; PR #PRNUM): h2puni's hourly goaccess cron and the `keinos/sqlite3`
+      (A-ATTR-HOSTSVC-1; PR #952): h2puni's hourly goaccess cron and the `keinos/sqlite3`
       backups start containers without `puni.job`, so every gate longer than an hour recorded
       an unlabelled container. A container labelled `puni.host-service=<name>` with `--memory`
       and `--cpus` is now verdict `host-service` (name and bounds in the run record), leaves the
