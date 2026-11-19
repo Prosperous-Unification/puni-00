@@ -143,7 +143,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     ]);
   });
 
-  test('a run with an unbounded container is attribution_incomplete until a run sees every container bounded', () => {
+  test('a run with an unbounded container is attribution_incomplete until a run sees a bounded job container and every other container attributed', () => {
     const unbounded = {
       id: 'unbounded',
       memoryGib: 5,
@@ -154,7 +154,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       ],
     };
     expect(audit([unbounded, ...fitting(2)]).drifts).toEqual([
-      'gate attribution_incomplete in run unbounded at 2027-01-15T08:00:00.000Z: c0ffee012345 unbounded; the type is not eligible for concurrency until a run sees every container bounded',
+      'gate attribution_incomplete in run unbounded at 2027-01-15T08:00:00.000Z: c0ffee012345 unbounded; the type is not eligible for concurrency until a run sees a bounded job container and every other container attributed',
     ]);
     const bounded = {
       ...fitting(1, 9)[0],
@@ -221,7 +221,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
         ],
       };
       expect(audit([unlabelled]).drifts).toEqual([
-        'gate attribution_incomplete in run mixed at 2027-01-15T08:00:00.000Z: c0ffee012345 unlabelled; the type is not eligible for concurrency until a run sees every container bounded',
+        'gate attribution_incomplete in run mixed at 2027-01-15T08:00:00.000Z: c0ffee012345 unlabelled; the type is not eligible for concurrency until a run sees a bounded job container and every other container attributed',
       ]);
     });
 

@@ -4239,7 +4239,7 @@ only after a run with a bounded job container and every other container attribut
 
 | Command                                                                                                                                              | Result                                                                                                                                                                                                                                               |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| new tests in `containers.test.ts`, `run-records.test.ts`, `audit.test.ts`, `propose.test.ts` before the change (the project test command's preloads) | 8 fail, 27 pass: the refusal test passed already, as nothing then accepted `host-service`                                                                                                                                                            |
+| new tests in `containers.test.ts`, `run-records.test.ts`, `audit.test.ts`, `propose.test.ts` before the change (the project test command's preloads) | 8 fail, 27 pass: two of the ten new tests passed already, the refusal test (nothing then accepted `host-service`) and `a container with both labels is judged as the job container it names` (the `puni.job` path was unchanged on main)             |
 | the same four files after the change                                                                                                                 | 35 pass, 0 fail                                                                                                                                                                                                                                      |
 | `job-run.test.ts -t container` inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`), real Docker 29.7.2 with `busybox:1.37.0-musl`           | 5 pass, 0 fail, the new host-service run included                                                                                                                                                                                                    |
 | `containers`, `run-records`, `audit`, `propose`, `job-run`, `calibrate` and `status` test files together                                             | `job-run.test.ts` inside: 45 pass, 10 skip (no systemd user bus on the laptop), 0 fail; `calibrate.test.ts` inside: 10 fail, the same 10 on unchanged `main` 059c76b05, refused for the laptop's 1.69 GB free disk below the 2 GiB the fixtures need |
@@ -4283,3 +4283,14 @@ crons, rejected because h2puni's goaccess cron runs hourly and a gate takes long
 - **S22-A4** A host-service container is judged by the same `docker inspect` right after its
   create event; one that ended before that read, as a `--rm` run can when the stream lags and
   only the closing replay sees it, is `unverified` and still incomplete, as for job containers.
+  The reviewer of #952 measured the race with this tree's `ContainerWatch` in-process and an
+  async `docker run --rm --label puni.host-service=probe --memory 64m --cpus 1 busybox sh -c`
+  run: the inspect won 10 of 10 for `true` (about 250 ms lifetime) on an idle host and 10 of 10
+  under 24 `yes` processes saturating every core, and 10 of 10 for `sleep 0.3` and `sleep 1`.
+  The only losing case was a watch whose event loop was blocked: a `spawnSync` probe got 10 of
+  10 `unverified` even for `sleep 2`, and `ops job run` never blocks its loop in the job
+  window. The residual is that blocked-loop case, not ordinary short containers.
+- **S22-A5** For Dany (reviewer's note on #952): host-service bounds are listed, not counted
+  against the pool's allocatable vector. The honest counterpart would be a declared
+  host-service reserve in the pool headroom, plus an `ops job audit` drift when an observed
+  host-service bound exceeds that reserve; not part of this change.

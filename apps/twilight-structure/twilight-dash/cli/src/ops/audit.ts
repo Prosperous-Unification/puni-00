@@ -172,7 +172,7 @@ export function auditDrift(
             .map((container) => `${container.id.slice(0, 12)} ${container.verdict}`)
             .join(
               ', ',
-            )}; the type is not eligible for concurrency until a run sees every container bounded`,
+            )}; the type is not eligible for concurrency until a run sees a bounded job container and every other container attributed`,
         });
     }
   }
