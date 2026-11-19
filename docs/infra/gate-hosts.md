@@ -49,7 +49,13 @@ reaches those containers, so `ops job propose` excluded every gate record as "co
 attribution incomplete" (J16). BuildKit runs the steps inside the daemon instead. Verify it as
 `puni1` with `docker buildx version`, which prints the plugin's version and exits 0. The
 `gate_host` role installs the pinned package and asserts it; inside a Dash job the smoke itself
-refuses to build when `docker buildx version` fails.
+refuses to build when `docker buildx version` fails, and `bin/h2puni-gate.sh` refuses (exit 70)
+an enrolled host's gate or calibration before queueing it, since the smoke is the gate's last
+step. Installing the plugin also switches every other `docker build` on the host to BuildKit,
+such as the `website-dev-build` lane's builds on h2puni.
+
+Between merging task 6.21 and the fleet apply of `playbooks/gate-host.yml`, launch no pool gate:
+the operator sequence is merge, apply the playbook on h2puni and h4claw, then the next gate.
 
 ## What the role sets up
 

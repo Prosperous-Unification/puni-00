@@ -38,6 +38,7 @@ case "$1" in
     echo 'github.com/docker/buildx 0.30.1 0.30.1-0ubuntu1'
     ;;
   build)
+    printf '%s\\n' "\${DOCKER_BUILDKIT-unset}" >> "$WBS_DOCKER_LOG.buildkit"
     while [ "$#" -gt 0 ]; do
       if [ "$1" = --tag ]; then printf '%s' "$2" > "$(store_path "$2")"; fi
       shift
@@ -242,6 +243,7 @@ function runSmoke(
     cleanupToken?: string;
     script?: string;
     jobId?: string;
+    buildkit?: string;
   } = {},
 ): SmokeRun {
   const commands = join(root, 'commands');
@@ -332,6 +334,7 @@ function runSmoke(
         WBS_RUN_SOLVER_ORPHAN_PROC: options.orphan || !options.supplied ? '1' : '0',
         ...(fault === undefined ? {} : { WBS_FAKE_FAULT: fault }),
         DASH_JOB_ID: options.jobId ?? '',
+        ...(options.buildkit === undefined ? {} : { DOCKER_BUILDKIT: options.buildkit }),
       },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -383,6 +386,14 @@ describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
     expect(smoke.exitCode).not.toBe(0);
     expect(smoke.stderr).toContain('install docker-buildx');
     expect(smoke.dockerCalls).toEqual(['buildx version']);
+  });
+
+  it('forces BuildKit for its builds inside a Dash job', () => {
+    const smoke = runSmoke(undefined, { jobId: 'job-under-test', buildkit: '0' });
+    expect(smoke.exitCode).toBe(0);
+    const builds = readFileSync(join(root, 'docker.log.buildkit'), 'utf8').trim().split('\n');
+    // The solver image and the orphan derivative.
+    expect(builds).toEqual(['1', '1']);
   });
 
   it('builds without BuildKit outside a Dash job', () => {

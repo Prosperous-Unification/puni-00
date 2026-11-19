@@ -845,6 +845,9 @@ describe('the Ansible host and k3s contract', () => {
       'Read the installed docker-buildx package version',
       'Require the pinned docker-buildx package',
     ]);
+    // After the Docker group read (the role adds the plugin to an existing engine), before
+    // validation. Proof: moving the tasks above that read failed the first expectation.
+    expect(install).toBeGreaterThan(names.indexOf('Read the Docker group'));
     expect(install).toBeLessThan(names.indexOf('Prove the gate account can run a gate'));
     const [apt, read, pinned] = tasks.slice(install, install + 3);
     expect(apt['ansible.builtin.apt']?.name).toEqual([

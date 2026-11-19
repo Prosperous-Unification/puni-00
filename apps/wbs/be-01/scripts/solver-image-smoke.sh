@@ -36,10 +36,17 @@ fi
 # (CI, unenrolled gates) the legacy builder stays acceptable.
 # Proof: with this guard removed, solver-image-smoke.test.ts `refuses the legacy builder inside a
 # Dash job before any build` failed (exit 0, the build ran); `builds without BuildKit outside a
-# Dash job` keeps the guard scoped (2026-11-19).
-if [ -n "${DASH_JOB_ID:-}" ] && [ -z "$supplied_image" ] && ! docker buildx version >/dev/null; then
-  echo "[solver-image-smoke] docker buildx version failed inside a Dash job: the legacy builder's intermediate containers would be unlabelled; install docker-buildx (docs/infra/gate-hosts.md)" >&2
-  exit 1
+# Dash job` keeps the guard scoped (2026-11-19). `bin/h2puni-gate.sh` runs the same check before
+# it queues a gate, because this smoke is the gate's last step.
+if [ -n "${DASH_JOB_ID:-}" ] && [ -z "$supplied_image" ]; then
+  if ! docker buildx version >/dev/null; then
+    echo "[solver-image-smoke] docker buildx version failed inside a Dash job: the legacy builder's intermediate containers would be unlabelled; install docker-buildx (docs/infra/gate-hosts.md)" >&2
+    exit 1
+  fi
+  # An inherited DOCKER_BUILDKIT=0 would bring the legacy builder back with buildx installed.
+  # Proof: without this export, `forces BuildKit for its builds inside a Dash job` saw both
+  # builds run with DOCKER_BUILDKIT=0 (2026-11-19).
+  export DOCKER_BUILDKIT=1
 fi
 
 attempt_token="$(cat /proc/sys/kernel/random/uuid)"

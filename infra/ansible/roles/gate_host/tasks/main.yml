@@ -60,9 +60,16 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Read the Docker group
+  tags: [gate_host]
+  ansible.builtin.getent:
+    database: group
+    key: docker
+
 # Inside a Dash job the solver smoke refuses the legacy builder, whose per-step intermediate
-# containers carry no `puni.job` label (dash-host-jobs task 6.21). The package depends on docker.io
-# without a version, so installing it leaves the host's engine as it is.
+# containers carry no `puni.job` label (dash-host-jobs task 6.21). It comes after the Docker
+# group read, which fails on a host without Docker: the package depends on docker.io without a
+# version, so here it can only add the plugin to the existing engine, never install one.
 - name: Install the pinned docker-buildx package
   tags: [gate_host]
   ansible.builtin.apt:
@@ -90,12 +97,6 @@
   # Proof: ansible.test.ts `installs the pinned docker-buildx package and asserts its version`
   # failed against the role before task 6.21. No live negative: neither host had the package, and
   # no apply has run yet (verify.md, task 6.21, S21-A2).
-
-- name: Read the Docker group
-  tags: [gate_host]
-  ansible.builtin.getent:
-    database: group
-    key: docker
 
 # Membership in the docker group is root-equivalent on this host: the gate builds and runs the
 # solver image. The account has no sudo grant and exists only for gates; a pre-existing grant is

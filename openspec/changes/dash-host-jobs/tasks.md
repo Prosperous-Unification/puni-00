@@ -423,7 +423,9 @@
       incomplete" (h4claw job ef8e1ce6). The `gate_host` role installs `docker-buildx` pinned at
       `puni_gate_docker_buildx_version`, asserts it with `dpkg-query` and validates
       `docker buildx version` as `puni1`; inside a Dash job `solver-image-smoke.sh` refuses to
-      build when `docker buildx version` fails. Tests: `ansible.test.ts`,
-      `solver-image-smoke.test.ts`; negatives: the pre-6.21 role, the probe with its status
-      masked, and the smoke without its guard (verify.md, 2026-11-19). A fleet apply on h2puni and
+      build when `docker buildx version` fails and forces `DOCKER_BUILDKIT=1`, and, since the
+      smoke is the gate's last step, `bin/h2puni-gate.sh` refuses 70 on an enrolled host before
+      queueing. Tests: `ansible.test.ts`,
+      `solver-image-smoke.test.ts`, `launchers.test.ts`; negatives: the pre-6.21 role, the probe with its status
+      masked, the smoke without its guard or export, and the launcher without its preflight (verify.md, 2026-11-19). A fleet apply on h2puni and
       h4claw follows the merge (S21-A2).

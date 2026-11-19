@@ -136,6 +136,23 @@ if [[ -z ${gate_sha:-} ]]; then
   exit 64
 fi
 
+# On an enrolled host the payload runs as a Dash job, and the solver smoke, the gate's last step
+# (bin/h2puni-gate-steps.sh), refuses the legacy Docker builder there, whose per-step
+# intermediate containers are unlabelled (`dash-host-jobs` task 6.21). Refusing here, before the
+# job is queued, keeps a host without BuildKit from spending a whole gate to reach that refusal.
+# Exit 70, as for the other host prerequisites this launcher and heavy-lock-lib.sh check.
+# Proof: with this call removed, launchers.test.ts `refuses an enrolled gate without BuildKit
+# before admission` failed for the gate and the calibration (2026-11-19).
+require_buildkit_when_enrolled() {
+  local enrollment
+  enrollment=$(read_host_pool_enrollment)
+  [[ $enrollment == enrolled ]] || return 0
+  if ! docker buildx version >/dev/null; then
+    printf 'h2puni gate: docker buildx version failed on this enrolled host: the solver smoke, the last gate step, would refuse the legacy builder, whose intermediate containers would be unlabelled; install docker-buildx (apply playbooks/gate-host.yml, docs/infra/gate-hosts.md)\n' >&2
+    exit 70
+  fi
+}
+
 # The outer launcher ends here (`dash-host-jobs` J15): `run_heavy_job` takes the heavy lock on
 # an unenrolled host and runs the payload in this checkout, or, on an enrolled one, asks Dash to
 # admit a `gate` job, which hands the payload its own gate tree as `DASH_JOB_UNIT_GATE_TREE`.
@@ -152,9 +169,11 @@ if [[ $is_calibration == true ]]; then
     printf 'h2puni gate: calibration requires an enrolled host\n' >&2
     exit 70
   fi
+  require_buildkit_when_enrolled
   # Proof: the verb, payload and SHA faults failed the one-submission argv check independently.
   # Dropping the trusted copy from this call refused at the verifier handoff fixture.
   run_enrolled_heavy_job calibrate gate "$repo_root/bin/h2puni-gate-payload.sh" "$gate_sha"
 else
+  require_buildkit_when_enrolled
   HEAVY_LOCK_JOB_TYPE=gate run_heavy_job -- "$repo_root/bin/h2puni-gate-payload.sh" "$gate_sha"
 fi

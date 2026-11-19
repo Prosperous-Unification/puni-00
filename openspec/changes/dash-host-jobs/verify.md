@@ -1262,6 +1262,9 @@ design.md after J18.
 | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `bash bin/heavy-lock.test.sh`                                                                                        | `all heavy-lock checks passed` (cases 1-28 unchanged, 40-45 new)                       |
 | `bash bin/h2puni-gate.test.sh`                                                                                       | `all cases passed` (44a-44h, 45a-45d new)                                              |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)                   | 54 pass, 0 fail                                                                        |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)              | 58 pass, 0 fail                                                                        |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                        | all pass, 0 fail                                                                       |
 | `shellcheck -x` on every edited or new `bin/*.sh`; `shellcheck -s bash apps/wbs/be-01/scripts/solver-image-smoke.sh` | exit 0                                                                                 |
 | `bun test src/ops/launchers.test.ts` (namespace)                                                                     | 7 inner pass, outer pass                                                               |
 | `bun test` resource-holds, host-job-holds, host-jobs, host-jobs.model, host-pool, runtime, no-ambient-clock          | 22 pass after renaming a `self` local the clock detector flagged                       |
@@ -1432,6 +1435,9 @@ Each fault was applied by script, watched red, and restored with SHA-256 equal b
 | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | `bash bin/heavy-lock.test.sh`                                                                                                            | `all heavy-lock checks passed` (1–28, 40–47) |
 | `bash bin/h2puni-gate.test.sh`                                                                                                           | `all cases passed` (44a–i, 45a–d, 46, 47)    |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)                                       | 54 pass, 0 fail                              |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                                  | 58 pass, 0 fail                              |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                                            | all pass, 0 fail                             |
 | shellcheck on every edited or new script                                                                                                 | exit 0                                       |
 | `bun test src/ops src/cli.test.ts src/no-ambient-clock.test.ts` plus host-jobs, host-jobs.model, host-job-holds, resource-holds, runtime | exit 0, no `(fail)`                          |
 | `solver-image-smoke.test.ts`, tool-devsync `poller` + `solver-binding-runtime`, tool-dagger `heavy-lock`, Burokrat `whole tree`          | 40, 39, 9, 1 pass                            |
@@ -2741,18 +2747,21 @@ refuses, and removing `failed_when` lets it through. The run's lines are in the 
 
 ### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
-| Command                                                                             | Result                                                                           |
-| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `bash bin/heavy-lock.test.sh`                                                       | `all heavy-lock checks passed`, cases 49a–49g included                           |
-| `bash bin/gate-launcher-refresh.test.sh`                                            | `all gate launcher refresh checks passed`                                        |
-| `bash bin/h2puni-gate.test.sh`                                                      | exit 0, `all cases passed`                                                       |
-| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`) | 102 `ok`, `{"failures": 0}`, exit 0                                              |
-| `bunx nx run twilight-dash:test --skip-nx-cache`                                    | 5714 pass, 53 skip, 0 fail across 183 files; exit 0                              |
-| `bunx nx run tool-fleet:check --skip-nx-cache`                                      | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
-| `bunx nx format:check --all`                                                        | exit 0                                                                           |
-| `bunx openspec validate --all --json`                                               | 328 passed, 0 failed, exit 0                                                     |
-| Burokrat `check-indexes working <worktree> origin/main`                             | exit 0 (two pre-existing review-debt rows)                                       |
-| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                | 10 projects, exit 0                                                              |
+| Command                                                                                                 | Result                                                                           |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                                           | `all heavy-lock checks passed`, cases 49a–49g included                           |
+| `bash bin/gate-launcher-refresh.test.sh`                                                                | `all gate launcher refresh checks passed`                                        |
+| `bash bin/h2puni-gate.test.sh`                                                                          | exit 0, `all cases passed`                                                       |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)      | 54 pass, 0 fail                                                                  |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment) | 58 pass, 0 fail                                                                  |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                           | all pass, 0 fail                                                                 |
+| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`)                     | 102 `ok`, `{"failures": 0}`, exit 0                                              |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                        | 5714 pass, 53 skip, 0 fail across 183 files; exit 0                              |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                                          | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                                                            | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                                                   | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`                                                 | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                                    | 10 projects, exit 0                                                              |
 
 Not done: no host apply, so the units are not installed on h2puni or h4claw. That apply is owed
 with 6.3e's converging apply, and the timer starts at step 5 of the enrollment. No gate ran on a
@@ -2876,19 +2885,22 @@ namespace.
 
 ### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
-| Command                                                              | Result                                                                           |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `bun test src/resources/host-jobs.test.ts` (twilight-dash cli)       | 39 pass, 0 fail inside the namespace; outer wrapper 1 pass                       |
-| `bun test src/ops/admission.test.ts src/cli.test.ts`                 | 5 pass in the namespace; 127 pass with `no-ambient-clock.test.ts`, 0 fail        |
-| `bunx nx run twilight-dash:test --skip-nx-cache`                     | 5717 pass, 53 skip, 0 fail across 184 files (3129 s); exit 0                     |
-| `bash bin/heavy-lock.test.sh`                                        | `all heavy-lock checks passed`, cases 49a–49k included                           |
-| `bash bin/h2puni-gate.test.sh`                                       | exit 0                                                                           |
-| `bun test tools/tool-dagger/src/heavy-lock.test.ts`                  | 9 pass, 0 fail                                                                   |
-| `bunx nx run tool-fleet:check --skip-nx-cache`                       | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
-| `bunx nx format:check --all`                                         | exit 0                                                                           |
-| `bunx openspec validate --all --json`                                | 328 passed, 0 failed, exit 0                                                     |
-| Burokrat `check-indexes working <worktree> origin/main`              | exit 0 (two pre-existing review-debt rows)                                       |
-| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2` | 8 projects, exit 0                                                               |
+| Command                                                                                                 | Result                                                                           |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bun test src/resources/host-jobs.test.ts` (twilight-dash cli)                                          | 39 pass, 0 fail inside the namespace; outer wrapper 1 pass                       |
+| `bun test src/ops/admission.test.ts src/cli.test.ts`                                                    | 5 pass in the namespace; 127 pass with `no-ambient-clock.test.ts`, 0 fail        |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                        | 5717 pass, 53 skip, 0 fail across 184 files (3129 s); exit 0                     |
+| `bash bin/heavy-lock.test.sh`                                                                           | `all heavy-lock checks passed`, cases 49a–49k included                           |
+| `bash bin/h2puni-gate.test.sh`                                                                          | exit 0                                                                           |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)      | 54 pass, 0 fail                                                                  |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment) | 58 pass, 0 fail                                                                  |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                           | all pass, 0 fail                                                                 |
+| `bun test tools/tool-dagger/src/heavy-lock.test.ts`                                                     | 9 pass, 0 fail                                                                   |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                                          | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                                                            | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                                                   | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`                                                 | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                                    | 8 projects, exit 0                                                               |
 
 Not done: no host apply and no gate on a host. The admission check takes effect on h2puni and
 h4claw when their launcher checkouts move to a commit carrying it (the hourly refresh, S6D-A4).
@@ -3521,6 +3533,9 @@ Fresh on 2026-11-12 on the workstation, from `/home/df/wd/puni/wt-tq`, `CLAUDECO
 | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `bash bin/heavy-lock.test.sh`                                                                                  | `all heavy-lock checks passed`, exit 0                                                                           |
 | `bash bin/h2puni-gate.test.sh`                                                                                 | `all cases passed`, exit 0                                                                                       |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)             | 54 pass, 0 fail                                                                                                  |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)        | 58 pass, 0 fail                                                                                                  |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                  | all pass, 0 fail                                                                                                 |
 | `bun test …/ops/launchers.test.ts`                                                                             | exit 1: `mkdir: cannot create directory '/home/puni1/.config': Permission denied` (this host's root-owned path)  |
 | the same file's inner suite under `unshare` with `/home/puni1` left unbound (`DASH_LAUNCHER_TEST_NAMESPACE=1`) | 15 pass, 0 fail, exit 0                                                                                          |
 | `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `twilight-dash:lint`                                    | exit 0, exit 0                                                                                                   |
@@ -3943,6 +3958,9 @@ as CI`) pins both lines. The note is in `docs/infra/gate-hosts.md` (What the hos
 | `bun test apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts`                                                                                        | 1 pass, 0 fail                                                                                                                                                                                                                                                                        |
 | `bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts`                                                                          | 56 pass, 2 fail; the same two (`the host gate fails specifically at wiki lint for a stale enforced blob`, `the real Nx target reruns an omitted-input mutation and a controlled cache fault does not`) fail on unmodified `main` fe3fdac56 on the laptop, so they predate this change |
 | `bash bin/h2puni-gate.test.sh`                                                                                                                                        | exit 0, `all cases passed`                                                                                                                                                                                                                                                            |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)                                                                    | 54 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                                                               | 58 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                                                                         | all pass, 0 fail                                                                                                                                                                                                                                                                      |
 | `bash -n bin/h2puni-gate-steps.sh`                                                                                                                                    | exit 0                                                                                                                                                                                                                                                                                |
 | `bunx nx run tool-devsync:test --skip-nx-cache` (`AGENTS.md` gained a relative link)                                                                                  | exit 0; 1106 tests across 54 files                                                                                                                                                                                                                                                    |
 | `bunx prettier --check` on every changed Markdown and TypeScript file                                                                                                 | all files use Prettier code style (Prettier has no parser for the `.sh` file)                                                                                                                                                                                                         |
@@ -4003,6 +4021,9 @@ workspace line, the `-p tool-remote-scripts` line and the Twilight line) now run
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                       | 36 pass, 0 fail                                                               |
 | `bash bin/h2puni-gate.test.sh`                                                                                 | exit 0, `all cases passed`                                                    |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)             | 54 pass, 0 fail                                                               |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)        | 58 pass, 0 fail                                                               |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                  | all pass, 0 fail                                                              |
 | `bash -n bin/h2puni-gate-steps.sh`                                                                             | exit 0                                                                        |
 | `bunx prettier --check` on every changed Markdown and TypeScript file                                          | all files use Prettier code style (Prettier has no parser for the `.sh` file) |
 | `bunx openspec validate --all --json`                                                                          | exit 0; 344 items, 344 passed, 0 failed                                       |
@@ -4118,7 +4139,14 @@ The `gate_host` role now installs `docker-buildx={{ puni_gate_docker_buildx_vers
 `validate`), and validate runs `docker buildx version` as `puni1` through its `~/.bashrc`.
 `solver-image-smoke.sh`, inside a Dash job (`DASH_JOB_ID` set) and when it builds (no
 `--image=`), refuses with exit 1 before any other Docker call when `docker buildx version`
-fails. Outside a job its behaviour is unchanged. `tools/tool-dagger/src/main.test.ts` now clears
+fails, and exports `DOCKER_BUILDKIT=1` so an inherited `DOCKER_BUILDKIT=0` cannot restore the
+legacy builder. Outside a job its behaviour is unchanged. Because the smoke is the gate's last
+step, `bin/h2puni-gate.sh` runs the same check on an enrolled host before it queues a gate or a
+calibration and refuses 70, the code it and `heavy-lock-lib.sh` use for other missing host
+prerequisites. `tools/tool-dagger/src/heavy-lock.test.ts`'s lock-library mock now also defines
+`read_host_pool_enrollment` (answering `unenrolled`), which the launcher calls before
+`run_heavy_job`. The three role tasks sit after the Docker group read: the package depends on
+`docker.io`, which the role never installs. `tools/tool-dagger/src/main.test.ts` now clears
 `DASH_JOB_ID` for its smoke invocation, because a gate runs its tests inside a Dash job and the
 guard would reach that test's fake Docker first. The gate's `provenance.basis` in
 `infra/jobs/catalogue.json` records the BuildKit requirement.
@@ -4126,32 +4154,44 @@ guard would reach that test's fake Docker first. The gate's `provenance.basis` i
 | Command                                                                                                        | Result                                                                  |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `bun test --preload ../test/scratch/preload.ts --timeout=30000 src/ansible.test.ts` (from `tools/tool-fleet`)  | 38 pass, 0 fail                                                         |
-| `bun test scripts/solver-image-smoke.test.ts` (from `apps/wbs/be-01`)                                          | 95 pass, 0 fail                                                         |
+| `bun test scripts/solver-image-smoke.test.ts` (from `apps/wbs/be-01`)                                          | 96 pass, 0 fail                                                         |
+| `bun test … src/ops/launchers.test.ts` (Dash CLI, the project test command's preloads)                         | outer 1 pass; inside its namespace 41 pass, 0 fail                      |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | all cases passed                                                        |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)             | 54 pass, 0 fail                                                         |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)        | 58 pass, 0 fail                                                         |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                  | all pass, 0 fail                                                        |
 | `DASH_JOB_ID=x bun test src/main.test.ts` (from `tools/tool-dagger`)                                           | 45 pass, 0 fail                                                         |
 | `bun test src/ops/gate-host-pool.test.ts` (from the Dash CLI directory)                                        | 13 pass, 0 fail                                                         |
-| `bash -n` and `shellcheck -s bash` on `solver-image-smoke.sh`                                                  | both exit 0                                                             |
-| `bunx eslint` on the three changed test files                                                                  | exit 0 (only Nx's no-cached-ProjectGraph warning)                       |
-| `bunx tsc --build --force` for `tool-fleet`, `tool-dagger` and `wbs-be-01`                                     | exit 0 each                                                             |
+| `bash -n` and `shellcheck -s bash` on `solver-image-smoke.sh` and `bin/h2puni-gate.sh`                         | all exit 0                                                              |
+| `bunx eslint` on the four changed test files                                                                   | exit 0 (only Nx's no-cached-ProjectGraph warning)                       |
+| `bunx tsc --build --force` for `tool-fleet`, `tool-dagger`, `wbs-be-01` and `twilight-dash`                    | exit 0 each                                                             |
 | `bunx prettier --check` on the changed files                                                                   | all files use Prettier code style                                       |
 | `bunx openspec validate --all --json`                                                                          | exit 0; 344 items, 344 passed, 0 failed                                 |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A` | exit 0 (review debt listed only for two unrelated pre-existing indexes) |
 | `ansible-playbook --syntax-check playbooks/gate-host.yml`                                                      | not run: Ansible is not installed on the laptop                         |
 | fleet apply of `gate-host.yml` (twice, second `changed=0`) and a `gate` calibration                            | not run: no host touched; follows the merge (S21-A2)                    |
 
-| Injected fault                                                                                          | Observed                                                                                                                         |
-| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| the role before task 6.21 (new tests added first)                                                       | 4 fail: no `puni_gate_docker_buildx_version` default, and `Required gate BuildKit probe absent` for each of the three probe runs |
-| the validate probe with its status masked (`docker buildx version; true`)                               | `buildx-missing` and `docker-missing` probe runs failed (exit 0 where non-zero was expected); `healthy` passed                   |
-| the smoke without its guard, fake `docker buildx` answering "unknown command" exit 1, `DASH_JOB_ID` set | `refuses the legacy builder inside a Dash job before any build` failed: exit 0, the build ran                                    |
-| the same fake Docker without `DASH_JOB_ID`, guard in place                                              | `builds without BuildKit outside a Dash job` passed: the build ran and `buildx version` was never called                         |
-| `tools/tool-dagger/src/main.test.ts` unchanged, run with `DASH_JOB_ID=x` inherited, guard in place      | `resolves the solver image smoke repository root after the app move` failed (exit 1 where its fake Docker's 86 was expected)     |
+| Injected fault                                                                                                  | Observed                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| the role before task 6.21 (new tests added first)                                                               | 4 fail: no `puni_gate_docker_buildx_version` default, and `Required gate BuildKit probe absent` for each of the three probe runs |
+| the validate probe with its status masked (`docker buildx version; true`)                                       | `buildx-missing` and `docker-missing` probe runs failed (exit 0 where non-zero was expected); `healthy` passed                   |
+| the smoke without its guard, fake `docker buildx` answering "unknown command" exit 1, `DASH_JOB_ID` set         | `refuses the legacy builder inside a Dash job before any build` failed: exit 0, the build ran                                    |
+| the same fake Docker without `DASH_JOB_ID`, guard in place                                                      | `builds without BuildKit outside a Dash job` passed: the build ran and `buildx version` was never called                         |
+| `tools/tool-dagger/src/main.test.ts` unchanged, run with `DASH_JOB_ID=x` inherited, guard in place              | `resolves the solver image smoke repository root after the app move` failed (exit 1 where its fake Docker's 86 was expected)     |
+| `bin/h2puni-gate.sh` with both `require_buildkit_when_enrolled` calls removed, fake `docker buildx` exiting 1   | `refuses an enrolled gate without BuildKit before admission` and `… calibration …` failed: `Expected: 70 Received: 0`            |
+| the smoke without `export DOCKER_BUILDKIT=1`, run in a job with `DOCKER_BUILDKIT=0` inherited                   | `forces BuildKit for its builds inside a Dash job` failed: both builds saw `0`                                                   |
+| the role's previous task order (the buildx tasks above "Read the Docker group")                                 | the docker-buildx test failed: `Expected: > 5 Received: 2`                                                                       |
+| the launcher preflight with `heavy-lock.test.ts`'s lock-library mock unchanged (no `read_host_pool_enrollment`) | the three `keeps gate queue budget … in the lock shell only` cases failed with exit 127; the mock now answers `unenrolled`       |
 
 - **S21-A1** The Ubuntu package version pin 0.30.1-0ubuntu1 holds on both hosts until the fleet
   apply says otherwise; if the 26.04 archive has moved on, the role's version assertion fails
   and the pin follows.
 - **S21-A2** A fleet apply of the gate-host playbook is needed on h2puni and h4claw before the
-  next calibration; until then the smoke refuses inside every Dash gate job, so gates launched
-  through the pool fail at the smoke instead of recording unattributed containers.
+  next calibration. The smoke is the gate's last step (`bin/h2puni-gate-steps.sh`; h4claw's run
+  took 5 h 19 min to reach it), so `bin/h2puni-gate.sh` refuses 70 on an enrolled host without
+  `docker buildx` before queueing; still, no pool gate may be launched between the merge and the
+  apply. The operator sequence is merge, apply `playbooks/gate-host.yml` on both hosts, then the
+  next gate.
 - **S21-A3** The host-service containers (h2puni's hourly goaccess cron, h4claw's daily
   registry backup with `keinos/sqlite3`) are a second, smaller unlabelled class, left for a
   later task.
