@@ -453,7 +453,7 @@
       `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`, `job-run.test.ts`,
       Burokrat `job-catalogue.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).
 - [x] 6.24 a job's leftover scope processes are ended before tmp settlement
-      (A-SCOPE-LEFTOVER-1; PR #PRNUM): every gate calibration left `node serve.cjs` test servers
+      (A-SCOPE-LEFTOVER-1; PR #954): every gate calibration left `node serve.cjs` test servers
       in `dash-job-<id>.scope` after an exit 0, holding `TMPDIR`, so tmp stayed blocked until an
       operator SIGKILLed the scope. Once the leader has exited and its session has no live
       member, `endLeftovers` (`ops/job-run.ts`, absorbing the bound's `killLeftovers`) reads the
