@@ -52,9 +52,10 @@ function withHeadroom(p95: number, floor: number): number {
  * every record (slice 4 assumption S4-A5). Each p95 is multiplied by 1.25 and rounded up. Every
  * record left out is named with why. A record whose tmp samples saw an unreadable subtree is a
  * tmp lower bound only (task 6.23): it feeds memory, CPU and duration, and is left out of tmp
- * disk, named. When fewer than three records measured tmp disk but at least three did with the
- * lower bounds, tmp disk is proposed from the p95 of them all as a lower bound only, never below
- * the entry's current `tmpDiskGib`, and the line says so (S23-A4).
+ * disk, named `excluded`. When fewer than three records measured tmp disk but at least three
+ * did with the lower bounds, tmp disk is proposed from the p95 of them all, those records named `used as a
+ * lower bound`, never below the entry's current `tmpDiskGib`; the line says how many were
+ * measured and the provenance carries `tmpDiskGibLowerBound: true` (S23-A4).
  * Refused, naming the count, when any dimension has fewer than three records; duration is
  * reported and counted but the catalogue has no field for it.
  * @throws Error when the catalogue does not name `typeId` (the caller refuses first).
@@ -81,7 +82,7 @@ export function proposeEnvelope(
   /** Records left out of some dimension: not cited in the provenance (S4-A16). */
   const partial = new Set<string>();
   /** Complete records whose tmp figure is a lower bound only (task 6.23). */
-  const tmpLowerBounds: { id: string; value: number }[] = [];
+  const tmpLowerBounds: { id: string; value: number; kind: string; reason: string }[] = [];
   for (const record of records) {
     if (record.type !== typeId) continue;
     const kind = record.calibration === true ? 'calibration' : 'run';
@@ -121,9 +122,9 @@ export function proposeEnvelope(
       // Proof: taking the figure regardless made `three records whose only defect is
       // unreadable tmp subtrees propose memory, cpu and duration; tmp is a lower bound only`
       // (propose.test.ts) print `tmpDiskGib: 4 (p95 3 GiB over 3 records` (2026-11-19, task 6.23).
+      // Named once the fallback is decided below: excluded, or used as a lower bound.
       if (standing.kind === 'lower-bound' && value !== null) {
-        lines.push(`excluded ${kind} ${record.jobId} from ${dimension}: ${standing.reason}`);
-        tmpLowerBounds.push({ id: record.jobId, value });
+        tmpLowerBounds.push({ id: record.jobId, value, kind, reason: standing.reason });
         return;
       }
       if (value === null) {
@@ -164,7 +165,16 @@ export function proposeEnvelope(
   const tmpLowerBoundOnly =
     sources.tmpDiskGib.length < HEURISTICS.minimumRecords &&
     sources.tmpDiskGib.length + tmpLowerBounds.length >= HEURISTICS.minimumRecords;
-  if (tmpLowerBoundOnly) sources.tmpDiskGib.push(...tmpLowerBounds);
+  const tmpMeasured = sources.tmpDiskGib.length;
+  // Proof: printing `excluded` whatever the fallback made `three records whose only defect is
+  // unreadable tmp subtrees …` (propose.test.ts) find `excluded calibration calibration-1 from
+  // tmpDiskGib` for a record it used (2026-11-19, review S3-2).
+  for (const lowerBound of tmpLowerBounds)
+    lines.push(
+      `${tmpLowerBoundOnly ? 'used as a lower bound' : 'excluded'} ${lowerBound.kind} ${lowerBound.id} ${tmpLowerBoundOnly ? 'in' : 'from'} tmpDiskGib: ${lowerBound.reason}`,
+    );
+  if (tmpLowerBoundOnly)
+    sources.tmpDiskGib.push(...tmpLowerBounds.map(({ id, value }) => ({ id, value })));
   // Proof: never citing them made the same lower-bound test (propose.test.ts) refuse the patch
   // in validation, `provenance.recordCount must be at least 1 (was 0)`; citing them beside three
   // measured records made `a record with unreadable tmp subtrees beside three measured ones is
@@ -215,9 +225,15 @@ export function proposeEnvelope(
       dimension === 'durationSeconds'
         ? 'reported only, the catalogue has no duration field'
         : String(envelope[dimension]);
+    // Proof: one wording for every fallback made `two measured records and one lower bound
+    // make a mixed lower bound` (propose.test.ts) read `lower bound only` (2026-11-19, S3-3).
+    const pool =
+      tmpMeasured === 0
+        ? 'lower bound only'
+        : `lower bound from ${String(tmpMeasured)} measured + ${String(tmpLowerBounds.length)} lower bounds`;
     const bound =
       dimension === 'tmpDiskGib' && tmpLowerBoundOnly
-        ? `lower bound only, at least the entry's ${String(jobType.envelope.tmpDiskGib)}: `
+        ? `${pool}, at least the entry's ${String(jobType.envelope.tmpDiskGib)}, provenance tmpDiskGibLowerBound: `
         : '';
     lines.push(
       `${dimension}: ${proposed} (${bound}p95 ${figure(p95[dimension])} ${UNIT[dimension]} over ${String(used.length)} ${SOURCE[dimension]}: ${used.map((source) => source.id).join(', ')})`,
@@ -247,6 +263,11 @@ export function proposeEnvelope(
         tmpDiskGib: stated(p95.tmpDiskGib),
       },
       recordIds,
+      // Any lower bound in the pool makes the tmp p95 one; the durable entry says so (S23-A4).
+      // Proof: omitting it made the lower-bound and mixed tests (propose.test.ts) find no marker,
+      // and `a lower-bound tmp entry is not waste-checkable` (audit.test.ts) name a tmpDiskGib
+      // waste for the entry it proposes (2026-11-19, review S2-1).
+      ...(tmpLowerBoundOnly ? { tmpDiskGibLowerBound: true as const } : {}),
     },
   };
   // The patch must be one the catalogue's own contract accepts.

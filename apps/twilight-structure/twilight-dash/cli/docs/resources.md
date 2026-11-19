@@ -653,12 +653,16 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   - memory from every uncapped, unthrottled record (`memory.events high` 0);
   - CPU, the peak rate of `usage_usec` over a ten-second window, from calibration records alone;
   - tmp disk from every complete record. A record whose samples listed unreadable tmp
-    subtrees is complete for memory, CPU and duration, but its tmp figure is a lower bound:
-    the line naming it reads `excluded … from tmpDiskGib: tmp lower bound only`, then how
-    many samples saw unreadable subtrees and the first path, and it is left out of tmp disk.
-    When fewer than three records measured tmp disk but at least three did with those lower
-    bounds, tmp disk is taken from them all and its line says `lower bound only, at least the entry's <n>`: the proposal never lowers the
-    entry's `tmpDiskGib` from a lower bound, and the records are cited (task 6.23, S23-A4);
+    subtrees is complete for memory, CPU and duration, but its tmp figure is a lower bound.
+    With three or more records that measured tmp disk, it is left out of tmp disk, its line
+    reading `excluded … from tmpDiskGib: tmp lower bound only`, then how many samples saw
+    unreadable subtrees and the first path. With fewer, but at least three counting the lower
+    bounds, tmp disk is taken from them all: each such record's line reads
+    `used as a lower bound … in tmpDiskGib`, and it is cited. The tmp line then says
+    `lower bound only` or `lower bound from 2 measured + 1 lower bounds`, and that the
+    proposal never lowers the entry's `tmpDiskGib`. The provenance carries
+    `tmpDiskGibLowerBound: true`, so the catalogue entry itself says its tmp p95 is a lower
+    bound (task 6.23, S23-A4);
   - duration from calibration records alone, reported only, because the catalogue has no
     duration field.
 
@@ -702,7 +706,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
     operator declared, not drift, and are not added to the job's envelope.
   - A run whose samples listed unreadable tmp subtrees prints one
     `note: tmp lower bound only in run <id>: <n> samples saw unreadable subtrees: <paths>` line.
-    Its tmp peak still proves an `overrun`, but never counts toward `waste` (task 6.23).
+    Its tmp peak still proves an `overrun`, but never counts toward `waste` (task 6.23). An
+    entry whose provenance carries `tmpDiskGibLowerBound: true` is never judged for tmp waste,
+    and the audit prints `note:` with the id and
+    `tmp entry is a lower bound; waste cannot fire for tmpDiskGib`.
   - Runs of a type the catalogue does not name print a `note: not judged` line. Runs without an
     outcome print a `note: not judged beyond throttling` line, because only `throttled` judges a
     run still in progress.

@@ -4326,7 +4326,8 @@ is unreadable tmp subtrees complete for memory, CPU and duration and `lower-boun
 `incompleteness` is unchanged and answers null for it. `ops job propose` names such a record
 `excluded … from tmpDiskGib: tmp lower bound only: <n> samples saw unreadable subtrees (path)`,
 falls back to the lower bounds for tmp disk only when fewer than three records measured it, then
-never below the entry's `tmpDiskGib`, and cites the records; `ops job audit` prints one note per
+names them `used as a lower bound`, never goes below the entry's `tmpDiskGib`, cites the
+records and marks the provenance `tmpDiskGibLowerBound: true`; `ops job audit` prints one note per
 such run listing the paths and keeps its tmp figure out of `waste`, while a lower bound above
 the envelope is still an `overrun`.
 
@@ -4380,9 +4381,36 @@ bounds, which with the current test suite would refuse every gate proposal forev
   are not rewritten, so e15a97eb stays excluded and a new calibration with this change is
   needed.
 - **S23-A4** When tmp disk falls back to lower bounds the proposal never lowers the entry's
-  `tmpDiskGib`, only raises it to ⌈1.25 × the lower-bound p95⌉. The Burokrat `JobType`
-  provenance has no lower-bound marker, so its `p95.tmpDiskGib` carries the lower-bound p95;
-  the printed line, not the provenance, says it is a lower bound.
+  `tmpDiskGib`, only raises it to ⌈1.25 × the lower-bound p95⌉, and any lower bound in the pool
+  (all of it, or mixed with measured records) marks the provenance
+  `tmpDiskGibLowerBound: true`, a new optional field of the Burokrat `CalibratedProvenance`
+  (`true` only, absent otherwise). The entry is the durable artifact and its `tmpDiskGib`
+  becomes a pool disk reservation, so an unmarked lower bound could over-commit disk in
+  concurrent mode unnoticed. The blind spot the #953 review named stays: while every gate
+  carries the mode-0 fixture, `waste` can never fire for gate tmp, so an inflated tmp entry is
+  not flagged. The marker makes that visible: `ops job audit` prints, for a marked entry, that
+  its tmp entry is a lower bound and waste cannot fire for tmpDiskGib.
 - **S23-A5** The sampler tolerates EACCES and EPERM below the tmp directory and ENOENT for
   entries that vanish; any other error (EIO, ELOOP, ENOTDIR from a replaced entry) is still a
   telemetry failure, as before.
+- **S23-A6** `gate-launcher-refresh` moves only an idle launcher checkout, so a calibration
+  series already running keeps the old sampler until it ends; restart the series' runner after
+  the refresh for its next runs to record unreadable subtrees as lower bounds.
+
+Review fixes after the Fable review of #953 (S2-1, S3-2, S3-3), same laptop and environment:
+
+| Command                                                                                                             | Result                                |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `scope`, `measures`, `propose`, `audit`, `run-records` test files                                                   | 48 pass, 0 fail                       |
+| Burokrat `contracts/job-catalogue.test.ts` and `rules/job-catalogue.test.ts` with the project's preload             | 28 pass, 0 fail                       |
+| `calibrate.test.ts` with the project's preloads                                                                     | inside: 18 pass, 1 skip (no user bus) |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache` and `bunx nx run twilight-burokrat:typecheck --skip-nx-cache` | both exit 0                           |
+
+| Injected fault                                                      | Observed                                                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `propose` omitting `tmpDiskGibLowerBound` in the fallback           | the lower-bound and mixed propose tests found no marker; `a lower-bound tmp entry is not waste-checkable` (audit.test.ts) named a waste |
+| the audit's tmp-waste skip for a marked entry removed               | `a lower-bound tmp entry is not waste-checkable` failed: a `tmpDiskGib` waste                                                           |
+| the audit's marked-entry note removed                               | the same test failed: no note                                                                                                           |
+| the contract typing the marker `boolean`                            | `marks a calibrated tmp p95 as a lower bound with true alone` (job-catalogue.test.ts) accepted `false`                                  |
+| `propose` printing `excluded` for a record it used as a lower bound | the three-record lower-bound test failed                                                                                                |
+| one `lower bound only` wording for a mixed pool                     | `two measured records and one lower bound make a mixed lower bound` failed                                                              |

@@ -446,7 +446,9 @@
       absent or unreadable is still a telemetry failure. `dimensionStandings` (`measures.ts`)
       makes such a record complete for memory, CPU and duration and a tmp lower bound;
       `ops job propose` names it `tmp lower bound only` and falls back to lower bounds for
-      tmp only below three measured records, never lowering the entry; `ops job audit` notes the paths and
-      keeps them out of `waste`. Old samples load with no paths. Tests: `scope.test.ts`,
-      `measures.test.ts`, `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`,
-      `job-run.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).
+      tmp only below three measured records, never lowering the entry and marking the
+      provenance `tmpDiskGibLowerBound: true` (Burokrat `JobType`); `ops job audit` notes the
+      paths, keeps them out of `waste` and never judges tmp waste for a marked entry. Old
+      samples load with no paths. Tests: `scope.test.ts`, `measures.test.ts`,
+      `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`, `job-run.test.ts`,
+      Burokrat `job-catalogue.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).

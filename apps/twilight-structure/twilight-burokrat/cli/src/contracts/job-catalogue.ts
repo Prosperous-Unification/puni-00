@@ -82,6 +82,14 @@ const CalibratedProvenance = type({
     tmpDiskGib: type('number>=0'),
   }).onUndeclaredKey('reject'),
   recordIds: type('string>=1').array(),
+  /**
+   * Present, and only `true`, when `p95.tmpDiskGib` is a lower bound: some record it was taken
+   * from could not read part of its tmp directory (Dash task 6.23). Admission still reserves the
+   * envelope's `tmpDiskGib`, and `ops job audit` cannot judge tmp waste against it.
+   */
+  // Proof: typing it `boolean` made `marks a calibrated tmp p95 as a lower bound with true
+  // alone` (job-catalogue.test.ts) accept `false` (2026-11-19, review S2-1).
+  'tmpDiskGibLowerBound?': 'true',
 })
   .onUndeclaredKey('reject')
   .narrow((provenance, context) =>

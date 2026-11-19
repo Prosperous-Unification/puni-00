@@ -484,8 +484,11 @@ itself absent or unreadable SHALL be. A record whose only defect is unreadable t
 SHALL be complete for memory, CPU and duration, and a lower bound for tmp disk: `ops job
 propose` SHALL name it `tmp lower bound only` and leave it out of tmp disk, taking tmp disk from
 lower bounds only when fewer than three records measured it, then never below the entry's
-current `tmpDiskGib`. `ops job audit` SHALL print one note per such run listing the paths, and
-SHALL NOT count its tmp figure toward `waste`.
+current `tmpDiskGib`, naming those records `used as a lower bound` and not `excluded`, saying
+how many tmp records were measured, and marking the proposed provenance
+`tmpDiskGibLowerBound: true`. `ops job audit` SHALL print one note per such run listing the
+paths, SHALL NOT count its tmp figure toward `waste`, and SHALL NOT judge tmp waste for an entry
+whose provenance carries that marker, printing a note that says so.
 
 #### Scenario: A mode-0 test fixture under TMPDIR
 
@@ -498,7 +501,15 @@ SHALL NOT count its tmp figure toward `waste`.
 
 - **WHEN** `ops job propose --type gate` reads three such calibration records
 - **THEN** it proposes memory, CPU and duration from them, prints `tmp lower bound only` for
-  each, and proposes tmp disk as a lower bound only, at least the entry's current figure
+  each, and proposes tmp disk as a lower bound only, at least the entry's current figure, with
+  `tmpDiskGibLowerBound: true` in the provenance
+
+#### Scenario: An accepted lower-bound tmp entry
+
+- **WHEN** the catalogue's entry carries `tmpDiskGibLowerBound: true` and ten complete runs
+  measured tmp disk below half its `tmpDiskGib`
+- **THEN** `ops job audit` names no tmp waste and prints a note that the tmp entry is a lower
+  bound and waste cannot fire for tmpDiskGib
 
 #### Scenario: The tmp directory itself unreadable
 

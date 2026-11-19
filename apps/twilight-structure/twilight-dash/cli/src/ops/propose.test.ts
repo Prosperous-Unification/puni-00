@@ -283,9 +283,9 @@ describe('ops job propose with tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)',
       ['calibration-3', 72],
     ] as const)
       expect(proposal.lines).toContain(
-        `excluded calibration ${id} from tmpDiskGib: tmp lower bound only: ${String(samples)} samples saw unreadable subtrees (${PATH})`,
+        `used as a lower bound calibration ${id} in tmpDiskGib: tmp lower bound only: ${String(samples)} samples saw unreadable subtrees (${PATH})`,
       );
-    expect(proposal.lines).not.toContainEqual(expect.stringContaining('incomplete'));
+    expect(proposal.lines).not.toContainEqual(expect.stringContaining('excluded'));
     expect(proposal.lines).toContain(
       'memoryGib: 6 (p95 4.4 GiB over 3 uncapped, unthrottled records: calibration-1, calibration-2, calibration-3)',
     );
@@ -297,7 +297,7 @@ describe('ops job propose with tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)',
     );
     // The lower bounds' 4 GiB would lower the entry's 8: it stays.
     expect(proposal.lines).toContain(
-      "tmpDiskGib: 8 (lower bound only, at least the entry's 8: p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)",
+      "tmpDiskGib: 8 (lower bound only, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)",
     );
     expect(proposal.entry.envelope).toEqual({
       cpuCores: 4,
@@ -308,7 +308,18 @@ describe('ops job propose with tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)',
     expect(proposal.entry.provenance).toMatchObject({
       recordCount: 3,
       recordIds: ['calibration-1', 'calibration-2', 'calibration-3'],
+      tmpDiskGibLowerBound: true,
     });
+  });
+
+  test('two measured records and one lower bound make a mixed lower bound', () => {
+    const runs = calibrations(4.1, 4.4, 4.3);
+    const proposal = propose('gate', [...runs.slice(0, 2), ...lowerBounds(runs.slice(2))]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      "tmpDiskGib: 8 (lower bound from 2 measured + 1 lower bounds, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)",
+    );
+    expect(proposal.entry.provenance).toMatchObject({ tmpDiskGibLowerBound: true });
   });
 
   test('a lower bound above the entry raises its tmp disk', () => {
@@ -341,8 +352,12 @@ describe('ops job propose with tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)',
     expect(proposal.lines).toContain(
       'tmpDiskGib: 4 (p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)',
     );
+    expect(proposal.lines).toContain(
+      `excluded calibration fixture-run from tmpDiskGib: tmp lower bound only: 60 samples saw unreadable subtrees (${PATH})`,
+    );
     expect(proposal.entry.provenance).toMatchObject({
       recordIds: ['calibration-1', 'calibration-2', 'calibration-3'],
     });
+    expect(proposal.entry.provenance).not.toHaveProperty('tmpDiskGibLowerBound');
   });
 });

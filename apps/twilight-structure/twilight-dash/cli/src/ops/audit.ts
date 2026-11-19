@@ -103,7 +103,8 @@ function hostServicesOf(record: RunRecord): string | null {
  * A run beside which declared host services started containers gets a note listing them with
  * their declared bounds (task 6.22); they are attributed, not drift. A run whose tmp samples saw
  * unreadable subtrees gets one note listing those paths (task 6.23): its tmp peak is a lower
- * bound, which still proves an overrun but never waste.
+ * bound, which still proves an overrun but never waste. An entry whose calibrated provenance
+ * marks `tmpDiskGibLowerBound` is never judged for tmp waste, and a note says so.
  */
 export function auditDrift(
   records: readonly RunRecord[],
@@ -197,6 +198,16 @@ export function auditDrift(
         type: head.id,
         line: `${head.id} estimate_expired: provenance estimated until ${head.provenance.until}, now ${new Date(now).toISOString()} (${location})`,
       });
+    // A lower-bound tmp entry may be above the job's real need with nothing to show it.
+    // Proof: dropping the skip below made `a lower-bound tmp entry is not waste-checkable`
+    // (audit.test.ts) name a tmpDiskGib waste; dropping the note made it find no note
+    // (2026-11-19, review S2-1).
+    const tmpUnjudged =
+      head.provenance.kind === 'calibrated' && head.provenance.tmpDiskGibLowerBound === true;
+    if (tmpUnjudged)
+      notes.push(
+        `${head.id} tmp entry is a lower bound; waste cannot fire for tmpDiskGib (${location})`,
+      );
     const digest = descriptorDigestOf(head);
     const runs = records.filter(
       (record) =>
@@ -206,6 +217,7 @@ export function auditDrift(
     );
     if (runs.length < HEURISTICS.wasteRuns) continue;
     for (const dimension of ENVELOPE_DIMENSIONS) {
+      if (dimension === 'tmpDiskGib' && tmpUnjudged) continue;
       // A zero tmp envelope needs no skip: no p95 is below half of zero.
       const declared = head.envelope[dimension];
       const values = runs.flatMap((record) => {

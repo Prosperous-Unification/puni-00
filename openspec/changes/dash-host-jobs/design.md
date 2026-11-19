@@ -167,11 +167,14 @@ an entry that vanishes, counts the rest and lists the skipped paths in the sampl
 unreadable stays a telemetry failure. Completeness is per dimension: such a record is complete
 for memory, CPU and duration and a lower bound for tmp disk, which `propose` takes only when
 too few records measured it, never lowering the entry, and which `audit` notes and never
-counts as waste. Rejected: making the test reopen the directory in time, racy by construction
-against a ten-second sampler; running the sampler as root, out because the launcher runs as
-the gate user;
-dropping tmp measurement, which loses the dimension; and moving the fixture outside `TMPDIR`,
-left to Dany (S23-A2) because it changes a WBS test for a Dash measurement.
+counts as waste. A proposal that took any lower bound marks its provenance
+`tmpDiskGibLowerBound: true` in the Burokrat `JobType` contract, because the entry's
+`tmpDiskGib` becomes the pool's disk reservation; `audit` never judges such an entry for tmp
+waste and says so in a note. Rejected: making the test reopen the directory in time, racy by
+construction against a ten-second sampler; running the sampler as root, out because the
+launcher runs as the gate user; dropping tmp measurement, which loses the dimension; and
+moving the fixture outside `TMPDIR`, left to Dany (S23-A2) because it changes a WBS test for a
+Dash measurement.
 
 **J8. What cannot be measured is refused before the payload, never run unmeasured.** No
 `systemd-run`, no user manager, scope counters unreadable at the gate: exit 70 before the
