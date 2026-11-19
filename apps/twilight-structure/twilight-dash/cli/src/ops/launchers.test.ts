@@ -436,6 +436,22 @@ try {
     launchedSha = fixtureGit(checkout, 'rev-parse', 'HEAD');
     units = [gateTree(join(base, 'gate-tree-1')), gateTree(join(base, 'gate-tree-2'))];
     tools = fakeSystemdRun(join(base, 'tools'), 'exec');
+    // The gate launcher's BuildKit preflight on an enrolled host (task 6.21);
+    // `LAUNCHER_TEST_BUILDX=missing` answers as Ubuntu's docker.io does without the plugin.
+    writeFileSync(
+      join(tools, 'docker'),
+      [
+        '#!/usr/bin/env bash',
+        'if [ "$1 ${2:-}" = "buildx version" ] && [ "${LAUNCHER_TEST_BUILDX:-present}" = present ]; then',
+        "  echo 'github.com/docker/buildx 0.30.1'",
+        '  exit 0',
+        'fi',
+        'echo "docker: unknown command: docker $1" >&2',
+        'exit 1',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
     // The test-queued payload's two commands: `bun install` is logged and every other `bun` is
     // the real one (Dash itself), and `bunx` is a barrier stage recording the tree it ran in.
     testStubs = join(base, 'test-stubs');
@@ -824,6 +840,25 @@ try {
         renameSync(savedRoot, ROOT);
         renameSync(savedConfig, CONFIG);
       }
+    });
+
+    // The solver smoke, the gate's last step, refuses the legacy builder inside a Dash job.
+    test.each([
+      ['gate', ['bash', 'bin/h2puni-gate.sh', 'HEAD']],
+      ['calibration', [...calibrate, 'HEAD']],
+    ] as const)('refuses an enrolled %s without BuildKit before admission', async (name, argv) => {
+      const barrier = barrierDirectory(`buildkit-missing-${name}`);
+      const dispatch = join(barrier, 'dash.jsonl');
+      const invocation = await launch([...argv], barrier, 1, {
+        HEAVY_LOCK_WAIT_SECONDS: '0',
+        LAUNCHER_TEST_BUILDX: 'missing',
+        LAUNCHER_TEST_DASH_ARGV: dispatch,
+        LAUNCHER_TEST_DASH_LOG: dispatch,
+      });
+      expect(invocation.exitCode, invocation.stderr).toBe(70);
+      expect(invocation.stderr).toContain('docker buildx version failed on this enrolled host');
+      expect(invocation.stderr).toContain('install docker-buildx');
+      expect(readdirSync(barrier)).toEqual([]);
     });
 
     function externalVerifier(name: string): { root: string; verifier: string; modules: string } {

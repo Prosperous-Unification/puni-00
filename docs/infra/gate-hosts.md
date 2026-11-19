@@ -41,6 +41,22 @@ validation and the solver smoke); the whole-gate figure that replaces the intro'
 minutes" comes from the next `gate` calibration. Restoring `--parallel=2` on the three lines of
 `bin/h2puni-gate-steps.sh` and in `toolchain-pins.test.ts` reverts it.
 
+Gate hosts need BuildKit, which Ubuntu ships as the `docker-buildx` package (`dash-host-jobs`
+task 6.21). Ubuntu's `docker.io` comes without the buildx plugin, and then the solver smoke's
+`docker build` falls back to the deprecated legacy builder, which runs every Dockerfile step in
+an intermediate container ("Running in …", "Removed intermediate container …"). No `--label`
+reaches those containers, so `ops job propose` excluded every gate record as "container
+attribution incomplete" (J16). BuildKit runs the steps inside the daemon instead. Verify it as
+`puni1` with `docker buildx version`, which prints the plugin's version and exits 0. The
+`gate_host` role installs the pinned package and asserts it; inside a Dash job the smoke itself
+refuses to build when `docker buildx version` fails, and `bin/h2puni-gate.sh` refuses (exit 70)
+an enrolled host's gate or calibration before queueing it, since the smoke is the gate's last
+step. Installing the plugin also switches every other `docker build` on the host to BuildKit,
+such as the `website-dev-build` lane's builds on h2puni.
+
+Between merging task 6.21 and the fleet apply of `playbooks/gate-host.yml`, launch no pool gate:
+the operator sequence is merge, apply the playbook on h2puni and h4claw, then the next gate.
+
 ## What the role sets up
 
 `infra/ansible/roles/gate_host` makes the host match h2puni's gate environment:
@@ -100,7 +116,9 @@ minutes" comes from the next `gate` calibration. Restoring `--parallel=2` on the
   `shellcheck`, `unzip`, `bubblewrap` and `busybox` from Ubuntu apt. The sandbox tools are
   required by existing gate tests; installing them does not grant namespace capability. A
   nested heavy job bounds its admission query with `timeout`, from `coreutils`, which Ubuntu
-  marks Essential, so the role installs nothing for it. Docker must already be running. The role does not change Docker,
+  marks Essential, so the role installs nothing for it. It also installs `docker-buildx` at
+  `puni_gate_docker_buildx_version` and asserts that version with `dpkg-query`, so the solver
+  smoke builds under BuildKit. Docker must already be running. The role does not change Docker,
   k3s, the firewall or the network.
 
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
@@ -118,7 +136,7 @@ The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
   on any other host, neither the configuration nor a ledger exists;
 - once a ledger exists, `ops pool inspect` and `ops job audit` pass (an envelope drift fails the
   play); before that, a skip line names the missing ledger.
-- `docker ps` works;
+- `docker ps` works, and so does `docker buildx version`;
 - `python3` is the venv's and imports the locked OR-Tools;
 - the production lock resolver names `~/.cache/wbs-heavy-work.lock` in a writable directory.
 
@@ -164,6 +182,9 @@ To rerun only the probes, pass `--tags validate`.
    bug wrote h2puni's five keys as one line and locked out every caller but the first until the
    backup was restored, is closed by construction. The count is not a login test (sshd may refuse
    a key that parses), which is why the second-session login stays.
+4. Before the host's first gate, confirm BuildKit as `puni1`: `docker buildx version` exits 0.
+   The role installs `docker-buildx`; a host prepared before task 6.21 needs this playbook
+   applied again, or the solver smoke refuses inside its first Dash job.
 
 For h4claw, the controller is the one the 2026-09-27 enrollment used. It runs on the operator
 laptop and reaches `10.1.0.4` as root through a jump via h2puni. Its inputs are in

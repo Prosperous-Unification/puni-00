@@ -416,3 +416,16 @@
       the cgroup only when that is unavailable there; production code unchanged. Negative: the
       unmodified file under a fake `dash-job-<uuid>.scope` on the laptop failed both tests as on
       h4claw (verify.md, 2026-11-18).
+- [x] 6.21 gate hosts install docker-buildx; the solver smoke refuses the legacy builder inside a
+      job (PR #951): without the buildx plugin, Ubuntu's `docker.io` 29.1.3 runs the smoke's
+      `docker build` on the legacy builder, whose per-step intermediate containers carry no
+      `puni.job` label, so `ops job propose` excluded every gate record as "container attribution
+      incomplete" (h4claw job ef8e1ce6). The `gate_host` role installs `docker-buildx` pinned at
+      `puni_gate_docker_buildx_version`, asserts it with `dpkg-query` and validates
+      `docker buildx version` as `puni1`; inside a Dash job `solver-image-smoke.sh` refuses to
+      build when `docker buildx version` fails and forces `DOCKER_BUILDKIT=1`, and, since the
+      smoke is the gate's last step, `bin/h2puni-gate.sh` refuses 70 on an enrolled host before
+      queueing. Tests: `ansible.test.ts`,
+      `solver-image-smoke.test.ts`, `launchers.test.ts`; negatives: the pre-6.21 role, the probe with its status
+      masked, the smoke without its guard or export, and the launcher without its preflight (verify.md, 2026-11-19). A fleet apply on h2puni and
+      h4claw follows the merge (S21-A2).
