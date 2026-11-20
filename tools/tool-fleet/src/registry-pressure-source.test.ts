@@ -1,10 +1,15 @@
 import { createHash, randomBytes } from 'node:crypto';
+import * as events from 'node:events';
 import { constants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 
 import { expect, spyOn, test } from 'bun:test';
 
-import { openRegistryPressureSource, RegistrySourceCleanupError } from './registry-pressure-source';
+import {
+  openRegistryPressureSource,
+  type RegistryPressureSource,
+  RegistrySourceCleanupError,
+} from './registry-pressure-source';
 
 function publicKey(): string {
   const prefix = Buffer.from('0000000b7373682d6564323535313900000020', 'hex');
@@ -76,6 +81,19 @@ async function expectFailure(work: Promise<unknown>, message: string | RegExp): 
   expect(failure).toBeInstanceOf(Error);
   if (!(failure instanceof Error)) throw new Error('expected a rejection');
   expect(failure.message).toMatch(message);
+}
+
+async function closeAfterSettlement(source: RegistryPressureSource): Promise<void> {
+  const settled = performance.now() + 500;
+  for (;;) {
+    try {
+      await source.close();
+      return;
+    } catch (cause) {
+      if (performance.now() >= settled || !String(cause).includes('unresolved')) throw cause;
+      await Bun.sleep(5);
+    }
+  }
 }
 
 const timeout = { state: 'unavailable', reason: 'source-timeout', code: 'deadline' } as const;
@@ -474,16 +492,7 @@ test('unsettled preflight at the original deadline latches the actor', async () 
       wait.resolve(undefined);
       spy.mockRestore();
     }
-    const settled = performance.now() + 500;
-    for (;;) {
-      try {
-        await source.close();
-        break;
-      } catch (cause) {
-        if (performance.now() >= settled || !String(cause).includes('unresolved')) throw cause;
-        await Bun.sleep(5);
-      }
-    }
+    await closeAfterSettlement(source);
     expect(await Bun.file(pin).exists()).toBe(false);
   }));
 
@@ -779,6 +788,226 @@ test('refuses a fixed SSH executable with modeled read denied and execute allowe
       );
     } finally {
       spy.mockRestore();
+      await source.close();
+    }
+  }));
+
+test('terminal preflight timeout settles a pending directory inspection without opening its pin', () =>
+  withFixture(async ({ directory, enrollment, pin }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const originalStat = fs.lstat;
+    const originalOpen = fs.open;
+    const inspected = spyOn(fs, 'lstat').mockImplementation((async (filename: string) => {
+      if (filename === directory) {
+        entered.resolve(undefined);
+        await release.promise;
+      }
+      return originalStat(filename);
+    }) as typeof fs.lstat);
+    let pinOpens = 0;
+    const opened = spyOn(fs, 'open').mockImplementation(async (filename, flags, mode) => {
+      if (filename === pin) pinOpens += 1;
+      return originalOpen(filename, flags, mode);
+    });
+    const reading = source
+      .read(new AbortController().signal, performance.now() + 1100)
+      .catch((cause: unknown) => cause);
+    try {
+      await entered.promise;
+      const failure = await reading;
+      expect(failure).toBeInstanceOf(RegistrySourceCleanupError);
+      expect(failure).toHaveProperty('outcome', timeout);
+    } finally {
+      release.resolve(undefined);
+      await reading;
+      try {
+        await closeAfterSettlement(source);
+      } finally {
+        inspected.mockRestore();
+        opened.mockRestore();
+      }
+    }
+    // The one pin open belongs to close after the outstanding directory inspection settles.
+    expect(pinOpens).toBe(1);
+  }));
+
+for (const [operation, cancellation, isShared] of [
+  ['open', 'timeout', false],
+  ['stat', 'timeout', false],
+  ['short read', 'abort', true],
+  ['full read', 'timeout', false],
+  ['short read', 'abort before cutoff with late settlement', true],
+] as const) {
+  test('interrupted preflight closes the identity after ' + operation + ' by ' + cancellation, () =>
+    withFixture(async ({ directory, enrollment, path, key }) => {
+      const isFullRead = operation === 'full read';
+      if (isFullRead) {
+        await fs.chmod(path, 0o600);
+        const bytes = Buffer.alloc(4096, key);
+        enrollment.identity.sha256 = createHash('sha256').update(bytes).digest('hex');
+        await fs.writeFile(path, bytes);
+        await fs.chmod(path, 0o400);
+      }
+      const source = await openRegistryPressureSource(enrollment, directory);
+      const caller = new AbortController();
+      if (isShared) {
+        caller.signal.addEventListener(
+          'abort',
+          (event) => {
+            event.stopImmediatePropagation();
+          },
+          { once: true },
+        );
+      }
+      const entered = Promise.withResolvers<undefined>();
+      const release = Promise.withResolvers<undefined>();
+      const operations: string[] = [];
+      const afterPause: string[] = [];
+      let isPaused = false;
+      async function record(step: string): Promise<void> {
+        if (isPaused) afterPause.push(step);
+        operations.push(step);
+        if (step === operation && !isPaused) {
+          isPaused = true;
+          entered.resolve(undefined);
+          await release.promise;
+        }
+      }
+      const original = fs.open;
+      const opened = spyOn(fs, 'open').mockImplementation(async (name, flags, mode) => {
+        const file = await original(name, flags, mode);
+        if (name !== path) return file;
+        const stat = file.stat.bind(file);
+        file.stat = (async () => {
+          const metadata = await stat();
+          await record('stat');
+          return metadata;
+        }) as typeof file.stat;
+        const read = file.read.bind(file);
+        file.read = (async (
+          bytes: Buffer,
+          offset: number,
+          length: number,
+          position: number | null,
+        ) => {
+          const observed = await read(bytes, offset, isFullRead ? length : 1, position);
+          await record(isFullRead ? 'full read' : 'short read');
+          return observed;
+        }) as typeof file.read;
+        const close = file.close.bind(file);
+        file.close = async () => {
+          await record('close');
+          await close();
+        };
+        await record('open');
+        return file;
+      });
+      const window = cancellation === 'abort' ? 1800 : 1100;
+      const reading = source
+        .read(caller.signal, performance.now() + window)
+        .catch((cause: unknown) => cause);
+      try {
+        await entered.promise;
+        if (cancellation !== 'timeout') caller.abort('fixture arbitrary reason');
+        if (cancellation !== 'abort') await Bun.sleep(160);
+        release.resolve(undefined);
+        const reply = await reading;
+        if (cancellation === 'timeout') {
+          expect(reply).toEqual(timeout);
+        } else {
+          expect(reply).toBeInstanceOf(DOMException);
+          expect(reply).toHaveProperty('name', 'AbortError');
+        }
+        expect(operations).toContain(operation);
+        expect(afterPause).toEqual(['close']);
+      } finally {
+        release.resolve(undefined);
+        await reading;
+        opened.mockRestore();
+        await source.close();
+      }
+    }),
+  );
+}
+
+test('preflight cutoff after executable stat does not start access admission', () =>
+  withFixture(async ({ directory, enrollment }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    const originalStat = fs.stat;
+    const originalAccess = fs.access;
+    const stats = spyOn(fs, 'stat').mockImplementation((async (filename: string) => {
+      const metadata = await originalStat(filename);
+      if (filename === '/usr/bin/ssh') await Bun.sleep(155);
+      return metadata;
+    }) as typeof fs.stat);
+    let accessCalls = 0;
+    const access = spyOn(fs, 'access').mockImplementation((filename, mode) => {
+      if (filename === '/usr/bin/ssh') accessCalls += 1;
+      return originalAccess(filename, mode);
+    });
+    try {
+      expect(await source.read(new AbortController().signal, performance.now() + 1100)).toEqual(
+        timeout,
+      );
+      expect(accessCalls).toBe(0);
+    } finally {
+      stats.mockRestore();
+      access.mockRestore();
+      await source.close();
+    }
+  }));
+
+test('expired preflight does not start directory inspection after subscribing', () =>
+  withFixture(async ({ directory, enrollment }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    const add = events.addAbortListener;
+    const subscribe = spyOn(events, 'addAbortListener').mockImplementation((signal, observe) => {
+      const subscription = add(signal, observe);
+      Bun.sleepSync(160);
+      return subscription;
+    });
+    const original = fs.lstat;
+    let inspections = 0;
+    const stats = spyOn(fs, 'lstat').mockImplementation(((filename: string) => {
+      if (filename === directory) inspections += 1;
+      return original(filename);
+    }) as typeof fs.lstat);
+    try {
+      expect(await source.read(new AbortController().signal, performance.now() + 1100)).toEqual(
+        timeout,
+      );
+      expect(inspections).toBe(0);
+    } finally {
+      subscribe.mockRestore();
+      stats.mockRestore();
+      await source.close();
+    }
+  }));
+
+test('expired preflight skips executable stat after an earlier identity acquisition consumed the window', () =>
+  withFixture(async ({ directory, enrollment, path }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    const originalOpen = fs.open;
+    const opened = spyOn(fs, 'open').mockImplementation((filename, flags, mode) => {
+      if (filename === path) Bun.sleepSync(160);
+      return originalOpen(filename, flags, mode);
+    });
+    const originalStat = fs.stat;
+    let inspections = 0;
+    const stats = spyOn(fs, 'stat').mockImplementation(((filename: string) => {
+      if (filename === '/usr/bin/ssh') inspections += 1;
+      return originalStat(filename);
+    }) as typeof fs.stat);
+    try {
+      expect(await source.read(new AbortController().signal, performance.now() + 1100)).toEqual(
+        timeout,
+      );
+      expect(inspections).toBe(0);
+    } finally {
+      opened.mockRestore();
+      stats.mockRestore();
       await source.close();
     }
   }));

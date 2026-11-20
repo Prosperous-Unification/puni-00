@@ -1,3 +1,5 @@
+import { addAbortListener } from 'node:events';
+
 import type { RegistryStatusReply } from './registry-pressure-source-contract';
 
 export const statusTimeout = Object.freeze({
@@ -137,9 +139,8 @@ function terminateGroup(pid: number): boolean {
   }
 }
 
-function replyForExit(code: number, bytes: Uint8Array): RegistryStatusReply {
-  // Proof: Widening exit zero, dropping 77 or aliasing 255 broke the corresponding prefix tests.
-  if (code === 0) return { state: 'received', bytes };
+function failureForExit(code: number): CleanupOutcome {
+  // Proof: Dropping 77 or aliasing 255 broke the corresponding prefix tests.
   if (code === 77) return { state: 'unavailable', reason: 'source-refused', code: 'refused' };
   return { state: 'unavailable', reason: 'source-command-failed', code: 'ssh-exit' };
 }
@@ -162,93 +163,114 @@ export async function readRegistryStatusProcess(
     // Proof: Replacing the active abort with timeout broke the busy read and reaping test.
     interrupt(cancelled);
   };
-  signal.addEventListener('abort', onAbort, { once: true });
+  // Proof: A plain listener let the active fixture finish after shared abort. Omitting disposal leaked a listener.
+  using _subscription = addAbortListener(signal, onAbort);
+  // Proof: Dropping either pre-spawn check broke the slow preflight or abort handoff test.
+  if (performance.now() >= cutoff) return statusTimeout;
+  if (signal.aborted) throw registryStatusCancelled();
+
+  let child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
   try {
-    // Proof: Dropping either pre-spawn check broke the slow preflight or abort handoff test.
-    if (performance.now() >= cutoff) return statusTimeout;
-    if (signal.aborted) throw registryStatusCancelled();
-
-    let child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
-    try {
-      // Proof: Truncating argv or changing any spawn setting broke the intercepted fixed policy test.
-      child = Bun.spawn([...argv], {
-        cwd: '/',
-        env: { LANG: 'C', LC_ALL: 'C' },
-        stdin: 'ignore',
-        stdout: 'pipe',
-        stderr: 'pipe',
-        detached: true,
-      });
-    } catch {
-      throw new Error('registry status SSH spawn failed');
-    }
-
-    // Proof: Delaying stderr until stdout drained broke the mutually gated pipe test.
-    const stdout = supervisePipe(
-      () => child.stdout,
-      65537,
-      () => {
-        interrupt(stdoutOverflow);
-      },
-    );
-    const stderr = supervisePipe(
-      () => child.stderr,
-      4096,
-      () => {
-        interrupt(stderrOverflow);
-      },
-    );
-    const exited = (async () => child.exited)();
-    // Proof: Dropping either EOF or exit settlement broke its independent completion test.
-    const exchange = Promise.all([stdout.drained, stderr.drained, exited]).then(
-      ([bytes, diagnostics, code]) => ({ bytes, diagnostics, code }),
-      () => exchangeFailed,
-    );
-    const observed = await waitUntil(Promise.race([stop.promise, exchange]), cutoff);
-    // Proof: Replacing a recorded interruption with timeout broke the delayed abort test.
-    const completed = observed === deadlineReached ? (interruption ?? statusTimeout) : observed;
-    let outcome: RegistryStatusReply | undefined;
-    let isComplete = false;
-    if (typeof completed === 'object' && 'bytes' in completed) {
-      if (completed.bytes !== undefined && completed.diagnostics !== undefined) {
-        isComplete = true;
-        outcome = replyForExit(completed.code, completed.bytes);
-      }
-    } else if (typeof completed === 'object') {
-      outcome = completed;
-    }
-
-    const isTerminated = isComplete || terminateGroup(child.pid);
-    // Proof: Omitting child or reader settlement, or ignoring a reader error, broke its cleanup test.
-    const settled = Promise.allSettled([
-      exited,
-      stdout.close(!isComplete),
-      stderr.close(!isComplete),
-      stdout.drained,
-      stderr.drained,
-    ]).then(
-      ([exit, stdoutClose, stderrClose]) =>
-        isTerminated &&
-        exit.status === 'fulfilled' &&
-        stdoutClose.status === 'fulfilled' &&
-        stderrClose.status === 'fulfilled',
-    );
-    // Proof: Granting extra cleanup time broke the known overflow original-deadline test.
-    const cleanup = await waitUntil(settled, deadline);
-    if (cleanup !== true) {
-      // Proof: Leaking received bytes or losing deadline or exit refusal broke the three cleanup outcome tests.
-      const knownOutcome =
-        outcome?.state === 'received'
-          ? cleanup === deadlineReached
-            ? statusTimeout
-            : undefined
-          : outcome;
-      return { state: 'cleanup-failed', outcome: knownOutcome, settled };
-    }
-    if (outcome !== undefined) return outcome;
-    if (completed === cancelled) throw registryStatusCancelled();
-    throw new Error('registry status SSH exchange failed');
-  } finally {
-    signal.removeEventListener('abort', onAbort);
+    // Proof: Truncating argv or changing any spawn setting broke the intercepted fixed policy test.
+    child = Bun.spawn([...argv], {
+      cwd: '/',
+      env: { LANG: 'C', LC_ALL: 'C' },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      detached: true,
+    });
+  } catch {
+    throw new Error('registry status SSH spawn failed');
   }
+
+  // Proof: Delaying stderr until stdout drained broke the mutually gated pipe test.
+  const stdout = supervisePipe(
+    () => child.stdout,
+    65537,
+    () => {
+      interrupt(stdoutOverflow);
+    },
+  );
+  const stderr = supervisePipe(
+    () => child.stderr,
+    4096,
+    () => {
+      interrupt(stderrOverflow);
+    },
+  );
+  // Record natural failure independently while both pipes drain.
+  const acquisition: { isActive: boolean; failure?: CleanupOutcome } = { isActive: true };
+  const exited = (async () => child.exited)().then((code) => {
+    // Proof: Omitting each exit guard broke the zero-frame, setup failure, earlier abort or cutoff case.
+    if (
+      code !== 0 &&
+      acquisition.isActive &&
+      interruption === undefined &&
+      performance.now() < cutoff
+    ) {
+      // Proof: Omitting the exit receipt lost exit77 on the subsequent pipe fault.
+      acquisition.failure = failureForExit(code);
+    }
+    return code;
+  });
+  // Proof: Dropping either EOF or exit settlement broke its independent completion test.
+  const exchange = Promise.all([stdout.drained, stderr.drained, exited]).then(
+    ([bytes, diagnostics, code]) => ({ bytes, diagnostics, code }),
+    () => exchangeFailed,
+  );
+  const observed = await waitUntil(Promise.race([stop.promise, exchange]), cutoff);
+  acquisition.isActive = false;
+  // Proof: Replacing a recorded interruption with timeout broke the delayed abort test.
+  const completed = observed === deadlineReached ? (interruption ?? statusTimeout) : observed;
+  let outcome: RegistryStatusReply | undefined;
+  let isComplete = false;
+  if (typeof completed === 'object' && 'bytes' in completed) {
+    if (completed.bytes !== undefined && completed.diagnostics !== undefined) {
+      isComplete = true;
+      // Proof: Treating a nonzero exit as received broke the exit-one prefix test.
+      outcome =
+        completed.code === 0
+          ? { state: 'received', bytes: completed.bytes }
+          : failureForExit(completed.code);
+    }
+  } else if (typeof completed === 'object') {
+    outcome = completed;
+  }
+
+  const isTerminated = isComplete || terminateGroup(child.pid);
+  // Proof: Omitting child or reader settlement, or ignoring a reader error, broke its cleanup test.
+  const settled = Promise.allSettled([
+    exited,
+    stdout.close(!isComplete),
+    stderr.close(!isComplete),
+    stdout.drained,
+    stderr.drained,
+  ]).then(
+    ([exit, stdoutClose, stderrClose]) =>
+      isTerminated &&
+      exit.status === 'fulfilled' &&
+      stdoutClose.status === 'fulfilled' &&
+      stderrClose.status === 'fulfilled',
+  );
+  // Proof: Granting extra cleanup time broke the known overflow original-deadline test.
+  const cleanup = await waitUntil(settled, deadline);
+  if (cleanup !== true) {
+    // Proof: Leaking received bytes or losing deadline or exit refusal broke the three cleanup outcome tests.
+    // Proof: Ignoring the observed exit here lost the refused outcome after pipe failure.
+    const knownOutcome =
+      acquisition.failure ??
+      (outcome?.state === 'received'
+        ? cleanup === deadlineReached
+          ? statusTimeout
+          : undefined
+        : outcome);
+    return { state: 'cleanup-failed', outcome: knownOutcome, settled };
+  }
+  // Proof: Returning the cached exit before cancellation broke controlled abort after exit77.
+  if (completed === cancelled) throw registryStatusCancelled();
+  // Proof: Ignoring the earlier exit here returned timeout after clean pipe cancellation.
+  const admitted = acquisition.failure ?? outcome;
+  if (admitted !== undefined) return admitted;
+  throw new Error('registry status SSH exchange failed');
 }

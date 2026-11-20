@@ -10327,6 +10327,35 @@ Successful candidate bytes require complete cleanup before receipt.
 | Scoped ESLint and Prettier, uncached `tool-fleet:typecheck`, and strict change validation | Passed.                                                                                                                                                 |
 | Bun source-only bundle and input manifest                                                 | The only fleet inputs were the actor, process supervisor and accepted contract.                                                                         |
 
+Run from the isolated reader worktree with Bun 1.4.4. The first command produced
+the paired missing-module RED before the reader files were added. The remaining
+commands checked the implemented reader.
+
+```sh
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts
+/home/df/.bun/bin/bun node_modules/.bin/eslint tools/tool-fleet/src/registry-pressure-source{,-process}{,.test}.ts
+/home/df/.bun/bin/bun node_modules/.bin/prettier --check tools/tool-fleet/src/registry-pressure-source{,-process}{,.test}.ts openspec/changes/bound-registry-storage/verify.md
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bun node_modules/.bin/nx run tool-fleet:typecheck --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+bundle_dir=$(mktemp -d /tmp/puni-registry-reader-bundle-XXXXXX) &&
+  /home/df/.bun/bin/bun build tools/tool-fleet/src/registry-pressure-source.ts --target=bun --outfile="$bundle_dir/source.js" --metafile="$bundle_dir/inputs.json" &&
+  /home/df/.bun/bin/bun -e 'const metadata = await Bun.file(process.argv[1]).json(); const inputs = Object.keys(metadata.inputs); const fleet = inputs.filter((path) => path.startsWith("tools/tool-fleet/src/")); console.log(fleet.join("\n")); if (fleet.length !== 3 || fleet.some((path) => /registry-pressure-observer-store|registry-pressure-metrics/.test(path))) throw new Error("source bundle escaped the reader boundary");' "$bundle_dir/inputs.json"
+```
+
+Each fault used its owning test file and an anchored test name. These cases
+locate the original receipts alongside the adjacent production proof comments.
+
+| Fault family                         | Named failing cases                                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Directory admission and pin creation | `refuses a directory symlink`, `refuses an actor directory with modeled mismatched ownership`, `exclusive pin creation preserves a file inserted after the emptiness check`                                                                                                                          |
+| File metadata and pinned bytes       | `refuses multilink identity before spawn`, `refuses an oversized identity before spawn`, `refuses a private identity with a different hash`, `close preserves a different pin inode with identical bytes`                                                                                            |
+| Local executable                     | `throws when the fixed SSH executable is missing`, `refuses a nonregular fixed SSH executable`, `refuses a fixed SSH executable with modeled read denied and execute allowed`                                                                                                                        |
+| Fixed command and byte admission     | `receives original binary bytes only after EOF and exit zero`, `requires EOF of stdout independently of the other pipe and exit`, `requires EOF of stderr independently of the other pipe and exit`, `starts both pipe reads before either is drained`                                               |
+| Exit and output limits               | `discards a valid-looking prefix on exit 77`, `discards a valid-looking prefix on exit 255`, `drains concurrent streams at exact stdout and stderr limits`, `terminates and reaps the owned fixture on stdout overflow`, `terminates and reaps the owned fixture on stderr overflow`                 |
+| Deadline and cleanup                 | `preflight consumes the original acquisition interval`, `unsettled preflight at the original deadline latches the actor`, `known stdout overflow survives unresolved original-deadline exit settlement`, `preserves only eligible outcomes after successful candidate and release past the deadline` |
+| Cancellation and exclusion           | `a busy read refuses overlapping read and close, then caller abort reaps the group`, `zero exit alone waits for complete EOF and cancels both held readers at cutoff`, `refuses a second close or read while the first close still owns the pin`                                                     |
+
 The scoped mutation campaign observed 94 selected assertion failures. Each
 fault reverted to the recorded pre-proof source before the next mutation.
 Device/inode, file state, exclusive pin creation, client credential digest
@@ -10345,3 +10374,31 @@ setup/settlement faults and SSH access denials use scoped test doubles.
 Root-owned installed credentials, native SSH authentication and real SSH child
 qualification remain owed in Task5.1c. The full project suite, full build and
 exact-revision host gate remain pending for the wider change.
+
+### Independent reader review corrections
+
+The focused reproductions observed new pin opens after terminal preflight
+timeout, further identity reads after abort, loss of a natural exit77 when a
+pipe failed and successful frame publication after a suppressed shared abort
+listener. Preflight now gates every filesystem acquisition step while waiting
+for started work and releasing acquired descriptors. The process records natural
+nonzero exit independently while continuing both bounded drains. The first known
+failure remains available on a cleanup error. An external abort with successful
+cleanup still raises the fixed AbortError. Bun 1.4.4 verified that
+`node:events` `addAbortListener` observes shared abort through an earlier
+`stopImmediatePropagation()` listener. Both phases dispose their own
+subscriptions.
+
+| Review fault family                      | Named failing cases                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No new I/O after the acquisition window  | `terminal preflight timeout settles a pending directory inspection without opening its pin`, `interrupted preflight closes the identity after open by timeout`, `interrupted preflight closes the identity after full read by timeout`, `preflight cutoff after executable stat does not start access admission`                                                           |
+| Observed nonzero exit and outcome order  | `preserves an actual exit77 observed before a subsequent pipe fault`, `keeps an earlier abort primary when a later exit observation precedes pipe cancellation failure`, `keeps the timeout primary when a delayed exit77 observation crosses cutoff`, `retains controlled abort semantics after an independently observed exit77 with successful cleanup`                 |
+| Unsuppressible cancellation and disposal | `reaps an active child despite an earlier shared abort listener stopping propagation`, `interrupted preflight closes the identity after short read by abort before cutoff with late settlement`, `disposes preflight and process abort subscriptions after settling the exchange`, `cancels a received candidate during final subscription disposal before public receipt` |
+
+The 24 changed-guard faults each failed their selected production-path
+assertion. The runner restored the exact source after every executed fault.
+The original 94-fault record remains the basis for the unaffected guards.
+
+The review covering run used the same three-file command and passed 234 tests
+with 664 assertions. Scoped lint, formatting, uncached owning typecheck, strict
+change validation and the source-only bundle check used the command lines above.

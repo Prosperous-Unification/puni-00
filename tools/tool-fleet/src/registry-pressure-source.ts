@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { addAbortListener } from 'node:events';
 import { constants, type Stats } from 'node:fs';
 import * as fs from 'node:fs/promises';
 
@@ -38,6 +39,9 @@ export class RegistrySourceCleanupError extends Error {
 
 type FileRole = 'pin' | 'identity';
 type FileStamp = Pick<Stats, 'dev' | 'ino'>;
+type CheckAcquisition = () => void;
+
+class AcquisitionStopped extends Error {}
 
 class DescriptorCloseError extends Error {}
 
@@ -98,7 +102,10 @@ async function readFile(
   role: FileRole,
   uid: number,
   maximum: number,
+  checkAcquisition?: CheckAcquisition,
 ): Promise<{ bytes: Buffer; stamp: FileStamp }> {
+  // Proof: Omitting this guard opened the pin after the terminal preflight timeout.
+  checkAcquisition?.();
   // Proof: Dropping no-follow admitted the identity symlink. Dropping nonblocking broke the open-flags test.
   const file = await requireState(
     fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK),
@@ -106,11 +113,15 @@ async function readFile(
     'is unreadable',
   );
   try {
+    // Proof: Omitting this guard inspected the descriptor after its delayed open crossed cutoff.
+    checkAcquisition?.();
     const stamp = await requireState(file.stat(), role, 'is unreadable');
     admitFile(stamp, role, uid);
     const bytes = Buffer.alloc(maximum);
     let offset = 0;
     while (offset < maximum) {
+      // Proof: Omitting this guard started reads after a delayed stat or an earlier abort.
+      checkAcquisition?.();
       const { bytesRead } = await requireState(
         file.read(bytes, offset, maximum - offset, null),
         role,
@@ -119,6 +130,8 @@ async function readFile(
       if (bytesRead === 0) return { bytes: bytes.subarray(0, offset), stamp };
       offset += bytesRead;
     }
+    // Proof: Omitting this guard probed EOF after the full-limit read crossed cutoff.
+    checkAcquisition?.();
     const { bytesRead } = await requireState(
       file.read(Buffer.alloc(1), 0, 1, null),
       role,
@@ -169,11 +182,15 @@ async function createPin(path: string, bytes: Buffer, uid: number): Promise<File
   }
 }
 
-async function checkExecutable(): Promise<void> {
+async function checkExecutable(checkAcquisition: CheckAcquisition): Promise<void> {
+  // Proof: Omitting this guard ran executable stat after an earlier identity acquisition crossed cutoff.
+  checkAcquisition();
   const path = '/usr/bin/ssh';
   // Proof: Bypassing stat, regular-file admission or executable access broke the matching local SSH tests.
   const executable = await requireState(fs.stat(path), 'SSH executable', 'is unreadable');
   if (!executable.isFile()) throw new Error('registry status SSH executable is not a regular file');
+  // Proof: Omitting this guard started access admission after executable stat crossed cutoff.
+  checkAcquisition();
   // Proof: Removing read access reached the intercepted spawn in the execute-allowed/read-denied test.
   await requireState(
     fs.access(path, constants.R_OK | constants.X_OK),
@@ -188,6 +205,10 @@ function requireUid(): number {
   if (uid === undefined || uid === 0)
     throw new Error('registry status source requires a non-root UID');
   return uid;
+}
+
+function checkCancellation(signal: AbortSignal): void {
+  if (signal.aborted) throw registryStatusCancelled();
 }
 
 /** Admits an existing empty private directory and creates its one pinned SSH status actor. */
@@ -222,20 +243,28 @@ export async function openRegistryPressureSource(
     if (phase === 'busy') phase = 'open';
   }
 
-  async function checkPin(): Promise<void> {
+  async function checkPin(checkAcquisition?: CheckAcquisition): Promise<void> {
+    // Proof: Omitting this guard started directory inspection after the subscription delay crossed cutoff.
+    checkAcquisition?.();
     const current = await inspectDirectory(directory, uid);
     // Proof: Omitting this check broke the replacement directory test before read and close.
     if (!sameFile(current, directoryStamp))
       throw new Error('registry status directory was replaced');
-    const local = await readFile(pin, 'pin', uid, 512);
+    const local = await readFile(pin, 'pin', uid, 512, checkAcquisition);
     // Proof: Skipping the stamp or bytes comparison broke the exact owned pin tests.
     if (!sameFile(local.stamp, pinStamp) || !local.bytes.equals(expectedPin)) {
       throw new Error('registry status pin differs from its owned enrollment');
     }
   }
 
-  async function checkIdentity(): Promise<void> {
-    const { bytes } = await readFile(enrollment.identity.path, 'identity', uid, 4096);
+  async function checkIdentity(checkAcquisition: CheckAcquisition): Promise<void> {
+    const { bytes } = await readFile(
+      enrollment.identity.path,
+      'identity',
+      uid,
+      4096,
+      checkAcquisition,
+    );
     // Proof: Skipping the digest comparison broke the changed private identity test.
     if (createHash('sha256').update(bytes).digest('hex') !== enrollment.identity.sha256) {
       throw new Error('registry status identity does not match enrollment');
@@ -250,39 +279,49 @@ export async function openRegistryPressureSource(
       // Proof: Accepting late abort broke the cutoff-first test for pending local IO.
       cancellation.beforeCutoff = performance.now() < cutoff;
     };
-    signal.addEventListener('abort', onAbort, { once: true });
-    try {
-      const pending = Promise.allSettled([checkPin(), checkIdentity(), checkExecutable()]);
-      // Proof: Granting extra settling time broke the unsettled preflight original-deadline test.
-      const checks = await waitUntil(pending, deadline);
-      if (checks === deadlineReached) {
-        latchFault(
-          pending.then((settled) =>
-            settled.every(
-              (check) =>
-                check.status === 'fulfilled' || !(check.reason instanceof DescriptorCloseError),
-            ),
-          ),
-        );
-        throw new RegistrySourceCleanupError(cancellation.beforeCutoff ? undefined : statusTimeout);
+    // Proof: A plain listener missed the shared preflight abort. Omitting disposal leaked a listener.
+    using _subscription = addAbortListener(signal, onAbort);
+    function checkAcquisition(): void {
+      // Proof: Removing the abort or cutoff clause started new credential IO in the matching paused test.
+      if (cancellation.beforeCutoff || performance.now() >= cutoff) {
+        throw new AcquisitionStopped();
       }
-      for (const check of checks) {
-        if (check.status === 'rejected' && check.reason instanceof DescriptorCloseError) {
-          latchFault(Promise.resolve(false));
-          throw new RegistrySourceCleanupError(
-            performance.now() >= cutoff && !cancellation.beforeCutoff ? statusTimeout : undefined,
-            check.reason.message,
-          );
-        }
-      }
-      for (const check of checks) {
-        if (check.status === 'rejected') throw check.reason;
-      }
-      // Proof: Dropping prior cancellation broke the abort-first preflight test.
-      if (cancellation.beforeCutoff) throw registryStatusCancelled();
-    } finally {
-      signal.removeEventListener('abort', onAbort);
     }
+    const pending = Promise.allSettled([
+      checkPin(checkAcquisition),
+      checkIdentity(checkAcquisition),
+      checkExecutable(checkAcquisition),
+    ]);
+    // Proof: Granting extra settling time broke the unsettled preflight original-deadline test.
+    const checks = await waitUntil(pending, deadline);
+    if (checks === deadlineReached) {
+      latchFault(
+        pending.then((settled) =>
+          settled.every(
+            (check) =>
+              check.status === 'fulfilled' || !(check.reason instanceof DescriptorCloseError),
+          ),
+        ),
+      );
+      throw new RegistrySourceCleanupError(cancellation.beforeCutoff ? undefined : statusTimeout);
+    }
+    for (const check of checks) {
+      if (check.status === 'rejected' && check.reason instanceof DescriptorCloseError) {
+        latchFault(Promise.resolve(false));
+        throw new RegistrySourceCleanupError(
+          performance.now() >= cutoff && !cancellation.beforeCutoff ? statusTimeout : undefined,
+          check.reason.message,
+        );
+      }
+    }
+    for (const check of checks) {
+      // Proof: Surfacing the internal stop leaked a local error from the shared preflight abort.
+      if (check.status === 'rejected' && !(check.reason instanceof AcquisitionStopped)) {
+        throw check.reason;
+      }
+    }
+    // Proof: Dropping prior cancellation broke the abort-first preflight test.
+    if (cancellation.beforeCutoff) throw registryStatusCancelled();
   }
 
   return {
@@ -297,7 +336,7 @@ export async function openRegistryPressureSource(
         );
       }
       // Proof: Starting preflight on abort or an expired deadline touched the missing-key fixture and failed.
-      if (signal.aborted) throw registryStatusCancelled();
+      checkCancellation(signal);
       if (now >= acquisitionCutoff(deadline)) return statusTimeout;
 
       phase = 'busy';
@@ -310,6 +349,8 @@ export async function openRegistryPressureSource(
         }
         // Proof: Dropping this check broke the modeled pause between cleanup and public receipt.
         if (exchange.state === 'received' && performance.now() >= deadline) return statusTimeout;
+        // Proof: Omitting this check published bytes after cancellation during subscription disposal.
+        if (exchange.state === 'received') checkCancellation(signal);
         return exchange;
       } finally {
         finishRead();
