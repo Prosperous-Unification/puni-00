@@ -391,14 +391,24 @@ const headroomShards = [
   ['gate_heavy', 'Heavy — test, lint, typecheck, build', 'heavy'],
 ] as const;
 
-// A-CI-WORKSPACE-MEMORY-2: the heavy shard reuses the workspace step text with only the
-// partition renamed, so the headroom sampler and status handling cannot drift apart.
-test('the heavy gate step is the workspace step with only its partition renamed', () => {
+// A-CI-WORKSPACE-MEMORY-2: the heavy shard reuses the workspace step text. Only two tokens may
+// differ: the partition name and the phase budget (105m workspace, 135m heavy). Any other drift,
+// in the headroom sampler or status handling for example, fails this test.
+// Proof (2026-11-20): a 60 s sampler interval in gate_heavy alone failed it, and so did gate_heavy's
+// phase set back to 105m.
+test('the heavy gate step differs from the workspace step only in partition and phase budget', () => {
   const workspace = step('gate_workspace', 'Gate — test, lint, typecheck, build');
-  expect(step('gate_heavy', 'Heavy — test, lint, typecheck, build')).toBe(
+  const heavy = step('gate_heavy', 'Heavy — test, lint, typecheck, build');
+  const budget = (minutes: string) => `timeout --signal=TERM --kill-after=30s ${minutes} \\`;
+  expect(workspace.split(budget('105m'))).toHaveLength(2);
+  expect(heavy.split(budget('135m'))).toHaveLength(2);
+  expect(heavy.split('ci-run-runtime.ts heavy ')).toHaveLength(2);
+  expect(heavy).not.toContain('partition=workspace');
+  expect(heavy).toBe(
     workspace
       .replaceAll('partition=workspace', 'partition=heavy')
-      .replace('ci-run-runtime.ts workspace ', 'ci-run-runtime.ts heavy '),
+      .replace('ci-run-runtime.ts workspace ', 'ci-run-runtime.ts heavy ')
+      .replace(budget('105m'), budget('135m')),
   );
 });
 

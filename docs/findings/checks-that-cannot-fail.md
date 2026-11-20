@@ -303,8 +303,9 @@ The next lever therefore ships now, as assumption A-CI-WORKSPACE-MEMORY-2.
 
 A new shard, `gate workspace-heavy` (job `gate_heavy`, partition `heavy` in
 `ci-run-runtime.ts`), owns `tool-fleet`, `tool-devsync`, `wbs-store-sqlite` and `wbs-core` whole.
-It runs their targets at `--parallel=1` on its own 16 GB runner. It has the same setup,
-105-minute phase, 120-minute job and headroom sampler as the workspace shard. In affected mode
+It runs their targets at `--parallel=1` on its own 16 GB runner. It has the same setup and
+headroom sampler as the workspace shard, but its own budget: a 135-minute phase inside a
+150-minute job, keeping the usual 15-minute reserve. The workspace shard stays at 105 of 120. In affected mode
 it runs only when `Gate mode` reports `heavy=run`. The workspace shard no longer runs those
 projects' test, typecheck or build, but its independent `nx affected -t lint` still lints them.
 `Require every gate shard` requires the new job, in the same way as the backend and frontend
@@ -339,9 +340,10 @@ parallelism two:
   - Typecheck: 1.3 min, plus `wbs-core:typecheck:module` at 2.6 min.
   - Total: 93.3 min of task time plus dependency builds.
 
-  That is about 93 minutes at parallelism one, which leaves about 12 minutes of the 105-minute
-  phase. Tasks may run faster without a second task beside them; the next heavy logs will show
-  whether they do.
+  Parallel-1 timings are unknown. A 105-minute phase would have left a margin of only about
+  12 minutes, and a timeout in this shard would only trade one red gate for another. So the
+  shard has a finite 135-minute phase in a 150-minute job. The first full-mode heavy logs will
+  show the real figure.
 
 - **Workspace shard.** 137.5 − 93.3 = 44.2, so about 44 minutes of task time remain. The non-lint
   part (about 36 minutes) takes about 18 to 22 minutes at parallelism two. Lint at one adds about

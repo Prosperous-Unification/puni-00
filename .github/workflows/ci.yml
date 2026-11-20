@@ -432,9 +432,10 @@ jobs:
             printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
             exit 1
           fi
-          # Both whole-runtime jobs are 120m; keep the same 15m reserve as dedicated 90m/75m jobs.
-          # Workspace run 42437062542 completed 74m21s of commands, then 75m killed source lint.
-          # This bounded 105m allowance needs fresh hosted proof; it changes no operation limit.
+          # Each whole-runtime phase keeps a 15m reserve below its job limit, as dedicated 90m/75m
+          # jobs do: workspace 105m of 120m, heavy 135m of 150m. Workspace run 42437062542 completed
+          # 74m21s of commands, then 75m killed source lint. These bounded allowances need fresh
+          # hosted proof; they change no operation limit.
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
@@ -536,11 +537,14 @@ jobs:
     # a time, so the 16 GB workspace runner no longer carries them: the three longest `bun test`
     # suites and wbs-core, whose 2-minute suite peaked at 7.3 GiB RSS in one Bun process (#959).
     # The workspace runner was lost in all three full-mode attempts on main 1730d911f (R5-32,
-    # docs/findings/checks-that-cannot-fail.md). Their task time is about 89 minutes (run
-    # 44496836205); the 105-minute phase and 120-minute job match the workspace allowance. This step
-    # text is the workspace step's with the partition renamed; pr-merge-base.test.ts holds the two
-    # copies equal.
-    timeout-minutes: 120
+    # docs/findings/checks-that-cannot-fail.md).
+    # Budget: at the parallel-2 task timings of run 44496836205 these projects take
+    # 85.2 (tests) + 4.2 (lint) + 1.3 (typecheck) + 2.6 (wbs-core:typecheck:module) ≈ 93 minutes;
+    # their parallel-1 timings are unknown. The 135-minute phase is finite and above that figure,
+    # and the 150-minute job keeps the 15-minute reserve. The first full-mode heavy logs will show
+    # the real figure. This step text is the workspace step's with the partition and the phase
+    # budget changed; pr-merge-base.test.ts holds every other byte of the two copies equal.
+    timeout-minutes: 150
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -633,9 +637,10 @@ jobs:
             printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
             exit 1
           fi
-          # Both whole-runtime jobs are 120m; keep the same 15m reserve as dedicated 90m/75m jobs.
-          # Workspace run 42437062542 completed 74m21s of commands, then 75m killed source lint.
-          # This bounded 105m allowance needs fresh hosted proof; it changes no operation limit.
+          # Each whole-runtime phase keeps a 15m reserve below its job limit, as dedicated 90m/75m
+          # jobs do: workspace 105m of 120m, heavy 135m of 150m. Workspace run 42437062542 completed
+          # 74m21s of commands, then 75m killed source lint. These bounded allowances need fresh
+          # hosted proof; they change no operation limit.
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
@@ -695,7 +700,7 @@ jobs:
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
-          timeout --signal=TERM --kill-after=30s 105m \
+          timeout --signal=TERM --kill-after=30s 135m \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts heavy "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?

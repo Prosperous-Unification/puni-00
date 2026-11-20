@@ -189,7 +189,7 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
 - **CI** (`.github/workflows/ci.yml`): PRs run `nx affected` or document checks from the
   validated synthetic merge parent; push, merge_group and dispatch run the full gate; an unmapped
   event is refused. Jobs: `gate_workspace` (ubuntu-24.04, 120 min cap), `gate_heavy` (gate
-  workspace-heavy: tool-fleet, tool-devsync, wbs-store-sqlite and wbs-core at parallel 1, 120 min cap),
+  workspace-heavy: tool-fleet, tool-devsync, wbs-store-sqlite and wbs-core at parallel 1, 150 min cap),
   `gate_backend`, `gate_remote`, `gate_remote_model` and `gate_frontend` (90 min caps),
   `gate_checks` (secrets scan, migration lint, doc caps), `gate_docs`, `gate_twilight`, the
   `gate` reducer, `pixels` shards 1–4. `infra-check.yml` on infra paths; `twilight-burokrat-release.yml` on
