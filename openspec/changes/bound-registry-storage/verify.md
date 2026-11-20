@@ -10402,3 +10402,35 @@ The original 94-fault record remains the basis for the unaffected guards.
 The review covering run used the same three-file command and passed 234 tests
 with 664 assertions. Scoped lint, formatting, uncached owning typecheck, strict
 change validation and the source-only bundle check used the command lines above.
+
+### Reader outcome priority review corrections
+
+The public actor now rechecks cancellation for natural success, reserved
+refusal and other command-failure candidates. A cap or timeout already
+selected as primary survives later abort. The supervisor selects the actual
+cap ahead of any cached natural exit and uses that same selected outcome for
+clean completion and cleanup errors. An independently observed natural exit
+remains available after an unrelated pipe fault.
+
+```sh
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts --test-name-pattern '^(cancels a .* during final subscription disposal|preserves (stdout|stderr) cap after actual exit|preserves primary timeout)'
+```
+
+The focused baseline showed 11 expected failures and two passing controls.
+The correction passed all 13 cases. Those cases vary real Bun fixture exits
+0, 1, 77 and 255. They pair both stream caps after real exits 77 and 255
+with clean or failed pipe cancellation and a late caller abort.
+
+| Fault family                                 | Named failing cases                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Natural outcome cancellation before delivery | `cancels a received candidate during final subscription disposal before public receipt`, `cancels a reserved refusal candidate during final subscription disposal before public receipt`, `cancels a command-failure candidate after exit 255 during final subscription disposal before public receipt` |
+| Established interruption with later abort    | `preserves primary timeout when the caller aborts during pipe cancellation`, `preserves stdout cap after actual exit 77 with clean cancellation`, `preserves stderr cap after actual exit 255 with clean cancellation`                                                                                  |
+| Cap precedence on both cleanup paths         | `preserves stdout cap after actual exit 255 with failed cleanup`, `preserves stderr cap after actual exit 77 with failed cleanup`, and the clean cancellation cases above                                                                                                                               |
+| Outcome retention on non-cap cleanup         | `preserves an actual exit77 observed before a subsequent pipe fault`, `returns an independently observed exit77 after a later cutoff and clean pipe cancellation`, `preserves only eligible outcomes after successful candidate and immediate release failure`                                          |
+
+The 13 selected fault executions failed their expected assertions and
+restored the exact source hashes after each case.
+
+The three-file covering command above passed 246 tests with 759 assertions.
+Scoped ESLint, Prettier, uncached owning typecheck, strict change validation
+and the source-only bundle check passed with the recorded commands.

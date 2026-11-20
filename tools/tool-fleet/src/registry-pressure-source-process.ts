@@ -238,6 +238,13 @@ export async function readRegistryStatusProcess(
     outcome = completed;
   }
 
+  // Proof: Omitting either cap lost its outcome after both clean and failed cleanup.
+  // Removing the cached exit fallback lost the refusal after an unrelated pipe fault or later cutoff.
+  const admitted =
+    outcome === stdoutOverflow || outcome === stderrOverflow
+      ? outcome
+      : (acquisition.failure ?? outcome);
+
   const isTerminated = isComplete || terminateGroup(child.pid);
   // Proof: Omitting child or reader settlement, or ignoring a reader error, broke its cleanup test.
   const settled = Promise.allSettled([
@@ -257,20 +264,16 @@ export async function readRegistryStatusProcess(
   const cleanup = await waitUntil(settled, deadline);
   if (cleanup !== true) {
     // Proof: Leaking received bytes or losing deadline or exit refusal broke the three cleanup outcome tests.
-    // Proof: Ignoring the observed exit here lost the refused outcome after pipe failure.
     const knownOutcome =
-      acquisition.failure ??
-      (outcome?.state === 'received'
+      admitted?.state === 'received'
         ? cleanup === deadlineReached
           ? statusTimeout
           : undefined
-        : outcome);
+        : admitted;
     return { state: 'cleanup-failed', outcome: knownOutcome, settled };
   }
   // Proof: Returning the cached exit before cancellation broke controlled abort after exit77.
   if (completed === cancelled) throw registryStatusCancelled();
-  // Proof: Ignoring the earlier exit here returned timeout after clean pipe cancellation.
-  const admitted = acquisition.failure ?? outcome;
   if (admitted !== undefined) return admitted;
   throw new Error('registry status SSH exchange failed');
 }

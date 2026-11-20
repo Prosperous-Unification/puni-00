@@ -349,8 +349,14 @@ export async function openRegistryPressureSource(
         }
         // Proof: Dropping this check broke the modeled pause between cleanup and public receipt.
         if (exchange.state === 'received' && performance.now() >= deadline) return statusTimeout;
-        // Proof: Omitting this check published bytes after cancellation during subscription disposal.
-        if (exchange.state === 'received') checkCancellation(signal);
+        // Proof: Dropping any natural case bypassed cancellation at delivery. Checking every outcome replaced primary caps and timeout with cancellation.
+        if (
+          exchange.state === 'received' ||
+          exchange.code === 'refused' ||
+          exchange.code === 'ssh-exit'
+        ) {
+          checkCancellation(signal);
+        }
         return exchange;
       } finally {
         finishRead();
