@@ -10197,3 +10197,33 @@ receipts, physical storage/backup/recovery proofs, complete candidate CI or the
 required exact-revision host gate before adoption. Nothing was activated and
 Task5.1, Task5.2 and the full registry objective remain open. The stopped storage
 and producer correction campaigns remain stopped.
+
+## Independent authenticated status client planning — 2026-11-21
+
+The main-based source worktree records the strict client contract, immutable
+registry status enrollment/frame terms, six delta scenarios and open Task5.1c.
+Its three-slice plan supplies a client prerequisite of5.1b; all server, checkpoint,
+producer admission, scheduling/storage, private serving and actual delivery
+requirements remain open. The full goal is active and unchanged.
+
+Fresh throwaway transport evidence: extracted nonroot OpenSSH9.6p1, generated
+fixture-only Ed25519 keys, explicit owned listen172.17.0.1 and permitted actual
+source192.168.1.182. Exact fixed-command frame46bytes exit0; wrong client key and
+host key exit255, wrong command exit77. Owned server parent reaped exit0; no
+package installed, service changed or production host/credential used. An earlier
+fixture correctly refused the real routed source because its key allowed only
+the destination address. These probes establish verifier feasibility only, not
+the production client or installed authority/observer/delivery boundaries.
+
+Baseline `bun test --preload ./tools/test/scratch/preload.ts
+tools/tool-fleet/src/registry-reader.test.ts` passed8/8 with41 assertions under
+ordinary local process access. The initial restricted-sandbox run failed5/8 on
+EPERM pipe writes; no production change was made for that environment restriction.
+Strict OpenSpec validation of the new artifacts passed1/1 with zero issues;
+formatting was corrected after its initial tasks/plan warnings. Implementation,
+R5 mutations, native public-API qualification and source checks remain pending.
+
+Source integration from the previous slice remains merged as PR960, main
+9e8e212d6b1133e60230b12b1fda582690bde294. Its automatic CodeQL44821586407 is
+completed/success; postmerge CI44821587380 was still in progress at this check.
+Neither run was restarted. No full-goal completion or activation is inferred.

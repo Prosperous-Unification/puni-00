@@ -987,3 +987,120 @@ compiler/user-namespace preparation helper before fleet tests. The workspace's e
 fleet/full selector and unrelated Twilight profile remain unchanged. Both infra
 workflow event filters include helper-only changes. This provisions no target host
 and invokes no registry installer or stopped privileged proof.
+
+## Authenticated status client — 2026-11-21
+
+This independent prerequisite of Task5.1b acquires a registry status frame from one
+explicitly enrolled SSH peer. It does not accept a pressure measurement, advance an
+observer checkpoint, grant maintenance authority or qualify installed alert delivery.
+The fixed-command SSH route reuses the host transport. A private mTLS service would
+add a listener and certificate lifecycle; the existing operator and inventory readers
+have different authority, protocols and bounds. No default caller changes here.
+
+### Enrollment and command
+
+The exact enrollment has schemaVersion1, protocol `registry-pressure-status/1`,
+`target:{machineId,registryId,storageId,registryPath}`, `peer:{address,port,user,hostKey}`
+and `identity:{path,sha256,publicKey}`. Every object rejects unknown fields.
+Machine ID is32 lower-case hex digits; SHA-256 is64 lower-case hex digits.
+Registry/storage identities contain1..256 Unicode code points and no control
+characters. Paths are canonical absolute ASCII paths of at most256 bytes, with
+nonempty `[A-Za-z0-9._-]+` segments excluding `.` and `..`; the root alone is not a
+file or registry path. Peer address is canonical dotted-decimal RFC1918 IPv4;
+port is an integer1..65535; principal matches `[a-z_][a-z0-9_-]{0,31}` and is not root.
+Both keys are canonical raw `ssh-ed25519 <base64>` public keys: exactly51 decoded
+bytes with the SSH algorithm and32-byte key length fields, no comments or newlines.
+Private identity bytes are opaque, bounded at4096 bytes and checked against the
+trusted hash. Provisioning must establish the dedicated key pair; this library
+neither discovers an operator key nor reads an agent. Parsing copies and freezes
+all nested enrollment values so later caller mutation cannot change a peer.
+
+The only executable is `/usr/bin/ssh`; the only remote verb is
+`registry-pressure-status-v1`. Use `-F /dev/null`, `-T`, `-n`, exact identity and
+port, and `-- user@address command`. Explicit options disable ambient trust,
+agent, passwords, keyboard interaction, GSSAPI/hostbased authentication, proxy,
+canonicalization, multiplexing, forwarding, local commands, DNS host-key trust
+and host-key updates. Admit only raw Ed25519 host/client algorithms and batch
+public-key authentication. Require strict host checking against one owned pin
+file, with fixed HostKeyAlias `puni-registry-pressure-source`, CheckHostIP=no and
+GlobalKnownHostsFile=/dev/null. That alias binds the exact enrolled key while
+avoiding port22 versus bracketed alternate-port known-host formatting. Use one
+connection attempt, ConnectTimeout=3 and no password prompts. The pin file is
+exactly `puni-registry-pressure-source <hostKey>\n`. No executable, command, arbitrary
+SSH options, environment or trust-on-first-use override is a public input.
+
+### Local lifecycle and outcome
+
+`openRegistryPressureSource(input:unknown,directory:string)` returns an owned
+actor exposing `read(signal:AbortSignal,deadline:number)` and `close()`.
+The directory must already exist, be empty, non-symlink, owned by the current
+non-root UID and mode0700. Missing state never causes implicit creation.
+Create only `known_hosts`, exclusively, mode0400. One actor owns that pin and
+one active read; concurrent/open-after-fault reads refuse. No per-read temporary
+directory or retained history grows. close refuses while busy or cleanup is
+unresolved, removes only its exact owned pin, preserves the parent and unknown
+files, and is idempotent after a successful close.
+
+Before every spawn, require the expected pin and private key as bounded readable
+regular single-link files, without following a final symlink, with owner-only
+permissions and current-UID or root ownership as appropriate. Compare the pin
+bytes and private-key SHA-256. Use no-follow/nonblocking bounded reads; distinguish
+missing and unreadable local state as thrown local failures. These metadata and
+hash checks assume immutable credentials and an owner-only runtime directory for
+the actor lifetime. Installation must provide a dedicated no-login worker and
+root-managed readonly credentials. This component does not claim resistance to
+concurrent hostile root/same-UID credential replacement or qualify that installation.
+
+The caller supplies the original absolute `performance.now()` deadline, finite
+and no more than5000ms ahead. Local preflight is inside that bound. Reserve the
+last1000ms for owned cleanup; when no acquisition interval remains, return the
+typed deadline outcome without spawning. Never restart a timer to gain grace.
+Drain stdout and stderr concurrently, retaining at most65537 and4096 bytes.
+Return `{state:'received',bytes:Uint8Array}` only after complete EOF and exit0,
+with the original bytes unchanged. Valid JSON followed by nonzero exit is not
+received. No JSON decoding, source timestamp or healthy fallback is introduced.
+
+Known stdout overflow yields `{state:'invalid-status',code:'status-too-large'}`.
+Other modeled outcomes use `{state:'unavailable',reason,code}` with only:
+`source-timeout/deadline`, `source-refused/refused` for reserved exit77,
+`source-command-failed/ssh-exit` for all other unsuccessful exchanges, including
+ambiguous SSH255, and `source-command-failed/stderr-too-large` for stderr overflow.
+Never infer network unreachability from SSH255 or include raw stderr in failures.
+External abort is controlled cancellation. Abort, overflow and acquisition timeout
+terminate and reap the owned local process group and settle/cancel both pipes.
+Unsettled cleanup or local IO at the original deadline throws a local error,
+retains the already known primary outcome on that error, latches the actor fault
+and prevents overlap. A received frame is never returned after its deadline.
+Stream retention bounds do not establish total RSS or physical allocation bounds;
+local exit does not prove remote work stopped. Server timeout/concurrency and
+supervisor resource qualification remain mandatory before installation.
+
+### Qualification and remaining integration
+
+Three ordered TDD slices implement strict enrollment/argv, the owned reader, then
+a real non-root SSH verifier against the production public API. Native tooling
+is an explicitly supplied, hash/version-pinned extracted OpenSSH server, without
+installing or enabling a system service. Its fixture directory is newly created
+mode0700 directly beneath a safe owner-controlled home: OpenSSH StrictModes
+rejects authorized keys below writable /tmp or group-writable worktree ancestors.
+Supply the owned RFC1918 listen address and the actual permitted local source
+address separately; routing can choose another interface's address. Generate all
+fixture keys anew. Missing tools, unsafe paths and unsupported addresses fail;
+no silent localhost bypass or skipped negative qualifies this path. The Nx native
+target is uncached and records successful framing, wrong client/host/verb,
+nonzero-after-prefix, output caps, deadline, cancellation and owned child cleanup.
+Each new safety predicate requires an observed production-path negative and a
+selected guard/dependency fault that makes that test fail before its adjacent Proof.
+
+The existing local-input observer source port accepts only received/unavailable
+and does not pass an absolute deadline. It cannot consume the new overflow tag or
+preserve known-outcome cleanup failures without separately qualified integration.
+Do not silently adapt oversized frames to generic outages. The dedicated remote
+account, restricted dispatcher and exact no-argument run-as59001 bridge, effective
+host policy, schema/provenance-bound authenticated checkpoint, enrollment/rotation
+preserving the original baseline, independent scheduling/storage, private exporter,
+accepted producer admission and actual destination receipts remain required under
+Task5.1b. Existing stopped storage/file-admission campaigns are untouched by this
+client, which imports none of their helpers. The full lifecycle and activation
+requirements, including physical bounds, backup recovery and exact-revision host
+gates, remain open.

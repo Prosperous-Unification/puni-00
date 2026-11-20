@@ -40,3 +40,11 @@ _Avoid_: namespace, organisation, tenant
 **Registry robot**:
 A non-human registry account that belongs to one registry project and holds an explicit list of permissions.
 _Avoid_: service account, bot user, machine credential
+
+**Registry status enrollment**:
+The immutable trusted binding between an expected registry target and its permitted read-only status source.
+_Avoid_: observation, image protection, write authority
+
+**Registry status frame**:
+The complete bounded response from an enrolled registry status source, retaining its original evidence.
+_Avoid_: accepted measurement, healthy registry, delivery receipt

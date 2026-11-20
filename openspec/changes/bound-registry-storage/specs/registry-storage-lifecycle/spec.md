@@ -521,3 +521,42 @@ or destination delivery. Native engine and installed delivery evidence remain di
 
 - **WHEN** the supplied address has more than five decimal port digits, including leading zeroes with a numerically small value
 - **THEN** opted-in rendering refuses before output, while one-to-five-digit forms remain subject to the numeric1..65535 range
+
+### Requirement: Enrolled bounded SSH status acquisition
+
+The status client SHALL use an immutable exact target/peer enrollment, one pinned
+Ed25519 host key, a dedicated hashed identity and fixed SSH command. It SHALL
+retain bounded original output, require EOF and exit0 for receipt, preserve known
+oversized-frame classification and obey one original five-second deadline including
+cleanup. Local state failures SHALL throw. This prerequisite alone SHALL NOT
+advance authenticated observer state or qualify installed monitoring.
+
+#### Scenario: Enrollment is malformed or mutated
+
+- **WHEN** enrollment contains an unknown field, nonprivate address, root principal, malformed key/path or wrong version, or its input is changed after parsing
+- **THEN** malformed input is rejected and later input mutation cannot change the parsed peer or fixed command
+
+#### Scenario: Authentication or command fails
+
+- **WHEN** the enrolled host key or dedicated client key differs, or the source exits unsuccessfully after emitting a complete-looking frame
+- **THEN** no received frame is returned, raw stderr is not exposed, and ambiguous SSH255 remains source-command-failed
+
+#### Scenario: Output exceeds a bound
+
+- **WHEN** stdout exceeds65537 bytes or stderr exceeds4096 bytes
+- **THEN** acquisition stops, local cleanup is required and the fixed oversized-status or command-failure outcome is preserved, including on a subsequent local cleanup error
+
+#### Scenario: Original deadline expires or caller cancels
+
+- **WHEN** acquisition times out, the caller aborts or cleanup cannot settle before the supplied original deadline
+- **THEN** the client terminates its owned child without granting new grace, returns controlled cancellation or the modeled timeout as appropriate, and unresolved cleanup throws and prevents overlapping attempts
+
+#### Scenario: Trusted local state is missing or unreadable
+
+- **WHEN** the SSH executable, private identity, pin or existing private directory is missing, unreadable, malformed or differs from enrollment
+- **THEN** the client throws a local failure without creating substitute state or accepting source evidence
+
+#### Scenario: Native verifier lacks its qualified tool or addresses
+
+- **WHEN** the real SSH verifier is invoked without its exact pinned executable, safe private fixture directory or separately declared owned listen/permitted-source addresses
+- **THEN** it fails visibly rather than skipping checks, weakening SSH admission or using a localhost-only substitute
