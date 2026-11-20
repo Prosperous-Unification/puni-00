@@ -1473,7 +1473,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const capped = await launchCall('clamped');
       expect(capped.call).toContain('-p MemoryHigh=2G');
       expect(capped.report).toContain(
-        `ops job: ${capped.id} MemoryHigh 2 GiB (the pool's 4 − 2 GiB, below heuristic 3 GiB; reservation clamped to 2 GiB)`,
+        `ops job: ${capped.id} MemoryHigh 2 GiB (the pool's 4 − 2 GiB, below heuristic 3 GiB; reservation clamped to 2 GiB; below the calibrated p95 2.4 GiB, so the scope will be throttled at its measured need)`,
       );
     }, 60000);
 
@@ -1496,11 +1496,13 @@ if (insideOpsNamespace(import.meta.path)) {
         memoryGib: 2,
         term: 'pool',
         heuristicGib: 3,
+        belowP95Gib: 2.4,
       });
       expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 3 })).toEqual({
         memoryGib: 2,
         term: 'reservation',
         heuristicGib: 3,
+        belowP95Gib: 2.4,
       });
       // h4claw and h2puni with the landed gate entry (heuristic 13): 15 − 2 and 14 − 2.
       const gate = { ...entry, provenance: { ...entry.provenance, heuristic: { memoryGib: 13 } } };
@@ -1517,6 +1519,19 @@ if (insideOpsNamespace(import.meta.path)) {
         memoryGib: 1,
         term: 'envelope',
       });
+    });
+
+    test('a pool bound below the calibrated p95 says so', () => {
+      const entry = parseCatalogueJobs(catalogueOf(types)).find((job) => job.id === 'clamped');
+      if (entry === undefined) throw new Error('no clamped fixture type');
+      // 4 − 2 = 2 GiB is below the fixture's p95 of 2.4; 4 − 0 lets the heuristic 3 hold it.
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 2 })).toMatchObject({
+        memoryGib: 2,
+        belowP95Gib: 2.4,
+      });
+      expect(
+        scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 0 }),
+      ).not.toHaveProperty('belowP95Gib');
     });
 
     test('a cap entry with memoryGib clamped to the pool is refused 64 before admission', async () => {

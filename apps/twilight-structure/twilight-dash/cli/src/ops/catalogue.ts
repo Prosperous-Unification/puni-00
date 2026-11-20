@@ -39,6 +39,11 @@ export interface ScopeMemoryBound {
   readonly term: BoundTerm;
   /** The clamped entry's `heuristic.memoryGib`; absent for term `envelope`. */
   readonly heuristicGib?: number;
+  /**
+   * The calibrated `p95.memoryGib` when the bound is below it (review S3-2): the scope will be
+   * throttled at its measured need. Absent otherwise.
+   */
+  readonly belowP95Gib?: number;
 }
 
 /**
@@ -66,10 +71,17 @@ export function scopeMemoryBound(jobType: JobType, ceiling: ScopeCeiling): Scope
   // launch `-p MemoryHigh=3G` on a 4 − 2 GiB pool, and `the scope bound is the lower of the
   // heuristic and the pool, never below the reservation` fail; dropping the floor failed the
   // latter's reservation case (2026-11-20, review S2-3).
-  if (pool < envelope) return { memoryGib: envelope, term: 'reservation', heuristicGib: heuristic };
-  return heuristic <= pool
-    ? { memoryGib: heuristic, term: 'heuristic', heuristicGib: heuristic }
-    : { memoryGib: pool, term: 'pool', heuristicGib: heuristic };
+  const bound: ScopeMemoryBound =
+    pool < envelope
+      ? { memoryGib: envelope, term: 'reservation', heuristicGib: heuristic }
+      : heuristic <= pool
+        ? { memoryGib: heuristic, term: 'heuristic', heuristicGib: heuristic }
+        : { memoryGib: pool, term: 'pool', heuristicGib: heuristic };
+  // Proof: never marking it made `a pool bound below the calibrated p95 says so`
+  // (job-run.test.ts) find no `below the calibrated p95` (2026-11-20, review S3-2).
+  return bound.memoryGib < provenance.p95.memoryGib
+    ? { ...bound, belowP95Gib: provenance.p95.memoryGib }
+    : bound;
 }
 
 /**

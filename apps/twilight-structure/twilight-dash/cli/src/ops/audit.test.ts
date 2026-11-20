@@ -526,6 +526,38 @@ describe('ops job audit of an entry clamped to the pool (task 6.25, A-ENVELOPE-C
     expect(auditDrift([atHeuristic], head, NOW, CEILING).drifts[0]?.expected).toBe(true);
   });
 
+  test('a clamped memoryGib whose pool bound is below the p95 is noted (review S3-2)', () => {
+    // A 12 GiB budget less 2 leaves 10, below the measured 10.01: not today's hosts.
+    const head = clampedHead({ cpuCores: 6, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 10.01 });
+    const small = { memoryGib: 12, memoryBoundHeadroomGib: 2 };
+    const { notes } = auditDrift([], head, NOW, small);
+    expect(notes).toContain(
+      `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool; an overrun is expected and stays drift, waste is not judged; MemoryHigh 10 GiB on this pool is below the calibrated p95 10.01 GiB (${location})`,
+    );
+    expect(auditDrift([], head, NOW, CEILING).notes.join('\n')).not.toContain(
+      'below the calibrated p95',
+    );
+  });
+
+  test('a throttled run under a bound below the calibrated p95 says so', () => {
+    const head = clampedHead({ cpuCores: 6, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 10.01 });
+    const throttled = {
+      ...runRecord(head, {
+        id: 'gate-1',
+        memoryGib: 10,
+        cpuCores: 5,
+        tmpGib: 8,
+        memoryHighEvents: 4,
+      }),
+      memoryBoundGib: 10,
+    };
+    const { drifts } = auditDrift([throttled], head, NOW, {
+      memoryGib: 12,
+      memoryBoundHeadroomGib: 2,
+    });
+    expect(drifts[0]?.line).toEndWith('; MemoryHigh 10 GiB is below the calibrated p95 10.01 GiB');
+  });
+
   test('an overrun of an unclamped dimension of a clamped entry is plain drift', () => {
     const head = clampedHead({ cpuCores: 6, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 10.01 });
     const run = runRecord(head, { id: 'gate-1', memoryGib: 8, cpuCores: 5, tmpGib: 12 });

@@ -4677,8 +4677,10 @@ and 6 GiB, which hides the measurement and under-reserves by more than a third.
   reservations can exceed h4claw's 15 GiB. On h2puni, 12 GiB leaves 2 GiB of a 14 GiB budget to
   dev WBS and monitoring. The ordinary gate (p95 10.01 GiB) fits both hosts with margin, so the
   risk is the tail; it is strictly smaller than main's 6 GiB bound, which stalled a gate for
-  58 h. Follow-up: make `memoryBoundHeadroomGib` a gate_host role input written into each host's
-  `host-pool.json` (today the role writes no such key, so both hosts take the default 2).
+  58 h. Deployment consequence (re-review S3-1): the gate_host role cannot deploy it yet: `roles/gate_host/tasks/validate.yml` asserts the exact key list of `host-pool.json`, and `templates/host-pool.json.j2` renders no such key, so a hand-set key fails the validate play. The key is absent on both hosts until the role gains the input, and the default 2 applies. Follow-up: an inventory input (for example `puni_gate_pool_memory_bound_headroom_gib`), a line in the template, and the key in validate.yml's key list. A pool whose
+  budget less the headroom falls below the calibrated p95 (a 12 GiB budget gives 10, below
+  10.01; not today's hosts) is named in the launcher's line and the audit's notes as
+  `below the calibrated p95 …` (S3-2).
 - **S25-A7** A clamped dimension reserves the whole pool, for Dany beside S25-A1 and S25-A6: a
   dimension in `clampedToAllocatable` reserves the pool's allocatable there at admission,
   whatever the envelope figure says, so the hand-set 9 vs 10 GiB no longer decides anything, and
@@ -4775,7 +4777,7 @@ no host touched.
 | `scopeMemoryBound` on the landed `gate` entry                                                                                     | 13 GiB, term `heuristic`, on a 15 − 2 ceiling; 12 GiB, term `pool`, on 14 − 2                                                                                                                                                          |
 | both typechecks, `--skip-nx-cache`                                                                                                | `Successfully ran target typecheck` for both                                                                                                                                                                                           |
 | `bunx eslint` on the 25 TypeScript files the branch changes                                                                       | exit 0, after `--fix` sorted two import blocks                                                                                                                                                                                         |
-| `bunx prettier --check`, `bunx openspec validate --all --json`, `check-indexes working . HEAD`                                    | FOLD2_TAIL                                                                                                                                                                                                                             |
+| `bunx prettier --check`, `bunx openspec validate --all --json`, `check-indexes working . HEAD`                                    | all files use Prettier code style; 346 items, 346 passed, 0 failed; exit 0                                                                                                                                                             |
 
 | Injected fault                                         | Observed                                                                                                                                  |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -4792,3 +4794,27 @@ no host touched.
 The first host-jobs fixture gave the clamped gate 11 GiB of tmp, and the second-order case then
 waited on the laptop's free disk (12 GiB) rather than on the vector, so the `fits()` fault went
 unseen. The fixture now declares 1 GiB of tmp, and the fault fails it.
+
+### Re-review fold-in (S3-1, S3-2; 2026-11-20)
+
+The re-review of #955 at c888430f4 was FIX-THEN-MERGE. Same branch, laptop and environment, no
+host touched. The fold-in commands table above carried a literal placeholder in its last row;
+it now gives the results. A tree-wide `git grep` for `FOLD` and `PLACEHOLDER` finds no other
+leftover from this change, and the files this branch changes contain no `TODO`, `XXX` or
+`TBD`. The deployment consequence for `memoryBoundHeadroomGib` (S3-1) is stated in S25-A6,
+resources.md and gate-hosts.md. When the bound is below the calibrated p95 (S3-2),
+`ScopeMemoryBound.belowP95Gib` carries that p95, and three outputs name it: the launcher's
+line, the audit's `throttled` line and the audit's clamp note.
+
+| Command                                                                       | Result                            |
+| ----------------------------------------------------------------------------- | --------------------------------- |
+| `job-run`, `audit`, `calibrate`, `status` test files inside the ops namespace | 111 pass, 18 skip, 0 fail         |
+| `bunx eslint` on the 5 changed TypeScript files                               | exit 0                            |
+| `bunx prettier --check` on the changed files                                  | all files use Prettier code style |
+| `bunx openspec validate --all --json`                                         | 346 items, 346 passed, 0 failed   |
+| `check-indexes working . HEAD` after `git add -A`                             | exit 0                            |
+
+| Injected fault                                 | Observed                                                                                                                                                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scopeMemoryBound` never marking `belowP95Gib` | `a pool bound below the calibrated p95 says so`, the pool-caps launch test (its line lacked the suffix), the pure bound test and `a clamped memoryGib whose pool bound is below the p95 is noted` failed |
+| the audit's `throttled` suffix dropped         | `a throttled run under a bound below the calibrated p95 says so` failed                                                                                                                                  |

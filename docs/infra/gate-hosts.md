@@ -16,7 +16,9 @@ tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's all
 `gate` may not be listed in `concurrencyEligible`. Its scope runs under
 `MemoryHigh = min(heuristic 13 GiB, pool budget − memoryBoundHeadroomGib)`, the headroom 2 GiB
 when the pool configuration leaves it out: 13 GiB on h4claw (15 − 2), 12 GiB on h2puni (14 − 2)
-(S25-A6). Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h 27 min (p95
+(S25-A6). The key is absent on both hosts until the gate_host role gains the input:
+`tasks/validate.yml` asserts the exact key list of `host-pool.json` and the template renders no
+such key, so a hand-set key fails the validate play, and the default 2 applies. Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h 27 min (p95
 18,958 s), which replaces the intro's figure for an enrolled gate.
 
 ## What the host gate runs

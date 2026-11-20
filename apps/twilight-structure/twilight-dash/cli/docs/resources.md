@@ -861,7 +861,8 @@ The configuration gains three optional fields, none pinned by the binding:
 `launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
 jobs here), `concurrencyEligible` (job type ids, each named once; absent means none) and
 `memoryBoundHeadroomGib` (whole GiB of the memory budget a clamped entry's `MemoryHigh` leaves to
-the rest of the host, task 6.25; absent means 2). A type whose catalogue entry carries
+the rest of the host, task 6.25; absent means 2). Today the gate_host role cannot deploy it yet: `roles/gate_host/tasks/validate.yml` asserts the exact key list of `host-pool.json`, and `templates/host-pool.json.j2` renders no such key, so a hand-set key fails the validate play. The key is absent on both hosts until the role gains the input, and the default 2 applies. Follow-up: an inventory input (for example `puni_gate_pool_memory_bound_headroom_gib`), a line in the template, and the key in validate.yml's key list. When the budget less this headroom falls below the calibrated
+p95, the launcher's line and the audit's notes add `below the calibrated p95 <n> GiB`. A type whose catalogue entry carries
 `clampedToAllocatable` may not be listed in `concurrencyEligible`: every pool open refuses it 64
 (S25-A7). Every
 `ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `job admission`, `pool inspect`,

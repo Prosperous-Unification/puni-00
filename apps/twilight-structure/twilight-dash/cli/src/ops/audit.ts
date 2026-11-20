@@ -97,10 +97,17 @@ function throttleOf(record: RunRecord, head: JobType, ceiling: ScopeCeiling): Dr
   if (record.endedAt !== null && scopeMemoryBound(head, ceiling).memoryGib > bound) return null;
   const running = record.endedAt === null ? ', still running' : '';
   const memoryHigh = bound === envelope ? '' : ` (MemoryHigh ${String(bound)} GiB)`;
+  // A bound under the measured need throttles by construction (review S3-2): say so.
+  // Proof: dropping it made `a throttled run under a bound below the calibrated p95 says so`
+  // (audit.test.ts) find no `below the calibrated p95` (2026-11-20).
+  const belowP95 =
+    head.provenance.kind === 'calibrated' && bound < head.provenance.p95.memoryGib
+      ? `; MemoryHigh ${String(bound)} GiB is below the calibrated p95 ${String(head.provenance.p95.memoryGib)} GiB`
+      : '';
   return {
     kind: 'throttled',
     type: record.type,
-    line: `${record.type} throttled in run ${record.jobId}${running}: memory.events high ${String(memoryHighEvents)} under envelope memoryGib ${String(envelope)}${memoryHigh}, peak memoryGib ${memoryGib === null ? 'unmeasured' : figure(memoryGib)} (${record.cataloguePath}); calibrate the type (\`ops job calibrate --type ${record.type}\`) and \`ops job propose --type ${record.type}\`; the estimated envelope is below the job's real memory`,
+    line: `${record.type} throttled in run ${record.jobId}${running}: memory.events high ${String(memoryHighEvents)} under envelope memoryGib ${String(envelope)}${memoryHigh}, peak memoryGib ${memoryGib === null ? 'unmeasured' : figure(memoryGib)} (${record.cataloguePath}); calibrate the type (\`ops job calibrate --type ${record.type}\`) and \`ops job propose --type ${record.type}\`; the estimated envelope is below the job's real memory${belowP95}`,
   };
 }
 
@@ -284,10 +291,18 @@ export function auditDrift(
       for (const dimension of clamped) {
         const p95 = head.provenance.p95[dimension];
         const declared = head.envelope[dimension];
+        const scope = dimension === 'memoryGib' ? scopeMemoryBound(head, ceiling) : null;
+        // Proof: `scopeMemoryBound` never marking `belowP95Gib` made `a clamped memoryGib whose
+        // pool bound is below the p95 is noted` (audit.test.ts) find the note without the
+        // suffix (2026-11-20, review S3-2).
+        const bound =
+          scope?.belowP95Gib === undefined
+            ? ''
+            : `; MemoryHigh ${String(scope.memoryGib)} GiB on this pool is below the calibrated p95 ${String(scope.belowP95Gib)} GiB`;
         notes.push(
           p95 > declared
-            ? `${head.id} ${dimension} overruns a clamped envelope: p95 ${figure(p95)} ${UNIT[dimension]} measured, entry ${String(declared)} clamped to the pool; an overrun is expected and stays drift, waste is not judged (${location})`
-            : `${head.id} ${dimension} is clamped to the pool: entry ${String(declared)} holds its p95 ${figure(p95)} ${UNIT[dimension]} without the heuristic's headroom; waste is not judged (${location})`,
+            ? `${head.id} ${dimension} overruns a clamped envelope: p95 ${figure(p95)} ${UNIT[dimension]} measured, entry ${String(declared)} clamped to the pool; an overrun is expected and stays drift, waste is not judged${bound} (${location})`
+            : `${head.id} ${dimension} is clamped to the pool: entry ${String(declared)} holds its p95 ${figure(p95)} ${UNIT[dimension]} without the heuristic's headroom; waste is not judged${bound} (${location})`,
         );
       }
     const digest = descriptorDigestOf(head);

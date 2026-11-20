@@ -182,7 +182,11 @@ function boundLine(job: BoundJob): string {
     pool: `${pool}, below ${heuristic}`,
     reservation: `the reservation, since ${pool} is below it; ${heuristic}`,
   }[memoryBound.term];
-  return `MemoryHigh ${String(memoryBound.memoryGib)} GiB (${reason}; reservation clamped to ${String(reservation)} GiB)`;
+  const below =
+    memoryBound.belowP95Gib === undefined
+      ? ''
+      : `; below the calibrated p95 ${String(memoryBound.belowP95Gib)} GiB, so the scope will be throttled at its measured need`;
+  return `MemoryHigh ${String(memoryBound.memoryGib)} GiB (${reason}; reservation clamped to ${String(reservation)} GiB${below})`;
 }
 
 function launchGated(
