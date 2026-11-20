@@ -1,0 +1,60 @@
+proposal for gate in /home/puni1/puni-00-gate-launcher/infra/jobs/catalogue.json at 6ac84e95da7b1e3078355b6ab7834e13c185bd88: argument profile "<sha>", host class linux-x64-8c-15g, toolchain bun 1.4.4+38afee6c8; provisional heuristics: nearest-rank p95 × 1.25 rounded up, at least 3 records per dimension
+excluded run 22ce2369-4a60-4372-ad9a-c0d8f5e10293: incomplete: payload exit 143
+excluded calibration 9e024ef5-ef9e-4257-a485-f0351df1cffe: incomplete: payload exit 70
+excluded calibration 8186236c-958c-4494-81a5-f444343c8aae: incomplete: payload exit 70
+excluded calibration f5d4c1d0-6322-4c90-bd09-2548308cc006: incomplete: payload exit 70
+excluded calibration a498260b-2b21-4bf6-84ac-f2eecb61babe: incomplete: payload exit 143
+excluded calibration 2c0a5547-9bf1-49e3-b041-c3ea01f43c99: incomplete: payload exit 137
+excluded calibration 55ccad78-0b58-429d-9037-f484821acb0d: incomplete: payload exit 137
+excluded calibration fa0a73a0-90de-49ca-b412-fa3e39c92424: incomplete: payload exit 143
+excluded calibration 0e6688b2-4182-4a09-a12e-86ec8c4a2aea: incomplete: payload exit 143
+excluded calibration 9a34386b-d294-4fdd-8ef3-8ec22c8ccf64: incomplete: payload exit 137
+excluded calibration 0650f314-f59a-438d-a49d-df8c95cba0b3: incomplete: payload exit 1
+excluded calibration 35d4ab14-29a1-4542-82b1-ce079569c984: incomplete: payload exit 137
+excluded calibration ef8e1ce6-78f7-4be8-8934-5cfe7f69b7a6: incomplete: container attribution incomplete
+excluded calibration ebe7a89e-e34a-464b-9ec4-dd2cd34d22f5: incomplete: payload exit 137
+excluded calibration e15a97eb-d26e-4c6d-a2c3-79439dab5884: incomplete: telemetry failure: interval: tmp directory /home/puni1/.local/share/dash/host-pool/e15a97eb-d26e-4c6d-a2c3-79439dab5884 unreadable: EACCES: permission denied, scandir '/home/puni1/.local/share/dash/host-pool/e15a97eb-d26e-4c6d-a2c3-79439dab5884/wbs-shared-process-XYrBbJ/inaccessible'
+excluded calibration 4f995372-2990-4364-9c1a-1eb1f2d0259b: incomplete: payload exit 143
+excluded calibration 6ff558aa-6bb8-47a9-aea7-7bfb43bd643c: incomplete: payload exit 137
+used as a lower bound calibration 29d3503e-aa40-47ab-973d-1a4c427e15ee in tmpDiskGib: tmp lower bound only: 1 samples saw unreadable subtrees (wbs-shared-process-NiMWHM/inaccessible)
+memoryGib: 13 (p95 10.01 GiB over 3 uncapped, unthrottled records: 29b8b406-553a-406a-81ef-981399b071e1, 29d3503e-aa40-47ab-973d-1a4c427e15ee, 43923656-0aa0-491b-920a-267d4ee97a63)
+cpuCores: 9 (p95 6.88 cores over 3 calibration records: 29b8b406-553a-406a-81ef-981399b071e1, 29d3503e-aa40-47ab-973d-1a4c427e15ee, 43923656-0aa0-491b-920a-267d4ee97a63)
+tmpDiskGib: 11 (lower bound from 2 measured + 1 lower bounds, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 8.01 GiB over 3 records: 29b8b406-553a-406a-81ef-981399b071e1, 43923656-0aa0-491b-920a-267d4ee97a63, 29d3503e-aa40-47ab-973d-1a4c427e15ee)
+durationSeconds: reported only, the catalogue has no duration field (p95 18957.71 s over 3 calibration records: 29b8b406-553a-406a-81ef-981399b071e1, 29d3503e-aa40-47ab-973d-1a4c427e15ee, 43923656-0aa0-491b-920a-267d4ee97a63)
+replacement for jobs[0] (id gate) in /home/puni1/puni-00-gate-launcher/infra/jobs/catalogue.json; nothing was written:
+{
+  "id": "gate",
+  "entrypoint": "bin/h2puni-gate.sh",
+  "argumentProfile": "<sha>",
+  "envelope": {
+    "cpuCores": 9,
+    "memoryGib": 13,
+    "tmpDiskGib": 11,
+    "exclusive": [
+      "gate_tree"
+    ]
+  },
+  "containers": {
+    "memoryGib": 1,
+    "cpuCores": 1
+  },
+  "enforcement": "observe",
+  "maxRuntimeMinutes": 480,
+  "provenance": {
+    "kind": "calibrated",
+    "hostClass": "linux-x64-8c-15g",
+    "calibratedAt": "2026-11-20T04:05:14.759Z",
+    "recordCount": 3,
+    "p95": {
+      "cpuCores": 6.88,
+      "memoryGib": 10.01,
+      "tmpDiskGib": 8.01
+    },
+    "recordIds": [
+      "29b8b406-553a-406a-81ef-981399b071e1",
+      "29d3503e-aa40-47ab-973d-1a4c427e15ee",
+      "43923656-0aa0-491b-920a-267d4ee97a63"
+    ],
+    "tmpDiskGibLowerBound": true
+  }
+}

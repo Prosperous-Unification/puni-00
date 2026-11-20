@@ -400,6 +400,33 @@ if (insideLinuxNamespace(import.meta.path)) {
       runtime.close();
     });
 
+    test('the largest envelope is admitted and one more in any dimension is refused 73 (task 6.25)', () => {
+      // 16 disk units of just under 1.3 GiB hold 20.8 GiB: 20 whole GiB.
+      const { runtime } = pool(scenarioPool, { diskUnitBytes: 1_395_864_371 });
+      const largest = runtime.largestEnvelope();
+      expect(largest).toEqual({ cpuCores: 8, memoryGib: 13, tmpDiskGib: 20 });
+      const request = (cpuCores: number, memoryGib: number, tmpDiskGib: number) =>
+        runtime.enqueueHostJob(
+          {
+            descriptor: jobType('gate', cpuCores, memoryGib, [], tmpDiskGib),
+            label: 'gate:edge',
+            waitSeconds: 600,
+          },
+          process.pid,
+        );
+      expect(request(9, 13, 20)).toMatchObject({ kind: 'refused', exitCode: 73 });
+      expect(request(8, 14, 20)).toMatchObject({ kind: 'refused', exitCode: 73 });
+      expect(request(8, 13, 21)).toEqual({
+        kind: 'refused',
+        exitCode: 73,
+        reason: 'host job gate refused: tmpDiskGib 21 exceeds allocatable 20',
+      });
+      expect(request(largest.cpuCores, largest.memoryGib, largest.tmpDiskGib)).toMatchObject({
+        kind: 'queued',
+      });
+      runtime.close();
+    });
+
     test('refuses an exclusive id the pool lacks, exit 73 without a ticket', () => {
       const { runtime } = pool({ ...scenarioPool, gateTrees: 0 });
       expect(

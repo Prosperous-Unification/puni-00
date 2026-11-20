@@ -694,6 +694,17 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   not cited. Records are partitioned by `cataloguePath` here, while `audit` below judges each
   record by job id against the current checkout's catalogue (S4-A19). Exit 0.
 
+  The proposal is host-aware (task 6.25, A-ENVELOPE-CLAMP-1). A figure above the largest
+  envelope the `--config` pool admits, its allocatable cores and memory and the whole GiB its
+  disk units hold, would be refused 73 on every run, so it is clamped to that figure. The line
+  then reads `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …)`,
+  and the provenance names the clamped dimensions in `clampedToAllocatable` and their unclamped
+  figures in `heuristic`. A figure equal to allocatable is not clamped. A clamped figure may sit
+  below its p95: the job measured more than the pool holds. On h4claw the gate's three
+  calibrations proposed 13 GiB and 9 cores, clamped to 10 GiB and 7 cores there. The catalogue
+  is shared by both gate hosts, so the landed entry is clamped by hand to the smaller pool,
+  h2puni's 6 cores and 9 GiB, which a `propose` on h2puni reproduces.
+
 - **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
   the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads
   the checkout a record ran from, which may be a deleted scratch worktree: the record pins the
@@ -709,7 +720,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
     throttled under (task 6.11).
   - `overrun`: a peak above the envelope the run was admitted under, in memory, CPU or tmp disk.
     It stays visible however many runs follow until the HEAD entry's envelope is at least the
-    peak. A new provenance alone, `calibrated` included, does not clear it.
+    peak. A new provenance alone, `calibrated` included, does not clear it. In a dimension the
+    HEAD entry clamped to the pool (task 6.25) the line ends
+    `; expected: the HEAD entry is clamped to the pool`. It is still drift, so the audit exits 1
+    and the weekly unit and the gate_host role's final probe fail on it.
   - `waste`: a dimension's p95 below half the HEAD envelope over at least ten complete runs of
     the HEAD entry. Any edit to an entry changes its digest, so the runs before the edit stop
     counting: adding `maxRuntimeMinutes` to `gate` restarted its count (task 6.11).
@@ -727,6 +741,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
     entry whose provenance carries `tmpDiskGibLowerBound: true` is never judged for tmp waste,
     and the audit prints `note:` with the id and
     `tmp entry is a lower bound; waste cannot fire for tmpDiskGib`.
+  - Each dimension in the HEAD entry's `clampedToAllocatable` prints a note and is never judged
+    for `waste`. When its p95 is above the entry the note reads, for example:
+    `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`.
+    Otherwise it says the entry holds its p95 without the heuristic's headroom.
   - Runs of a type the catalogue does not name print a `note: not judged` line. Runs without an
     outcome print a `note: not judged beyond throttling` line, because only `throttled` judges a
     run still in progress.

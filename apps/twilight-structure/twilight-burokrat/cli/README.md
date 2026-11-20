@@ -213,6 +213,8 @@ The host-jobs family checks `JOB-CATALOGUE`: each entry of the candidate's
 [`infra/jobs/catalogue.json`](../../../../infra/jobs/README.md) is well formed, uniquely named,
 starts from an entrypoint present at the revision, declares `containers` as `none` or a bound,
 has an estimate whose `until` date has not passed and reserves no less than its calibrated p95.
+A dimension the provenance marks `clampedToAllocatable` may reserve less: its `heuristic` figure
+is judged against the p95 instead, and the envelope may not exceed that heuristic.
 The rule is dated and the package reads no clock, so `check --now <UTC instant>` supplies the
 instant; without it a candidate carrying a catalogue leaves the rule unevaluated. A candidate
 without a catalogue declares no host jobs and has nothing to judge.

@@ -13,6 +13,7 @@ import {
   type HostPoolStatus,
   loadResourceConfiguration,
   OutboxDropRefusal,
+  type PoolEnvelope,
   ResourceRuntime,
   ResourceWbsRefusal,
   ResourceWbsUnavailable,
@@ -126,15 +127,20 @@ function launcherDependencies(deps: OpsDependencies): JobRunDependencies {
 }
 
 /**
- * Every run record of the pool at `config`, read without creating anything.
+ * Every run record of the pool at `config`, read without creating anything, and the largest
+ * envelope that pool admits ({@link ResourceRuntime.largestEnvelope}).
  * @throws OpsRefusal 70 when the pool or its run records are unusable.
  */
-function readRunRecords(config: string, deps: OpsDependencies, command: string) {
+function readRunRecords(
+  config: string,
+  deps: OpsDependencies,
+  command: string,
+): { records: RunRecord[]; allocatable: PoolEnvelope } {
   const runtime = openPool(config, deps.clock, command);
   try {
     const records = HostJobRunRecords.openForReading(runtime.configuration.root);
     try {
-      return records.list();
+      return { records: records.list(), allocatable: runtime.largestEnvelope() };
     } finally {
       records.close();
     }
@@ -191,7 +197,7 @@ export const opsHandlers: OpsHandlers = {
         64,
         `ops job propose: job type ${command.type} is not in ${catalogue.cataloguePath} at ${catalogue.revision}`,
       );
-    const records = readRunRecords(command.config, deps, 'ops job propose');
+    const { records, allocatable } = readRunRecords(command.config, deps, 'ops job propose');
     const proposal = proposeEnvelope(
       command.type,
       catalogue,
@@ -201,6 +207,7 @@ export const opsHandlers: OpsHandlers = {
         hostClass: command.hostClass ?? hostClassOf(deps.host),
         toolchain: command.toolchain ?? toolchainOf(deps.environment),
       },
+      allocatable,
       deps.clock.read(),
     );
     for (const line of proposal.lines) deps.stdout(`${line}\n`);
@@ -213,7 +220,7 @@ export const opsHandlers: OpsHandlers = {
   },
   'job audit': (command, deps) => {
     const now = auditInstant(command.now, deps.clock);
-    const records = readRunRecords(command.config, deps, 'ops job audit');
+    const { records } = readRunRecords(command.config, deps, 'ops job audit');
     // Every record is judged against this checkout's catalogue by job id, never by re-reading
     // the checkout it ran from, which may be a deleted scratch worktree (S4-A8, review A2).
     // Proof: reading each record's own checkout made `a run from a vanished checkout is judged

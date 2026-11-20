@@ -1,3 +1,4 @@
+import type { PoolEnvelope } from '../resources/runtime';
 import { type CommittedCatalogue, type JobType, parseCatalogueJobs } from './catalogue';
 import {
   descriptorOf,
@@ -36,6 +37,8 @@ const UNIT: Readonly<Record<Dimension, string>> = {
   durationSeconds: 's',
 };
 const DIMENSIONS = ['memoryGib', 'cpuCores', 'tmpDiskGib', 'durationSeconds'] as const;
+/** The envelope dimensions a pool bounds, in the order a clamp names them (task 6.25). */
+const CLAMPED = ['cpuCores', 'memoryGib', 'tmpDiskGib'] as const;
 
 /** `p95 × headroom`, rounded up to a whole unit, at least `floor`. */
 function withHeadroom(p95: number, floor: number): number {
@@ -58,6 +61,11 @@ function withHeadroom(p95: number, floor: number): number {
  * measured and the provenance carries `tmpDiskGibLowerBound: true` (S23-A4).
  * Refused, naming the count, when any dimension has fewer than three records; duration is
  * reported and counted but the catalogue has no field for it.
+ * A figure above `allocatable`, the largest envelope this pool admits, is clamped to it, since
+ * an envelope the pool cannot hold is refused 73 on every run (J5, task 6.25,
+ * A-ENVELOPE-CLAMP-1): the line says `clamped to allocatable` with the heuristic figure, and the
+ * provenance names the dimensions in `clampedToAllocatable` and their unclamped figures in
+ * `heuristic`. The clamped figure may be below the p95: the job measured more than the pool.
  * @throws Error when the catalogue does not name `typeId` (the caller refuses first).
  */
 export function proposeEnvelope(
@@ -65,6 +73,7 @@ export function proposeEnvelope(
   catalogue: CommittedCatalogue,
   records: readonly RunRecord[],
   partition: Partition,
+  allocatable: PoolEnvelope,
   now: number,
 ): Proposal {
   const index = catalogue.jobs.findIndex((job) => job.id === typeId);
@@ -208,8 +217,7 @@ export function proposeEnvelope(
     tmpDiskGib: p95Of('tmpDiskGib'),
     durationSeconds: p95Of('durationSeconds'),
   };
-  const envelope = {
-    ...jobType.envelope,
+  const heuristic = {
     cpuCores: withHeadroom(p95.cpuCores, 1),
     memoryGib: withHeadroom(p95.memoryGib, 1),
     // A lower bound may raise the entry's tmp disk, never lower it (S23-A4).
@@ -219,12 +227,29 @@ export function proposeEnvelope(
       ? Math.max(jobType.envelope.tmpDiskGib, withHeadroom(p95.tmpDiskGib, 0))
       : withHeadroom(p95.tmpDiskGib, 0),
   };
+  // Proof: `fit` returning the heuristic made `a heuristic above the pool's allocatable is
+  // clamped to it, and marked` (propose.test.ts) propose `memoryGib: 13` on a 10 GiB pool;
+  // clamping at `>=` made `a heuristic equal to allocatable is not clamped` find
+  // clampedToAllocatable `[cpuCores, memoryGib, tmpDiskGib]` (2026-11-20, task 6.25).
+  const clamped = CLAMPED.filter((dimension) => heuristic[dimension] > allocatable[dimension]);
+  const fit = (dimension: (typeof CLAMPED)[number]): number =>
+    Math.min(heuristic[dimension], allocatable[dimension]);
+  const envelope = {
+    ...jobType.envelope,
+    cpuCores: fit('cpuCores'),
+    memoryGib: fit('memoryGib'),
+    tmpDiskGib: fit('tmpDiskGib'),
+  };
   for (const dimension of DIMENSIONS) {
     const used = sources[dimension];
     const proposed =
       dimension === 'durationSeconds'
         ? 'reported only, the catalogue has no duration field'
         : String(envelope[dimension]);
+    const clamp =
+      dimension !== 'durationSeconds' && clamped.includes(dimension)
+        ? `clamped to allocatable ${String(allocatable[dimension])} ${UNIT[dimension]}; heuristic ${String(heuristic[dimension])} from `
+        : '';
     // Proof: one wording for every fallback made `two measured records and one lower bound
     // make a mixed lower bound` (propose.test.ts) read `lower bound only` (2026-11-19, S3-3).
     const pool =
@@ -236,7 +261,7 @@ export function proposeEnvelope(
         ? `${pool}, at least the entry's ${String(jobType.envelope.tmpDiskGib)}, provenance tmpDiskGibLowerBound: `
         : '';
     lines.push(
-      `${dimension}: ${proposed} (${bound}p95 ${figure(p95[dimension])} ${UNIT[dimension]} over ${String(used.length)} ${SOURCE[dimension]}: ${used.map((source) => source.id).join(', ')})`,
+      `${dimension}: ${proposed} (${clamp}${bound}p95 ${figure(p95[dimension])} ${UNIT[dimension]} over ${String(used.length)} ${SOURCE[dimension]}: ${used.map((source) => source.id).join(', ')})`,
     );
   }
   // The provenance cites only records that fed every dimension they could: a throttled or
@@ -246,8 +271,9 @@ export function proposeEnvelope(
   const recordIds = [
     ...new Set(DIMENSIONS.flatMap((dimension) => sources[dimension].map((source) => source.id))),
   ].filter((id) => !partial.has(id));
-  // The stated p95 is rounded to hundredths. The envelope stays above it, as JOB-CATALOGUE
-  // requires: ⌈1.25·p⌉ ≥ p + 0.005 for every p ≥ 0.02, and below that the envelope is 1 or p is 0.
+  // The stated p95 is rounded to hundredths. The heuristic stays above it, as JOB-CATALOGUE
+  // requires: ⌈1.25·p⌉ ≥ p + 0.005 for every p ≥ 0.02, and below that the figure is 1 or p is 0.
+  // An unclamped envelope is its heuristic; a clamped one is judged by its `heuristic`.
   const stated = (value: number): number => Math.round(value * 100) / 100;
   const entry: JobType = {
     ...jobType,
@@ -268,6 +294,16 @@ export function proposeEnvelope(
       // and `a lower-bound tmp entry is not waste-checkable` (audit.test.ts) name a tmpDiskGib
       // waste for the entry it proposes (2026-11-19, review S2-1).
       ...(tmpLowerBoundOnly ? { tmpDiskGibLowerBound: true as const } : {}),
+      // Proof: omitting these made the four clamping tests of propose.test.ts find no
+      // clampedToAllocatable or heuristic (2026-11-20, task 6.25).
+      ...(clamped.length > 0
+        ? {
+            clampedToAllocatable: clamped,
+            heuristic: Object.fromEntries(
+              clamped.map((dimension) => [dimension, heuristic[dimension]]),
+            ),
+          }
+        : {}),
     },
   };
   // The patch must be one the catalogue's own contract accepts.

@@ -174,7 +174,8 @@ describe('JOB-CATALOGUE', () => {
     expect(outcome.exitCode).toBe(1);
     expect(outcome.verdict?.allowed).toBe(false);
     expect(outcome.verdict?.findings).toEqual(
-      ['gate', 'release-build', 'test-queued', 'solver-image-publish'].map((id) =>
+      // The gate is calibrated since task 6.25; the other three are still estimates.
+      ['release-build', 'test-queued', 'solver-image-publish'].map((id) =>
         finding(
           id,
           'estimated envelope expired: until 2026-12-01, judged at 2026-12-02T00:00:00.000Z',
@@ -268,6 +269,7 @@ describe('JOB-CATALOGUE', () => {
   test('names an envelope below its own calibrated p95', async () => {
     const calibrated = (memoryP95: number) =>
       withJob('gate', (job) => {
+        job['envelope'] = { cpuCores: 4, memoryGib: 6, tmpDiskGib: 8, exclusive: ['gate_tree'] };
         job['provenance'] = {
           kind: 'calibrated',
           hostClass: 'h2puni',
@@ -283,6 +285,62 @@ describe('JOB-CATALOGUE', () => {
     ]);
     const atP95 = await judge(createCandidate({ jobs: calibrated(6) }), { now: BeforeUntil });
     expect(atP95.verdict?.findings).toEqual([]);
+  });
+
+  describe('an envelope clamped to the pool (Dash task 6.25, A-ENVELOPE-CLAMP-1)', () => {
+    const clamped = (provenance: Record<string, unknown>, memoryGib = 9) =>
+      withJob('gate', (job) => {
+        job['envelope'] = { cpuCores: 6, memoryGib, tmpDiskGib: 11, exclusive: ['gate_tree'] };
+        job['provenance'] = {
+          kind: 'calibrated',
+          hostClass: 'linux-x64-8c-15g',
+          calibratedAt: '2026-11-20T04:05:14.759Z',
+          recordCount: 3,
+          p95: { cpuCores: 6.88, memoryGib: 10.01, tmpDiskGib: 8.01 },
+          recordIds: ['run-1', 'run-2', 'run-3'],
+          clampedToAllocatable: ['cpuCores', 'memoryGib'],
+          heuristic: { cpuCores: 9, memoryGib: 13 },
+          ...provenance,
+        };
+      });
+
+    test('accepts an envelope clamped below its p95, never a heuristic below it', async () => {
+      const accepted = await judge(createCandidate({ jobs: clamped({}) }), { now: BeforeUntil });
+      expect(accepted.exitCode, accepted.stderr).toBe(0);
+      expect(accepted.verdict?.findings).toEqual([]);
+      const low = await judge(
+        createCandidate({ jobs: clamped({ heuristic: { cpuCores: 9, memoryGib: 10 } }) }),
+        { now: BeforeUntil },
+      );
+      expect(low.verdict?.findings).toEqual([
+        finding('gate', 'clamped heuristic memoryGib 10 is below its calibrated p95 10.01'),
+      ]);
+    });
+
+    test('refuses an unknown clamped dimension', async () => {
+      const outcome = await judge(
+        createCandidate({
+          jobs: clamped({
+            clampedToAllocatable: ['cpuCores', 'swapGib'],
+            heuristic: { cpuCores: 9 },
+          }),
+        }),
+        { now: BeforeUntil },
+      );
+      expect(outcome.verdict?.findings).toHaveLength(1);
+      expect(outcome.verdict?.findings[0]?.message).toStartWith('malformed entry: ');
+      expect(outcome.verdict?.findings[0]?.message).toContain('clampedToAllocatable[1]');
+    });
+
+    test('refuses a clamped dimension above its heuristic', async () => {
+      const outcome = await judge(createCandidate({ jobs: clamped({}, 14) }), {
+        now: BeforeUntil,
+      });
+      expect(outcome.verdict?.findings).toHaveLength(1);
+      expect(outcome.verdict?.findings[0]?.message).toContain(
+        'an envelope no larger than its heuristic in each clamped dimension',
+      );
+    });
   });
 
   test('names containers that are neither none nor a bound', async () => {

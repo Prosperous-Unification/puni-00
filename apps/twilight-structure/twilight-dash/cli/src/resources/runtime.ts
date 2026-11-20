@@ -639,6 +639,13 @@ export interface HostJobReservation extends PoolVector {
   tmpDiskGib: number;
 }
 
+/** An envelope's three admitted dimensions, in whole cores and GiB. */
+export interface PoolEnvelope {
+  cpuCores: number;
+  memoryGib: number;
+  tmpDiskGib: number;
+}
+
 /** The fields of a `host_job_events` row its move to the authority outbox reads. */
 const HostJobChangeShape = type({
   jobId: Identifier,
@@ -3121,6 +3128,18 @@ export class ResourceRuntime {
       .get(JSON.stringify(OutboxDropShape.assert(record)));
     if (inserted === null) throw new Error('resource outbox drop record unwritten');
     return { sequence: inserted.sequence, ...record };
+  }
+  /**
+   * The largest envelope this pool admits for an ordinary job: allocatable cores and memory,
+   * and the whole GiB its disk units hold. One more in any dimension is refused 73 (J5,
+   * {@link ResourceRuntime.enqueueHostJob}); `ops job propose` clamps to it (task 6.25).
+   */
+  largestEnvelope(): PoolEnvelope {
+    // Proof: taking the disk budget's GiB rounded up made `the largest envelope is admitted and
+    // one more in any dimension is refused 73 (task 6.25)` (host-jobs.test.ts) answer
+    // tmpDiskGib 21 on a pool that refuses 21 (2026-11-20).
+    const { cpuCores, memoryGib, tmpDiskGib } = this.wholePool();
+    return { cpuCores, memoryGib, tmpDiskGib };
   }
   /** What a calibration reserves: all of `allocatable`, its disk budget also in whole GiB. */
   private wholePool(): HostJobReservation {

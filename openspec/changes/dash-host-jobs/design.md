@@ -198,6 +198,24 @@ never ageing out), `waste` (p95 below half the envelope over ten or more complet
 labelled so in the catalogue README; cold, warm and two-job concurrent validation precede
 enabling concurrency on a host (task 6.5). Nothing writes the catalogue.
 
+_Amendment (task 6.25, 2026-11-20, assumption A-ENVELOPE-CLAMP-1 for Dany)._ Three complete
+`gate` calibrations on h4claw (8 cores, 15 GiB; pool allocatable 7 cores, 10 GiB, 48 disk units
+of 1 GiB) at `--parallel=1` gave p95 10.01 GiB, 6.88 cores and 8.01 GiB tmp (a lower bound), and
+the heuristic proposed 13 GiB and 9 cores: more than either enrolled pool holds (h2puni: 6
+cores, 9 GiB, 12 units) and, in cores, more than the host. J5 refuses such an envelope 73 for
+every ordinary run, so landing it would stop every gate. The gate at `--parallel=1` uses the
+whole host; that is the finding. `propose` is therefore host-aware: a heuristic figure above
+the `--config` pool's largest admissible envelope (allocatable cores and memory, and the whole
+GiB its disk units hold) is clamped to it, the line says `clamped to allocatable` with the
+heuristic, and the provenance carries `clampedToAllocatable` and the unclamped `heuristic`
+(Burokrat `CalibratedProvenance`). `JOB-CATALOGUE` judges a clamped dimension's heuristic, not
+its envelope, against the p95, and refuses an envelope above its heuristic. `audit` keeps an
+overrun in a clamped dimension as drift, marked expected, notes the clamp and never judges
+that dimension for waste. The catalogue serves both hosts, so the landed `gate` entry is
+clamped by hand to the smaller pool, h2puni's: 6 cores, 9 GiB, 11 GiB tmp. Rejected: raising
+both pools' allocatable, a host-capacity decision left to Dany; landing the unclamped entry,
+which refuses every gate; keeping the estimated 4 cores and 6 GiB, which hides the measurement.
+
 **J10. WBS shows the host, never admits for it (F12).** Two projections, both through
 existing transports: (a) a `host_job` use is published through the resource authority events
 as a versioned use variant (`resourceRuntimeUse` v2: `kind: 'host_job'`, optional project, work

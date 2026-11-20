@@ -4543,3 +4543,127 @@ corrected (a sibling under the slice, never below the job's scope).
 | an unreadable members reading answering `empty`                                    | `members that become unreadable during the wait are unverified, never ended` recorded `endedWith: SIGTERM`                                                                                                                                  |
 | `scopeSubtreeMembers` reading the scope alone                                      | `a cgroup nested below the job scope is counted and awaited (review of #954 S3-2)` received `[11, 12]` against `[11, 12, 99]`                                                                                                               |
 | the graceful `endLeftovers` call dropped, over the real seam outside the namespace | `tmp blocked: tmp directory unverified: live file hold remains charged; watch settles it` and members `[2957968]`                                                                                                                           |
+
+## 2026-11-20 measured gate envelope (task 6.25)
+
+Branch `ops/gate-catalogue-measured-20261120` from `main` 2c11ec61c; laptop, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the calibrations and the
+proposal below were run on h4claw by the coordinator before it).
+
+- On h4claw (host class `linux-x64-8c-15g`: 8 cores, 15 GiB; pool allocatable 7 cores, 10 GiB
+  and 48 disk units of 1 GiB), three complete `gate` calibrations ran at `--parallel=1` on
+  launcher 6ac84e95d, all exit 0: 29b8b406 (cold, 2026-11-19 12:02Z to 17:18Z), 29d3503e
+  (warm, 17:18Z to 22:45Z) and 43923656 (warm, 22:45Z to 2026-11-20 04:05Z).
+- `ops job propose --type gate` (exit 0, 2026-11-20 04:05:14Z) printed memoryGib 13 (p95 10.01
+  GiB over 3 uncapped, unthrottled records), cpuCores 9 (p95 6.88 cores), tmpDiskGib 11 (lower
+  bound from 2 measured and 1 lower bound, at least the entry's 8, p95 8.01 GiB, provenance
+  `tmpDiskGibLowerBound: true`; 29d3503e saw `wbs-shared-process-NiMWHM/inaccessible`), and
+  durationSeconds reported only (p95 18957.71 s). Its full text, which names no secret, is
+  [evidence/2026-11-20-h4claw-gate-propose.txt](evidence/2026-11-20-h4claw-gate-propose.txt).
+- The entry on `main` was `estimated` at 4 cores, 6 GiB and 8 GiB tmp. h2puni's pool, the
+  second enrolled host, allocates 6 cores, 9 GiB and 12 disk units; its own calibrations are
+  blocked (root-owned backup containers and disk), and its one cold run to complete with exit 0
+  peaked at 8 GiB of tmp.
+
+The proposal of 13 GiB and 9 cores fits neither pool, and in cores not even the host. J5's
+`oversize()` (`resources/runtime.ts`) refuses a non-calibration job whose envelope exceeds the
+pool's allocatable cores or memory, or whose disk units exceed its budget, with exit 73 before
+any ticket. Landing the printed entry would therefore refuse every ordinary gate on both hosts.
+The gate at `--parallel=1` uses the whole host: that is the finding, and the envelope has to
+say so without breaking admission.
+
+`ops job propose` is host-aware. `ResourceRuntime.largestEnvelope()` answers the largest
+envelope the `--config` pool admits: allocatable cores and memory, and the whole GiB its disk
+units hold, the figures `oversize()` refuses above. `proposeEnvelope` (`ops/propose.ts`) takes
+it and clamps every heuristic figure above it, a figure equal to it unclamped. The line reads
+`memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …)`, and the
+provenance carries `clampedToAllocatable` (the clamped dimensions in the order cpuCores,
+memoryGib, tmpDiskGib) and `heuristic` (their unclamped figures). A tmp lower bound is raised to
+the entry's figure first, then clamped. Burokrat's `CalibratedProvenance` accepts the two fields,
+both or neither, as a non-empty list of distinct dimension names and a heuristic naming exactly
+those dimensions. `JobType` refuses an envelope above its heuristic in a clamped dimension.
+`JOB-CATALOGUE` judges a clamped dimension's heuristic against the p95 in place of its envelope.
+`ops job audit` ends an overrun in a dimension the HEAD entry clamped with
+`; expected: the HEAD entry is clamped to the pool` and keeps it as drift. It prints one note per
+clamped dimension, reading, when the p95 is above the entry:
+`gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`,
+then that the overrun is expected and waste is not judged; it never judges that dimension for
+waste.
+
+The catalogue serves both gate hosts, so the landed `gate` entry is clamped **by hand to the
+smallest enrolled pool, h2puni's**: cpuCores 6, memoryGib 9, tmpDiskGib 11 (11 GiB fits
+h2puni's 12 units and h4claw's 48). Its provenance is the h4claw proposal's (host class,
+`calibratedAt` 2026-11-20T04:05:14.759Z, three records, p95 6.88 cores, 10.01 GiB and 8.01 GiB,
+`tmpDiskGibLowerBound: true`) plus `clampedToAllocatable: ["cpuCores", "memoryGib"]` and
+`heuristic: { cpuCores: 9, memoryGib: 13 }`. `propose` on h4claw would print 7 cores and 10 GiB;
+the test `h2puni's smaller pool clamps further, as the landed entry is clamped by hand` shows
+that the same records on h2puni's pool give exactly the landed figures. With this entry, on both
+hosts, no other catalogued job fits beside a gate in concurrent mode: h2puni's pool is held
+whole, and h4claw's keeps 1 core and 1 GiB, below every other entry's memory.
+
+The gate_host role's final probe (`infra/ansible/roles/gate_host/tasks/validate.yml`, task
+"Inspect the host pool and audit its envelopes") runs `ops pool inspect` then `ops job audit`,
+and its comment says an audit exiting 1 "fails the play by design". The weekly
+`dash-job-audit.service` does the same. An overrun stays drift under a clamped entry, so the
+probe and the unit go red after the first gate whose peak passes 6 cores or 9 GiB, and the p95
+says most will. The role is not changed here. Proposed follow-up: let the audit tell an expected
+overrun of a clamped dimension apart from failing drift, either through a separate exit code or
+a probe flag that accepts it, decided together with S25-A1.
+
+| Command                                                                                                                                                                              | Result                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` on `src/ops`, `resources/host-jobs.test.ts`, `resources/host-job-publication.test.ts`, `cli.test.ts` with the project's two preloads and `TOOL_WIKI_TRUSTED_NODE_MODULES` | exit 0; outer 251 pass, 0 fail (19 files); inside the namespaces: `calibrate` 18 pass 1 skip, `job-run` 49 pass 17 skip, `host-pool-mode` 45, `launchers` 41, `outbox-drop` 12, `status` 7, `admission` 6, all 0 fail |
+| `host-jobs.test.ts` inside its namespace (`DASH_RESOURCE_TEST_NAMESPACE=1`, `unshare`)                                                                                               | 46 pass, 0 fail                                                                                                                                                                                                       |
+| `propose.test.ts`, `audit.test.ts` with the preloads                                                                                                                                 | 41 pass, 0 fail                                                                                                                                                                                                       |
+| Burokrat `contracts/job-catalogue.test.ts`, `rules/job-catalogue.test.ts`, `architecture/job-catalogue.architecture.test.ts`                                                         | 35 pass, 0 fail                                                                                                                                                                                                       |
+| `tools/tool-remote-scripts/src/lib/host-job-container-bound.test.ts` (reads the catalogue)                                                                                           | 4 pass, 0 fail                                                                                                                                                                                                        |
+| `bun …/twilight-burokrat/cli/src/cli.ts check staged . HEAD <policy copy outside the tree> --rule JOB-CATALOGUE --now 2026-11-20T12:00:00.000Z`                                      | exit 0, `"allowed":true`, `"findings":[]`, `"unevaluated":[]`                                                                                                                                                         |
+| Dash `parseCatalogueJobs` on `infra/jobs/catalogue.json`                                                                                                                             | parsed; `gate` envelope 6, 9, 11 with `clampedToAllocatable` `["cpuCores","memoryGib"]`                                                                                                                               |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `bunx nx run twilight-burokrat:typecheck --skip-nx-cache`                                                                     | both `Successfully ran target typecheck`                                                                                                                                                                              |
+| `bunx eslint` on the 12 changed TypeScript files                                                                                                                                     | exit 0 (after `--fix` sorted two import blocks)                                                                                                                                                                       |
+| `bunx prettier --check` on the changed files                                                                                                                                         | all files use Prettier code style                                                                                                                                                                                     |
+| `bunx openspec validate --all --json`                                                                                                                                                | exit 0; 346 items, 346 passed, 0 failed                                                                                                                                                                               |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                       | exit 0                                                                                                                                                                                                                |
+| a `gate` run on h4claw or h2puni under the new entry                                                                                                                                 | not run: no host touched; follows the merge and a launcher refresh                                                                                                                                                    |
+
+| Injected fault                                            | Observed                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CalibratedProvenance`'s clamp narrow returning `true`    | `accepts the clamp and its heuristic, and neither alone` and `a clamp names each dimension once, each with its heuristic` received no throw                                                                                                                              |
+| `JobType`'s heuristic narrow returning `true`             | `a clamped dimension never exceeds its heuristic` accepted memoryGib 14 under heuristic 13                                                                                                                                                                               |
+| `JOB-CATALOGUE` judging the envelope whatever the clamp   | `accepts an envelope clamped below its p95, never a heuristic below it` found `envelope cpuCores 6 is below its calibrated p95 6.88` and `envelope memoryGib 9 is below its calibrated p95 10.01`; eight other rule tests reading this repository's catalogue failed too |
+| `JOB-CATALOGUE` not judging a clamped dimension at all    | the same test's second half found no finding for heuristic 10 under p95 10.01                                                                                                                                                                                            |
+| the real catalogue without its two clamp fields           | `check … --rule JOB-CATALOGUE` named `envelope cpuCores 6 is below its calibrated p95 6.88` and `envelope memoryGib 9 is below its calibrated p95 10.01`                                                                                                                 |
+| the real catalogue at memoryGib 14; then naming `swapGib` | `malformed entry: must be an envelope no larger than its heuristic in each clamped dimension …`; `malformed entry: provenance.clampedToAllocatable[1] must be "cpuCores", "memoryGib" or "tmpDiskGib" (was "swapGib")`                                                   |
+| `fit` in `proposeEnvelope` returning the heuristic        | four clamp tests failed; `a heuristic above the pool's allocatable is clamped to it, and marked` saw `memoryGib: 13` on a 10 GiB pool                                                                                                                                    |
+| the clamp taken at `>=`                                   | `a heuristic equal to allocatable is not clamped` found `clampedToAllocatable` `["cpuCores", "memoryGib", "tmpDiskGib"]`; three tests failed                                                                                                                             |
+| the provenance markers omitted                            | the four clamp tests found no `clampedToAllocatable` or `heuristic`                                                                                                                                                                                                      |
+| `largestEnvelope` taking the disk budget's GiB rounded up | `the largest envelope is admitted and one more in any dimension is refused 73 (task 6.25)` answered tmpDiskGib 21 on a pool that refuses 21                                                                                                                              |
+| the audit's `expected` suffix dropped                     | `an overrun of a clamped dimension stays drift, noted as expected` found the plain overrun line                                                                                                                                                                          |
+| the audit's clamp notes dropped                           | that test and `a clamped dimension the p95 fits is noted, never judged for waste` found no note                                                                                                                                                                          |
+| the audit's waste skip for clamped dimensions dropped     | `a clamped dimension the p95 fits is noted, never judged for waste` named a memoryGib waste                                                                                                                                                                              |
+
+Alternatives considered: raising both pools' allocatable so the unclamped envelope fits, which
+is a host-capacity decision for Dany (S25-A1); landing the printed 13 GiB and 9-core entry, which
+`oversize()` would refuse 73 on every gate, so unacceptable; and keeping the estimated 4 cores
+and 6 GiB, which hides the measurement and under-reserves by more than a third.
+
+- **S25-A1** A-ENVELOPE-CLAMP-1, a proposal above the pool is clamped to it and marked, is
+  assumed and awaits Dany: either raise both pools' allocatable (headroom) so the measured
+  envelope fits, or accept a gate that holds the whole pool. No ADR; the amendment is under J9
+  in design.md.
+- **S25-A2** The landed entry is a hand clamp to h2puni's pool (6 cores, 9 GiB): `propose` on
+  h4claw prints 7 and 10. Over the same figures on h2puni's pool, `propose` gives exactly the
+  landed entry (the h2puni-pool test above), so a future `propose` on h2puni reproduces it
+  wherever its own calibrations, once unblocked, measure alike; they then replace this one.
+- **S25-A3** The tmp figure stays a lower bound (`tmpDiskGibLowerBound: true`) until the be-01
+  test's mode-0 fixture leaves `TMPDIR` (S23-A2).
+- **S25-A4** durationSeconds p95 is 18,957.71 s, about 5 h 16 min; `maxRuntimeMinutes` 480 is 8 h,
+  1.52 times the p95, so the bound stands unchanged.
+- **S25-A5** Under `enforcement: observe` the scope's `MemoryHigh` is the envelope's `memoryGib`,
+  now 9 GiB, under a measured p95 of 10.01 GiB. Gates near their peak will be reclaimed at
+  `MemoryHigh`, so `ops job audit` will name them `throttled`, a drift that clears only when
+  the HEAD entry's memory is above 9 GiB, which a clamped entry never is. Its remedy text
+  (calibrate and propose) does not help a clamped entry. 22ce2369's 58-hour stall was under a
+  6 GiB `MemoryHigh` for the same job; 9 GiB is much closer to the peak, which includes page
+  cache, but the first gate under the entry should be watched for slowdown. Not changed here:
+  the remedy wording for a clamped `memoryGib` belongs with the S25-A1 decision.

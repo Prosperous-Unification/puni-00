@@ -8,6 +8,7 @@ import {
   committedCatalogue,
   type FixtureRun,
   HOST_CLASS,
+  ROOMY_POOL,
   runRecord,
   TOOLCHAIN,
 } from './run-record.test.fixture';
@@ -379,6 +380,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
           }),
         ),
         { argumentProfile: '', hostClass: HOST_CLASS, toolchain: TOOLCHAIN },
+        ROOMY_POOL,
         NOW,
       );
       if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
@@ -408,5 +410,75 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
         audit([{ id: 'big', memoryGib: 5, cpuCores: 3, tmpGib: 9, tmpUnreadable: [PATH] }]).kinds,
       ).toEqual(['overrun']);
     });
+  });
+});
+
+describe('ops job audit of an entry clamped to the pool (task 6.25, A-ENVELOPE-CLAMP-1)', () => {
+  /** The landed gate entry: h4claw's measurement clamped by hand to h2puni's pool. */
+  const clampedHead = (
+    envelope: { cpuCores: number; memoryGib: number },
+    p95: { cpuCores: number; memoryGib: number },
+  ) =>
+    committedCatalogue(types, (jobs) =>
+      jobs.map((job) =>
+        job.id === 'gate'
+          ? {
+              ...job,
+              envelope: { ...job.envelope, ...envelope, tmpDiskGib: 11 },
+              provenance: {
+                kind: 'calibrated',
+                hostClass: HOST_CLASS,
+                calibratedAt: '2026-11-20T04:05:14.759Z',
+                recordCount: 3,
+                p95: { ...p95, tmpDiskGib: 8.01 },
+                recordIds: ['c1', 'c2', 'c3'],
+                clampedToAllocatable: ['cpuCores', 'memoryGib'],
+                heuristic: { cpuCores: 9, memoryGib: 13 },
+              },
+            }
+          : job,
+      ),
+    );
+  const location = `${CATALOGUE_PATH} at ${'a'.repeat(40)}`;
+
+  test('an overrun of a clamped dimension stays drift, noted as expected', () => {
+    const head = clampedHead({ cpuCores: 6, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 10.01 });
+    const run = runRecord(head, { id: 'gate-1', memoryGib: 10, cpuCores: 5, tmpGib: 8 });
+    const { drifts, notes } = auditDrift([run], head, NOW);
+    expect(drifts.map((drift) => drift.line)).toEqual([
+      `gate overrun memoryGib 10 above envelope 9 in run gate-1 at 2027-01-15T08:00:00.000Z (${CATALOGUE_PATH}); kept until an accepted envelope covers it; expected: the HEAD entry is clamped to the pool`,
+    ]);
+    expect(notes).toEqual([
+      `gate cpuCores overruns a clamped envelope: p95 6.88 cores measured, entry 6 clamped to the pool; an overrun is expected and stays drift, waste is not judged (${location})`,
+      `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool; an overrun is expected and stays drift, waste is not judged (${location})`,
+    ]);
+  });
+
+  test('an overrun of an unclamped dimension of a clamped entry is plain drift', () => {
+    const head = clampedHead({ cpuCores: 6, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 10.01 });
+    const run = runRecord(head, { id: 'gate-1', memoryGib: 8, cpuCores: 5, tmpGib: 12 });
+    expect(auditDrift([run], head, NOW).drifts.map((drift) => drift.line)).toEqual([
+      `gate overrun tmpDiskGib 12 above envelope 11 in run gate-1 at 2027-01-15T08:00:00.000Z (${CATALOGUE_PATH}); kept until an accepted envelope covers it`,
+    ]);
+  });
+
+  test('a clamped dimension the p95 fits is noted, never judged for waste', () => {
+    // Clamped from 13 to 9 GiB over a p95 of 8: ten cached gates at 2 GiB are not waste.
+    const head = clampedHead({ cpuCores: 7, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 8 });
+    const runs = Array.from({ length: 10 }, (_, index) =>
+      runRecord(head, {
+        id: `cached-${String(index + 1)}`,
+        memoryGib: 2,
+        cpuCores: 5,
+        tmpGib: 8,
+        startedAt: 1_800_000_000_000 + index * 3_600_000,
+      }),
+    );
+    const { drifts, notes } = auditDrift(runs, head, NOW);
+    expect(drifts).toEqual([]);
+    expect(notes).toEqual([
+      `gate cpuCores is clamped to the pool: entry 7 holds its p95 6.88 cores without the heuristic's headroom; waste is not judged (${location})`,
+      `gate memoryGib is clamped to the pool: entry 9 holds its p95 8 GiB without the heuristic's headroom; waste is not judged (${location})`,
+    ]);
   });
 });

@@ -22,6 +22,17 @@ export interface Drift {
 }
 
 const ENVELOPE_DIMENSIONS = ['memoryGib', 'cpuCores', 'tmpDiskGib'] as const;
+type EnvelopeDimension = (typeof ENVELOPE_DIMENSIONS)[number];
+const UNIT: Readonly<Record<EnvelopeDimension, string>> = {
+  memoryGib: 'GiB',
+  cpuCores: 'cores',
+  tmpDiskGib: 'GiB',
+};
+
+/** The dimensions `head`'s provenance clamped to the pool's allocatable (task 6.25). */
+function clampedOf(head: JobType): readonly EnvelopeDimension[] {
+  return head.provenance.kind === 'calibrated' ? (head.provenance.clampedToAllocatable ?? []) : [];
+}
 const DAY_MS = 86_400_000;
 
 /** The instant an `estimated` entry's `until` date ends: its last UTC millisecond (Burokrat's reading). */
@@ -106,6 +117,9 @@ function hostServicesOf(record: RunRecord): string | null {
  * bound, which still proves an overrun but never waste. An entry whose calibrated provenance
  * marks `tmpDiskGibLowerBound` is never judged for tmp waste, and a note says so. A run whose
  * scope still held processes after its session ended gets a note saying what ended them (task 6.24).
+ * A dimension the HEAD entry's provenance clamped to the pool (task 6.25) gets a note: an
+ * overrun there is expected, since the job measured more than the pool holds, and stays drift
+ * so it remains visible; that dimension is never judged for waste.
  */
 export function auditDrift(
   records: readonly RunRecord[],
@@ -154,10 +168,15 @@ export function auditDrift(
       // also clearing it on a changed `calibrated` entry made `a calibrated entry that does not
       // cover the peak keeps the overrun` find no drift (2026-11-02, review A1).
       if (head.envelope[dimension] >= peak) continue;
+      // Proof: dropping the suffix made `an overrun of a clamped dimension stays drift, noted as
+      // expected` (audit.test.ts) find the plain overrun line (2026-11-20, task 6.25).
+      const expected = clampedOf(head).includes(dimension)
+        ? '; expected: the HEAD entry is clamped to the pool'
+        : '';
       drifts.push({
         kind: 'overrun',
         type: record.type,
-        line: `${record.type} overrun ${dimension} ${figure(peak)} above envelope ${String(envelope[dimension])} in run ${record.jobId} at ${at} (${record.cataloguePath}); kept until an accepted envelope covers it`,
+        line: `${record.type} overrun ${dimension} ${figure(peak)} above envelope ${String(envelope[dimension])} in run ${record.jobId} at ${at} (${record.cataloguePath}); kept until an accepted envelope covers it${expected}`,
       });
     }
     if (record.attributionIncomplete) {
@@ -213,6 +232,20 @@ export function auditDrift(
       notes.push(
         `${head.id} tmp entry is a lower bound; waste cannot fire for tmpDiskGib (${location})`,
       );
+    const clamped = clampedOf(head);
+    // Proof: dropping these notes made `an overrun of a clamped dimension stays drift, noted as
+    // expected` and `a clamped dimension the p95 fits is noted, never judged for waste`
+    // (audit.test.ts) find no note (2026-11-20, task 6.25).
+    if (head.provenance.kind === 'calibrated')
+      for (const dimension of clamped) {
+        const p95 = head.provenance.p95[dimension];
+        const declared = head.envelope[dimension];
+        notes.push(
+          p95 > declared
+            ? `${head.id} ${dimension} overruns a clamped envelope: p95 ${figure(p95)} ${UNIT[dimension]} measured, entry ${String(declared)} clamped to the pool; an overrun is expected and stays drift, waste is not judged (${location})`
+            : `${head.id} ${dimension} is clamped to the pool: entry ${String(declared)} holds its p95 ${figure(p95)} ${UNIT[dimension]} without the heuristic's headroom; waste is not judged (${location})`,
+        );
+      }
     const digest = descriptorDigestOf(head);
     const runs = records.filter(
       (record) =>
@@ -223,6 +256,9 @@ export function auditDrift(
     if (runs.length < HEURISTICS.wasteRuns) continue;
     for (const dimension of ENVELOPE_DIMENSIONS) {
       if (dimension === 'tmpDiskGib' && tmpUnjudged) continue;
+      // Proof: dropping this skip made `a clamped dimension the p95 fits is noted, never judged
+      // for waste` (audit.test.ts) name a memoryGib waste (2026-11-20, task 6.25).
+      if (clamped.includes(dimension)) continue;
       // A zero tmp envelope needs no skip: no p95 is below half of zero.
       const declared = head.envelope[dimension];
       const values = runs.flatMap((record) => {

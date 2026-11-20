@@ -517,6 +517,41 @@ whose provenance carries that marker, printing a note that says so.
 - **THEN** the sample's failure names the tmp directory, and the run records a telemetry
   failure that leaves it out of every dimension
 
+### Requirement: A proposal never exceeds the pool's allocatable, and says when it is clamped
+
+`ops job propose` SHALL clamp each of `cpuCores`, `memoryGib` and `tmpDiskGib` whose heuristic
+figure exceeds the largest envelope its pool admits (allocatable cores and memory, and the
+whole GiB its disk units hold) to that figure, SHALL print `clamped to allocatable` with the
+heuristic on that dimension's line, and SHALL record the clamped dimensions in
+`clampedToAllocatable` and their unclamped figures in `heuristic`. A figure equal to
+allocatable SHALL NOT be clamped. `JOB-CATALOGUE` SHALL refuse `clampedToAllocatable` naming an
+unknown or repeated dimension, either field without the other, and an envelope above its
+heuristic, and SHALL judge a clamped dimension's heuristic against the p95 in place of its
+envelope. `ops job audit` SHALL keep an overrun in a clamped dimension as drift, marked
+expected, SHALL print a note for each clamped dimension, and SHALL NOT judge it for waste.
+
+#### Scenario: A heuristic above allocatable
+
+- **WHEN** `ops job propose --type gate` on a pool of 7 cores and 10 GiB reads calibrations with
+  p95 10.01 GiB and 6.88 cores
+- **THEN** it proposes `memoryGib` 10 and `cpuCores` 7, prints
+  `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …`, and the
+  provenance carries `clampedToAllocatable: ["cpuCores", "memoryGib"]` and
+  `heuristic: { cpuCores: 9, memoryGib: 13 }`
+
+#### Scenario: An overrun of a clamped envelope
+
+- **WHEN** a gate run peaks at 10 GiB under the clamped 9 GiB entry
+- **THEN** `ops job audit` names the overrun, its line ending
+  `expected: the HEAD entry is clamped to the pool`, and prints the note
+  `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`
+
+#### Scenario: A bad clamp marker
+
+- **WHEN** an entry's `clampedToAllocatable` names `swapGib`, or its `memoryGib` is 14 under a
+  heuristic of 13
+- **THEN** `JOB-CATALOGUE` names the entry malformed
+
 ### Requirement: Processes left in a job's scope are ended before tmp settlement
 
 Once a host job's leader has exited and its launched session has no live member, `ops job
