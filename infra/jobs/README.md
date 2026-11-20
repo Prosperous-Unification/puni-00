@@ -38,10 +38,28 @@ is a different profile. Dash refuses arguments that do not match (`parseJobArgum
 
 - `estimated`: a reading or a guess, with a `basis` sentence saying which, and an `until` date.
   `JOB-CATALOGUE` fails the entry from the day after `until`, judged at the instant its caller
-  supplies; Burokrat reads no clock. Every envelope here is estimated until 2026-12-01.
+  supplies; Burokrat reads no clock. Every envelope here but `gate`'s is estimated until
+  2026-12-01.
 - `calibrated`: proposed from measured runs, with `hostClass`, `calibratedAt`, `recordCount`,
   the `p95` per dimension and the `recordIds` it came from. `JOB-CATALOGUE` fails an envelope
-  below its own p95 in any dimension.
+  below its own p95 in any dimension. `tmpDiskGibLowerBound: true`, present only then, says
+  `p95.tmpDiskGib` is a lower bound: some record it came from could not read part of its tmp
+  directory (Dash task 6.23). `ops job audit` then cannot judge tmp waste for the entry and says
+  so in a note.
+  `clampedToAllocatable`, present only with `heuristic`, names the dimensions `ops job propose`
+  lowered to the pool's allocatable because the heuristic figure exceeded it (Dash task 6.25):
+  a non-empty list of distinct names from `cpuCores`, `memoryGib` and `tmpDiskGib`.
+  `heuristic` gives each of those dimensions its unclamped figure and names no other. A clamped
+  envelope may be below its p95, so `JOB-CATALOGUE` judges the heuristic against the p95
+  instead, and refuses an envelope above its heuristic. `ops job audit` notes an overrun in a
+  clamped dimension up to its heuristic as expected, keeps it as drift, never judges that
+  dimension for waste and exits 0 when that is its only drift. A clamped dimension reserves the
+  pool's whole allocatable at admission, so the type never runs beside another and may not be
+  concurrency-eligible. A clamped `memoryGib` runs under the lower of its heuristic and the
+  pool's budget less `memoryBoundHeadroomGib`; `cap` enforcement on it is refused. `notes`, an
+  optional nonempty string, carries what the measurement does not say, such as the old
+  estimate's `basis`; `ops job propose` keeps it in the replacement entry.
+  The `gate` entry is clamped this way, to the smaller of the two gate hosts' pools.
 
 ## Heuristics (provisional)
 

@@ -204,7 +204,7 @@ export async function failRegistryTagCleanupFixture(
       const ready = input.ready;
       const spawn = Bun.spawn;
       let server: Pick<Bun.Subprocess, 'pid' | 'exitCode' | 'signalCode'> | undefined;
-      let termination: { code: number; signal: NodeJS.Signals | null } | undefined;
+      let termination: { code: number; signal: Bun.Subprocess['signalCode'] } | undefined;
       // Boundary: capture only the actual fixed native server child; all other calls and options are forwarded unchanged.
       Bun.spawn = ((...arguments_: unknown[]) => {
         const command = arguments_[0];

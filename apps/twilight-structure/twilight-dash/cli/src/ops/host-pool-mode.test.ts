@@ -91,6 +91,21 @@ if (insideOpsNamespace(import.meta.path)) {
     catalogueCheckout(checkout, [
       { id: 'eligible', cpuCores: 1, memoryGib: 1 },
       { id: 'other', cpuCores: 1, memoryGib: 1 },
+      {
+        id: 'clamped',
+        cpuCores: 1,
+        memoryGib: 1,
+        provenance: {
+          kind: 'calibrated',
+          hostClass: 'linux-x64-8c-15g',
+          calibratedAt: '2026-11-20T04:05:14.759Z',
+          recordCount: 3,
+          p95: { cpuCores: 0.5, memoryGib: 0.5, tmpDiskGib: 0 },
+          recordIds: ['c1', 'c2', 'c3'],
+          clampedToAllocatable: ['memoryGib'],
+          heuristic: { memoryGib: 20 },
+        },
+      },
     ]);
     // Every catalogued entrypoint is `bin/payload.sh`: a launcher that enters through the shim.
     writeFileSync(join(checkout, 'bin', 'payload.sh'), '#!/bin/sh\nrun_heavy_job -- true\n');
@@ -567,6 +582,12 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(unnamed.code).toBe(64);
       expect(unnamed.stderr).toContain(
         "names eligble, which no launcher checkout's catalogue names",
+      );
+    });
+
+    test('a type clamped to the pool may not be concurrency-eligible (S25-A7)', () => {
+      expect(() => pool({ eligible: ['eligible', 'clamped'] })).toThrow(
+        'ops pool init: concurrencyEligible names clamped, whose catalogue entry is clamped to the pool (clampedToAllocatable memoryGib): it holds the whole pool there and never runs beside another job; remove it from concurrencyEligible',
       );
     });
 

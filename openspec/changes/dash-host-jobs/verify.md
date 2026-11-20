@@ -4205,3 +4205,616 @@ guard would reach that test's fake Docker first. The gate's `provenance.basis` i
 - **S21-A6** The appended `provenance.basis` sentence changes the `gate` descriptor digest that
   run records pin; the records under the old digest were all attribution-incomplete, so `audit`
   and `propose` lose no usable record.
+
+## 2026-11-19 host-service containers beside a job are attributed when labelled and bounded (task 6.22)
+
+Branch `ops/dash-host-service-containers-20261119` from `main` 059c76b05; laptop, `CLAUDECODE`
+and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence below was
+gathered on the hosts by the coordinator before it).
+
+- h2puni's cold calibration be835130 of 2026-11-18 recorded unlabelled containers from
+  `allinurl/goaccess:1.9.4` and `keinos/sqlite3`, while every container the gate itself started
+  carried `puni.job=<id>`.
+- h2puni's crontab has `7 * * * * /home/puni1/monitoring/bin/goaccess-reports.sh` (since
+  2026-08-21), which runs `docker run --rm -i allinurl/goaccess:1.9.4 …` once per site every
+  hour; h2puni also sees `keinos/sqlite3` runs from a root-owned backup.
+- h4claw's daily `puni-registry-backup.timer` (02:37) runs root's
+  `/root/.puni/registry/backup-registry.ts`, which starts `keinos/sqlite3@sha256:a5610a155a8c…`
+  snapshot containers.
+- So every gate longer than an hour on h2puni recorded at least one `unlabelled` verdict, and
+  `ops job propose` excluded it as "container attribution incomplete" (`ops/measures.ts`).
+
+`ContainerWatch.judge` (`ops/containers.ts`) now judges a container without `puni.job` that
+carries a named `puni.host-service` label by reading its `HostConfig.Memory` and
+`HostConfig.NanoCpus` with the same `docker inspect` as a job container: both present make it
+verdict `host-service` with `{ name, memoryBytes, cpuCores }`; a missing one keeps it
+`unlabelled`, the reason naming `--memory`, `--cpus` or both. `puni.job` is read first, so a
+container with both labels is judged as a job container, and an unknown-job `puni.job` stays
+`unlabelled`. `ContainerVerdict` (`ops/run-records.ts`) gains the `host-service` member and its
+shape refuses one without its bounds; `isAttributed` and `isAttributionIncomplete` are the one
+completeness rule, used by `ops job run` and the run-record test fixture. `ops job audit` adds a
+`note: host services beside run …` line per run and clears an earlier `attribution_incomplete`
+only after a run with a bounded job container and every other container attributed.
+`measures.ts` is unchanged: it reads the record's `attributionIncomplete`.
+
+| Command                                                                                                                                              | Result                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| new tests in `containers.test.ts`, `run-records.test.ts`, `audit.test.ts`, `propose.test.ts` before the change (the project test command's preloads) | 8 fail, 27 pass: two of the ten new tests passed already, the refusal test (nothing then accepted `host-service`) and `a container with both labels is judged as the job container it names` (the `puni.job` path was unchanged on main)             |
+| the same four files after the change                                                                                                                 | 35 pass, 0 fail                                                                                                                                                                                                                                      |
+| `job-run.test.ts -t container` inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`), real Docker 29.7.2 with `busybox:1.37.0-musl`           | 5 pass, 0 fail, the new host-service run included                                                                                                                                                                                                    |
+| `containers`, `run-records`, `audit`, `propose`, `job-run`, `calibrate` and `status` test files together                                             | `job-run.test.ts` inside: 45 pass, 10 skip (no systemd user bus on the laptop), 0 fail; `calibrate.test.ts` inside: 10 fail, the same 10 on unchanged `main` 059c76b05, refused for the laptop's 1.69 GB free disk below the 2 GiB the fixtures need |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                | exit 0                                                                                                                                                                                                                                               |
+| `bunx eslint` on the ten changed TypeScript files                                                                                                    | exit 0                                                                                                                                                                                                                                               |
+| `bunx prettier --check` on the changed files                                                                                                         | all files use Prettier code style                                                                                                                                                                                                                    |
+| `bunx openspec validate --all --json`                                                                                                                | exit 0; 344 items, 344 passed, 0 failed                                                                                                                                                                                                              |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                       | exit 0                                                                                                                                                                                                                                               |
+| a `gate` calibration on h2puni across a goaccess hour                                                                                                | not run: no host touched; follows the host script change (S22-A2)                                                                                                                                                                                    |
+
+| Injected fault                                                                     | Observed                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| every container without `puni.job` judged `unlabelled` (the rule before task 6.22) | `a labelled, bounded host-service container is attributed as host-service` failed: verdict `unlabelled`                      |
+| the empty-name check removed                                                       | `a host-service label with no name is unlabelled` failed: verdict `host-service`                                             |
+| the missing-bound check removed                                                    | `a host-service container without --memory or --cpus stays unlabelled, naming the missing bound` failed: both `host-service` |
+| `puni.host-service` read before `puni.job`                                         | `a container with both labels is judged as the job container it names` failed: `host-service` where `unbounded` was expected |
+| `'host-service'` admitted in the plain verdict branch of the outcome shape         | `a host-service verdict without its declared bounds is refused` failed: the record was written                               |
+| `isAttributed` without its `host-service` term                                     | the propose test refused with two complete records; three host-service audit tests failed                                    |
+| `ops job run` counting only `bounded` as attributed (real Docker)                  | `a labelled, bounded host-service container beside the job keeps attribution complete` failed: `attributionIncomplete` true  |
+| the audit's host-service note removed                                              | `are attributed, and listed with their declared bounds beside the run` failed: no note                                       |
+| the clearing rule's `some(bounded)` replaced by `length > 0`                       | `a later run that saw only host-service containers does not clear attribution_incomplete` failed: no drift                   |
+| the clearing rule requiring every container `bounded`                              | the same test failed: the drift stayed after a run with a job container and a host service                                   |
+| the drift line listing every non-`bounded` verdict                                 | `are not named as unattributed in an attribution_incomplete line` failed: the host service was named                         |
+
+Alternatives considered: ignoring containers by image name (`allinurl/goaccess`,
+`keinos/sqlite3`), rejected because no record traces such a container to an operator's
+declaration and any job could start the same image unbounded; making the crons Dash host jobs,
+rejected because they run without Dash on hosts not enrolled and, admitted, would block a
+gate's admission or queue behind it; leaving them unlabelled and calibrating only between the
+crons, rejected because h2puni's goaccess cron runs hourly and a gate takes longer.
+
+- **S22-A1** A-ATTR-HOSTSVC-1, the `puni.host-service` label with required `--memory` and
+  `--cpus`, is assumed and awaits Dany's confirmation; no ADR, the amendment is under J16 in
+  design.md.
+- **S22-A2** The host scripts still have to be changed on the hosts: h2puni's
+  `~/monitoring/bin/goaccess-reports.sh` by the coordinator, with a backup taken first; the
+  root-owned `keinos/sqlite3` backups (h4claw's `backup-registry.ts`, h2puni's) by Dany or the
+  fleet roles. Until then those containers stay `unlabelled`.
+- **S22-A3** A host-service container's declared bound is listed by `ops job audit`, not added
+  to the job's envelope or to admission: the operator who declared it owns that load.
+- **S22-A4** A host-service container is judged by the same `docker inspect` right after its
+  create event; one that ended before that read, as a `--rm` run can when the stream lags and
+  only the closing replay sees it, is `unverified` and still incomplete, as for job containers.
+  The reviewer of #952 measured the race with this tree's `ContainerWatch` in-process and an
+  async `docker run --rm --label puni.host-service=probe --memory 64m --cpus 1 busybox sh -c`
+  run: the inspect won 10 of 10 for `true` (about 250 ms lifetime) on an idle host and 10 of 10
+  under 24 `yes` processes saturating every core, and 10 of 10 for `sleep 0.3` and `sleep 1`.
+  The only losing case was a watch whose event loop was blocked: a `spawnSync` probe got 10 of
+  10 `unverified` even for `sleep 2`, and `ops job run` never blocks its loop in the job
+  window. The residual is that blocked-loop case, not ordinary short containers.
+- **S22-A5** For Dany (reviewer's note on #952): host-service bounds are listed, not counted
+  against the pool's allocatable vector. The honest counterpart would be a declared
+  host-service reserve in the pool headroom, plus an `ops job audit` drift when an observed
+  host-service bound exceeds that reserve; not part of this change.
+
+## 2026-11-19 an unreadable test fixture under TMPDIR voided whole gate records (task 6.23)
+
+Branch `ops/dash-tmp-telemetry-unreadable-subtrees-20261119` from `main` d40d0aee8; laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence
+below was gathered on h4claw by the coordinator before it).
+
+- h4claw's gate calibration e15a97eb, the first complete one with BuildKit, ran 2026-11-19
+  04:53:44Z to 10:09:12Z at `--parallel=1` with `GATE_EXIT=0`, peak memory 9.3 GiB, 7.82
+  cores and 8 GiB of tmp.
+- `ops job propose` excluded it whole, as `incomplete: telemetry failure: interval:` then
+  `tmp directory /home/puni1/.local/share/dash/host-pool/e15a97eb-… unreadable:` then
+  `EACCES: permission denied, scandir '…/wbs-shared-process-XYrBbJ/inaccessible'`.
+- The directory is the gate's own test fixture:
+  `apps/wbs/be-01/src/shared-people-host-restore-process.db.test.ts` makes `inaccessible` inside
+  its `mkdtemp(join(tmpdir(), 'wbs-shared-process-'))` directory (lines 405 and 481), chmods it
+  0 (line 410) and back to 0700 after its assertion; `TMPDIR` is the Dash job's tmp directory.
+- `readSample` (`ops/job-run.ts`) turned the `directoryBytes` throw into the sample's failure,
+  the run's `telemetryFailure`, and `incompleteness` (`ops/measures.ts`) voided every dimension
+  for it. Every gate on both hosts runs that test, so no gate record could be complete.
+
+`directoryUsage` (`ops/scope.ts`) replaces `directoryBytes`: below the tmp directory it skips a
+subtree it may not read (EACCES, EPERM) and lists it, relative and sorted, at most 32 with the
+rest counted; an entry that vanishes between the listing and its `lstat`, or between `lstat`
+and its listing, counts as gone. The tmp directory itself absent or unreadable still throws, so
+it is still a telemetry failure (before, an absent one was silently 0 bytes). A run sample gains
+`tmpUnreadable` and `tmpUnreadableOmitted`; a stored sample without them loads with none.
+`dimensionStandings` and `tmpLowerBoundOf` (`ops/measures.ts`) make a record whose only defect
+is unreadable tmp subtrees complete for memory, CPU and duration and `lower-bound` for tmp disk;
+`incompleteness` is unchanged and answers null for it. `ops job propose` names such a record
+`excluded … from tmpDiskGib: tmp lower bound only: <n> samples saw unreadable subtrees (path)`,
+falls back to the lower bounds for tmp disk only when fewer than three records measured it, then
+names them `used as a lower bound`, never goes below the entry's `tmpDiskGib`, cites the
+records and marks the provenance `tmpDiskGibLowerBound: true`; `ops job audit` prints one note per
+such run listing the paths and keeps its tmp figure out of `waste`, while a lower bound above
+the envelope is still an `overrun`.
+
+| Command                                                                                                                                                                                | Result                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the new tests in `scope.test.ts`, `measures.test.ts`, `propose.test.ts`, `audit.test.ts`, `run-records.test.ts` against `main`'s six source files                                      | 32 pass, 7 fail: five new tests, and `scope.test.ts` and `measures.test.ts`, which do not load (`directoryUsage`, `dimensionStandings` not exported); four new tests passed already, kept as guards: the new fields' round trip, the raise test, the two-record refusal and the lower-bound overrun |
+| the same five files after the change                                                                                                                                                   | 46 pass, 0 fail                                                                                                                                                                                                                                                                                     |
+| `job-run.test.ts -t "TMPDIR\|a gate is measured\|one-second"` inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`)                                                             | 3 pass (fake seam), 3 skip (real seam: no systemd user bus on the laptop)                                                                                                                                                                                                                           |
+| `scope`, `measures`, `propose`, `audit`, `run-records`, `status`, `host-job-publication`, `calibrate`, `job-run` and `host-pool-mode` test files together, with the project's preloads | exit 0; `job-run.test.ts` inside: 41 pass, 16 skip (no systemd user bus, no `busybox:1.37.0-musl` image on the laptop); `host-pool-mode.test.ts` inside: 45 pass; `calibrate.test.ts` inside: 18 pass, 1 skip (no user bus); outer 51 pass                                                          |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                  | exit 0                                                                                                                                                                                                                                                                                              |
+| `bunx eslint` on the 15 changed TypeScript files                                                                                                                                       | exit 0                                                                                                                                                                                                                                                                                              |
+| `bunx prettier --check` on the changed files                                                                                                                                           | all files use Prettier code style                                                                                                                                                                                                                                                                   |
+| `bunx openspec validate --all --json`                                                                                                                                                  | exit 0; 346 items, 346 passed, 0 failed                                                                                                                                                                                                                                                             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                         | exit 0                                                                                                                                                                                                                                                                                              |
+| a `gate` calibration on h4claw or h2puni with this change                                                                                                                              | not run: no host touched; follows the merge and a launcher update (S23-A3)                                                                                                                                                                                                                          |
+
+| Injected fault                                                                         | Observed                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `directoryUsage` rethrowing EACCES below the tmp directory (the rule before task 6.23) | `a mode-0 subdirectory is listed and the rest is counted` and the bounded-list test threw; over the production path the `job-run.test.ts` fixture test recorded `telemetryFailure` `interval: tmp directory … unreadable: EACCES: permission denied, scandir '…/wbs-shared-process-XYrBbJ/inaccessible'`, as e15a97eb did |
+| EACCES tolerated for the tmp directory itself                                          | `an unreadable tmp directory is still a failure` failed: no throw                                                                                                                                                                                                                                                         |
+| ENOENT tolerated for the tmp directory itself                                          | `an absent tmp directory is still a failure` failed: zero bytes returned                                                                                                                                                                                                                                                  |
+| ENOENT rethrown at an entry's `lstat`, or at its listing                               | `an entry that vanishes mid-walk counts as gone` failed, each in turn                                                                                                                                                                                                                                                     |
+| every unreadable path listed                                                           | `unreadable paths are sorted and bounded, the rest counted` failed: 35 paths                                                                                                                                                                                                                                              |
+| the tmp standing answering the whole record's                                          | `a record whose only defect is unreadable tmp subtrees is a lower bound for tmp alone` failed, and the two propose lower-bound tests                                                                                                                                                                                      |
+| `propose` taking a lower bound as a measured tmp peak                                  | the three-record lower-bound test printed `tmpDiskGib: 4 (p95 3 GiB over 3 records: …)`; the beside-three test failed too                                                                                                                                                                                                 |
+| `propose` never falling back to lower bounds                                           | the three-record and raise tests refused with `0 records for tmpDiskGib`                                                                                                                                                                                                                                                  |
+| lower bounds never cited                                                               | the raise test refused in validation, `provenance.recordCount must be at least 1 (was 0)`; the three-record test failed                                                                                                                                                                                                   |
+| lower bounds always cited                                                              | `a record with unreadable tmp subtrees beside three measured ones is not cited` failed                                                                                                                                                                                                                                    |
+| the entry term dropped from the lower-bound tmp figure                                 | the three-record test proposed `tmpDiskGib` 4 under the entry's 8                                                                                                                                                                                                                                                         |
+| the audit's lower-bound note removed                                                   | `a run with unreadable tmp subtrees gets one note listing them` failed: no note                                                                                                                                                                                                                                           |
+| lower bounds counted toward `waste`                                                    | `tmp lower bounds are not waste` failed: a `tmpDiskGib` waste                                                                                                                                                                                                                                                             |
+| the two sample fields required in the stored shape                                     | `a sample recorded before task 6.23 loads with no unreadable paths` threw on the stored row                                                                                                                                                                                                                               |
+
+Alternatives considered: making the be-01 test reopen the directory before any sample, racy
+by construction against a sampler that reads every ten seconds; running the sampler as root,
+out because the launcher and its scope run as the gate user; skipping tmp measurement, which
+loses the dimension; excluding the record from tmp disk only but never proposing tmp from lower
+bounds, which with the current test suite would refuse every gate proposal forever (S23-A2).
+
+- **S23-A1** A-TMP-TELEMETRY-1, unreadable subtrees as a listed tmp lower bound and
+  completeness per dimension, is assumed and awaits Dany's confirmation; no ADR, the amendment
+  is under J7 in design.md.
+- **S23-A2** The tmp envelope stays provisional, a lower bound, until a run sees no unreadable
+  subtree, which the current test suite never allows: every gate runs
+  `shared-people-host-restore-process.db.test.ts`. Dany may prefer the test to make its
+  inaccessible directory in a dedicated directory outside `TMPDIR`; that changes a WBS test for
+  a Dash measurement and is left to him.
+- **S23-A3** The measured h4claw figures for e15a97eb above (9.3 GiB, 7.82 cores, 8 GiB tmp at
+  `--parallel=1`) are the coordinator's reading of the host record; they are not re-read here,
+  and the record's existing `telemetryFailure` text stays: records written before this change
+  are not rewritten, so e15a97eb stays excluded and a new calibration with this change is
+  needed.
+- **S23-A4** When tmp disk falls back to lower bounds the proposal never lowers the entry's
+  `tmpDiskGib`, only raises it to ⌈1.25 × the lower-bound p95⌉, and any lower bound in the pool
+  (all of it, or mixed with measured records) marks the provenance
+  `tmpDiskGibLowerBound: true`, a new optional field of the Burokrat `CalibratedProvenance`
+  (`true` only, absent otherwise). The entry is the durable artifact and its `tmpDiskGib`
+  becomes a pool disk reservation, so an unmarked lower bound could over-commit disk in
+  concurrent mode unnoticed. The blind spot the #953 review named stays: while every gate
+  carries the mode-0 fixture, `waste` can never fire for gate tmp, so an inflated tmp entry is
+  not flagged. The marker makes that visible: `ops job audit` prints, for a marked entry, that
+  its tmp entry is a lower bound and waste cannot fire for tmpDiskGib.
+- **S23-A5** The sampler tolerates EACCES and EPERM below the tmp directory and ENOENT for
+  entries that vanish; any other error (EIO, ELOOP, ENOTDIR from a replaced entry) is still a
+  telemetry failure, as before.
+- **S23-A6** `gate-launcher-refresh` moves only an idle launcher checkout, so a calibration
+  series already running keeps the old sampler until it ends; restart the series' runner after
+  the refresh for its next runs to record unreadable subtrees as lower bounds.
+
+Review fixes after the Fable review of #953 (S2-1, S3-2, S3-3), same laptop and environment:
+
+| Command                                                                                                             | Result                                |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `scope`, `measures`, `propose`, `audit`, `run-records` test files                                                   | 48 pass, 0 fail                       |
+| Burokrat `contracts/job-catalogue.test.ts` and `rules/job-catalogue.test.ts` with the project's preload             | 28 pass, 0 fail                       |
+| `calibrate.test.ts` with the project's preloads                                                                     | inside: 18 pass, 1 skip (no user bus) |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache` and `bunx nx run twilight-burokrat:typecheck --skip-nx-cache` | both exit 0                           |
+
+| Injected fault                                                      | Observed                                                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `propose` omitting `tmpDiskGibLowerBound` in the fallback           | the lower-bound and mixed propose tests found no marker; `a lower-bound tmp entry is not waste-checkable` (audit.test.ts) named a waste |
+| the audit's tmp-waste skip for a marked entry removed               | `a lower-bound tmp entry is not waste-checkable` failed: a `tmpDiskGib` waste                                                           |
+| the audit's marked-entry note removed                               | the same test failed: no note                                                                                                           |
+| the contract typing the marker `boolean`                            | `marks a calibrated tmp p95 as a lower bound with true alone` (job-catalogue.test.ts) accepted `false`                                  |
+| `propose` printing `excluded` for a record it used as a lower bound | the three-record lower-bound test failed                                                                                                |
+| one `lower bound only` wording for a mixed pool                     | `two measured records and one lower bound make a mixed lower bound` failed                                                              |
+
+## 2026-11-19 leftover scope processes held tmp after every gate (task 6.24)
+
+Branch `ops/dash-end-leftover-scope-processes-20261119` from `main` 6ac84e95d (carries #953);
+laptop, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the
+evidence below was gathered on h4claw and h2puni by the coordinator before it).
+
+- On every gate calibration on h4claw and h2puni the payload `bin/h2puni-gate-payload.sh <sha>`
+  exited 0 and left orphan test servers, `/bin/sh -c node serve.cjs` and `node serve.cjs`,
+  started by the frontend and website tests, alive in the job's own `dash-job-<id>.scope` after
+  the leader exited.
+- Dash then logged `ops job: <id> compute released: owned process group terminal and declared
+containers gone` and `tmp blocked: tmp directory unverified: live file hold remains charged;
+watch settles it`; the units and the shell lock were released and the record was complete,
+  but the tmp directory stayed charged.
+- The next calibration, or a peer's gate, then waited for admission and refused 75 after its
+  30-minute budget unless an operator ran `systemctl --user kill --signal=SIGKILL
+dash-job-<id>.scope`: done at 17:29Z on 2026-11-19 for job 29b8b406 on h4claw, and on
+  2026-11-18/19 for e15a97eb, 6ff558aa and 1d38876d.
+
+`endLeftovers` (`ops/job-run.ts`) runs after the leader's exit, after the run's end time is
+taken and its exit recorded in the ledger (review of #954 S2-1), and before the job is settled.
+Unless the job was ended at its runtime bound it first asks `ResourceRuntime.hostJobSessionEnded`
+(read-only, the compute evidence's own session inspection) and touches nothing while a member of
+the payload's session lives. It counts the scope's subtree through `scopeSubtreeMembers`
+(`ops/scope.ts`, at most 64 cgroups), which, like `leftoverMembers`, refuses any cgroup that is
+not `…/dash-job-<id>.scope`; it describes up to eight of the scope's own members
+(`leftoverMembers`, `describeLeftover`: pid, comm, command line truncated to 120), sends
+`systemctl --user kill --signal=SIGTERM <scope>`, polls the subtree every 100 ms for 10 s, sends
+SIGKILL, and polls for 20 s more (`LEFTOVER_BUDGET`). A failed `systemctl` call ends the step at
+once as `signal-failed` with its diagnostic; members unreadable during a wait end it as
+`unverified`. The run record's outcome gains `leftoverProcesses: { count, examples, endedWith,
+failure? }`; the outcome column is JSON, so `user_version` stays 1 and an older outcome loads
+without the field. `leftoverNote` (`ops/run-records.ts`) gives `ops job audit` a note per run
+that left any, and `ops job status` the same note under an unreleased job's line. At the runtime
+bound (task 6.14) the old `killLeftovers` is absorbed: SIGKILL at once, then the same wait and
+record. The fake `systemctl` of `ops.test.fixture.ts` now answers `--signal=SIGTERM` too, and
+`ScopeTelemetry` gains `children` (the cgroups directly below one).
+
+| Command                                                                                                                                                                                                     | Result                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scope.test.ts`, `run-records.test.ts`, `audit.test.ts`, `status.test.ts`                                                                                                                                   | 38 pass, 0 fail outside; `status.test.ts` inside its namespace 7 pass, 0 fail                                                                                                                                                 |
+| `job-run.test.ts` with the project's preloads, inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`)                                                                                                 | exit 0; inside 45 pass, 17 skip (real seam: no systemd user bus; container tests: no `busybox:1.37.0-musl` image), 0 fail; the four new task 6.24 tests pass over the fake seam, the real-seam leftover test skipped (S24-A3) |
+| `scope`, `run-records`, `audit`, `status`, `measures`, `propose`, `calibrate`, `job-run`, `host-pool-mode`, `launchers`, `leaving-holds`, `host-job-holds` test files together, with the project's preloads | exit 0; outer 68 pass, 0 fail; inside: `calibrate` 18 pass 1 skip, `job-run` 45 pass 17 skip, `host-pool-mode` 45 pass, `status` 7 pass, `launchers` 41 pass, all 0 fail                                                      |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                                       | exit 0                                                                                                                                                                                                                        |
+| `bunx eslint` on the 14 changed TypeScript files                                                                                                                                                            | exit 0                                                                                                                                                                                                                        |
+| `bunx prettier --check` on the changed files                                                                                                                                                                | all files use Prettier code style                                                                                                                                                                                             |
+| `bunx openspec validate --all --json`                                                                                                                                                                       | exit 0; 346 items, 346 passed, 0 failed                                                                                                                                                                                       |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                                              | exit 0                                                                                                                                                                                                                        |
+| a `gate` calibration on h4claw or h2puni with this change                                                                                                                                                   | not run: no host touched; follows the merge and a launcher refresh (S24-A3)                                                                                                                                                   |
+
+| Injected fault                                                                         | Observed                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| the graceful `endLeftovers` call dropped from `runAdmitted` (only the bound path kept) | `a leftover in the scope is ended before tmp settlement (task 6.24)` saw `tmp blocked: tmp directory unverified: live file hold remains charged; watch settles it` and the scope's members `[362]` against `[]`; the three other leftover tests failed on an absent `leftoverProcesses` or report line |
+| no SIGKILL after the grace (graceful path)                                             | `a leftover that ignores SIGTERM is SIGKILLed after the grace, recorded` recorded `endedWith: timeout` against `SIGKILL`                                                                                                                                                                               |
+| no SIGKILL on the bound path                                                           | `a setsid'd descendant outlives a payload that honours SIGTERM, not the bound` found the descendant alive, `members` `[1797]` against `[]`                                                                                                                                                             |
+| the session check skipped                                                              | `a member of the payload's own session is never ended as a leftover` found `survived` absent: the background child was ended                                                                                                                                                                           |
+| `leftoverMembers` without its scope-name refusal                                       | `a parent slice or another job's scope is never enumerated` received `[7]`, the slice's pid, and no throw                                                                                                                                                                                              |
+| `linuxScopeTelemetry().members` reading every nested `cgroup.procs`                    | `a cgroup nested below the job scope is never described` (named `nested j19-holder scopes are not enumerated` before the #954 review) received `[11, 12, 99]`                                                                                                                                          |
+| the audit's leftover note removed                                                      | `a run whose leftovers were ended gets one note naming them` found no note                                                                                                                                                                                                                             |
+| the status note line removed                                                           | `a job whose leftovers survived SIGKILL says so under its line` found `waiting none` where the note was expected                                                                                                                                                                                       |
+| `leftoverProcesses` required in the stored outcome shape                               | `an outcome recorded before task 6.24 loads with no leftovers` threw `leftoverProcesses must be an object (was missing)` in `recordOf`                                                                                                                                                                 |
+
+Alternatives considered: keeping the manual `systemctl --user kill` step, which blocked every
+calibration series until an operator noticed; making every test stop the servers it starts,
+unenforceable across hundreds of tests and silent when one forgets; signalling the recorded
+pids one by one instead of the unit, racy against pid reuse where the cgroup kill is not; and
+releasing tmp despite the live hold, which J2' forbids.
+
+- **S24-A1** A-SCOPE-LEFTOVER-1, processes still in a job's scope after its session ended
+  belong to the job and are ended before tmp settlement, is assumed and awaits Dany's
+  confirmation; no ADR, the amendment is under J2' in design.md.
+- **S24-A2** The grace is 10 s after SIGTERM, `docker stop`'s default, and the scope gets 20 s
+  after SIGKILL to empty, which only a process in uninterruptible sleep exceeds; both are
+  `LEFTOVER_BUDGET` in `ops/job-run.ts` and overridable per call
+  (`JobRunDependencies.leftoverBudget`, used by the tests). Neither counts as the job's time:
+  the run record's `endedAt`, so `wallMs` and the proposals' `durationSeconds`, and the ledger's
+  exit are taken at the leader's exit, before the step. A survivor (`timeout`), a failed signal
+  (`signal-failed`) or an unread scope (`unverified`) is recorded in `leftoverProcesses` and
+  reported; none is added to `telemetryFailure`, because the run's measurements are unaffected,
+  and the tmp entry stays `blocked`. A start time per leftover (`startedAt`) is not recorded: it
+  would need `CLK_TCK` and the boot time, and the command line already names the culprit.
+- **S24-A3** Inside the tests' `unshare` namespace the laptop has no systemd user bus
+  (`systemd-run --user --scope answered exit 1: Failed to connect to bus: No data available`), so
+  there the real-seam test skips. Outside the namespace (`DASH_OPS_TEST_NAMESPACE=1` set by hand,
+  no `unshare`) the login session's user bus works, and `a leftover in the scope is ended before
+tmp settlement (task 6.24)` passed over the real seam: a real `dash-job-<id>.scope`,
+  `/sys/fs/cgroup` and `systemctl --user kill`. There settlement also names the login session's
+  non-dumpable processes (`keepassxc`, `ssh-agent`, `(sd-pam)`) as
+  `uninspectable_outside_scope`, so the test compares the tmp line without that J19 suffix. With
+  the graceful call dropped, the same real-seam run saw `tmp blocked: tmp directory unverified:
+live file hold remains charged` and the scope's member `[2957968]`, the incident itself. The
+  host proof is the next gate calibration on h4claw or h2puni after the merge, a launcher
+  refresh and a restart of any calibration series' runner (one already running keeps its
+  launcher code until it ends): its run record should carry `leftoverProcesses` naming
+  `node serve.cjs` and its tmp entry should release.
+- **S24-A4** The step runs only after the leader's session has ended. A payload that leaves a
+  plain background child in its own session (not `setsid`'d) still keeps compute held until that
+  child ends, and anything that child leaves in the scope is not ended by the launcher, since the
+  launcher has moved on to settlement and `watch` does not end processes. The observed servers
+  had left the session, so this case is not the incident.
+
+Review fixes after the Fable review of #954 (S2-1, S3-1 to S3-5), same laptop and environment:
+the run's end time and the ledger's exit now precede the leftover ending; a failed
+`systemctl --user kill` is `signal-failed` with its diagnostic and no wait; members unreadable
+during a wait are `unverified`; the count and the wait read the scope's cgroup subtree, which
+the unit kill reaches, while the examples stay the scope's own; the `j19-holder-*` wording is
+corrected (a sibling under the slice, never below the job's scope).
+
+| Command                                                                                                                              | Result                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `scope`, `run-records`, `audit`, `status` test files                                                                                 | 40 pass, 0 fail outside; `status.test.ts` inside its namespace 7 pass, 0 fail                                                |
+| `job-run.test.ts` with the project's preloads, inside its `unshare` namespace                                                        | exit 0; inside 49 pass, 17 skip (no user bus inside the namespace; no `busybox:1.37.0-musl` image), 0 fail                   |
+| `job-run.test.ts -t "real scope.*leftover in the scope"` outside the namespace (`DASH_OPS_TEST_NAMESPACE=1`, login session user bus) | 1 pass, 0 fail                                                                                                               |
+| `calibrate`, `host-pool-mode`, `launchers`, `measures`, `propose` test files with the project's preloads                             | exit 0; outer 22 pass, 0 fail; inside: `calibrate` 18 pass 1 skip, `host-pool-mode` 45 pass, `launchers` 41 pass, all 0 fail |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                | exit 0                                                                                                                       |
+| `bunx eslint` on the changed TypeScript files                                                                                        | exit 0                                                                                                                       |
+| `bunx prettier --check` on the changed files                                                                                         | all files use Prettier code style                                                                                            |
+| `bunx openspec validate --all --json`                                                                                                | exit 0; 346 items, 346 passed, 0 failed                                                                                      |
+| `check-indexes working . HEAD` after `git add -A`                                                                                    | exit 0                                                                                                                       |
+
+| Injected fault                                                                     | Observed                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `endedAt` read after the leftover ending (the order before S2-1)                   | `a leftover's grace is not the job's wall time (review of #954 S2-1)` recorded `wallMs` 2092 against its 2 s grace                                                                                                                          |
+| the ledger's exit recorded after the leftover ending                               | the same test found the ledger's `endedAt` 2034 ms after the leftover step's first report line                                                                                                                                              |
+| a failed SIGTERM reported and the grace waited out                                 | `a failed SIGTERM is recorded as signal-failed, nothing waited for` took the grace and recorded the SIGKILL's failure instead (3.1 s); `a leftover that exits on its own after a failed SIGTERM is not labelled SIGTERM` recorded `SIGTERM` |
+| an unreadable members reading answering `empty`                                    | `members that become unreadable during the wait are unverified, never ended` recorded `endedWith: SIGTERM`                                                                                                                                  |
+| `scopeSubtreeMembers` reading the scope alone                                      | `a cgroup nested below the job scope is counted and awaited (review of #954 S3-2)` received `[11, 12]` against `[11, 12, 99]`                                                                                                               |
+| the graceful `endLeftovers` call dropped, over the real seam outside the namespace | `tmp blocked: tmp directory unverified: live file hold remains charged; watch settles it` and members `[2957968]`                                                                                                                           |
+
+## 2026-11-20 measured gate envelope (task 6.25)
+
+Branch `ops/gate-catalogue-measured-20261120` from `main` 2c11ec61c; laptop, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the calibrations and the
+proposal below were run on h4claw by the coordinator before it).
+
+- On h4claw (host class `linux-x64-8c-15g`: 8 cores, 15 GiB; pool allocatable 7 cores, 10 GiB
+  and 48 disk units of 1 GiB), three complete `gate` calibrations ran at `--parallel=1` on
+  launcher 6ac84e95d, all exit 0: 29b8b406 (cold, 2026-11-19 12:02Z to 17:18Z), 29d3503e
+  (warm, 17:18Z to 22:45Z) and 43923656 (warm, 22:45Z to 2026-11-20 04:05Z).
+- `ops job propose --type gate` (exit 0, 2026-11-20 04:05:14Z) printed memoryGib 13 (p95 10.01
+  GiB over 3 uncapped, unthrottled records), cpuCores 9 (p95 6.88 cores), tmpDiskGib 11 (lower
+  bound from 2 measured and 1 lower bound, at least the entry's 8, p95 8.01 GiB, provenance
+  `tmpDiskGibLowerBound: true`; 29d3503e saw `wbs-shared-process-NiMWHM/inaccessible`), and
+  durationSeconds reported only (p95 18957.71 s). Its full text, which names no secret, is
+  [evidence/2026-11-20-h4claw-gate-propose.txt](evidence/2026-11-20-h4claw-gate-propose.txt).
+- The entry on `main` was `estimated` at 4 cores, 6 GiB and 8 GiB tmp. h2puni's pool, the
+  second enrolled host, allocates 6 cores, 9 GiB and 12 disk units; its own calibrations are
+  blocked (root-owned backup containers and disk), and its one cold run to complete with exit 0
+  peaked at 8 GiB of tmp.
+
+The proposal of 13 GiB and 9 cores fits neither pool, and in cores not even the host. J5's
+`oversize()` (`resources/runtime.ts`) refuses a non-calibration job whose envelope exceeds the
+pool's allocatable cores or memory, or whose disk units exceed its budget, with exit 73 before
+any ticket. Landing the printed entry would therefore refuse every ordinary gate on both hosts.
+The gate at `--parallel=1` uses the whole host: that is the finding, and the envelope has to
+say so without breaking admission.
+
+`ops job propose` is host-aware. `ResourceRuntime.largestEnvelope()` answers the largest
+envelope the `--config` pool admits: allocatable cores and memory, and the whole GiB its disk
+units hold, the figures `oversize()` refuses above. `proposeEnvelope` (`ops/propose.ts`) takes
+it and clamps every heuristic figure above it, a figure equal to it unclamped. The line reads
+`memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …)`, and the
+provenance carries `clampedToAllocatable` (the clamped dimensions in the order cpuCores,
+memoryGib, tmpDiskGib) and `heuristic` (their unclamped figures). A tmp lower bound is raised to
+the entry's figure first, then clamped. Burokrat's `CalibratedProvenance` accepts the two fields,
+both or neither, as a non-empty list of distinct dimension names and a heuristic naming exactly
+those dimensions. `JobType` refuses an envelope above its heuristic in a clamped dimension.
+`JOB-CATALOGUE` judges a clamped dimension's heuristic against the p95 in place of its envelope.
+`ops job audit` ends an overrun in a dimension the HEAD entry clamped with
+`; expected: the HEAD entry is clamped to the pool` and keeps it as drift. It prints one note per
+clamped dimension, reading, when the p95 is above the entry:
+`gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`,
+then that the overrun is expected and waste is not judged; it never judges that dimension for
+waste.
+
+The catalogue serves both gate hosts, so the landed `gate` entry is clamped **by hand to the
+smallest enrolled pool, h2puni's**: cpuCores 6, memoryGib 9, tmpDiskGib 11 (11 GiB fits
+h2puni's 12 units and h4claw's 48). Its provenance is the h4claw proposal's (host class,
+`calibratedAt` 2026-11-20T04:05:14.759Z, three records, p95 6.88 cores, 10.01 GiB and 8.01 GiB,
+`tmpDiskGibLowerBound: true`) plus `clampedToAllocatable: ["cpuCores", "memoryGib"]` and
+`heuristic: { cpuCores: 9, memoryGib: 13 }`. `propose` on h4claw would print 7 cores and 10 GiB;
+the test `h2puni's smaller pool clamps further, as the landed entry is clamped by hand` shows
+that the same records on h2puni's pool give exactly the landed figures. With this entry, on both
+hosts, no other catalogued job fits beside a gate in concurrent mode: h2puni's pool is held
+whole, and h4claw's keeps 1 core and 1 GiB, below every other entry's memory.
+
+The gate_host role's final probe (`infra/ansible/roles/gate_host/tasks/validate.yml`, task
+"Inspect the host pool and audit its envelopes") runs `ops pool inspect` then `ops job audit`,
+and its comment says an audit exiting 1 "fails the play by design". The weekly
+`dash-job-audit.service` does the same. As first written, an overrun stayed failing drift under
+a clamped entry, so the probe and the unit would have gone red after the first gate whose peak
+passed 6 cores or 9 GiB, and the p95 says most will. The review fold-in below makes the audit
+exit 0 when its only drift is such an expected overrun; the role itself is unchanged.
+
+| Command                                                                                                                                                                              | Result                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` on `src/ops`, `resources/host-jobs.test.ts`, `resources/host-job-publication.test.ts`, `cli.test.ts` with the project's two preloads and `TOOL_WIKI_TRUSTED_NODE_MODULES` | exit 0; outer 251 pass, 0 fail (19 files); inside the namespaces: `calibrate` 18 pass 1 skip, `job-run` 49 pass 17 skip, `host-pool-mode` 45, `launchers` 41, `outbox-drop` 12, `status` 7, `admission` 6, all 0 fail |
+| `host-jobs.test.ts` inside its namespace (`DASH_RESOURCE_TEST_NAMESPACE=1`, `unshare`)                                                                                               | 46 pass, 0 fail                                                                                                                                                                                                       |
+| `propose.test.ts`, `audit.test.ts` with the preloads                                                                                                                                 | 41 pass, 0 fail                                                                                                                                                                                                       |
+| Burokrat `contracts/job-catalogue.test.ts`, `rules/job-catalogue.test.ts`, `architecture/job-catalogue.architecture.test.ts`                                                         | 35 pass, 0 fail                                                                                                                                                                                                       |
+| `tools/tool-remote-scripts/src/lib/host-job-container-bound.test.ts` (reads the catalogue)                                                                                           | 4 pass, 0 fail                                                                                                                                                                                                        |
+| `bun …/twilight-burokrat/cli/src/cli.ts check staged . HEAD <policy copy outside the tree> --rule JOB-CATALOGUE --now 2026-11-20T12:00:00.000Z`                                      | exit 0, `"allowed":true`, `"findings":[]`, `"unevaluated":[]`                                                                                                                                                         |
+| Dash `parseCatalogueJobs` on `infra/jobs/catalogue.json`                                                                                                                             | parsed; `gate` envelope 6, 9, 11 with `clampedToAllocatable` `["cpuCores","memoryGib"]`                                                                                                                               |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `bunx nx run twilight-burokrat:typecheck --skip-nx-cache`                                                                     | both `Successfully ran target typecheck`                                                                                                                                                                              |
+| `bunx eslint` on the 12 changed TypeScript files                                                                                                                                     | exit 0 (after `--fix` sorted two import blocks)                                                                                                                                                                       |
+| `bunx prettier --check` on the changed files                                                                                                                                         | all files use Prettier code style                                                                                                                                                                                     |
+| `bunx openspec validate --all --json`                                                                                                                                                | exit 0; 346 items, 346 passed, 0 failed                                                                                                                                                                               |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                       | exit 0                                                                                                                                                                                                                |
+| a `gate` run on h4claw or h2puni under the new entry                                                                                                                                 | not run: no host touched; follows the merge and a launcher refresh                                                                                                                                                    |
+
+| Injected fault                                            | Observed                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CalibratedProvenance`'s clamp narrow returning `true`    | `accepts the clamp and its heuristic, and neither alone` and `a clamp names each dimension once, each with its heuristic` received no throw                                                                                                                              |
+| `JobType`'s heuristic narrow returning `true`             | `a clamped dimension never exceeds its heuristic` accepted memoryGib 14 under heuristic 13                                                                                                                                                                               |
+| `JOB-CATALOGUE` judging the envelope whatever the clamp   | `accepts an envelope clamped below its p95, never a heuristic below it` found `envelope cpuCores 6 is below its calibrated p95 6.88` and `envelope memoryGib 9 is below its calibrated p95 10.01`; eight other rule tests reading this repository's catalogue failed too |
+| `JOB-CATALOGUE` not judging a clamped dimension at all    | the same test's second half found no finding for heuristic 10 under p95 10.01                                                                                                                                                                                            |
+| the real catalogue without its two clamp fields           | `check … --rule JOB-CATALOGUE` named `envelope cpuCores 6 is below its calibrated p95 6.88` and `envelope memoryGib 9 is below its calibrated p95 10.01`                                                                                                                 |
+| the real catalogue at memoryGib 14; then naming `swapGib` | `malformed entry: must be an envelope no larger than its heuristic in each clamped dimension …`; `malformed entry: provenance.clampedToAllocatable[1] must be "cpuCores", "memoryGib" or "tmpDiskGib" (was "swapGib")`                                                   |
+| `fit` in `proposeEnvelope` returning the heuristic        | four clamp tests failed; `a heuristic above the pool's allocatable is clamped to it, and marked` saw `memoryGib: 13` on a 10 GiB pool                                                                                                                                    |
+| the clamp taken at `>=`                                   | `a heuristic equal to allocatable is not clamped` found `clampedToAllocatable` `["cpuCores", "memoryGib", "tmpDiskGib"]`; three tests failed                                                                                                                             |
+| the provenance markers omitted                            | the four clamp tests found no `clampedToAllocatable` or `heuristic`                                                                                                                                                                                                      |
+| `largestEnvelope` taking the disk budget's GiB rounded up | `the largest envelope is admitted and one more in any dimension is refused 73 (task 6.25)` answered tmpDiskGib 21 on a pool that refuses 21                                                                                                                              |
+| the audit's `expected` suffix dropped                     | `an overrun of a clamped dimension stays drift, noted as expected` found the plain overrun line                                                                                                                                                                          |
+| the audit's clamp notes dropped                           | that test and `a clamped dimension the p95 fits is noted, never judged for waste` found no note                                                                                                                                                                          |
+| the audit's waste skip for clamped dimensions dropped     | `a clamped dimension the p95 fits is noted, never judged for waste` named a memoryGib waste                                                                                                                                                                              |
+
+Alternatives considered: raising both pools' allocatable so the unclamped envelope fits, which
+is a host-capacity decision for Dany (S25-A1); landing the printed 13 GiB and 9-core entry, which
+`oversize()` would refuse 73 on every gate, so unacceptable; and keeping the estimated 4 cores
+and 6 GiB, which hides the measurement and under-reserves by more than a third.
+
+- **S25-A1** A-ENVELOPE-CLAMP-1, a proposal above the pool is clamped to it and marked, is
+  assumed and awaits Dany: either raise both pools' allocatable (headroom) so the measured
+  envelope fits, or accept a gate that holds the whole pool. No ADR; the amendment is under J9
+  in design.md.
+- **S25-A2** The landed entry is a hand clamp to h2puni's pool (6 cores, 9 GiB): `propose` on
+  h4claw prints 7 and 10. Over the same figures on h2puni's pool, `propose` gives exactly the
+  landed entry (the h2puni-pool test above), so a future `propose` on h2puni reproduces it
+  wherever its own calibrations, once unblocked, measure alike; they then replace this one.
+- **S25-A3** The tmp figure stays a lower bound (`tmpDiskGibLowerBound: true`) until the be-01
+  test's mode-0 fixture leaves `TMPDIR` (S23-A2).
+- **S25-A4** durationSeconds p95 is 18,957.71 s, about 5 h 16 min; `maxRuntimeMinutes` 480 is 8 h,
+  1.52 times the p95, so the bound stands unchanged.
+- **S25-A5** (resolved by S25-A6) As first written, under `enforcement: observe` the scope's
+  `MemoryHigh` was the envelope's `memoryGib`, 9 GiB for the clamped gate, under a measured p95 of
+  10.01 GiB: every gate would have been reclaimed below its need, as 22ce2369 was at 6 GiB for
+  58 h. A clamped `memoryGib` now runs under the bound S25-A6 states.
+- **S25-A6** Reservation and bound are decoupled for a clamped `memoryGib`, and an expected
+  overrun alone does not fail the audit: assumed, awaiting Dany together with S25-A1. After the
+  Fable review (S2-3) the bound belongs to the pool: `MemoryHigh` is the lower of
+  `heuristic.memoryGib` and the pool's memory budget less `memoryBoundHeadroomGib` (an optional
+  host-pool key, absent meaning 2), never below the envelope: 13 GiB on h4claw (15 − 2, the
+  heuristic and the pool agree), 12 GiB on h2puni (14 − 2, the pool wins). An overrun is
+  expected only up to the dimension's heuristic (S2-2). `cap` on a clamped `memoryGib` is refused
+  (a `MemoryMax` below the p95 kills every run). Residual OOM risk, stated plainly: the bound
+  governs the tail above the p95 of 10.01 GiB, and it leaves the host only 2 GiB of its budget.
+  h4claw is also the platform's Kubernetes node, whose kubelet reserves 1536 MiB for the system
+  and 512 MiB for kube, together the whole 2 GiB. The gate's declared 1 GiB containers bound sits
+  outside the job scope, so a gate at its 13 GiB bound plus its containers plus the kubelet
+  reservations can exceed h4claw's 15 GiB. On h2puni, 12 GiB leaves 2 GiB of a 14 GiB budget to
+  dev WBS and monitoring. The ordinary gate (p95 10.01 GiB) fits both hosts with margin, so the
+  risk is the tail; it is strictly smaller than main's 6 GiB bound, which stalled a gate for
+  58 h. Deployment consequence (re-review S3-1): the gate_host role cannot deploy it yet: `roles/gate_host/tasks/validate.yml` asserts the exact key list of `host-pool.json`, and `templates/host-pool.json.j2` renders no such key, so a hand-set key fails the validate play. The key is absent on both hosts until the role gains the input, and the default 2 applies. Follow-up: an inventory input (for example `puni_gate_pool_memory_bound_headroom_gib`), a line in the template, and the key in validate.yml's key list. A pool whose
+  budget less the headroom falls below the calibrated p95 (a 12 GiB budget gives 10, below
+  10.01; not today's hosts) is named in the launcher's line and the audit's notes as
+  `below the calibrated p95 …` (S3-2).
+- **S25-A7** A clamped dimension reserves the whole pool, for Dany beside S25-A1 and S25-A6: a
+  dimension in `clampedToAllocatable` reserves the pool's allocatable there at admission,
+  whatever the envelope figure says, so the hand-set 9 vs 10 GiB no longer decides anything, and
+  such a type may not be concurrency-eligible. With it, "nothing runs beside a gate" holds by
+  design, not by the accident of the catalogue having no job of 1 GiB or less.
+
+### Review fold-in (S25-A6, 2026-11-20)
+
+The coordinator held #955 on S25-A5. Same branch, laptop and environment, no host touched. The
+bound and reservation rules here were revised after the Fable review; see the next section.
+
+- `memoryBoundOf` (`ops/catalogue.ts`) is `heuristic.memoryGib` for an entry whose provenance
+  clamps `memoryGib`, otherwise the envelope's. `readCataloguedJob` carries it as
+  `CataloguedJob.memoryBoundGib`; `scopeArguments` and `checkScopeAvailable` (`ops/scope.ts`)
+  take it for `MemoryHigh` (and `MemoryMax` for an unclamped `cap`). `runAdmitted` reports
+  `ops job: <id> MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)` when it differs,
+  and the run record's start gains optional `memoryBoundGib` on ordinary runs (calibrations run
+  unbounded and omit it; older rows load without it). The admission descriptor, `oversize()`
+  and the reservation vector are unchanged.
+- `ops job status` prints `(MemoryHigh <n> GiB)` after the envelope's memory, and the
+  `throttled` line adds it, when the recorded bound differs. `throttled` clears only when the
+  HEAD entry's bound is above the bound the run was throttled under.
+- `cappedClampOf` refuses `cap` on a clamped `memoryGib` with 64 before admission, and
+  `JOB-CATALOGUE` names it:
+  `cap enforcement with memoryGib clamped to the pool: MemoryMax 9 is below its calibrated p95 10.01 and would kill every run`.
+- `Drift.expected` marks an overrun in a clamped dimension; `auditFails` is true for any other
+  drift. `ops job audit` prints every drift line, then, when only expected ones remain,
+  `only expected drift: overruns of envelopes clamped to the pool` and exits 0.
+- The fake `systemd-run` of `ops.test.fixture.ts` appends each call's arguments to `calls`, and
+  a fixture job type may carry its own provenance.
+
+| Command                                                                                                                           | Result                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `job-run.test.ts`, `calibrate.test.ts`, `status.test.ts` inside the ops namespace (`unshare --user --map-user`, as the wrapper)   | 78 pass, 18 skip, 0 fail (`job-run` 49 pass 17 skip before, now 51)                                                                                                                         |
+| `bun test` on `src/ops`, `resources/host-jobs.test.ts`, `resources/host-job-publication.test.ts`, `cli.test.ts` with the preloads | exit 0; outer 253 pass, 0 fail; inside: `calibrate` 19 pass 1 skip, `job-run` 51 pass 17 skip, `host-pool-mode` 45, `launchers` 41, `outbox-drop` 12, `status` 8, `admission` 6, all 0 fail |
+| Burokrat contract, rule and architecture job-catalogue tests                                                                      | 36 pass, 0 fail                                                                                                                                                                             |
+| `check staged . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-20T12:00:00.000Z`                                           | exit 0, no findings, nothing unevaluated                                                                                                                                                    |
+| both typechecks, `--skip-nx-cache`                                                                                                | `Successfully ran target typecheck` for `twilight-dash` and `twilight-burokrat`                                                                                                             |
+| `bunx eslint` on the 22 TypeScript files the branch changes                                                                       | exit 0                                                                                                                                                                                      |
+| `bunx prettier --check`, `bunx openspec validate --all --json`, `check-indexes working . HEAD`                                    | all files use Prettier code style; 346 items, 346 passed, 0 failed; exit 0                                                                                                                  |
+
+| Injected fault                                          | Observed                                                                                                                                                                                |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memoryBoundOf` answering the envelope (no decoupling)  | `a clamped entry sets MemoryHigh to its heuristic; an unclamped one to its envelope` (job-run.test.ts) found no `-p MemoryHigh=3G`: the scope got `MemoryHigh=2G`                       |
+| the launcher's MemoryHigh report line dropped           | the same test missed `ops job: <id> MemoryHigh 3 GiB (heuristic; reservation clamped to 2 GiB)`                                                                                         |
+| `memoryBoundGib` not written to the run record          | the same test read `memoryBoundGib` undefined against 3                                                                                                                                 |
+| `ops job run`'s cap-on-clamp refusal dropped            | `a cap entry with memoryGib clamped to the pool is refused 64 before admission` got no refusal                                                                                          |
+| `JOB-CATALOGUE`'s cap-on-clamp check dropped            | `refuses cap enforcement on a clamped memoryGib, naming the p95` found no finding; the real catalogue set to `cap` gives that finding with the check in place                           |
+| `ops job audit` returning 1 for any drift               | `the audit exits 0 when its only drift is an expected overrun of a clamped envelope (S25-A6)` (calibrate.test.ts, the probe's shape) exited 1                                           |
+| `auditFails` answering false for any drift              | `only an expected overrun leaves the audit green`, the throttled test, the probe-shaped test (tmp overrun) and the existing end-to-end `estimate_expired` case exited or answered green |
+| `expected` never set on an overrun                      | `only an expected overrun leaves the audit green` and the probe-shaped test failed (exit 1)                                                                                             |
+| `throttled` cleared against the HEAD envelope as before | `a throttled run under a clamped entry is cleared only by a higher bound` kept the drift under a HEAD heuristic of 15                                                                   |
+| `ops job status` without the MemoryHigh marker          | `a clamped job names its MemoryHigh beside the envelope (task 6.25, S25-A6)` found `envelope 4 cores 6 GiB 0 GiB tmp peak`                                                              |
+
+### Fable review fold-in (S2-1, S2-2, S2-3, S3; 2026-11-20)
+
+The Fable review of #955 at c183442da was FIX-THEN-MERGE. Same branch, laptop and environment,
+no host touched.
+
+- **S2-1, S25-A7.** `jobTypeDescriptor` (`resources/host-pool.ts`) gains `clampedToAllocatable`,
+  which `readCataloguedJob` copies from the provenance. `ResourceRuntime.reservationOf` reserves
+  the pool's whole allocatable in each clamped dimension; `fits()` and the persisted `reserved`
+  use it, so `ops pool inspect`, status and the WBS `host_job` projection carry the real
+  reservation; `oversize()` still judges the envelope. `verifyEligibleTypes`
+  (`ops/switch-mode.ts`), run at every pool open, refuses 64 a clamped type in
+  `concurrencyEligible`. Burokrat cannot see a host's pool configuration, so this check is Dash's.
+- **S2-2.** An overrun is `expected` only when its peak is at most the dimension's heuristic.
+- **S2-3.** `scopeMemoryBound` (`ops/catalogue.ts`, replacing `memoryBoundOf`) computes the
+  lower of the heuristic and the pool's budget less `memoryBoundHeadroomGib`, never below the
+  envelope, and names its term (`heuristic`, `pool`, `reservation`). `ResourceRuntime.scopeCeiling`
+  reads the pool figures, the new optional config key defaulting to 2
+  (`DEFAULT_MEMORY_BOUND_HEADROOM_GIB`). `executeHostJob` pins the bound in the descriptor as
+  `memoryBoundGib`, so `scopeArguments` takes the descriptor alone again, and the launcher's line
+  names the winning figure. `ops job status` reads the bound from the job's descriptor, and
+  `ops job audit` judges `throttled` clearing against the HEAD entry's bound on this pool.
+- **S3.** J7 in design.md points to the J9 amendments. `docs/infra/gate-hosts.md` no longer
+  calls `gate` uncalibrated, and its new paragraph is wrapped. `CalibratedProvenance` gains an
+  optional nonempty `notes` string, which `ops job propose` carries into the replacement, and the
+  gate entry's `notes` holds the old `basis` knowledge: the containers bound is declared and not
+  measured, BuildKit is required, the 480-minute rationale, and that the entry is never
+  concurrency-eligible. I chose the contract over `infra/jobs/README.md` because the knowledge is
+  about this one entry, and R3 puts it with what it describes; a README sentence would not follow
+  the entry through a `propose`. The cap-on-clamp refusal at launch also stops
+  `ops job calibrate` of such an entry, though a calibration sets no `MemoryMax`; the lint refuses
+  the entry first, so this is not reachable from a linted catalogue.
+
+| Command                                                                                                                           | Result                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` on `src/ops`, `resources/host-jobs.test.ts`, `resources/host-job-publication.test.ts`, `cli.test.ts` with the preloads | exit 0; outer 255 pass, 0 fail; inside the `unshare --user --map-user` namespaces: `calibrate` 19 pass 1 skip, `job-run` 54 pass 17 skip, `host-pool-mode` 46, `status` 8, `admission` 6, `launchers` 41, `outbox-drop` 12, all 0 fail |
+| `host-jobs.test.ts` inside its namespace                                                                                          | 47 pass, 0 fail                                                                                                                                                                                                                        |
+| Burokrat contract, rule and architecture job-catalogue tests                                                                      | 37 pass, 0 fail                                                                                                                                                                                                                        |
+| `tool-remote-scripts` `host-job-container-bound.test.ts`                                                                          | 4 pass, 0 fail                                                                                                                                                                                                                         |
+| `check staged . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-20T12:00:00.000Z`                                           | exit 0, no findings, nothing unevaluated                                                                                                                                                                                               |
+| `scopeMemoryBound` on the landed `gate` entry                                                                                     | 13 GiB, term `heuristic`, on a 15 − 2 ceiling; 12 GiB, term `pool`, on 14 − 2                                                                                                                                                          |
+| both typechecks, `--skip-nx-cache`                                                                                                | `Successfully ran target typecheck` for both                                                                                                                                                                                           |
+| `bunx eslint` on the 25 TypeScript files the branch changes                                                                       | exit 0, after `--fix` sorted two import blocks                                                                                                                                                                                         |
+| `bunx prettier --check`, `bunx openspec validate --all --json`, `check-indexes working . HEAD`                                    | all files use Prettier code style; 346 items, 346 passed, 0 failed; exit 0                                                                                                                                                             |
+
+| Injected fault                                         | Observed                                                                                                                                  |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `fits()` taking the envelope for a clamped newcomer    | `a clamped gate reserves the whole pool …` (host-jobs.test.ts) admitted the gate beside a held 1-core, 1-GiB job                          |
+| the persisted `reserved` taken from the envelope       | the same test found reserved 6 cores and 9 GiB against 8 and 13                                                                           |
+| `readCataloguedJob` not copying `clampedToAllocatable` | `a clamped gate holds the whole pool through ops job run (S25-A7)` (job-run.test.ts) read reserved memoryGib 2 against 3                  |
+| `verifyEligibleTypes` without the clamp refusal        | `a type clamped to the pool may not be concurrency-eligible (S25-A7)` (host-pool-mode.test.ts) initialized the pool                       |
+| `expected` without the heuristic bound                 | `an overrun above the heuristic of a clamped dimension is plain drift (review S2-2)` (audit.test.ts) failed: the 14 GiB peak was expected |
+| `scopeMemoryBound` taking the heuristic alone          | `the pool caps the bound when …` launched `-p MemoryHigh=3G` on a 4 − 2 GiB pool, and the pure bound test failed                          |
+| `scopeMemoryBound` without the reservation floor       | the pure bound test's reservation case failed                                                                                             |
+| `ops job propose` dropping `notes`                     | `a calibrated entry's notes carry into its replacement` (propose.test.ts) found no notes                                                  |
+| `notes` typed `string`                                 | `carries notes as a nonempty string` (contract test) accepted an empty note                                                               |
+
+The first host-jobs fixture gave the clamped gate 11 GiB of tmp, and the second-order case then
+waited on the laptop's free disk (12 GiB) rather than on the vector, so the `fits()` fault went
+unseen. The fixture now declares 1 GiB of tmp, and the fault fails it.
+
+### Re-review fold-in (S3-1, S3-2; 2026-11-20)
+
+The re-review of #955 at c888430f4 was FIX-THEN-MERGE. Same branch, laptop and environment, no
+host touched. The fold-in commands table above carried a literal placeholder in its last row;
+it now gives the results. A tree-wide `git grep` for `FOLD` and `PLACEHOLDER` finds no other
+leftover from this change, and the files this branch changes contain no `TODO`, `XXX` or
+`TBD`. The deployment consequence for `memoryBoundHeadroomGib` (S3-1) is stated in S25-A6,
+resources.md and gate-hosts.md. When the bound is below the calibrated p95 (S3-2),
+`ScopeMemoryBound.belowP95Gib` carries that p95, and three outputs name it: the launcher's
+line, the audit's `throttled` line and the audit's clamp note.
+
+| Command                                                                       | Result                            |
+| ----------------------------------------------------------------------------- | --------------------------------- |
+| `job-run`, `audit`, `calibrate`, `status` test files inside the ops namespace | 111 pass, 18 skip, 0 fail         |
+| `bunx eslint` on the 5 changed TypeScript files                               | exit 0                            |
+| `bunx prettier --check` on the changed files                                  | all files use Prettier code style |
+| `bunx openspec validate --all --json`                                         | 346 items, 346 passed, 0 failed   |
+| `check-indexes working . HEAD` after `git add -A`                             | exit 0                            |
+
+| Injected fault                                 | Observed                                                                                                                                                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scopeMemoryBound` never marking `belowP95Gib` | `a pool bound below the calibrated p95 says so`, the pool-caps launch test (its line lacked the suffix), the pure bound test and `a clamped memoryGib whose pool bound is below the p95 is noted` failed |
+| the audit's `throttled` suffix dropped         | `a throttled run under a bound below the calibrated p95 says so` failed                                                                                                                                  |

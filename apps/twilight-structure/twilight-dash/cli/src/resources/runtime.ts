@@ -83,7 +83,19 @@ const Configuration = type({
    * type are listed; otherwise it waits, serialised as in observe mode. Absent means none.
    */
   'concurrencyEligible?': 'string[]',
+  /**
+   * GiB of the memory budget a job scope's `MemoryHigh` leaves to the rest of the host when a
+   * catalogue entry's `memoryGib` is clamped to this pool (task 6.25, S25-A6): such a scope runs
+   * under `min(heuristic, memoryGib − memoryBoundHeadroomGib)`, never below its reservation.
+   * Absent means 2 ({@link DEFAULT_MEMORY_BOUND_HEADROOM_GIB}): 13 GiB on h4claw's 15, 12 on
+   * h2puni's 14. Below `headroom.memoryGib` on purpose: the bound governs a burst above the
+   * measured p95, which the reservation's headroom does not cover.
+   */
+  'memoryBoundHeadroomGib?': 'number.integer >= 0',
 }).onUndeclaredKey('reject');
+
+/** `memoryBoundHeadroomGib` when the pool configuration leaves it out. */
+export const DEFAULT_MEMORY_BOUND_HEADROOM_GIB = 2;
 export type ResourceConfiguration = Omit<
   typeof Configuration.infer,
   'credential' | 'mcpResource'
@@ -636,6 +648,21 @@ export interface HostPoolStatus extends HostPoolTransition {
 
 /** What one host job reserves (J4, J9): the pool vector, and its disk charge in GiB for WBS. */
 export interface HostJobReservation extends PoolVector {
+  tmpDiskGib: number;
+}
+
+/** The pool figures a clamped entry's scope bound is capped by (S25-A6). */
+export interface ScopeCeiling {
+  /** The pool's memory budget, whole GiB. */
+  memoryGib: number;
+  /** GiB of that budget the bound leaves to the rest of the host. */
+  memoryBoundHeadroomGib: number;
+}
+
+/** An envelope's three admitted dimensions, in whole cores and GiB. */
+export interface PoolEnvelope {
+  cpuCores: number;
+  memoryGib: number;
   tmpDiskGib: number;
 }
 
@@ -3122,6 +3149,49 @@ export class ResourceRuntime {
     if (inserted === null) throw new Error('resource outbox drop record unwritten');
     return { sequence: inserted.sequence, ...record };
   }
+  /**
+   * The largest envelope this pool admits for an ordinary job: allocatable cores and memory,
+   * and the whole GiB its disk units hold. One more in any dimension is refused 73 (J5,
+   * {@link ResourceRuntime.enqueueHostJob}); `ops job propose` clamps to it (task 6.25).
+   */
+  largestEnvelope(): PoolEnvelope {
+    // Proof: taking the disk budget's GiB rounded up made `the largest envelope is admitted and
+    // one more in any dimension is refused 73 (task 6.25)` (host-jobs.test.ts) answer
+    // tmpDiskGib 21 on a pool that refuses 21 (2026-11-20).
+    const { cpuCores, memoryGib, tmpDiskGib } = this.wholePool();
+    return { cpuCores, memoryGib, tmpDiskGib };
+  }
+  /** What caps a clamped entry's scope bound on this pool (`scopeMemoryBound`, S25-A6). */
+  scopeCeiling(): ScopeCeiling {
+    return {
+      memoryGib: this.configuration.memoryGib,
+      memoryBoundHeadroomGib:
+        this.configuration.memoryBoundHeadroomGib ?? DEFAULT_MEMORY_BOUND_HEADROOM_GIB,
+    };
+  }
+  /**
+   * What an ordinary job of `descriptor` reserves (J4, J5): its envelope and one slot, except
+   * that each dimension its catalogue entry clamped to the pool reserves all of `allocatable`,
+   * as a calibration does (S25-A7), so nothing is admitted beside a job that measurably uses the
+   * whole pool there. `oversize()` still judges the envelope itself.
+   */
+  private reservationOf(descriptor: JobTypeDescriptor): HostJobReservation {
+    const whole = this.wholePool();
+    const clamped = new Set(descriptor.clampedToAllocatable ?? []);
+    const pick = (dimension: 'cpuCores' | 'memoryGib', declared: number): number =>
+      clamped.has(dimension) ? Math.max(declared, whole[dimension]) : declared;
+    const diskUnits = this.diskUnitsOf(descriptor);
+    const tmp = clamped.has('tmpDiskGib');
+    return {
+      cpuCores: pick('cpuCores', descriptor.envelope.cpuCores),
+      memoryGib: pick('memoryGib', descriptor.envelope.memoryGib),
+      diskUnits: tmp ? Math.max(diskUnits, whole.diskUnits) : diskUnits,
+      workspaceSlots: 1,
+      tmpDiskGib: tmp
+        ? Math.max(descriptor.envelope.tmpDiskGib, whole.tmpDiskGib)
+        : descriptor.envelope.tmpDiskGib,
+    };
+  }
   /** What a calibration reserves: all of `allocatable`, its disk budget also in whole GiB. */
   private wholePool(): HostJobReservation {
     const allocatable = this.allocatable();
@@ -3241,6 +3311,18 @@ export class ResourceRuntime {
       job.process !== null &&
       alive(job.process);
     return { state: job.state, running };
+  }
+  /**
+   * Whether host job `id`'s launched session has ended: its leader and every member the compute
+   * evidence would count ({@link computeEvidence}) gone. What `ops job run` asks before it ends
+   * the processes left in the job's scope (task 6.24): a member of the session is still the
+   * payload's own work, never a leftover. Reads only: no settlement, no lock, nothing saved.
+   * @throws Error when the job was never launched, or when `/proc` cannot be inspected.
+   */
+  hostJobSessionEnded(id: string): boolean {
+    const job = this.inspectHostJob(id);
+    if (job.process === null) throw new Error(`host job ${id} was never launched`);
+    return !ownedProcessesAlive({ process: job.process, descendants: captureDescendants(job) });
   }
   /** Every host job, released history included, oldest admission first. */
   listHostJobs(): HostJob[] {
@@ -3602,7 +3684,7 @@ export class ResourceRuntime {
         const own =
           request.calibration === true
             ? allocatable.diskUnits
-            : reserved.diskUnits + this.diskUnitsOf(request.descriptor);
+            : reserved.diskUnits + this.reservationOf(request.descriptor).diskUnits;
         const short = this.freeSpaceShortfall(own);
         return short === null ? '' : `; ${short}`;
       };
@@ -3648,19 +3730,13 @@ export class ResourceRuntime {
         // Proof: admitting a calibration on the envelope fit made `a calibration waits for
         // the pool to drain` (calibrate.test.ts) admit it beside a held gate (2026-11-02, Slice 4).
         if (calibration === true) return drained(descriptor);
-        const diskUnits = this.diskUnitsOf(descriptor);
+        // Proof: fitting the envelope here made `a clamped gate reserves the whole pool in its
+        // clamped dimensions; nothing fits beside it` (host-jobs.test.ts) admit the clamped gate
+        // beside a held 1-core, 1-GiB job (2026-11-20, S25-A7).
+        const own = this.reservationOf(descriptor);
         return (
-          vectorFits(
-            {
-              cpuCores: descriptor.envelope.cpuCores,
-              memoryGib: descriptor.envelope.memoryGib,
-              diskUnits,
-              workspaceSlots: 1,
-            },
-            reserved,
-            allocatable,
-          ) &&
-          this.freeSpaceCovers(reserved.diskUnits + diskUnits) &&
+          vectorFits(own, reserved, allocatable) &&
+          this.freeSpaceCovers(reserved.diskUnits + own.diskUnits) &&
           // Proof: without it the model in host-jobs.model.test.ts admitted a third gate onto
           // a held tree where it expected `waiting` (2026-11-01, verify.md Slice 2).
           descriptor.envelope.exclusive.every((id) => freeUnit(id) !== undefined)
@@ -3741,16 +3817,10 @@ export class ResourceRuntime {
         // Proof: persisting the envelope for a calibration made `a calibration holds the whole
         // allocatable vector` and `a calibration waits for the pool to drain` (calibrate.test.ts)
         // persist the gate's envelope, not the 8 allocatable cores (2026-11-02, review A3).
+        // Proof: persisting the envelope for a clamped type made `a clamped gate reserves the
+        // whole pool …` (host-jobs.test.ts) find reserved memoryGib 9 of 13 (2026-11-20, S25-A7).
         reserved:
-          request.calibration === true
-            ? this.wholePool()
-            : {
-                cpuCores: request.descriptor.envelope.cpuCores,
-                memoryGib: request.descriptor.envelope.memoryGib,
-                diskUnits: this.diskUnitsOf(request.descriptor),
-                workspaceSlots: 1,
-                tmpDiskGib: request.descriptor.envelope.tmpDiskGib,
-              },
+          request.calibration === true ? this.wholePool() : this.reservationOf(request.descriptor),
         ...(request.calibration === true ? { calibration: true as const } : {}),
       };
       this.hostJobEvent(job, 'admitted');

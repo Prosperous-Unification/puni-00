@@ -140,8 +140,9 @@ semantics.
 **J7. A host job runs in its own transient scope behind the runtime's launch gate (F9).**
 `twilight-dash ops job run --type <id> [--label <lane>] [--wait-seconds <n>] -- <argv>` reserves,
 then launches through the runtime's existing FD-gated owned process group: the scope is created
-(`systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`, `MemoryMax`
-too for `cap`), its `memory.peak`, `memory.current`, `cpu.stat` and `pids.current` are read once
+(`systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`, or the
+pool-capped heuristic of an entry whose `memoryGib` is clamped, see the 2026-11-20 amendments
+under J9; `MemoryMax` too for `cap`), its `memory.peak`, `memory.current`, `cpu.stat` and `pids.current` are read once
 and the boot/PID/start identity persisted, and only then is the gate released and the payload
 exec'd. `TMPDIR` is a job-private directory under the managed root; `DASH_JOB_ID`,
 `DASH_JOB_TYPE`, the unit variables and `HEAVY_LOCK_LABEL` are in the environment. Every ten
@@ -154,6 +155,27 @@ ends at its type's `maxRuntimeMinutes`, which returns 124 (task 6.11); the launc
 scope's `MemoryHigh`, sends SIGTERM to the session and SIGKILLs the whole scope after the settle
 budget (task 6.14). A telemetry failure mid-run and a ledger
 write failure are recorded apart from the payload's outcome.
+
+_Amendment (task 6.23, 2026-11-19, assumption A-TMP-TELEMETRY-1 for Dany)._ The gate's own
+`apps/wbs/be-01/src/shared-people-host-restore-process.db.test.ts` makes a directory
+`inaccessible` with mode 0 inside its `mkdtemp(join(tmpdir(), 'wbs-shared-process-'))`
+fixture, which is under the job's `TMPDIR`, and reopens it later. The tmp walk's `scandir` of
+it failed with EACCES, every such sample became a telemetry failure, and the whole record was
+excluded: the first complete BuildKit calibration on h4claw (e15a97eb) lost its memory, CPU and
+duration with its tmp figure. The walk now skips a subtree it may not read (EACCES, EPERM) and
+an entry that vanishes, counts the rest and lists the skipped paths in the sample
+(`tmpUnreadable`, relative, at most 32, the rest counted); the tmp directory itself absent or
+unreadable stays a telemetry failure. Completeness is per dimension: such a record is complete
+for memory, CPU and duration and a lower bound for tmp disk, which `propose` takes only when
+too few records measured it, never lowering the entry, and which `audit` notes and never
+counts as waste. A proposal that took any lower bound marks its provenance
+`tmpDiskGibLowerBound: true` in the Burokrat `JobType` contract, because the entry's
+`tmpDiskGib` becomes the pool's disk reservation; `audit` never judges such an entry for tmp
+waste and says so in a note. Rejected: making the test reopen the directory in time, racy by
+construction against a ten-second sampler; running the sampler as root, out because the
+launcher runs as the gate user; dropping tmp measurement, which loses the dimension; and
+moving the fixture outside `TMPDIR`, left to Dany (S23-A2) because it changes a WBS test for a
+Dash measurement.
 
 **J8. What cannot be measured is refused before the payload, never run unmeasured.** No
 `systemd-run`, no user manager, scope counters unreadable at the gate: exit 70 before the
@@ -176,6 +198,44 @@ never ageing out), `waste` (p95 below half the envelope over ten or more complet
 `throttled`, printed first: a run whose scope sampled `memory.events high` above zero. The 1.25, three and ten are provisional and
 labelled so in the catalogue README; cold, warm and two-job concurrent validation precede
 enabling concurrency on a host (task 6.5). Nothing writes the catalogue.
+
+_Amendment (task 6.25, 2026-11-20, assumption A-ENVELOPE-CLAMP-1 for Dany)._ Three complete
+`gate` calibrations on h4claw (8 cores, 15 GiB; pool allocatable 7 cores, 10 GiB, 48 disk units
+of 1 GiB) at `--parallel=1` gave p95 10.01 GiB, 6.88 cores and 8.01 GiB tmp (a lower bound), and
+the heuristic proposed 13 GiB and 9 cores: more than either enrolled pool holds (h2puni: 6
+cores, 9 GiB, 12 units) and, in cores, more than the host. J5 refuses such an envelope 73 for
+every ordinary run, so landing it would stop every gate. The gate at `--parallel=1` uses the
+whole host; that is the finding. `propose` is therefore host-aware: a heuristic figure above
+the `--config` pool's largest admissible envelope (allocatable cores and memory, and the whole
+GiB its disk units hold) is clamped to it, the line says `clamped to allocatable` with the
+heuristic, and the provenance carries `clampedToAllocatable` and the unclamped `heuristic`
+(Burokrat `CalibratedProvenance`). `JOB-CATALOGUE` judges a clamped dimension's heuristic, not
+its envelope, against the p95, and refuses an envelope above its heuristic. `audit` keeps an
+overrun in a clamped dimension as drift, marked expected, notes the clamp and never judges
+that dimension for waste. The catalogue serves both hosts, so the landed `gate` entry is
+clamped by hand to the smaller pool, h2puni's: 6 cores, 9 GiB, 11 GiB tmp. Rejected: raising
+both pools' allocatable, a host-capacity decision left to Dany; landing the unclamped entry,
+which refuses every gate; keeping the estimated 4 cores and 6 GiB, which hides the measurement.
+
+_Amendment (task 6.25 review, 2026-11-20, assumptions S25-A6 and S25-A7 for Dany)._ J7 launched
+an `observe` scope with `MemoryHigh` at the envelope's `memoryGib`. For a clamped entry that is 9
+GiB under a measured p95 of 10.01 GiB, which would throttle every gate as 22ce2369 was
+throttled at 6 GiB (58 h). The clamped figure is also a hand-set number that admission cannot
+check. Three rules follow. A dimension in `clampedToAllocatable` reserves the pool's whole
+allocatable in that dimension, as a calibration does (S25-A7): `fits()` admits nothing beside
+the job there, `ops pool inspect`, status and the WBS `host_job` projection show the real
+reservation, and `oversize()` still judges the envelope. Such a type may not be listed in a
+pool's `concurrencyEligible` (Dash refuses 64 at every pool open). The scope's `MemoryHigh` for a
+clamped `memoryGib` belongs to the pool (S25-A6). It is the heuristic or the pool's budget
+less `memoryBoundHeadroomGib`, whichever is lower, never below the envelope; that key is an
+optional host-pool key that defaults to 2, giving 13 GiB on h4claw and 12 on h2puni. The bound is pinned
+in the job's descriptor (`memoryBoundGib`) and the run record, the launcher names the figure
+that set it, and `throttled` clears only when the HEAD entry's bound on this pool rises above
+the run's. An overrun of a clamped dimension up to its heuristic is expected: it stays visible,
+but when it is the only drift `ops job audit` exits 0. Above the heuristic it is plain drift,
+and so is any other drift. `cap` on a clamped `memoryGib` is refused by `JOB-CATALOGUE` and by
+`ops job run` (64), because its `MemoryMax` would kill every run. The residual risk is that the
+bound leaves the host only 2 GiB of its budget (S25-A6).
 
 **J10. WBS shows the host, never admits for it (F12).** Two projections, both through
 existing transports: (a) a `host_job` use is published through the resource authority events
@@ -201,6 +261,29 @@ the exit code). Release, reservation changes and the outbox event commit in one 
 crash between reservation and launch, a dead launcher with surviving children, and a failed
 cleanup leave the use charged (`blocked` or `unknown`), reconciled by the runtime's existing
 watch loop; nothing reclaims on launcher death alone.
+
+_Amendment (task 6.24, 2026-11-19, assumption A-SCOPE-LEFTOVER-1 for Dany)._ Every gate
+calibration on h4claw and h2puni ended with its payload's exit 0 and orphan test servers
+(`/bin/sh -c node serve.cjs` and `node serve.cjs`, started by the frontend and website tests)
+still alive in `dash-job-<id>.scope`. They had left the payload's session, so compute released,
+but they held `TMPDIR`: tmp stayed `blocked` (`live file hold remains charged`) and the next
+calibration or a peer's gate waited for admission until its 30-minute budget refused it 75,
+unless an operator ran `systemctl --user kill --signal=SIGKILL dash-job-<id>.scope` (29b8b406 on
+h4claw at 17:29Z, e15a97eb, 6ff558aa and 1d38876d before). Processes still in a job's scope
+once its leader has exited and its session has no live member belong to the job: `ops job run`
+records the payload's end first (the record's `endedAt` and the ledger's exit, so the leftover
+ending never counts as the job's wall time), then ends them before settlement, SIGTERM to the
+scope, SIGKILL after 10 s, then waits up to 20 s for the scope to empty, and records them
+(`leftoverProcesses`). `systemctl --user kill` signals the unit's whole cgroup subtree, so the
+count and the wait read the subtree too; the record describes only the scope's own
+`cgroup.procs`, and any cgroup other than the job's own scope is refused. A `j19-holder-*` scope
+is not below the job's scope: `systemd-run --scope` puts every transient unit under a slice, so
+it is a sibling the unit kill cannot reach. A leftover that survives is recorded as `timeout`; a
+failed `systemctl` call as `signal-failed` with its diagnostic and no wait; members unreadable
+during a wait as `unverified`; each leaves the tmp directory charged as before. This absorbs the runtime bound's after-leader SIGKILL (task
+6.14), which keeps its immediate SIGKILL. Rejected: keeping the manual step, which blocked every
+calibration series; making every test stop its servers, unenforceable across hundreds of tests
+and silent when one forgets; and releasing tmp regardless of live holds, which J2' forbids.
 
 **J11. Each host is one pool, as each host is one lock today.** No `--host`; cross-host
 choice is the fleet's later work and reads the capacity reports of J10.
@@ -262,6 +345,21 @@ unlabelled or unbounded container, build engine or Dagger session started is rec
 gate's solver smoke must therefore run its containers bounded and labelled before two gates may
 overlap. `cap` bounds the scope and the declared containers, nothing more, and the README says
 so.
+
+_Amendment (task 6.22, 2026-11-19, assumption A-ATTR-HOSTSVC-1 for Dany)._ Host services
+unrelated to any job start containers on the gate hosts: h2puni's hourly
+`goaccess-reports.sh` cron (`allinurl/goaccess`) and h4claw's daily
+`puni-registry-backup.timer` (`keinos/sqlite3`). Under the rule above every gate longer than an
+hour on h2puni recorded one unlabelled container and could never be a complete calibration. A
+container without `puni.job` that carries `puni.host-service=<name>` and both `--memory` and
+`--cpus` is recorded as verdict `host-service` with its name and bounds; it leaves the
+attribution complete, `ops job audit` lists it beside the run, and its bound is not added to
+the job's envelope. Without either bound it stays unattributed, the reason naming the missing
+one. `puni.job` wins over `puni.host-service`, and the rule for unlabelled containers is
+unchanged. Rejected: ignoring containers by image name, which no record could trace back to a
+declaring operator and which any job could imitate; and making the crons Dash jobs, which run
+without Dash on unenrolled hosts and, as admitted jobs, would block a gate's admission or queue
+behind it.
 
 **J17. One tool; `ops job …` now; the `dev` migration is its own change (Codex's
 recommendation).** The job commands land as `twilight-dash ops job run|calibrate|propose|

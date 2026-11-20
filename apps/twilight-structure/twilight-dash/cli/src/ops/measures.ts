@@ -81,7 +81,9 @@ export function measuresOf(record: RunRecord): RunMeasures {
 /**
  * Why `record` is not a complete measurement, or null when it is: ended with status 0, every
  * sample read, its ledger write and its container attribution complete, an exit sample present.
- * A failed or partly measured run says nothing reliable about what the job needs.
+ * A failed or partly measured run says nothing reliable about what the job needs. A tmp walk
+ * that could not read some subtree is not a telemetry failure and leaves the record complete:
+ * only its tmp figure is a lower bound ({@link dimensionStandings}, task 6.23).
  */
 export function incompleteness(record: RunRecord): string | null {
   if (record.endedAt === null) return 'no outcome recorded (running, or its launcher died)';
@@ -92,6 +94,62 @@ export function incompleteness(record: RunRecord): string | null {
   if (!record.samples.some((sample) => sample.kind === 'exit' && sample.counters !== null))
     return 'no exit sample';
   return null;
+}
+
+/** The samples of a run whose tmp walk could not read some subtree (task 6.23). */
+export interface TmpLowerBound {
+  /** How many samples saw an unreadable subtree. */
+  samples: number;
+  /** Every unreadable path the samples listed, deduplicated, in first-seen order. */
+  paths: string[];
+  /** Unreadable paths the samples counted beyond those they listed (the largest such count). */
+  omitted: number;
+}
+
+/**
+ * Where `record`'s tmp samples saw unreadable subtrees, or null when none did: its tmp peak
+ * is then a lower bound only (task 6.23).
+ */
+export function tmpLowerBoundOf(record: RunRecord): TmpLowerBound | null {
+  const partial = record.samples.filter(
+    (sample) => sample.tmpUnreadable.length > 0 || sample.tmpUnreadableOmitted > 0,
+  );
+  if (partial.length === 0) return null;
+  return {
+    samples: partial.length,
+    paths: [...new Set(partial.flatMap((sample) => sample.tmpUnreadable))],
+    omitted: Math.max(...partial.map((sample) => sample.tmpUnreadableOmitted)),
+  };
+}
+
+/** How one record stands for one {@link Dimension}. */
+export type DimensionStanding =
+  | { kind: 'complete' }
+  /** Measured, but the figure is only a lower bound: not a peak a proposal may take. */
+  | { kind: 'lower-bound'; reason: string }
+  | { kind: 'incomplete'; reason: string };
+
+/**
+ * Whether `record` is a complete measurement per dimension (task 6.23): every dimension is
+ * {@link incompleteness}'s whole-record answer, except that a record whose tmp samples saw an
+ * unreadable subtree is `lower-bound` for `tmpDiskGib` and stays complete for the rest. A
+ * dimension's own `null` measure is the caller's to judge, as before.
+ */
+export function dimensionStandings(record: RunRecord): Record<Dimension, DimensionStanding> {
+  const incomplete = incompleteness(record);
+  const whole: DimensionStanding =
+    incomplete === null ? { kind: 'complete' } : { kind: 'incomplete', reason: incomplete };
+  const lower = tmpLowerBoundOf(record);
+  // Proof: answering `whole` for tmp made `a record whose only defect is unreadable tmp
+  // subtrees is a lower bound for tmp alone` (measures.test.ts) find tmp complete (2026-11-19).
+  const tmp: DimensionStanding =
+    whole.kind === 'complete' && lower !== null
+      ? {
+          kind: 'lower-bound',
+          reason: `tmp lower bound only: ${String(lower.samples)} samples saw unreadable subtrees (${lower.paths.at(0) ?? `${String(lower.omitted)} unlisted`})`,
+        }
+      : whole;
+  return { memoryGib: whole, cpuCores: whole, tmpDiskGib: tmp, durationSeconds: whole };
 }
 
 /**

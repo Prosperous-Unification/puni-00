@@ -429,3 +429,59 @@
       `solver-image-smoke.test.ts`, `launchers.test.ts`; negatives: the pre-6.21 role, the probe with its status
       masked, the smoke without its guard or export, and the launcher without its preflight (verify.md, 2026-11-19). A fleet apply on h2puni and
       h4claw follows the merge (S21-A2).
+- [x] 6.22 host-service containers beside a job are attributed when labelled and bounded
+      (A-ATTR-HOSTSVC-1; PR #952): h2puni's hourly goaccess cron and the `keinos/sqlite3`
+      backups start containers without `puni.job`, so every gate longer than an hour recorded
+      an unlabelled container. A container labelled `puni.host-service=<name>` with `--memory`
+      and `--cpus` is now verdict `host-service` (name and bounds in the run record), leaves the
+      attribution complete and is listed by `ops job audit`; without a bound it stays
+      `unlabelled`; `puni.job` wins. Tests: `containers.test.ts`, `run-records.test.ts`,
+      `audit.test.ts`, `propose.test.ts`, `job-run.test.ts`; negatives: each new check removed
+      in turn (verify.md, 2026-11-19). Changing the host scripts follows the merge (S22-A2).
+- [x] 6.23 tmp telemetry tolerates unreadable subtrees; completeness per dimension
+      (A-TMP-TELEMETRY-1; PR #953): the gate's own be-01 test leaves a mode-0 `inaccessible`
+      directory under `TMPDIR`, so the tmp walk's EACCES voided h4claw's first complete BuildKit
+      calibration e15a97eb whole. The walk now lists unreadable subtrees (`tmpUnreadable`, at
+      most 32, the rest counted) and counts the rest as a lower bound; the tmp directory itself
+      absent or unreadable is still a telemetry failure. `dimensionStandings` (`measures.ts`)
+      makes such a record complete for memory, CPU and duration and a tmp lower bound;
+      `ops job propose` names it `tmp lower bound only` and falls back to lower bounds for
+      tmp only below three measured records, never lowering the entry and marking the
+      provenance `tmpDiskGibLowerBound: true` (Burokrat `JobType`); `ops job audit` notes the
+      paths, keeps them out of `waste` and never judges tmp waste for a marked entry. Old
+      samples load with no paths. Tests: `scope.test.ts`, `measures.test.ts`,
+      `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`, `job-run.test.ts`,
+      Burokrat `job-catalogue.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).
+- [x] 6.24 a job's leftover scope processes are ended before tmp settlement
+      (A-SCOPE-LEFTOVER-1; PR #954): every gate calibration left `node serve.cjs` test servers
+      in `dash-job-<id>.scope` after an exit 0, holding `TMPDIR`, so tmp stayed blocked until an
+      operator SIGKILLed the scope. Once the leader has exited and its session has no live
+      member, and after the run's end time and the ledger's exit are taken, `endLeftovers`
+      (`ops/job-run.ts`, absorbing the bound's `killLeftovers`) counts the scope's cgroup
+      subtree (`scopeSubtreeMembers`, `ops/scope.ts`), describes up to eight of its own members
+      (`leftoverMembers`), sends SIGTERM to the scope, SIGKILL after 10 s, waits up to 20 s for
+      it to empty, and records `leftoverProcesses` (`none`, `SIGTERM`, `SIGKILL`, `timeout`,
+      or `signal-failed` and `unverified` with their failure); every other outcome than the
+      first three leaves tmp blocked and says so. `ops job status` and `ops job audit` print the
+      note. Tests: `scope.test.ts`, `run-records.test.ts`, `audit.test.ts`, `status.test.ts`,
+      `job-run.test.ts` (fake seam, and the real seam outside the namespace); negatives: each
+      new check removed in turn, Fable review fixes included (verify.md, 2026-11-19). The host
+      proof follows the next calibration (S24-A3).
+- [x] 6.25 the measured gate envelope, clamped to the pool (A-ENVELOPE-CLAMP-1; PR #955):
+      three complete h4claw gate calibrations (29b8b406, 29d3503e, 43923656) proposed 13 GiB
+      and 9 cores, which no enrolled pool holds and J5 would refuse 73 on every gate.
+      `ops job propose` clamps a heuristic figure above the pool's largest admissible envelope
+      (`ResourceRuntime.largestEnvelope`) and records `clampedToAllocatable` and `heuristic`
+      (Burokrat `CalibratedProvenance`); `JOB-CATALOGUE` judges a clamped dimension's
+      heuristic against its p95 and refuses an envelope above it or an unknown dimension;
+      `ops job audit` marks an overrun of a clamped dimension expected, keeps it as drift,
+      notes it, never judges it for waste and, up to its heuristic, exits 0 when it is the only
+      drift. A clamped dimension reserves the pool's whole allocatable (S25-A7) and its type may
+      not be concurrency-eligible; a clamped `memoryGib` runs under `MemoryHigh` at the lower of
+      its heuristic and the pool's budget less `memoryBoundHeadroomGib` (default 2), pinned as
+      `memoryBoundGib` (S25-A6); `cap` on it is refused by the lint and at launch;
+      `CalibratedProvenance` gains `notes`. The `gate` entry lands clamped by hand to h2puni's
+      pool: 6 cores, 9 GiB, 11 GiB tmp; MemoryHigh 13 GiB on h4claw, 12 on h2puni. Tests: `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`,
+      `job-run.test.ts`, `status.test.ts`, `host-jobs.test.ts`, `host-pool-mode.test.ts`,
+      Burokrat `job-catalogue.test.ts`
+      (contract and rule); negatives: each new check removed in turn (verify.md, 2026-11-20).

@@ -1290,6 +1290,22 @@ describe('an undo refuses when what it touched has moved', () => {
     ]);
   });
 
+  it('refuses a progress undo after another actor changes the same step', async () => {
+    const strip = await root('Strip');
+    expect((await workItems.setProgress(strip, ownerId, dev(), 'done')).ok).toBe(true);
+    expect((await workItems.setProgress(strip, strangerId, dev(), 'in_progress')).ok).toBe(true);
+
+    expectStale(await undone());
+
+    expect(
+      (await progressStore.listByProject(projectId)).map(({ workItemId, stepId, state }) => ({
+        workItemId,
+        stepId,
+        state,
+      })),
+    ).toEqual([{ workItemId: strip, stepId: dev(), state: 'in_progress' }]);
+  });
+
   it('refuses an assignment somebody else has reassigned', async () => {
     const strip = await root('Strip');
     const alice = await person('Alice');

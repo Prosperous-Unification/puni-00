@@ -1,10 +1,18 @@
 import { execFileSync } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
-import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
+import { addedBoardJournalRow, readBoardJournal } from './board-journal';
+import {
+  fixtureClient,
+  fixtureSuccess,
+  openSeededPlan,
+  type SeededPlan,
+  seedPlan,
+} from './plan-fixture';
 import { seedRenderingPlan } from './rendering-fixture';
 
 const identity = (testName: string, worker: number) => ({
@@ -14,6 +22,19 @@ const identity = (testName: string, worker: number) => ({
 });
 
 const boardOf = (page: Page): Locator => page.getByRole('region', { name: 'Step board' });
+
+async function storedStep(page: Page, seeded: SeededPlan, rowRef: string, stepName: string) {
+  const tree = fixtureSuccess(
+    'getApiProjectsByIdWork-items',
+    await fixtureClient(page)['getApiProjectsByIdWork-items']({ params: { id: seeded.projectId } }),
+  ).body;
+  const row = tree.workItems.find((candidate) => candidate.id === seeded.rowIds[rowRef]);
+  if (row === undefined) throw new Error(`Seeded row ${rowRef} is missing from stored tree`);
+  if (!Object.hasOwn(seeded.stepIds, stepName))
+    throw new Error(`Seeded step ${stepName} is missing`);
+  const stepId = seeded.stepIds[stepName];
+  return row.progress[stepId];
+}
 
 async function seedMixedBoard(page: Page, worker: number) {
   const seeded = await seedPlan(
@@ -72,11 +93,30 @@ async function columnGeometry(page: Page) {
           viewport,
           cards: cards.map((card) => {
             const bounds = card.getBoundingClientRect();
+            const surface = card.querySelector<HTMLElement>('[aria-label^="Drag "]');
+            if (surface === null) throw new Error('Board card has no title and step surface');
             return {
               left: bounds.left,
               right: bounds.right,
               scrollWidth: card.scrollWidth,
               clientWidth: card.clientWidth,
+              surface: {
+                name: surface.getAttribute('aria-label'),
+                text: surface.textContent,
+                scrollWidth: surface.scrollWidth,
+                clientWidth: surface.clientWidth,
+              },
+              controls: [...card.querySelectorAll<HTMLButtonElement>('button')].map((control) => {
+                const target = control.getBoundingClientRect();
+                return {
+                  name: control.getAttribute('aria-label'),
+                  height: target.height,
+                  left: target.left,
+                  right: target.right,
+                  scrollWidth: control.scrollWidth,
+                  clientWidth: control.clientWidth,
+                };
+              }),
             };
           }),
         };
@@ -87,7 +127,14 @@ async function columnGeometry(page: Page) {
 test('renders the ordered mixed board and readable columns at desktop and 390px', async ({
   page,
 }, testInfo) => {
+  const evidenceDirectory = process.env['E2E_BOARD_ARTIFACT_DIR'];
+  if (evidenceDirectory !== undefined && !isAbsolute(evidenceDirectory))
+    throw new Error('Board browser artifact directory must be absolute');
+  if (evidenceDirectory !== undefined) await mkdir(evidenceDirectory);
+  const capturePath = (name: string) =>
+    evidenceDirectory === undefined ? testInfo.outputPath(name) : join(evidenceDirectory, name);
   const seeded = await seedMixedBoard(page, testInfo.workerIndex);
+  const beforeShortcuts = readBoardJournal(seeded.projectId);
   const writes: string[] = [];
   page.on('request', (request) => {
     if (['POST', 'PATCH', 'DELETE'].includes(request.method()))
@@ -123,10 +170,22 @@ test('renders the ordered mixed board and readable columns at desktop and 390px'
   expect(desktop[1].left).toBeLessThan(desktop[2].left);
   for (const column of desktop) {
     expect(column.right).toBeLessThanOrEqual(column.viewport + 1);
-    for (const card of column.cards)
+    for (const card of column.cards) {
       expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth + 1);
+      expect(card.surface.name).toMatch(/\b(?:010|020)\b/);
+      expect(card.surface.name).toMatch(/\b(?:Dev|QA)\b/);
+      expect(card.surface.scrollWidth).toBeLessThanOrEqual(card.surface.clientWidth + 1);
+      expect(card.controls).toHaveLength(2);
+      for (const control of card.controls) {
+        expect(control.name).toMatch(/\b(?:010|020)\b/);
+        expect(control.name).toMatch(/\b(?:Dev|QA)\b/);
+        expect(control.height).toBeGreaterThanOrEqual(44);
+        expect(control.right).toBeLessThanOrEqual(column.viewport + 1);
+        expect(control.scrollWidth).toBeLessThanOrEqual(control.clientWidth + 1);
+      }
+    }
   }
-  await page.screenshot({ path: testInfo.outputPath('step-board-desktop.png'), fullPage: true });
+  await page.screenshot({ path: capturePath('step-board-desktop.png'), fullPage: true });
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobile = await columnGeometry(page);
@@ -135,23 +194,735 @@ test('renders the ordered mixed board and readable columns at desktop and 390px'
   expect(mobile[1].top).toBeLessThan(mobile[2].top);
   for (const column of mobile) {
     expect(column.right).toBeLessThanOrEqual(column.viewport + 1);
-    for (const card of column.cards)
+    for (const card of column.cards) {
       expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth + 1);
+      expect(card.surface.text).toMatch(/\b(?:Dev|QA)\b/);
+      expect(card.surface.scrollWidth).toBeLessThanOrEqual(card.surface.clientWidth + 1);
+      expect(card.controls).toHaveLength(2);
+      for (const control of card.controls) {
+        expect(control.height).toBeGreaterThanOrEqual(44);
+        expect(control.right).toBeLessThanOrEqual(column.viewport + 1);
+        expect(control.scrollWidth).toBeLessThanOrEqual(control.clientWidth + 1);
+      }
+    }
   }
-  await page.screenshot({ path: testInfo.outputPath('step-board-390.png'), fullPage: true });
+  await page.screenshot({ path: capturePath('step-board-390.png'), fullPage: true });
   await writeFile(
-    testInfo.outputPath('step-board-geometry.json'),
+    capturePath('step-board-geometry.json'),
     JSON.stringify({ desktop, mobile }, null, 2),
   );
-  await boardOf(page).locator('li').first().dragTo(boardOf(page).locator('li').last());
   await boardOf(page).press('ControlOrMeta+z');
   await boardOf(page).press('ControlOrMeta+Shift+z');
   await boardOf(page).press('?');
   expect(writes).toEqual([]);
+  expect(readBoardJournal(seeded.projectId)).toEqual(beforeShortcuts);
   await page.getByRole('button', { name: 'Return to Plan' }).click();
   await expect(plan).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Name of 010')).toHaveValue('Build a long first task');
+  await plan.focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => writes).toEqual([`POST /api/projects/${seeded.projectId}/undo`]);
+  expect(readBoardJournal(seeded.projectId).some((row) => row.undone === 1)).toBe(true);
   expect(seeded.rowIds['first']).not.toBe(seeded.rowIds['second']);
+});
+
+test('moves one numbered card by native drag, then undoes, redoes and clears its stored step', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Board progress journal',
+      rows: [
+        { ref: 'first', name: 'Build' },
+        { ref: 'other', name: 'Build' },
+      ],
+    },
+    identity('progress-journal', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const baseline = readBoardJournal(seeded.projectId);
+  const board = boardOf(page);
+  const unknown = page.getByRole('region', { name: 'Unknown', exact: true });
+  const done = page.getByRole('region', { name: 'Done', exact: true });
+  const card = board.getByRole('button', { name: 'Drag 010 Build / Dev' });
+  const commands: unknown[] = [];
+  const history: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'POST') return;
+    const path = new URL(request.url()).pathname;
+    if (path === `/api/projects/${seeded.projectId}/commands`)
+      commands.push(request.postDataJSON());
+    if (
+      path === `/api/projects/${seeded.projectId}/undo` ||
+      path === `/api/projects/${seeded.projectId}/redo`
+    )
+      history.push(path);
+  });
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBeUndefined();
+  await card.dragTo(unknown);
+  const outside = board.getByRole('button', { name: 'Return to Plan' });
+  const outsideBox = await outside.boundingBox();
+  if (outsideBox === null) throw new Error('Return to Plan has no outside-drop geometry');
+  const outsidePoint = {
+    x: outsideBox.x + outsideBox.width / 2,
+    y: outsideBox.y + outsideBox.height / 2,
+  };
+  for (const column of [
+    unknown,
+    page.getByRole('region', { name: 'In progress', exact: true }),
+    done,
+  ]) {
+    const box = await column.boundingBox();
+    if (box === null) throw new Error('Board column has no outside-drop geometry');
+    expect(
+      outsidePoint.x < box.x ||
+        outsidePoint.x > box.x + box.width ||
+        outsidePoint.y < box.y ||
+        outsidePoint.y > box.y + box.height,
+    ).toBe(true);
+  }
+  await card.dragTo(outside);
+  await expect(board).toBeVisible();
+  await done.evaluate(
+    (target, pair) => {
+      const transfer = new DataTransfer();
+      transfer.setData('text/plain', JSON.stringify(pair));
+      target.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }));
+    },
+    { workItemId: seeded.rowIds['first'], stepId: seeded.stepIds['Dev'] },
+  );
+  expect(commands).toEqual([]);
+  await card.dragTo(done);
+  await expect.poll(() => commands).toHaveLength(1);
+  expect(commands).toEqual([
+    {
+      commands: [
+        {
+          kind: 'setProgress',
+          workItemId: seeded.rowIds['first'],
+          stepId: seeded.stepIds['Dev'],
+          state: 'done',
+        },
+      ],
+    },
+  ]);
+  await expect(done.getByRole('button', { name: 'Drag 010 Build / Dev' })).toBeVisible();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+  await expect.poll(() => storedStep(page, seeded, 'first', 'QA')).toBeUndefined();
+  await expect.poll(() => storedStep(page, seeded, 'other', 'Dev')).toBeUndefined();
+  const moveRow = addedBoardJournalRow(baseline, readBoardJournal(seeded.projectId));
+  expect(moveRow).toMatchObject({ kind: 'progress', undone: 0 });
+  expect(JSON.parse(moveRow.inverse)).toMatchObject({
+    do: 'clear_progress',
+    workItemId: seeded.rowIds['first'],
+    stepId: seeded.stepIds['Dev'],
+  });
+
+  await page.getByRole('button', { name: 'Return to Plan' }).click();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect.poll(() => history).toHaveLength(1);
+  expect(history).toEqual([`/api/projects/${seeded.projectId}/undo`]);
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBeUndefined();
+  expect(readBoardJournal(seeded.projectId).find((row) => row.id === moveRow.id)?.undone).toBe(1);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await expect.poll(() => history).toHaveLength(2);
+  expect(history).toEqual([
+    `/api/projects/${seeded.projectId}/undo`,
+    `/api/projects/${seeded.projectId}/redo`,
+  ]);
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+  expect(readBoardJournal(seeded.projectId).find((row) => row.id === moveRow.id)?.undone).toBe(0);
+
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const beforeClear = readBoardJournal(seeded.projectId);
+  await board
+    .getByRole('button', { name: 'Clear progress for 010 Build / Dev (move to Unknown)' })
+    .click();
+  await expect.poll(() => commands).toHaveLength(2);
+  expect(commands).toEqual([
+    {
+      commands: [
+        {
+          kind: 'setProgress',
+          workItemId: seeded.rowIds['first'],
+          stepId: seeded.stepIds['Dev'],
+          state: 'done',
+        },
+      ],
+    },
+    {
+      commands: [
+        {
+          kind: 'clearProgress',
+          workItemId: seeded.rowIds['first'],
+          stepId: seeded.stepIds['Dev'],
+        },
+      ],
+    },
+  ]);
+  await expect(unknown.getByRole('button', { name: 'Drag 010 Build / Dev' })).toBeVisible();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBeUndefined();
+  const clearRow = addedBoardJournalRow(beforeClear, readBoardJournal(seeded.projectId));
+  expect(clearRow).toMatchObject({ kind: 'clear_progress', undone: 0 });
+  expect(JSON.parse(clearRow.inverse)).toMatchObject({
+    do: 'set_progress',
+    workItemId: seeded.rowIds['first'],
+    stepId: seeded.stepIds['Dev'],
+    state: 'done',
+  });
+  await page.getByRole('button', { name: 'Return to Plan' }).click();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+  expect(readBoardJournal(seeded.projectId).find((row) => row.id === clearRow.id)?.undone).toBe(1);
+});
+
+test('cancels a started native card drag with Escape before a drop', async ({ page }, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    { name: 'Board cancelled drag', rows: [{ ref: 'first', name: 'Build' }] },
+    identity('cancelled-drag', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const card = boardOf(page).getByRole('button', { name: 'Drag 010 Build / Dev' });
+  const done = page.getByRole('region', { name: 'Done', exact: true });
+  const cardBox = await card.boundingBox();
+  const doneBox = await done.boundingBox();
+  if (cardBox === null || doneBox === null) throw new Error('Card drag has no browser geometry');
+  const commands: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+    )
+      commands.push(request.postDataJSON());
+  });
+  await page.evaluate(() => {
+    Reflect.set(window, 'boardDragStarted', 0);
+    document.addEventListener(
+      'dragstart',
+      () => {
+        const count: unknown = Reflect.get(window, 'boardDragStarted');
+        if (typeof count !== 'number') throw new Error('Board drag counter is malformed');
+        Reflect.set(window, 'boardDragStarted', count + 1);
+      },
+      { once: true },
+    );
+  });
+  await card.focus();
+  await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(cardBox.x + cardBox.width / 2 + 40, cardBox.y + cardBox.height / 2 + 10, {
+    steps: 8,
+  });
+  await expect
+    .poll(() => page.evaluate((): unknown => Reflect.get(window, 'boardDragStarted')))
+    .toBe(1);
+  await page.keyboard.press('Escape');
+  await page.mouse.move(doneBox.x + doneBox.width / 2, doneBox.y + doneBox.height / 2, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  expect(commands).toEqual([]);
+  await expect(
+    page
+      .getByRole('region', { name: 'Unknown', exact: true })
+      .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+  ).toBeVisible();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBeUndefined();
+});
+
+test('uses the numbered keyboard control and a phone touch tap with delivered focus', async ({
+  browser,
+  page,
+}, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    { name: 'Board input controls', rows: [{ ref: 'first', name: 'Build' }] },
+    identity('input-controls', testInfo.workerIndex),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const board = boardOf(page);
+  await board.getByRole('button', { name: 'Drag 010 Build / Dev' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    board.getByRole('button', { name: 'Move 010 Build / Dev to In progress' }),
+  ).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(board.getByRole('button', { name: 'Drag 010 Build / Dev' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    board.getByRole('button', { name: 'Move 010 Build / Dev to In progress' }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  const doneControl = board.getByRole('button', { name: 'Move 010 Build / Dev to Done' });
+  await expect(doneControl).toBeFocused();
+  await page.keyboard.press('Space');
+  const delivered = page
+    .getByRole('region', { name: 'Done', exact: true })
+    .getByRole('button', { name: 'Drag 010 Build / Dev' });
+  await expect(delivered).toBeVisible();
+  await expect(delivered).toBeFocused();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+
+  const touchContext = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+    hasTouch: true,
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    const touch = await touchContext.newPage();
+    await touch.goto('/');
+    await expect(touch.getByRole('button', { name: 'local-dev' })).toBeVisible();
+    await openSeededPlan(touch, seeded);
+    await touch.getByRole('button', { name: 'Board', exact: true }).click();
+    await boardOf(touch).getByRole('button', { name: 'Move 010 Build / Dev to In progress' }).tap();
+    await expect(
+      touch
+        .getByRole('region', { name: 'In progress', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: 'In progress', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toBeVisible();
+    await expect.poll(() => storedStep(touch, seeded, 'first', 'Dev')).toBe('in_progress');
+  } finally {
+    await touchContext.close();
+  }
+});
+
+test('restores a prior step value with one Plan Undo after a Board correction', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    { name: 'Board prior progress', rows: [{ ref: 'first', name: 'Build' }] },
+    identity('prior-progress', testInfo.workerIndex),
+  );
+  fixtureSuccess(
+    'postApiProjectsByIdCommands',
+    await fixtureClient(page).postApiProjectsByIdCommands({
+      params: { id: seeded.projectId },
+      body: {
+        commands: [
+          {
+            kind: 'setProgress',
+            workItemId: seeded.rowIds['first'],
+            stepId: seeded.stepIds['Dev'],
+            state: 'in_progress',
+          },
+        ],
+      },
+    }),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const commands: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+    )
+      commands.push(request.postDataJSON());
+  });
+  await boardOf(page).getByRole('button', { name: 'Move 010 Build / Dev to Done' }).click();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+  expect(commands).toEqual([
+    {
+      commands: [
+        {
+          kind: 'setProgress',
+          workItemId: seeded.rowIds['first'],
+          stepId: seeded.stepIds['Dev'],
+          state: 'done',
+        },
+      ],
+    },
+  ]);
+  await page.getByRole('button', { name: 'Return to Plan' }).click();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('in_progress');
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+});
+
+test('holds a Board command pending without an optimistic card move or duplicate send', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    { name: 'Board pending command', rows: [{ ref: 'first', name: 'Build' }] },
+    identity('pending-command', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  let markHeld: () => void = () => {
+    throw new Error('Board command was not held');
+  };
+  let releaseCommand: () => void = () => {
+    throw new Error('Board command had no release');
+  };
+  let markRouteSettled: () => void = () => {
+    throw new Error('Board command route did not settle');
+  };
+  const commandHeld = new Promise<void>((resolve) => {
+    markHeld = resolve;
+  });
+  const commandRelease = new Promise<void>((resolve) => {
+    releaseCommand = resolve;
+  });
+  const routeSettled = new Promise<void>((resolve) => {
+    markRouteSettled = resolve;
+  });
+  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
+  const commands: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+    )
+      commands.push(request.postDataJSON());
+  });
+  await page.route(commandPath, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    markHeld();
+    await commandRelease;
+    try {
+      await route.continue();
+    } finally {
+      markRouteSettled();
+    }
+  });
+  try {
+    const move = boardOf(page).getByRole('button', { name: 'Move 010 Build / Dev to Done' });
+    await move.click();
+    await commandHeld;
+    await expect(boardOf(page).getByRole('status')).toContainText('Updating step progress');
+    await expect(move).toBeDisabled();
+    await expect(
+      page
+        .getByRole('region', { name: 'Unknown', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: 'Done', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toHaveCount(0);
+    expect(commands).toEqual([
+      {
+        commands: [
+          {
+            kind: 'setProgress',
+            workItemId: seeded.rowIds['first'],
+            stepId: seeded.stepIds['Dev'],
+            state: 'done',
+          },
+        ],
+      },
+    ]);
+    await boardOf(page).getByRole('button', { name: 'Return to Plan' }).focus();
+  } finally {
+    releaseCommand();
+    await routeSettled;
+    await page.unroute(commandPath);
+  }
+  await expect(
+    page
+      .getByRole('region', { name: 'Done', exact: true })
+      .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+  ).toBeVisible();
+  await expect(boardOf(page).getByRole('button', { name: 'Return to Plan' })).toBeFocused();
+  expect(commands).toHaveLength(1);
+});
+
+test('keeps Board admission pending through Plan remount while every post-command tree read is held', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    { name: 'Board held covering reads', rows: [{ ref: 'first', name: 'Build' }] },
+    identity('covering-read', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
+  const treePath = `**/api/projects/${seeded.projectId}/work-items`;
+  const commands: unknown[] = [];
+  let holdReads = false;
+  let heldCount = 0;
+  let markRead: () => void = () => {
+    throw new Error('Post-command tree read did not start');
+  };
+  let releaseReads: () => void = () => {
+    throw new Error('Tree reads had no release');
+  };
+  const readHeld = new Promise<void>((resolve) => {
+    markRead = resolve;
+  });
+  const readRelease = new Promise<void>((resolve) => {
+    releaseReads = resolve;
+  });
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+    )
+      commands.push(request.postDataJSON());
+  });
+  await page.route(commandPath, async (route) => {
+    if (route.request().method() === 'POST') holdReads = true;
+    await route.continue();
+  });
+  await page.route(treePath, async (route) => {
+    if (route.request().method() !== 'GET' || !holdReads) {
+      await route.continue();
+      return;
+    }
+    heldCount += 1;
+    markRead();
+    await readRelease;
+    await route.continue();
+  });
+  try {
+    const commandResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === `/api/projects/${seeded.projectId}/commands` &&
+        response.ok(),
+    );
+    await boardOf(page).getByRole('button', { name: 'Move 010 Build / Dev to Done' }).click();
+    await commandResponse;
+    await expect.poll(() => commands).toHaveLength(1);
+    await readHeld;
+    await expect.poll(() => heldCount).toBeGreaterThanOrEqual(1);
+    // Every GET since dispatch is held, including websocket-triggered reads; no
+    // fixture polling issues another GET until after release.
+    await page.getByRole('button', { name: 'Plan', exact: true }).click();
+    await page.getByRole('button', { name: 'Board', exact: true }).click();
+    await expect(boardOf(page).getByRole('status')).toContainText('Updating step progress');
+    await expect(
+      boardOf(page).getByRole('button', { name: 'Move 010 Build / Dev to Done' }),
+    ).toBeDisabled();
+    await expect(
+      page
+        .getByRole('region', { name: 'Unknown', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toBeVisible();
+    expect(commands).toHaveLength(1);
+  } finally {
+    releaseReads();
+    await page.unroute(commandPath);
+    await page.unroute(treePath);
+  }
+  await expect(
+    page
+      .getByRole('region', { name: 'Done', exact: true })
+      .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+  ).toBeVisible();
+  await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+  expect(commands).toHaveLength(1);
+});
+
+test('shows one modeled command refusal and leaves stored progress unchanged', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    { name: 'Board refused command', rows: [{ ref: 'first', name: 'Build' }] },
+    identity('refused-command', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
+  const commands: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+    )
+      commands.push(request.postDataJSON());
+  });
+  await page.route(commandPath, (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      json: { error: 'forbidden' },
+    }),
+  );
+  try {
+    await boardOf(page).getByRole('button', { name: 'Move 010 Build / Dev to Done' }).click();
+    await expect.poll(() => commands).toHaveLength(1);
+    expect(commands).toEqual([
+      {
+        commands: [
+          {
+            kind: 'setProgress',
+            workItemId: seeded.rowIds['first'],
+            stepId: seeded.stepIds['Dev'],
+            state: 'done',
+          },
+        ],
+      },
+    ]);
+    await expect(page.locator('[data-toast-text]')).toHaveCount(1);
+    await expect(page.locator('[data-toast-text]')).toContainText(
+      'this plan is not yours to change',
+    );
+    await expect(
+      page
+        .getByRole('region', { name: 'Unknown', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toBeVisible();
+    await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBeUndefined();
+  } finally {
+    await page.unroute(commandPath);
+  }
+});
+
+test('does not carry an old admitted Board request into a newly selected project', async ({
+  page,
+}, testInfo) => {
+  const first = await seedPlan(
+    page,
+    { name: 'Board old request', rows: [{ ref: 'first', name: 'Old card' }] },
+    identity('old-request', testInfo.workerIndex),
+  );
+  const second = await seedPlan(
+    page,
+    { name: 'Board new runtime', rows: [{ ref: 'second', name: 'New card' }] },
+    identity('new-runtime', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, first);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const commandPath = `**/api/projects/${first.projectId}/commands`;
+  let markHeld: () => void = () => {
+    throw new Error('Old request did not start');
+  };
+  let releaseOld: () => void = () => {
+    throw new Error('Old request has no release');
+  };
+  const held = new Promise<void>((resolve) => {
+    markHeld = resolve;
+  });
+  const release = new Promise<void>((resolve) => {
+    releaseOld = resolve;
+  });
+  const oldCommands: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/projects/${first.projectId}/commands`
+    )
+      oldCommands.push(request.postDataJSON());
+  });
+  await page.route(commandPath, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    markHeld();
+    await release;
+    await route.continue();
+  });
+  try {
+    await boardOf(page).getByRole('button', { name: 'Move 010 Old card / Dev to Done' }).click();
+    await held;
+    await expect.poll(() => oldCommands).toHaveLength(1);
+    const picker = page.getByRole('combobox', { name: 'Project' });
+    await picker.click();
+    await picker.fill(second.projectName);
+    await page.getByRole('option').filter({ hasText: second.projectName }).click();
+    await expect(picker).toHaveValue(second.projectName);
+    releaseOld();
+    await page.getByRole('button', { name: 'Board', exact: true }).click();
+    await expect(boardOf(page)).toContainText('New card');
+    await expect(boardOf(page)).not.toContainText('Old card');
+    await expect.poll(() => storedStep(page, first, 'first', 'Dev')).toBe('done');
+    await expect.poll(() => storedStep(page, second, 'second', 'Dev')).toBeUndefined();
+    await expect(page.locator('[data-toast-text]')).toHaveCount(0);
+    expect(oldCommands).toHaveLength(1);
+  } finally {
+    releaseOld();
+    await page.unroute(commandPath);
+  }
+});
+
+test('keeps the delivered card after a successful command with failed covering reads, then Retry only reads', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    { name: 'Board failed covering read', rows: [{ ref: 'first', name: 'Build' }] },
+    identity('failed-covering-read', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
+  const treePath = `**/api/projects/${seeded.projectId}/work-items`;
+  let failReads = false;
+  const commands: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+    )
+      commands.push(request.postDataJSON());
+  });
+  await page.route(commandPath, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    failReads = true;
+    await route.fulfill({ response });
+  });
+  await page.route(treePath, async (route) => {
+    if (route.request().method() !== 'GET' || !failReads) {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      json: { error: 'engine_unavailable', engine: 'optimized' },
+    });
+  });
+  try {
+    await boardOf(page).getByRole('button', { name: 'Move 010 Build / Dev to Done' }).click();
+    await expect.poll(() => commands).toHaveLength(1);
+    await expect(boardOf(page).getByRole('alert')).toContainText(
+      'Showing the last delivered board',
+    );
+    await expect(
+      page
+        .getByRole('region', { name: 'Unknown', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toBeVisible();
+    failReads = false;
+    await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
+    await boardOf(page).getByRole('button', { name: 'Retry' }).click();
+    expect(commands).toHaveLength(1);
+    await expect(
+      page
+        .getByRole('region', { name: 'Done', exact: true })
+        .getByRole('button', { name: 'Drag 010 Build / Dev' }),
+    ).toBeVisible();
+    expect(commands).toHaveLength(1);
+  } finally {
+    await page.unroute(commandPath);
+    await page.unroute(treePath);
+  }
 });
 
 test('keeps view controls in the phone toolbar and keyboard focus on the selected view', async ({

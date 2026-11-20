@@ -9,7 +9,17 @@ enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2pu
 2026-11-17), so gate on either as `puni1` from `~/puni-00-gate-launcher`
 ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
-throttled by the estimated `gate` envelope (the known issue in that section).
+throttled by the estimated `gate` envelope (the known issue in that section). The `gate`
+catalogue entry is measured since #955 (`dash-host-jobs` task 6.25): 6 cores, 9 GiB, 11 GiB
+tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's allocatable
+(S25-A7), so a gate holds all of either pool's cores and memory and nothing runs beside it, and
+`gate` may not be listed in `concurrencyEligible`. Its scope runs under
+`MemoryHigh = min(heuristic 13 GiB, pool budget − memoryBoundHeadroomGib)`, the headroom 2 GiB
+when the pool configuration leaves it out: 13 GiB on h4claw (15 − 2), 12 GiB on h2puni (14 − 2)
+(S25-A6). The key is absent on both hosts until the gate_host role gains the input:
+`tasks/validate.yml` asserts the exact key list of `host-pool.json` and the template renders no
+such key, so a hand-set key fails the validate play, and the default 2 applies. Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h 27 min (p95
+18,958 s), which replaces the intro's figure for an enrolled gate.
 
 ## What the host gate runs
 
@@ -353,6 +363,8 @@ init` refuses a unit any same-user process has as cwd, and orphaned test fixture
    changed. Then it restarts the watch, which runs from the same checkout, only if it was
    running. Otherwise it exits 75 and the next hour retries. A checkout with edited tracked
    files is refused 65, never moved over. A failed fetch, checkout, install or restart is 70.
+   Because it moves only an idle checkout, a calibration series already running keeps the code
+   it started with until it ends; restart the series' runner after the refresh (task 6.23).
    Read the most recent run's outcome with
    `systemctl --user show -p ExecMainStatus,ExecMainExitTimestamp gate-launcher-refresh.service`
    (on h4claw the journal is unreadable over ssh, as in step 5). It shows only the latest
@@ -423,7 +435,8 @@ ssh puni1@<h4claw public address> \
 ```
 
 Known issue, pending as of 2026-11-08 22:50Z; the held gate was ended cgroup-wide on 2026-11-17
-(`dash-host-jobs` verify.md, task 6.14) and `gate` is still uncalibrated. The first gate from this path, `gate:a5e9dbe9`, ran
+(`dash-host-jobs` verify.md, task 6.14), and `gate` has been calibrated since #955 (task 6.25).
+The first gate from this path, `gate:a5e9dbe9`, ran
 under `MemoryHigh` at the `gate` type's estimated 6 GiB and was throttled: `memory.peak` reached
 6.93 GiB, `memory.pressure` stayed above 90 %, two `bun test` runs timed out and three `eslint`
 runs hit heap OOMs. At 3 h 05 min it was still in its first `nx run-many`, and its exit is not
@@ -475,6 +488,26 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   [`dash-host-jobs` verify.md](../../openspec/changes/dash-host-jobs/verify.md) records each
   visit). See [heavy job launchers](heavy-job-launchers.md).
 
+## Host services beside the gate
+
+A gate host's own timers and crons start containers that belong to no job, and Dash's container
+watch records every container created during a job. Unless it is declared, such a container
+makes the job's run record attribution-incomplete, so `ops job propose` leaves the run out.
+Start each host-service container labelled and bounded:
+
+```sh
+docker run --rm --label puni.host-service=goaccess-reports --memory 512m --cpus 1 …
+```
+
+The run record then keeps it as verdict `host-service`, and `ops job audit` lists it beside the
+run with its declared bounds. A label without both `--memory` and `--cpus` still leaves the
+run incomplete, and a container that also carries `puni.job` is judged as that job's. Two
+scripts need it today: h2puni's hourly `~/monitoring/bin/goaccess-reports.sh` (cron at :07,
+`allinurl/goaccess`) and h4claw's daily `puni-registry-backup.timer`, whose
+`/root/.puni/registry/backup-registry.ts` runs `keinos/sqlite3` snapshots (h2puni has a
+root-owned `keinos/sqlite3` backup too). See `dash-host-jobs` task 6.22 in
+[verify.md](../../openspec/changes/dash-host-jobs/verify.md).
+
 ## End a host job by hand
 
 This applies on any enrolled host. Use the same three steps `ops job run` takes at a type's
@@ -493,6 +526,14 @@ The last step ends every process in the scope, including `setsid`'d descendants 
 daemon. Run it even when the payload ended on the SIGTERM: a forwarded signal reaches no
 descendant outside the payload's process group. `ops job status` then shows the job settling
 once `watch` sweeps it.
+
+A job whose payload exited on its own but left processes in its scope (the gate's `node
+serve.cjs` test servers) needs no hand step: Dash ends leftovers since #954, and a surviving
+leftover is reported in the run record (`leftoverProcesses`, `endedWith` `timeout`,
+`signal-failed` or `unverified`) and as a note in `ops job status` and `ops job audit`, with the
+tmp directory still `blocked`. Only then use the last step above. A calibration series already
+running keeps the launcher code it started with until it ends (on h4claw, runner h today), so
+until its runner is restarted after the launcher refresh its jobs still need the hand step.
 
 ## Capacity reports into WBS
 
