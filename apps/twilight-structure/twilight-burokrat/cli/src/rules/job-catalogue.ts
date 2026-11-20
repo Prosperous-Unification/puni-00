@@ -127,6 +127,17 @@ function judgeJob(
         );
       }
     }
+    // A `cap` bound is the envelope (Dash task 6.25, S25-A6): clamped below the p95 it kills.
+    // Proof (2026-11-20): dropping this check made `refuses cap enforcement on a clamped
+    // memoryGib, naming the p95` (job-catalogue.test.ts) find no finding.
+    if (job.enforcement === 'cap' && provenance.heuristic?.memoryGib !== undefined) {
+      observations.push(
+        observe(
+          job.id,
+          `cap enforcement with memoryGib clamped to the pool: MemoryMax ${String(job.envelope.memoryGib)} is below its calibrated p95 ${String(provenance.p95.memoryGib)} and would kill every run`,
+        ),
+      );
+    }
   }
   return observations;
 }

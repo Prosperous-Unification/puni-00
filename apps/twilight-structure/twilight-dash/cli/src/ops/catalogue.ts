@@ -25,6 +25,41 @@ export interface CataloguedJob {
   readonly cataloguePath: string;
   /** SHA-256 of the entry's JSON as the catalogue states it. */
   readonly descriptorDigest: string;
+  /** The scope's `MemoryHigh` in GiB for an ordinary run: {@link memoryBoundOf}. */
+  readonly memoryBoundGib: number;
+}
+
+/**
+ * The memory a job's scope may use before `MemoryHigh` throttles it (J7): the envelope's
+ * `memoryGib`, except for an entry whose provenance clamped `memoryGib` to the pool (task 6.25,
+ * S25-A6). That entry reserves the clamped figure, as admission must, but runs under its
+ * unclamped `heuristic.memoryGib`, so a gate is not throttled below its measured p95.
+ * @throws Error when a clamped `memoryGib` has no heuristic, which the contract refuses.
+ */
+export function memoryBoundOf(jobType: JobType): number {
+  const { provenance } = jobType;
+  if (provenance.kind !== 'calibrated' || !provenance.clampedToAllocatable?.includes('memoryGib'))
+    return jobType.envelope.memoryGib;
+  // Proof: answering the envelope here made `a clamped entry sets MemoryHigh to its heuristic;
+  // an unclamped one to its envelope` (job-run.test.ts) find the scope launched without
+  // `-p MemoryHigh=3G` (2026-11-20, S25-A6).
+  const heuristic = provenance.heuristic?.memoryGib;
+  if (heuristic === undefined)
+    throw new Error(`job type ${jobType.id} clamps memoryGib without its heuristic`);
+  return heuristic;
+}
+
+/**
+ * The refusal for a `cap` entry whose `memoryGib` is clamped to the pool, or null: its
+ * `MemoryMax` would sit below the measured p95 and kill every run (task 6.25, S25-A6).
+ */
+export function cappedClampOf(jobType: JobType): string | null {
+  const { provenance } = jobType;
+  return jobType.enforcement === 'cap' &&
+    provenance.kind === 'calibrated' &&
+    provenance.clampedToAllocatable?.includes('memoryGib') === true
+    ? `job type ${jobType.id} enforces cap with memoryGib clamped to the pool: MemoryMax ${String(jobType.envelope.memoryGib)}G is below its calibrated p95 ${String(provenance.p95.memoryGib)} GiB and would kill every run; use observe enforcement or raise the pool's allocatable`
+    : null;
 }
 
 function git(cwd: string, ...arguments_: string[]): { exitCode: number; stdout: string } {
@@ -142,6 +177,11 @@ export function readCataloguedJob(
       64,
       `ops job run: job type ${typeId} is not in ${cataloguePath} at ${revision}`,
     );
+  const capped = cappedClampOf(jobType);
+  // Proof: dropping this refusal made `a cap entry with memoryGib clamped to the pool is refused
+  // 64 before admission` (job-run.test.ts) admit and launch the job (2026-11-20, S25-A6).
+  if (capped !== null)
+    throw new OpsRefusal(64, `ops job run: ${capped} (${cataloguePath} at ${revision})`);
   try {
     parseJobArguments(jobType, argv.slice(1));
   } catch (cause) {
@@ -161,6 +201,7 @@ export function readCataloguedJob(
     revision,
     cataloguePath,
     descriptorDigest: descriptorDigestOf(jobType),
+    memoryBoundGib: memoryBoundOf(jobType),
   };
 }
 

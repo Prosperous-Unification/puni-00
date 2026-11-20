@@ -705,25 +705,37 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   is shared by both gate hosts, so the landed entry is clamped by hand to the smaller pool,
   h2puni's 6 cores and 9 GiB, which a `propose` on h2puni reproduces.
 
+  A clamped `memoryGib` decouples the reservation from the bound (S25-A6): admission reserves
+  the clamped envelope, but `ops job run` starts the scope with `MemoryHigh` at
+  `heuristic.memoryGib`, reports
+  `ops job: <id> MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)` and pins
+  `memoryBoundGib` on the run record; `ops job status` prints `(MemoryHigh 13 GiB)` after the
+  envelope's memory. `cap` on such an entry is refused 64 before admission, as `JOB-CATALOGUE`
+  refuses it.
+
 - **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
   the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads
   the checkout a record ran from, which may be a deleted scratch worktree: the record pins the
   envelope it was admitted under. It prints one line per drift and exits 1, or prints
   `no drift` and exits 0. `--now` (default: the clock) is the instant estimates are judged at;
   one that is malformed or names no real instant (`2026-02-30T00:00:00Z`) is 64.
-  - `throttled` (printed first, the most urgent): an ordinary run, not a calibration, whose scope
+  - `throttled` (printed first, the most urgent; the line adds `(MemoryHigh <n> GiB)` when the
+    run's recorded bound differs from its envelope): an ordinary run, not a calibration, whose scope
     sampled `memory.events high` above zero, whether or not it has ended. The line names the
     type, the job id, the event count, the envelope `memoryGib` the run ran under and its peak
     `memoryGib`. It gives the remedy: calibrate the type (`ops job calibrate --type <id>`) and
     `ops job propose --type <id>`, because the estimated envelope is below the job's real
-    memory. It stays until the HEAD entry's `memoryGib` is above the envelope the run was
-    throttled under (task 6.11).
+    memory. It stays until the HEAD entry's bound (its `memoryGib`, or the heuristic of a
+    clamped one) is above the bound the run was throttled under (tasks 6.11, 6.25).
   - `overrun`: a peak above the envelope the run was admitted under, in memory, CPU or tmp disk.
     It stays visible however many runs follow until the HEAD entry's envelope is at least the
     peak. A new provenance alone, `calibrated` included, does not clear it. In a dimension the
     HEAD entry clamped to the pool (task 6.25) the line ends
-    `; expected: the HEAD entry is clamped to the pool`. It is still drift, so the audit exits 1
-    and the weekly unit and the gate_host role's final probe fail on it.
+    `; expected: the HEAD entry is clamped to the pool`. It stays visible, but when such
+    overruns are the only drift the audit prints
+    `only expected drift: overruns of envelopes clamped to the pool` and exits 0, so the weekly
+    unit and the gate_host role's final probe stay green on an honest clamp (S25-A6). Any other
+    drift still exits 1.
   - `waste`: a dimension's p95 below half the HEAD envelope over at least ten complete runs of
     the HEAD entry. Any edit to an entry changes its digest, so the runs before the edit stop
     counting: adding `maxRuntimeMinutes` to `gate` restarted its count (task 6.11).

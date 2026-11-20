@@ -52,7 +52,9 @@ is a different profile. Dash refuses arguments that do not match (`parseJobArgum
   `heuristic` gives each of those dimensions its unclamped figure and names no other. A clamped
   envelope may be below its p95, so `JOB-CATALOGUE` judges the heuristic against the p95
   instead, and refuses an envelope above its heuristic. `ops job audit` notes an overrun in a
-  clamped dimension as expected, keeps it as drift and never judges that dimension for waste.
+  clamped dimension as expected, keeps it as drift, never judges that dimension for waste and
+  exits 0 when that is its only drift. A clamped `memoryGib` is reserved at the envelope but the
+  scope's `MemoryHigh` is its heuristic; `cap` enforcement on it is refused.
   The `gate` entry is clamped this way, to the smaller of the two gate hosts' pools.
 
 ## Heuristics (provisional)

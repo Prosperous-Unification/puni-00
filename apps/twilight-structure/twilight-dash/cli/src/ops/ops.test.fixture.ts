@@ -100,6 +100,8 @@ export interface FixtureJobType {
   enforcement?: 'observe' | 'cap';
   argumentProfile?: string;
   maxRuntimeMinutes?: number;
+  /** Replaces the estimated provenance, as a calibrated or clamped entry (task 6.25). */
+  provenance?: Record<string, unknown>;
 }
 
 /** A Git checkout whose HEAD commits `infra/jobs/catalogue.json` with `types`. */
@@ -136,7 +138,11 @@ export function catalogueOf(types: readonly FixtureJobType[]) {
       ...(jobType.maxRuntimeMinutes === undefined
         ? {}
         : { maxRuntimeMinutes: jobType.maxRuntimeMinutes }),
-      provenance: { kind: 'estimated', basis: 'test fixture', until: '2099-12-31' },
+      provenance: jobType.provenance ?? {
+        kind: 'estimated',
+        basis: 'test fixture',
+        until: '2099-12-31',
+      },
     })),
   };
 }
@@ -182,6 +188,8 @@ export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): st
   payloadScript(
     join(directory, 'systemd-run'),
     [
+      // Every call's arguments, one line each, so a test can read the scope's properties.
+      `printf '%s\\n' "$*" >> ${join(directory, 'calls')}`,
       'while [ "$#" -gt 0 ] && [ "$1" != -- ]; do shift; done',
       'shift',
       ...(behaviour === 'vanishes' ? ['rm -f -- "$0"'] : []),

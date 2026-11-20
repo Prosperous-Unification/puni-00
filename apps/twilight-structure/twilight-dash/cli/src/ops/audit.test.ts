@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { auditDrift } from './audit';
+import { auditDrift, auditFails } from './audit';
 import type { CommittedCatalogue } from './catalogue';
 import { proposeEnvelope } from './propose';
 import {
@@ -451,6 +451,58 @@ describe('ops job audit of an entry clamped to the pool (task 6.25, A-ENVELOPE-C
     expect(notes).toEqual([
       `gate cpuCores overruns a clamped envelope: p95 6.88 cores measured, entry 6 clamped to the pool; an overrun is expected and stays drift, waste is not judged (${location})`,
       `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool; an overrun is expected and stays drift, waste is not judged (${location})`,
+    ]);
+  });
+
+  test('only an expected overrun leaves the audit green', () => {
+    const head = clampedHead({ cpuCores: 6, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 10.01 });
+    const expected = runRecord(head, { id: 'gate-1', memoryGib: 10, cpuCores: 5, tmpGib: 8 });
+    const { drifts } = auditDrift([expected], head, NOW);
+    expect(drifts.map((drift) => drift.expected)).toEqual([true]);
+    expect(auditFails(drifts)).toBe(false);
+    const tmp = runRecord(head, { id: 'gate-2', memoryGib: 8, cpuCores: 5, tmpGib: 12 });
+    const mixed = auditDrift([expected, tmp], head, NOW).drifts;
+    expect(mixed.map((drift) => drift.expected)).toEqual([true, undefined]);
+    // Proof: `auditFails` answering false for any drift made this pass the unclamped tmp overrun
+    // (2026-11-20, S25-A6).
+    expect(auditFails(mixed)).toBe(true);
+  });
+
+  test('a throttled run under a clamped entry is cleared only by a higher bound', () => {
+    const head = clampedHead({ cpuCores: 6, memoryGib: 9 }, { cpuCores: 6.88, memoryGib: 10.01 });
+    // Throttled at its MemoryHigh of 13, the heuristic the clamped entry runs under.
+    const throttled = {
+      ...runRecord(head, {
+        id: 'gate-1',
+        memoryGib: 13,
+        cpuCores: 5,
+        tmpGib: 8,
+        memoryHighEvents: 4,
+      }),
+      memoryBoundGib: 13,
+    };
+    const { drifts } = auditDrift([throttled], head, NOW);
+    expect(drifts.map((drift) => drift.kind)).toEqual(['throttled', 'overrun']);
+    expect(drifts[0]?.line).toContain(
+      'under envelope memoryGib 9 (MemoryHigh 13 GiB), peak memoryGib 13',
+    );
+    expect(auditFails(drifts)).toBe(true);
+    const raised = committedCatalogue(types, (jobs) =>
+      jobs.map((job) => {
+        if (job.id !== 'gate') return job;
+        const edited = clampedHead(
+          { cpuCores: 6, memoryGib: 9 },
+          { cpuCores: 6.88, memoryGib: 10.01 },
+        ).jobs.at(0);
+        if (edited?.provenance.kind !== 'calibrated') throw new Error('no gate');
+        return {
+          ...edited,
+          provenance: { ...edited.provenance, heuristic: { cpuCores: 9, memoryGib: 15 } },
+        };
+      }),
+    );
+    expect(auditDrift([throttled], raised, NOW).drifts.map((drift) => drift.kind)).toEqual([
+      'overrun',
     ]);
   });
 

@@ -18,7 +18,7 @@ import {
   ResourceWbsRefusal,
   ResourceWbsUnavailable,
 } from '../resources/runtime';
-import { auditDrift } from './audit';
+import { auditDrift, auditFails } from './audit';
 import { renderAuditUnits, writeAuditUnits } from './audit-units';
 import { hostClassOf, readCommittedCatalogue, toolchainOf } from './catalogue';
 import { calibrateHostJob, type JobRunDependencies, runHostJob } from './job-run';
@@ -233,7 +233,11 @@ export const opsHandlers: OpsHandlers = {
       return 0;
     }
     for (const drift of drifts) deps.stdout(`${drift.line}\n`);
-    return 1;
+    // Proof: returning 1 for every drift made `the audit exits 0 when its only drift is an
+    // expected overrun of a clamped envelope` (calibrate.test.ts) exit 1 (2026-11-20, S25-A6).
+    if (auditFails(drifts)) return 1;
+    deps.stdout('only expected drift: overruns of envelopes clamped to the pool\n');
+    return 0;
   },
   'job render-audit-units': (command, deps) => {
     const written = writeAuditUnits(
@@ -296,6 +300,9 @@ export const opsHandlers: OpsHandlers = {
                 // (status.test.ts) on the running line (2026-11-12).
                 memoryHighEvents: record === null ? 0 : measuresOf(record).memoryHighEvents,
                 ...noteOf(record),
+                ...(record?.memoryBoundGib === undefined
+                  ? {}
+                  : { memoryBoundGib: record.memoryBoundGib }),
               },
             ];
           }),

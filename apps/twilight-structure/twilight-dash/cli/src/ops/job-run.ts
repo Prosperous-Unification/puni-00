@@ -173,7 +173,12 @@ function launchGated(
   const child = spawn(
     systemdRun,
     [
-      ...scopeArguments(unit, catalogued.descriptor, job.calibration === true),
+      ...scopeArguments(
+        unit,
+        catalogued.descriptor,
+        catalogued.memoryBoundGib,
+        job.calibration === true,
+      ),
       '--',
       '/bin/sh',
       '-c',
@@ -428,6 +433,7 @@ async function executeHostJob(
     const systemdRun = checkScopeAvailable(
       deps.environment,
       catalogued.descriptor,
+      catalogued.memoryBoundGib,
       `dash-probe-${randomUUID()}`,
       deps.user,
       isCalibration,
@@ -926,6 +932,17 @@ async function runAdmitted(
     });
   }
   const unit = scopeUnitOf(job.id);
+  // A bound above the reservation is the clamp of task 6.25 (S25-A6): say so before the launch.
+  const decoupled =
+    job.calibration !== true &&
+    catalogued.memoryBoundGib !== catalogued.descriptor.envelope.memoryGib;
+  // Proof: dropping the line or the record's `memoryBoundGib` below made `a clamped entry sets
+  // MemoryHigh to its heuristic; …` (job-run.test.ts) miss the line, or read `memoryBoundGib`
+  // undefined (2026-11-20, S25-A6).
+  if (decoupled)
+    deps.report(
+      `ops job: ${job.id} MemoryHigh ${String(catalogued.memoryBoundGib)} GiB (heuristic; reservation clamped to ${String(catalogued.descriptor.envelope.memoryGib)} GiB)`,
+    );
   let launched: Launched;
   try {
     launched = launchGated(systemdRun, unit, catalogued, job, request.argv, request.label, deps);
@@ -1046,7 +1063,9 @@ async function runAdmitted(
         argv: request.argv,
         hostClass: hostClassOf(deps.host),
         toolchain,
-        ...(job.calibration === true ? { calibration: true as const } : {}),
+        ...(job.calibration === true
+          ? { calibration: true as const }
+          : { memoryBoundGib: catalogued.memoryBoundGib }),
         unit,
         cgroup,
         tmpDirectory: job.locator,

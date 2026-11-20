@@ -528,7 +528,12 @@ allocatable SHALL NOT be clamped. `JOB-CATALOGUE` SHALL refuse `clampedToAllocat
 unknown or repeated dimension, either field without the other, and an envelope above its
 heuristic, and SHALL judge a clamped dimension's heuristic against the p95 in place of its
 envelope. `ops job audit` SHALL keep an overrun in a clamped dimension as drift, marked
-expected, SHALL print a note for each clamped dimension, and SHALL NOT judge it for waste.
+expected, SHALL print a note for each clamped dimension, and SHALL NOT judge it for waste. When
+its only drift is such an expected overrun it SHALL exit 0; any other drift SHALL exit 1. An
+ordinary run of an entry whose `memoryGib` is clamped SHALL reserve the clamped figure and run
+its scope with `MemoryHigh` at `heuristic.memoryGib`, reporting both and recording
+`memoryBoundGib` on the run record. `JOB-CATALOGUE` and `ops job run` SHALL refuse `cap`
+enforcement on a clamped `memoryGib`, naming the clamp and the p95.
 
 #### Scenario: A heuristic above allocatable
 
@@ -543,8 +548,28 @@ expected, SHALL print a note for each clamped dimension, and SHALL NOT judge it 
 
 - **WHEN** a gate run peaks at 10 GiB under the clamped 9 GiB entry
 - **THEN** `ops job audit` names the overrun, its line ending
-  `expected: the HEAD entry is clamped to the pool`, and prints the note
+  `expected: the HEAD entry is clamped to the pool`, exits 0 when nothing else drifted, and
+  prints the note
   `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`
+
+#### Scenario: Only an expected overrun
+
+- **WHEN** the only drift `ops job audit` finds is an overrun of a clamped dimension
+- **THEN** it prints the overrun and its note and exits 0; with an overrun in an unclamped
+  dimension beside it, it exits 1
+
+#### Scenario: A clamped gate runs under its heuristic
+
+- **WHEN** `ops job run --type gate` launches the entry clamped to 9 GiB with heuristic 13
+- **THEN** admission reserves 9 GiB, the scope gets `-p MemoryHigh=13G`, the launcher reports
+  `MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)` and the run record carries
+  `memoryBoundGib: 13`
+
+#### Scenario: Cap on a clamped memory
+
+- **WHEN** an entry with `memoryGib` in `clampedToAllocatable` declares `enforcement: cap`
+- **THEN** `JOB-CATALOGUE` names it, and `ops job run` refuses 64 before admission, naming the
+  clamp and the p95
 
 #### Scenario: A bad clamp marker
 

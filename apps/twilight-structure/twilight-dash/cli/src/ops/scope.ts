@@ -228,7 +228,8 @@ export function describeLeftover(pid: number, proc = '/proc'): LeftoverProcess |
 
 /**
  * `systemd-run`'s arguments for a host job's scope (J7): a user scope named after the use,
- * collected even when it fails, `MemoryHigh` at the envelope and `MemoryMax` too for `cap`;
+ * collected even when it fails, `MemoryHigh` at `memoryBoundGib` (`memoryBoundOf` in `catalogue.ts`: the
+ * envelope, or the heuristic of an entry clamped to the pool) and `MemoryMax` too for `cap`;
  * a calibration run sets neither, so its peak is the job's own (J9).
  * `--expand-environment=no` keeps `$` in the payload's words literal: systemd 254 warns that it
  * will otherwise start expanding them.
@@ -236,9 +237,10 @@ export function describeLeftover(pid: number, proc = '/proc'): LeftoverProcess |
 export function scopeArguments(
   unit: string,
   descriptor: JobTypeDescriptor,
+  memoryBoundGib: number,
   isCalibration: boolean,
 ): string[] {
-  const memory = `${String(descriptor.envelope.memoryGib)}G`;
+  const memory = `${String(memoryBoundGib)}G`;
   // Proof: dropping the calibration branch failed `a calibration scope sets no memory bound …`
   // (calibrate.test.ts, `MemoryHigh=6G`, `MemoryMax=6G`) and, on a real user manager,
   // `a calibration runs with no MemoryHigh` (2026-11-02, Slice 4).
@@ -276,6 +278,7 @@ export function lingerFix(user: string): string {
 export function checkScopeAvailable(
   environment: Readonly<Record<string, string | undefined>>,
   descriptor: JobTypeDescriptor,
+  memoryBoundGib: number,
   probeUnit: string,
   user: string,
   isCalibration: boolean,
@@ -289,7 +292,12 @@ export function checkScopeAvailable(
       `ops job run: systemd-run is not on PATH; host jobs run measured in a user scope (dash-host-jobs J8); install systemd and ${lingerFix(user)}`,
     );
   const probe = Bun.spawnSync(
-    [systemdRun, ...scopeArguments(probeUnit, descriptor, isCalibration), '--', 'true'],
+    [
+      systemdRun,
+      ...scopeArguments(probeUnit, descriptor, memoryBoundGib, isCalibration),
+      '--',
+      'true',
+    ],
     {
       env: { ...environment },
       stdin: 'ignore',

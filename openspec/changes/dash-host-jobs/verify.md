@@ -4604,11 +4604,10 @@ whole, and h4claw's keeps 1 core and 1 GiB, below every other entry's memory.
 The gate_host role's final probe (`infra/ansible/roles/gate_host/tasks/validate.yml`, task
 "Inspect the host pool and audit its envelopes") runs `ops pool inspect` then `ops job audit`,
 and its comment says an audit exiting 1 "fails the play by design". The weekly
-`dash-job-audit.service` does the same. An overrun stays drift under a clamped entry, so the
-probe and the unit go red after the first gate whose peak passes 6 cores or 9 GiB, and the p95
-says most will. The role is not changed here. Proposed follow-up: let the audit tell an expected
-overrun of a clamped dimension apart from failing drift, either through a separate exit code or
-a probe flag that accepts it, decided together with S25-A1.
+`dash-job-audit.service` does the same. As first written, an overrun stayed failing drift under
+a clamped entry, so the probe and the unit would have gone red after the first gate whose peak
+passed 6 cores or 9 GiB, and the p95 says most will. The review fold-in below makes the audit
+exit 0 when its only drift is such an expected overrun; the role itself is unchanged.
 
 | Command                                                                                                                                                                              | Result                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -4659,11 +4658,64 @@ and 6 GiB, which hides the measurement and under-reserves by more than a third.
   test's mode-0 fixture leaves `TMPDIR` (S23-A2).
 - **S25-A4** durationSeconds p95 is 18,957.71 s, about 5 h 16 min; `maxRuntimeMinutes` 480 is 8 h,
   1.52 times the p95, so the bound stands unchanged.
-- **S25-A5** Under `enforcement: observe` the scope's `MemoryHigh` is the envelope's `memoryGib`,
-  now 9 GiB, under a measured p95 of 10.01 GiB. Gates near their peak will be reclaimed at
-  `MemoryHigh`, so `ops job audit` will name them `throttled`, a drift that clears only when
-  the HEAD entry's memory is above 9 GiB, which a clamped entry never is. Its remedy text
-  (calibrate and propose) does not help a clamped entry. 22ce2369's 58-hour stall was under a
-  6 GiB `MemoryHigh` for the same job; 9 GiB is much closer to the peak, which includes page
-  cache, but the first gate under the entry should be watched for slowdown. Not changed here:
-  the remedy wording for a clamped `memoryGib` belongs with the S25-A1 decision.
+- **S25-A5** (resolved by S25-A6) As first written, under `enforcement: observe` the scope's
+  `MemoryHigh` was the envelope's `memoryGib`, 9 GiB for the clamped gate, under a measured p95 of
+  10.01 GiB: every gate would have been reclaimed below its need, as 22ce2369 was at 6 GiB for
+  58 h. A clamped `memoryGib` now runs under its heuristic, 13 GiB. Residual risk: that bound is
+  above the pool's allocatable (10 GiB on h4claw, 9 on h2puni), so two co-running jobs could
+  together exceed the host. On these pools nothing co-runs with a gate (h2puni's pool is held
+  whole, h4claw keeps 1 core and 1 GiB, below every other entry's memory), so that cannot
+  happen today; it returns when a pool grows or a small job type is catalogued. The host stays
+  protected by the user slice and by `MemoryHigh` 13 GiB below the 15 GiB host.
+- **S25-A6** Reservation and bound are decoupled for a clamped `memoryGib`, and an expected
+  overrun alone does not fail the audit: assumed, awaiting Dany together with S25-A1. Admission
+  reserves the clamped envelope; the scope's `MemoryHigh` is `heuristic.memoryGib`; `cap` on a
+  clamped `memoryGib` is refused (a `MemoryMax` below the p95 kills every run). The amendment is
+  in design.md under J9.
+
+### Review fold-in (S25-A6, 2026-11-20)
+
+The coordinator held #955 on S25-A5. Same branch, laptop and environment, no host touched.
+
+- `memoryBoundOf` (`ops/catalogue.ts`) is `heuristic.memoryGib` for an entry whose provenance
+  clamps `memoryGib`, otherwise the envelope's. `readCataloguedJob` carries it as
+  `CataloguedJob.memoryBoundGib`; `scopeArguments` and `checkScopeAvailable` (`ops/scope.ts`)
+  take it for `MemoryHigh` (and `MemoryMax` for an unclamped `cap`). `runAdmitted` reports
+  `ops job: <id> MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)` when it differs,
+  and the run record's start gains optional `memoryBoundGib` on ordinary runs (calibrations run
+  unbounded and omit it; older rows load without it). The admission descriptor, `oversize()`
+  and the reservation vector are unchanged.
+- `ops job status` prints `(MemoryHigh <n> GiB)` after the envelope's memory, and the
+  `throttled` line adds it, when the recorded bound differs. `throttled` clears only when the
+  HEAD entry's bound is above the bound the run was throttled under.
+- `cappedClampOf` refuses `cap` on a clamped `memoryGib` with 64 before admission, and
+  `JOB-CATALOGUE` names it:
+  `cap enforcement with memoryGib clamped to the pool: MemoryMax 9 is below its calibrated p95 10.01 and would kill every run`.
+- `Drift.expected` marks an overrun in a clamped dimension; `auditFails` is true for any other
+  drift. `ops job audit` prints every drift line, then, when only expected ones remain,
+  `only expected drift: overruns of envelopes clamped to the pool` and exits 0.
+- The fake `systemd-run` of `ops.test.fixture.ts` appends each call's arguments to `calls`, and
+  a fixture job type may carry its own provenance.
+
+| Command                                                                                                                           | Result                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `job-run.test.ts`, `calibrate.test.ts`, `status.test.ts` inside the ops namespace (`unshare --user --map-user`, as the wrapper)   | 78 pass, 18 skip, 0 fail (`job-run` 49 pass 17 skip before, now 51)                                                                                                                         |
+| `bun test` on `src/ops`, `resources/host-jobs.test.ts`, `resources/host-job-publication.test.ts`, `cli.test.ts` with the preloads | exit 0; outer 253 pass, 0 fail; inside: `calibrate` 19 pass 1 skip, `job-run` 51 pass 17 skip, `host-pool-mode` 45, `launchers` 41, `outbox-drop` 12, `status` 8, `admission` 6, all 0 fail |
+| Burokrat contract, rule and architecture job-catalogue tests                                                                      | 36 pass, 0 fail                                                                                                                                                                             |
+| `check staged . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-20T12:00:00.000Z`                                           | exit 0, no findings, nothing unevaluated                                                                                                                                                    |
+| both typechecks, `--skip-nx-cache`                                                                                                | `Successfully ran target typecheck` for `twilight-dash` and `twilight-burokrat`                                                                                                             |
+| `bunx eslint` on the 22 TypeScript files the branch changes                                                                       | exit 0                                                                                                                                                                                      |
+| `bunx prettier --check`, `bunx openspec validate --all --json`, `check-indexes working . HEAD`                                    | all files use Prettier code style; 346 items, 346 passed, 0 failed; exit 0                                                                                                                  |
+
+| Injected fault                                          | Observed                                                                                                                                                                                |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memoryBoundOf` answering the envelope (no decoupling)  | `a clamped entry sets MemoryHigh to its heuristic; an unclamped one to its envelope` (job-run.test.ts) found no `-p MemoryHigh=3G`: the scope got `MemoryHigh=2G`                       |
+| the launcher's MemoryHigh report line dropped           | the same test missed `ops job: <id> MemoryHigh 3 GiB (heuristic; reservation clamped to 2 GiB)`                                                                                         |
+| `memoryBoundGib` not written to the run record          | the same test read `memoryBoundGib` undefined against 3                                                                                                                                 |
+| `ops job run`'s cap-on-clamp refusal dropped            | `a cap entry with memoryGib clamped to the pool is refused 64 before admission` got no refusal                                                                                          |
+| `JOB-CATALOGUE`'s cap-on-clamp check dropped            | `refuses cap enforcement on a clamped memoryGib, naming the p95` found no finding; the real catalogue set to `cap` gives that finding with the check in place                           |
+| `ops job audit` returning 1 for any drift               | `the audit exits 0 when its only drift is an expected overrun of a clamped envelope (S25-A6)` (calibrate.test.ts, the probe's shape) exited 1                                           |
+| `auditFails` answering false for any drift              | `only an expected overrun leaves the audit green`, the throttled test, the probe-shaped test (tmp overrun) and the existing end-to-end `estimate_expired` case exited or answered green |
+| `expected` never set on an overrun                      | `only an expected overrun leaves the audit green` and the probe-shaped test failed (exit 1)                                                                                             |
+| `throttled` cleared against the HEAD envelope as before | `a throttled run under a clamped entry is cleared only by a higher bound` kept the drift under a HEAD heuristic of 15                                                                   |
+| `ops job status` without the MemoryHigh marker          | `a clamped job names its MemoryHigh beside the envelope (task 6.25, S25-A6)` found `envelope 4 cores 6 GiB 0 GiB tmp peak`                                                              |

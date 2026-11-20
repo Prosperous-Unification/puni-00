@@ -216,6 +216,24 @@ clamped by hand to the smaller pool, h2puni's: 6 cores, 9 GiB, 11 GiB tmp. Rejec
 both pools' allocatable, a host-capacity decision left to Dany; landing the unclamped entry,
 which refuses every gate; keeping the estimated 4 cores and 6 GiB, which hides the measurement.
 
+_Amendment (task 6.25 review, 2026-11-20, assumption S25-A6 for Dany)._ J7 launches an
+`observe` scope with `MemoryHigh` at the envelope's `memoryGib`. For a clamped entry that is 9
+GiB under a measured p95 of 10.01 GiB, which throttles every gate as 22ce2369 was throttled at
+6 GiB (58 h). Reservation and bound are therefore decoupled for a clamped `memoryGib`:
+admission (`oversize()` and the allocatable arithmetic) still reserves the clamped envelope,
+but the scope's `MemoryHigh` is `heuristic.memoryGib` (13 GiB for the gate, below the host's
+15 GiB). The launcher reports the bound and the reservation
+(`ops job: <id> MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)`), the run record
+pins `memoryBoundGib`, and `status` and `audit` print it where it differs from the envelope;
+`throttled` clears only when the HEAD entry's bound rises above the one the run was throttled
+under. `cap` on a clamped `memoryGib` is refused by
+`JOB-CATALOGUE` and by `ops job run` (64): its `MemoryMax` would sit below the p95 and kill
+every run. An overrun in a clamped dimension stays visible as drift, but when it is the only
+drift `ops job audit` exits 0, so the gate_host probe and `dash-job-audit.service` stay green
+on an honest clamp; any other drift still exits 1. The residual risk is that the bound
+exceeds allocatable, so two jobs together could exceed the host. On today's pools no other
+catalogued job fits beside a gate, so that cannot happen yet.
+
 **J10. WBS shows the host, never admits for it (F12).** Two projections, both through
 existing transports: (a) a `host_job` use is published through the resource authority events
 as a versioned use variant (`resourceRuntimeUse` v2: `kind: 'host_job'`, optional project, work

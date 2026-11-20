@@ -12,7 +12,8 @@ about 100 minutes for a full gate is from before enrollment; the first observe-m
 throttled by the estimated `gate` envelope (the known issue in that section). The `gate`
 catalogue entry is measured since #955 (`dash-host-jobs` task 6.25): 6 cores, 9 GiB, 11 GiB
 tmp, clamped to h2puni's pool. It holds all of h2puni's pool and all but 1 core and 1 GiB of
-h4claw's, so no other catalogued job fits beside a gate in concurrent mode. Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h
+h4claw's, so no other catalogued job fits beside a gate in concurrent mode. Such a gate runs
+with `MemoryHigh` 13 GiB, the unclamped heuristic, not the 9 GiB it reserves (S25-A6). Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h
 27 min (p95 18,958 s), which replaces the intro's figure for an enrolled gate.
 
 ## What the host gate runs

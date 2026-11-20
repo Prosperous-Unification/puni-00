@@ -317,6 +317,19 @@ describe('JOB-CATALOGUE', () => {
       ]);
     });
 
+    test('refuses cap enforcement on a clamped memoryGib, naming the p95', async () => {
+      const jobs = clamped({}).map((job) =>
+        job['id'] === 'gate' ? { ...job, enforcement: 'cap' } : job,
+      );
+      const outcome = await judge(createCandidate({ jobs }), { now: BeforeUntil });
+      expect(outcome.verdict?.findings).toEqual([
+        finding(
+          'gate',
+          'cap enforcement with memoryGib clamped to the pool: MemoryMax 9 is below its calibrated p95 10.01 and would kill every run',
+        ),
+      ]);
+    });
+
     test('refuses an unknown clamped dimension', async () => {
       const outcome = await judge(
         createCandidate({

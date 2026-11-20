@@ -69,6 +69,16 @@ if (insideOpsNamespace(import.meta.path)) {
   });
   const clock = wallClock();
   const monotonic = monotonicClock();
+  const clampedProvenance = {
+    kind: 'calibrated',
+    hostClass: 'linux-x64-4c-4g',
+    calibratedAt: '2026-11-20T04:05:14.759Z',
+    recordCount: 3,
+    p95: { cpuCores: 0.5, memoryGib: 2.4, tmpDiskGib: 0 },
+    recordIds: ['c1', 'c2', 'c3'],
+    clampedToAllocatable: ['memoryGib'],
+    heuristic: { memoryGib: 3 },
+  };
   const types: FixtureJobType[] = [
     { id: 'test-queued', cpuCores: 1, memoryGib: 1, tmpDiskGib: 1 },
     { id: 'gate', cpuCores: 2, memoryGib: 1, tmpDiskGib: 1, exclusive: ['gate_tree'] },
@@ -77,6 +87,15 @@ if (insideOpsNamespace(import.meta.path)) {
     { id: 'huge', cpuCores: 1, memoryGib: 99 },
     { id: 'pinned', cpuCores: 1, memoryGib: 1, argumentProfile: '<sha>' },
     { id: 'bounded', cpuCores: 1, memoryGib: 1, maxRuntimeMinutes: 1 },
+    // Clamped from a heuristic of 3 GiB to 2 (task 6.25, S25-A6); the pool allocates 3.
+    { id: 'clamped', cpuCores: 1, memoryGib: 2, provenance: clampedProvenance },
+    {
+      id: 'clamped-cap',
+      cpuCores: 1,
+      memoryGib: 2,
+      enforcement: 'cap',
+      provenance: clampedProvenance,
+    },
   ];
 
   /** A pool of 4 cores and 4 GiB (headroom 1 GiB), one gate tree, initialized by `ops pool init`. */
@@ -1403,6 +1422,58 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       expect(job.state).toBe('released');
     }, 60000);
+  });
+
+  describe('a clamped entry runs under its heuristic, reserving the clamp (task 6.25, S25-A6)', () => {
+    /** The fake `systemd-run`'s launch call (the one that is not the `true` probe) for `type`. */
+    async function launchCall(
+      type: string,
+    ): Promise<{ call: string; report: string[]; root: string; id: string }> {
+      const { config, checkout, base, root } = pool();
+      const bin = fakeBin('exec');
+      const payload = payloadScript(join(base, 'quick.sh'), 'exit 0');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, type, [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          sampleIntervalMs: 100,
+        }),
+      );
+      expect(code).toBe(0);
+      const calls = readFileSync(join(bin, 'calls'), 'utf8').trim().split('\n');
+      const call = calls.find((line) => !line.endsWith(' -- true'));
+      if (call === undefined) throw new Error(`no launch call in ${calls.join(' | ')}`);
+      return { call, report, root, id: onlyJob(config).id };
+    }
+
+    test('a clamped entry sets MemoryHigh to its heuristic; an unclamped one to its envelope', async () => {
+      const clamped = await launchCall('clamped');
+      // Proof: `memoryBoundOf` returning the envelope made this find `MemoryHigh=2G`
+      // (2026-11-20, S25-A6).
+      expect(clamped.call).toContain('-p MemoryHigh=3G');
+      expect(clamped.report).toContain(
+        `ops job: ${clamped.id} MemoryHigh 3 GiB (heuristic; reservation clamped to 2 GiB)`,
+      );
+      expect(runRecord(clamped.root, clamped.id).memoryBoundGib).toBe(3);
+      const plain = await launchCall('test-queued');
+      expect(plain.call).toContain('-p MemoryHigh=1G');
+      expect(plain.report).not.toContainEqual(expect.stringContaining('heuristic; reservation'));
+      expect(runRecord(plain.root, plain.id).memoryBoundGib).toBe(1);
+    }, 60000);
+
+    test('a cap entry with memoryGib clamped to the pool is refused 64 before admission', async () => {
+      const { config, checkout, base } = pool();
+      const payload = payloadScript(join(base, 'quick.sh'), 'exit 0');
+      const refused = await refusal(
+        runHostJob(request(config, 'clamped-cap', [payload]), runDependencies(checkout, [])),
+      );
+      expect(refused.exitCode).toBe(64);
+      expect(refused.message).toContain(
+        'job type clamped-cap enforces cap with memoryGib clamped to the pool: MemoryMax 2G is below its calibrated p95 2.4 GiB and would kill every run',
+      );
+      expect(ledger(config).listHostJobs()).toEqual([]);
+    });
   });
 
   describe('the runtime bound over the fake seam (task 6.11)', () => {

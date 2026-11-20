@@ -1,4 +1,9 @@
-import { type CommittedCatalogue, descriptorDigestOf, type JobType } from './catalogue';
+import {
+  type CommittedCatalogue,
+  descriptorDigestOf,
+  type JobType,
+  memoryBoundOf,
+} from './catalogue';
 import {
   descriptorOf,
   figure,
@@ -14,11 +19,24 @@ import { type HostServiceBound, isAttributed, leftoverNote, type RunRecord } fro
 export type DriftKind =
   'throttled' | 'overrun' | 'waste' | 'estimate_expired' | 'attribution_incomplete';
 
-/** One drift: its kind, the job type and the line the audit prints. */
+/**
+ * One drift: its kind, the job type and the line the audit prints. `expected` marks an overrun
+ * in a dimension the HEAD entry clamped to the pool (task 6.25): printed, but it alone does not
+ * fail the audit ({@link auditFails}).
+ */
 export interface Drift {
   kind: DriftKind;
   type: string;
   line: string;
+  expected?: true;
+}
+
+/**
+ * Whether `ops job audit` exits 1: any drift but an expected overrun of a clamped envelope, so
+ * an honest clamp leaves the gate_host probe and the weekly audit unit green (S25-A6).
+ */
+export function auditFails(drifts: readonly Drift[]): boolean {
+  return drifts.some((drift) => drift.expected !== true);
 }
 
 const ENVELOPE_DIMENSIONS = ['memoryGib', 'cpuCores', 'tmpDiskGib'] as const;
@@ -54,16 +72,22 @@ function throttleOf(record: RunRecord, head: JobType): Drift | null {
   // find no drift (2026-11-12).
   if (memoryHighEvents === 0) return null;
   const envelope = descriptorOf(record).envelope.memoryGib;
+  // The scope ran under its recorded MemoryHigh, the envelope before task 6.25 (S25-A6).
+  const bound = record.memoryBoundGib ?? envelope;
   // A run still in progress keeps its throttle whatever HEAD says: it still holds the pool.
   // Proof: dropping this check made the same running-run test keep the drift under a HEAD
   // envelope raised to 8 GiB; dropping the `endedAt` term made it lose the drift of the run
   // still running under that envelope (2026-11-12).
-  if (record.endedAt !== null && head.envelope.memoryGib > envelope) return null;
+  // Proof: comparing the HEAD envelope as before made `a throttled run under a clamped entry is
+  // cleared only by a higher bound` (audit.test.ts) keep the drift under a HEAD heuristic of 15
+  // (2026-11-20, S25-A6).
+  if (record.endedAt !== null && memoryBoundOf(head) > bound) return null;
   const running = record.endedAt === null ? ', still running' : '';
+  const memoryHigh = bound === envelope ? '' : ` (MemoryHigh ${String(bound)} GiB)`;
   return {
     kind: 'throttled',
     type: record.type,
-    line: `${record.type} throttled in run ${record.jobId}${running}: memory.events high ${String(memoryHighEvents)} under envelope memoryGib ${String(envelope)}, peak memoryGib ${memoryGib === null ? 'unmeasured' : figure(memoryGib)} (${record.cataloguePath}); calibrate the type (\`ops job calibrate --type ${record.type}\`) and \`ops job propose --type ${record.type}\`; the estimated envelope is below the job's real memory`,
+    line: `${record.type} throttled in run ${record.jobId}${running}: memory.events high ${String(memoryHighEvents)} under envelope memoryGib ${String(envelope)}${memoryHigh}, peak memoryGib ${memoryGib === null ? 'unmeasured' : figure(memoryGib)} (${record.cataloguePath}); calibrate the type (\`ops job calibrate --type ${record.type}\`) and \`ops job propose --type ${record.type}\`; the estimated envelope is below the job's real memory`,
   };
 }
 
@@ -170,13 +194,14 @@ export function auditDrift(
       if (head.envelope[dimension] >= peak) continue;
       // Proof: dropping the suffix made `an overrun of a clamped dimension stays drift, noted as
       // expected` (audit.test.ts) find the plain overrun line (2026-11-20, task 6.25).
-      const expected = clampedOf(head).includes(dimension)
-        ? '; expected: the HEAD entry is clamped to the pool'
-        : '';
+      const expected = clampedOf(head).includes(dimension);
       drifts.push({
         kind: 'overrun',
         type: record.type,
-        line: `${record.type} overrun ${dimension} ${figure(peak)} above envelope ${String(envelope[dimension])} in run ${record.jobId} at ${at} (${record.cataloguePath}); kept until an accepted envelope covers it${expected}`,
+        line: `${record.type} overrun ${dimension} ${figure(peak)} above envelope ${String(envelope[dimension])} in run ${record.jobId} at ${at} (${record.cataloguePath}); kept until an accepted envelope covers it${expected ? '; expected: the HEAD entry is clamped to the pool' : ''}`,
+        // Proof: never marking it made `only an expected overrun leaves the audit green`
+        // (audit.test.ts) find the audit failing (2026-11-20, S25-A6).
+        ...(expected ? { expected: true as const } : {}),
       });
     }
     if (record.attributionIncomplete) {
