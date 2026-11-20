@@ -467,7 +467,7 @@
       `job-run.test.ts` (fake seam, and the real seam outside the namespace); negatives: each
       new check removed in turn, Fable review fixes included (verify.md, 2026-11-19). The host
       proof follows the next calibration (S24-A3).
-- [x] 6.25 the measured gate envelope, clamped to the pool (A-ENVELOPE-CLAMP-1; PR #PRNUM):
+- [x] 6.25 the measured gate envelope, clamped to the pool (A-ENVELOPE-CLAMP-1; PR #955):
       three complete h4claw gate calibrations (29b8b406, 29d3503e, 43923656) proposed 13 GiB
       and 9 cores, which no enrolled pool holds and J5 would refuse 73 on every gate.
       `ops job propose` clamps a heuristic figure above the pool's largest admissible envelope
