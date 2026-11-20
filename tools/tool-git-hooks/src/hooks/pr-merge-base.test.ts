@@ -382,30 +382,66 @@ describe('production workflow PR consumers', () => {
   );
 });
 
-// R5-32 (A-CI-WORKSPACE-MEMORY-1): a surviving workspace job ships its memory and disk headroom.
-// A lost runner uploads no log at all, so this trail can only bound how close a passing or
-// failing run came.
-test('workspace gate step records memory and disk headroom around its Nx phase', async () => {
+// R5-32 (A-CI-WORKSPACE-MEMORY-1): a surviving workspace job ships its image, heap limit,
+// memory samples and end headroom. A lost runner uploads no log at all, so this trail can only
+// localise a death in a run whose log survives.
+const workspaceGate = (): string => step('gate_workspace', 'Gate — test, lint, typecheck, build');
+
+function headroomLog(text: string) {
+  const lines = text.split('\n');
+  const at = (prefix: string) => lines.findIndex((line) => line.startsWith(prefix));
+  return { lines, at };
+}
+
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+test('workspace gate step records headroom start, samples and end around its Nx phase', async () => {
   for (const status of ['0', '7']) {
     const h = history();
-    const execution = runStep(h, step('gate_workspace', 'Gate — test, lint, typecheck, build'), {
+    const execution = runStep(h, workspaceGate(), {
       GATE_MODE: 'affected',
       GATE_BASE: h.base,
       RUNTIME_STATUS: status,
+      ImageOS: 'ubuntu24',
+      ImageVersion: '20261116.376.1',
     });
     expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
       Number(status),
     );
-    const lines = (await Bun.file(join(h.root, 'nx-gate.log')).text()).split('\n');
-    const at = (prefix: string) => lines.findIndex((line) => line.startsWith(prefix));
-    const headroomStart = at('runtime headroom start partition=workspace utc=');
+    const { lines, at } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+    const start = at('runtime headroom start partition=workspace utc=');
     const phaseEnd = at('runtime phase end partition=workspace');
-    const headroomEnd = at('runtime headroom end partition=workspace utc=');
+    const end = at('runtime headroom end partition=workspace utc=');
     expect(at('runtime phase start partition=workspace'), status).toBe(0);
-    expect(headroomStart, status).toBe(1);
-    expect(phaseEnd, status).toBeGreaterThan(headroomStart);
-    expect(headroomEnd, status).toBeGreaterThan(phaseEnd);
-    for (const section of [lines.slice(headroomStart, phaseEnd), lines.slice(headroomEnd)]) {
+    expect(start, status).toBe(1);
+    expect(lines[start], status).toMatch(
+      / imageOS=ubuntu24 imageVersion=20261116\.376\.1 os=.+ heapSizeLimit=[1-9][0-9]*$/,
+    );
+    expect(
+      lines.filter((line) =>
+        /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+$/.test(
+          line,
+        ),
+      ).length,
+      status,
+    ).toBeGreaterThanOrEqual(1);
+    const sampler = /^runtime headroom sampler pid=([0-9]+)$/.exec(
+      lines[at('runtime headroom sampler pid=')] ?? '',
+    );
+    expect(sampler, status).not.toBeNull();
+    expect(isRunning(Number(sampler?.[1])), status).toBe(false);
+    expect(lines, status).toContain('runtime headroom sampler stopped status=0');
+    expect(phaseEnd, status).toBeGreaterThan(start);
+    expect(end, status).toBeGreaterThan(phaseEnd);
+    for (const section of [lines.slice(start, phaseEnd), lines.slice(end)]) {
       expect(
         section.filter((line) => line.startsWith('Mem:')),
         status,
@@ -416,6 +452,39 @@ test('workspace gate step records memory and disk headroom around its Nx phase',
       ).toHaveLength(1);
     }
   }
+});
+
+test('workspace headroom telemetry failures leave the gate status unchanged', async () => {
+  for (const status of ['0', '7']) {
+    const h = history();
+    mkdirSync(join(h.root, 'bin'), { recursive: true });
+    writeFileSync(join(h.root, 'bin', 'ps'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    const execution = runStep(h, workspaceGate(), {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      RUNTIME_STATUS: status,
+    });
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+      Number(status),
+    );
+    const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+    expect(lines.some((line) => line.startsWith('runtime headroom sample unavailable utc='))).toBe(
+      true,
+    );
+    expect(lines.some((line) => line.startsWith('runtime headroom end unavailable utc='))).toBe(
+      true,
+    );
+    expect(lines.some((line) => line.startsWith('runtime phase end partition=workspace'))).toBe(
+      true,
+    );
+  }
+  // The start record is strict: a missing tool fails before any gate work.
+  const h = history();
+  mkdirSync(join(h.root, 'bin'), { recursive: true });
+  writeFileSync(join(h.root, 'bin', 'free'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const execution = runStep(h, workspaceGate(), { GATE_MODE: 'affected', GATE_BASE: h.base });
+  expect(execution.invocation.exitCode).not.toBe(0);
+  expect(await execution.calls.text()).not.toContain('ci-run-runtime.ts');
 });
 
 test.each([

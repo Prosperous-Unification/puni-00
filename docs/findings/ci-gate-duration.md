@@ -165,8 +165,10 @@ the implementation report indexes the exact receipts.
 
 Workspace lint now runs at `--parallel=1`
 ([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log),
-A-CI-WORKSPACE-MEMORY-1). In full mode it is a separate `run-many -t lint` after
-`test typecheck build`, which keep parallelism two. The other shards are unchanged.
+A-CI-WORKSPACE-MEMORY-1). In full mode it is now a separate `run-many -t lint` after
+`test typecheck build`, which keep parallelism two. In affected mode lint already ran as its
+own phase after the tests, so only its parallelism changes. The other shards are unchanged.
+This is a cheap narrowing lever: the timings do not place the runner losses in lint.
 
 These are the measurements the estimate starts from:
 

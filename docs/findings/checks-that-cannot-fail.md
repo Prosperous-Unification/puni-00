@@ -178,53 +178,103 @@ claim until a read-only probe of that result can fail
 ## A lost hosted runner leaves no step conclusion and no log
 
 **R5-32**, observed 2026-11-18 to 2026-11-20 on the CI `gate workspace` job (`ubuntu-24.04`
-hosted runner, 4 vCPU, 16 GB). At least seven jobs ended with the single annotation
-`The hosted runner lost communication with the server. Anything in your workflow that
-terminates the runner process, starves it for CPU/Memory, or blocks its network access can
-cause this error.` Five were on main: jobs 134597863162 (`ce847c595`), 134855261065
-(`4cace4ed9`), 135387150530 (`3a7f081f0`), 135837476331 (`2c11ec61c`) and 136177983041
-(`1730d911f`, run 44703647201 attempt 1). Two were on pull requests: job 135532626496
-(`02cbdae10`, run 44516096113) and job 136115143031 (PR #955, run 44684301175 attempt 1).
-Every rerun of the same code passed. Each lost job ran 77 to 79 minutes; full-mode main runs
-that passed took 72 to 75. The completion time is when GitHub stopped waiting, not when the
+hosted runner, 4 vCPU, 16 GB). Eight jobs ended with the single annotation `The hosted
+runner lost communication with the server. Anything in your workflow that terminates the
+runner process, starves it for CPU/Memory, or blocks its network access can cause this error.`
+Six were full-mode runs on main:
+
+| Job          | Commit                | Run                    |
+| ------------ | --------------------- | ---------------------- |
+| 134530902111 | `22d150553` (PR #943) | 44223434187            |
+| 134597863162 | `ce847c595`           | 44243790538            |
+| 134855261065 | `4cace4ed9`           | 44319636759            |
+| 135387150530 | `3a7f081f0`           | 44473060503            |
+| 135837476331 | `2c11ec61c`           | 44602477262            |
+| 136177983041 | `1730d911f`           | 44703647201, attempt 1 |
+
+Two were affected-mode pull-request runs: job 135532626496 (`02cbdae10`, run 44516096113)
+and job 136115143031 (PR #955, run 44684301175 attempt 1). Every rerun of the same code
+passed. GitHub declared the six full-mode losses 74 to 75 minutes after the gate step began,
+and a passing full-mode phase takes 71m25s. The two pull-request losses were declared 71m23s
+and 71m43s into the step. A declaration time is when GitHub stopped waiting, not when the
 runner died.
 
 The failure is silent in R5's sense. The gate step never concludes: job 136177983041 still
 reports it `in_progress` with conclusion `null`. No `runtime phase end` record is written and
 no `nx-gate.log` artifact is uploaded, because the upload step dies with the runner even
 though it is `if: always()`. `Require every gate shard` then fails on the job result alone.
-Main stays red with no failed assertion to read, so nothing distinguishes a real defect from
-the runner, and any rerun "fixes" it.
+Main stays red with no failed assertion to read. Nothing distinguishes a real defect from the
+runner, and any rerun "fixes" it.
 
-The likely cause is memory, though no log can prove it. On h4claw (15 GiB) the same gate at
-`--parallel=2` was OOM-killed twice at 59 minutes, peaking at 13.9 GiB, and passes at
-`--parallel=1` (A-GATE-PARALLEL-1, [verify.md](../../openspec/changes/dash-host-jobs/verify.md)
-task 6.19). Measured locally on 2026-11-20 with Node v24.20.0, one type-aware eslint peaks at
-2.8 GiB RSS (`wbs-core`), 3.0 GiB (`tool-fleet`), 3.1 GiB (`wbs-be-01`) and 4.0 GiB
-(`wbs-fe-01`). Two of them ran concurrently at `--parallel=2`, beside vitest workers that
-fan out by CPU count whatever Nx's parallelism is.
+### What the evidence does and does not show
 
-The fix (A-CI-WORKSPACE-MEMORY-1) runs workspace lint at `--parallel=1` in both modes; test,
-typecheck and build stay at two. In full mode lint is now a separate phase after the others.
-The workspace step writes `free -m` and `df -h /` into `nx-gate.log` at phase start and end.
-That trail exists only for a job that survives; it shows how close a passing or failing run
-came, and a lost runner still leaves nothing. The cost estimate is in
+Memory starvation is the working hypothesis; no log can prove it. On h4claw (15 GiB) the same
+gate at `--parallel=2` was OOM-killed twice, peaking at 13.9 GiB, and passes at `--parallel=1`
+(A-GATE-PARALLEL-1, [verify.md](../../openspec/changes/dash-host-jobs/verify.md) task 6.19).
+
+The timings do not localise the death to lint.
+
+- **Full mode.** The workspace shard lints only its own residual projects; `wbs-be-01` and
+  `wbs-fe-01` are linted in the backend and frontend shards. The heaviest workspace lints
+  peaked locally at 2.8 GiB RSS (`wbs-core`) and 3.0 GiB (`tool-fleet`). Replaying the passing
+  full-mode log (job 135466352451) shows they never overlapped. `wbs-core:lint` ran 3.9 to 5.3
+  minutes into the phase beside `wbs-core:test`. `tool-fleet:lint` ran 26.8 to 28.4 minutes in
+  beside `tool-fleet:test`. From minute 55 only `bun test` tasks ran, and the losses were
+  declared after that.
+- **Affected mode.** Lint was already a separate phase that ran after test, typecheck and
+  build. Both pull-request losses fall inside that earlier test phase, which this change
+  leaves at parallelism two.
+
+There is also an environmental candidate. Between 2026-11-12 and the first loss no commit
+touched `eslint.config.js`, `package.json`, `bun.lock`, `nx.json` or `ci.yml`, but the hosted
+image changed. The passing job 131260787719 (2026-11-12) ran `ubuntu-24.04` 20261101.360.1.
+Job 135466352451 (2026-11-19) ran 20261111.370.1 and job 136144316155 (2026-11-20) ran
+20261116.376.1. There is no `setup-node` step, so `bunx eslint` and every other Node process
+run under the image's Node.
+
+### Change and next lever
+
+A-CI-WORKSPACE-MEMORY-1 runs workspace lint at `--parallel=1` in both modes. In full mode lint
+is now a separate phase after test, typecheck and build, which stay at two. This is a cheap
+narrowing lever, not a localised fix. Its cost estimate is in
 [CI gate duration](ci-gate-duration.md#workspace-lint-at-parallelism-one-2026-11-20).
+
+The gate step also records evidence that can localise the next death.
+
+- **Start record (strict).** `$ImageOS`, `$ImageVersion`, the OS `PRETTY_NAME`, Node's
+  `heap_size_limit`, `free -m` and `df -h /`. It runs before any gate work, so a missing tool
+  fails in seconds.
+- **Sampler (optional telemetry).** Every 30 seconds a `runtime headroom sample` line records
+  MemAvailable, the number of `node` and `bun` processes and the largest-RSS process. A
+  failed sample writes `unavailable` and never changes the gate status. The sampler is stopped
+  before the end record.
+- **End record (best effort).** `free -m`, `df -h /` and the five largest processes, which
+  expose leaked children. A failure writes `runtime headroom end unavailable` and does not
+  turn a passing gate red.
+
+A lost runner still uploads nothing. A run that survives longer than a lost one ran shows the
+memory trend up to the minute the losses were declared.
 
 A per-process heap cap was tried and rejected. `NODE_OPTIONS=--max-old-space-size=3072` made
 `wbs-fe-01:lint` die with `JavaScript heap out of memory`. The workspace shard runs that lint
 on affected pull requests, so the cap would have turned them red. At 3584 it passed with 3.7
-GiB RSS, which leaves almost no margin. Node's default on these hosts is already 4096 MB of old
-space (heap limit 4288 MB), so each Node process is bounded already. The losses come from the
-sum of processes, which no per-process cap bounds.
+GiB RSS, which leaves almost no margin. Node's default was 4096 MB of old space (heap limit
+4288 MB), but that was measured on a laptop with Node v24.20.0 and on h4claw, not on CI. The
+start record will report CI's figure. Either way the losses look like the sum of processes:
+the long workspace tests are `bun test` processes and native children, which no Node flag
+bounds.
 
-Proof plan. The argv ledger in `ci-plan.test.ts` fails when lint returns to `--parallel=2`, in
-affected and in full mode, and when lint is folded back into the full run-many.
-`pr-merge-base.test.ts` fails when either headroom call, `free -m` or `df -h /` is removed.
-Neither proves the runner survives. That needs the next five workspace runs on main to finish,
-each with a `runtime headroom end` record showing the free memory left. If a runner is lost
-again, the next step is a larger runner or `--parallel=1` for test as well. The first costs
-money. The second does not fit the 105-minute phase, as the duration estimate shows.
+**Proof plan, per mode.** The argv ledger in `ci-plan.test.ts` fails when lint returns to
+`--parallel=2` in either mode, or when lint is folded back into the full run-many.
+`pr-merge-base.test.ts` fails when the start record, the first sample, the heap limit or the
+sampler stop is removed. It also fails when a telemetry failure changes the gate status, and
+when the start record stops being strict. Neither proves a runner survives.
+
+That needs the next five full-mode main runs and the next five affected-mode pull-request
+workspace runs to finish, with sample lines through the minute the losses were declared. A
+loss that recurs with this change refutes the lint hypothesis for that mode. The next lever is
+then the test phase: run it at parallelism one on a larger runner, or move the long `bun test`
+tasks out of the shard (`tool-fleet:test` 41 minutes, `tool-devsync:test` 22, `wbs-store-sqlite:test` 18).
 
 ## Checks kept without a reachable negative
 

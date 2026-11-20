@@ -26,10 +26,11 @@ function isProjectNames(names: unknown): names is string[] {
 }
 
 /**
- * Workspace lint runs one task at a time (A-CI-WORKSPACE-MEMORY-1). One type-aware eslint peaks
- * at 2.8–4.0 GiB RSS (wbs-fe-01 the largest), and two beside test workers can exhaust the 16 GB
- * hosted runner, which then dies without a log; lint recovered about four minutes in parallel.
- * Test, typecheck and build stay at two. See docs/findings/checks-that-cannot-fail.md (R5-32).
+ * Workspace lint runs one task at a time (A-CI-WORKSPACE-MEMORY-1), a cheap narrowing lever for
+ * the silent hosted-runner losses (R5-32 in docs/findings/checks-that-cannot-fail.md), not a
+ * localised fix. Full-mode workspace lints peak at 2.8 GiB (wbs-core) and 3.0 GiB (tool-fleet).
+ * Affected lint already ran after the tests, and no timing places a loss in lint. Parallel lint
+ * saved about four minutes. Test, typecheck and build stay at two.
  * Proof (2026-11-20): restoring `--parallel=2` here failed ci-plan.test.ts in affected mode
  * (`workspace lint runs one task at a time…`, received `--parallel=2`) and in full mode
  * (`full partitions cover…`); folding lint back into the full run-many failed both again.
