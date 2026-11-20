@@ -17,6 +17,7 @@ import {
   ResourceRuntime,
   ResourceWbsRefusal,
   ResourceWbsUnavailable,
+  type ScopeCeiling,
 } from '../resources/runtime';
 import { auditDrift, auditFails } from './audit';
 import { renderAuditUnits, writeAuditUnits } from './audit-units';
@@ -135,12 +136,16 @@ function readRunRecords(
   config: string,
   deps: OpsDependencies,
   command: string,
-): { records: RunRecord[]; allocatable: PoolEnvelope } {
+): { records: RunRecord[]; allocatable: PoolEnvelope; ceiling: ScopeCeiling } {
   const runtime = openPool(config, deps.clock, command);
   try {
     const records = HostJobRunRecords.openForReading(runtime.configuration.root);
     try {
-      return { records: records.list(), allocatable: runtime.largestEnvelope() };
+      return {
+        records: records.list(),
+        allocatable: runtime.largestEnvelope(),
+        ceiling: runtime.scopeCeiling(),
+      };
     } finally {
       records.close();
     }
@@ -220,13 +225,13 @@ export const opsHandlers: OpsHandlers = {
   },
   'job audit': (command, deps) => {
     const now = auditInstant(command.now, deps.clock);
-    const { records } = readRunRecords(command.config, deps, 'ops job audit');
+    const { records, ceiling } = readRunRecords(command.config, deps, 'ops job audit');
     // Every record is judged against this checkout's catalogue by job id, never by re-reading
     // the checkout it ran from, which may be a deleted scratch worktree (S4-A8, review A2).
     // Proof: reading each record's own checkout made `a run from a vanished checkout is judged
     // against this checkout` (calibrate.test.ts) refuse 64 naming the vanished path (2026-11-02).
     const catalogue = readCommittedCatalogue(deps.cwd, 'ops job audit');
-    const { drifts, notes } = auditDrift(records, catalogue, now);
+    const { drifts, notes } = auditDrift(records, catalogue, now, ceiling);
     for (const note of notes) deps.stdout(`note: ${note}\n`);
     if (drifts.length === 0) {
       deps.stdout('no drift\n');
@@ -300,9 +305,6 @@ export const opsHandlers: OpsHandlers = {
                 // (status.test.ts) on the running line (2026-11-12).
                 memoryHighEvents: record === null ? 0 : measuresOf(record).memoryHighEvents,
                 ...noteOf(record),
-                ...(record?.memoryBoundGib === undefined
-                  ? {}
-                  : { memoryBoundGib: record.memoryBoundGib }),
               },
             ];
           }),

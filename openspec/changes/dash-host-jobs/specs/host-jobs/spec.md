@@ -528,12 +528,16 @@ allocatable SHALL NOT be clamped. `JOB-CATALOGUE` SHALL refuse `clampedToAllocat
 unknown or repeated dimension, either field without the other, and an envelope above its
 heuristic, and SHALL judge a clamped dimension's heuristic against the p95 in place of its
 envelope. `ops job audit` SHALL keep an overrun in a clamped dimension as drift, marked
-expected, SHALL print a note for each clamped dimension, and SHALL NOT judge it for waste. When
-its only drift is such an expected overrun it SHALL exit 0; any other drift SHALL exit 1. An
-ordinary run of an entry whose `memoryGib` is clamped SHALL reserve the clamped figure and run
-its scope with `MemoryHigh` at `heuristic.memoryGib`, reporting both and recording
-`memoryBoundGib` on the run record. `JOB-CATALOGUE` and `ops job run` SHALL refuse `cap`
-enforcement on a clamped `memoryGib`, naming the clamp and the p95.
+expected when its peak is at most that dimension's heuristic, SHALL print a note for each
+clamped dimension, and SHALL NOT judge it for waste. When its only drift is such an expected
+overrun it SHALL exit 0; an overrun above the heuristic and any other drift SHALL exit 1. An
+ordinary run of a type with a clamped dimension SHALL reserve the pool's whole allocatable in
+that dimension, and Dash SHALL refuse such a type in `concurrencyEligible`. A clamped `memoryGib`
+SHALL run its scope with `MemoryHigh` at the lower of `heuristic.memoryGib` and the pool's
+memory budget less `memoryBoundHeadroomGib` (2 when absent), never below the envelope, reporting
+the figure that set it and recording `memoryBoundGib` in the descriptor and the run record.
+`JOB-CATALOGUE` and `ops job run` SHALL refuse `cap` enforcement on a clamped `memoryGib`,
+naming the clamp and the p95.
 
 #### Scenario: A heuristic above allocatable
 
@@ -554,16 +558,24 @@ enforcement on a clamped `memoryGib`, naming the clamp and the p95.
 
 #### Scenario: Only an expected overrun
 
-- **WHEN** the only drift `ops job audit` finds is an overrun of a clamped dimension
+- **WHEN** the only drift `ops job audit` finds is an overrun of a clamped dimension, up to its
+  heuristic
 - **THEN** it prints the overrun and its note and exits 0; with an overrun in an unclamped
-  dimension beside it, it exits 1
+  dimension beside it, or a 14 GiB peak on a heuristic of 13, it exits 1
 
 #### Scenario: A clamped gate runs under its heuristic
 
-- **WHEN** `ops job run --type gate` launches the entry clamped to 9 GiB with heuristic 13
-- **THEN** admission reserves 9 GiB, the scope gets `-p MemoryHigh=13G`, the launcher reports
-  `MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)` and the run record carries
-  `memoryBoundGib: 13`
+- **WHEN** `ops job run --type gate` launches the entry clamped to 6 cores and 9 GiB with
+  heuristic 13 GiB on h4claw's pool (budget 15 GiB, allocatable 7 cores and 10 GiB)
+- **THEN** admission reserves 7 cores and 10 GiB, the scope gets `-p MemoryHigh=13G`, the
+  launcher names the heuristic as the figure that set it, and the descriptor and the run record
+  carry `memoryBoundGib: 13`; on h2puni's 14 GiB budget the pool's 12 GiB sets it
+
+#### Scenario: Nothing runs beside a clamped gate
+
+- **WHEN** a 1-core, 1-GiB job arrives while a clamped gate is held, or the gate arrives while
+  that job is held
+- **THEN** the newcomer does not fit and waits, though the gate's envelope would leave room
 
 #### Scenario: Cap on a clamped memory
 

@@ -140,8 +140,9 @@ semantics.
 **J7. A host job runs in its own transient scope behind the runtime's launch gate (F9).**
 `twilight-dash ops job run --type <id> [--label <lane>] [--wait-seconds <n>] -- <argv>` reserves,
 then launches through the runtime's existing FD-gated owned process group: the scope is created
-(`systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`, `MemoryMax`
-too for `cap`), its `memory.peak`, `memory.current`, `cpu.stat` and `pids.current` are read once
+(`systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`, or the
+pool-capped heuristic of an entry whose `memoryGib` is clamped, see the 2026-11-20 amendments
+under J9; `MemoryMax` too for `cap`), its `memory.peak`, `memory.current`, `cpu.stat` and `pids.current` are read once
 and the boot/PID/start identity persisted, and only then is the gate released and the payload
 exec'd. `TMPDIR` is a job-private directory under the managed root; `DASH_JOB_ID`,
 `DASH_JOB_TYPE`, the unit variables and `HEAVY_LOCK_LABEL` are in the environment. Every ten
@@ -216,23 +217,25 @@ clamped by hand to the smaller pool, h2puni's: 6 cores, 9 GiB, 11 GiB tmp. Rejec
 both pools' allocatable, a host-capacity decision left to Dany; landing the unclamped entry,
 which refuses every gate; keeping the estimated 4 cores and 6 GiB, which hides the measurement.
 
-_Amendment (task 6.25 review, 2026-11-20, assumption S25-A6 for Dany)._ J7 launches an
-`observe` scope with `MemoryHigh` at the envelope's `memoryGib`. For a clamped entry that is 9
-GiB under a measured p95 of 10.01 GiB, which throttles every gate as 22ce2369 was throttled at
-6 GiB (58 h). Reservation and bound are therefore decoupled for a clamped `memoryGib`:
-admission (`oversize()` and the allocatable arithmetic) still reserves the clamped envelope,
-but the scope's `MemoryHigh` is `heuristic.memoryGib` (13 GiB for the gate, below the host's
-15 GiB). The launcher reports the bound and the reservation
-(`ops job: <id> MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)`), the run record
-pins `memoryBoundGib`, and `status` and `audit` print it where it differs from the envelope;
-`throttled` clears only when the HEAD entry's bound rises above the one the run was throttled
-under. `cap` on a clamped `memoryGib` is refused by
-`JOB-CATALOGUE` and by `ops job run` (64): its `MemoryMax` would sit below the p95 and kill
-every run. An overrun in a clamped dimension stays visible as drift, but when it is the only
-drift `ops job audit` exits 0, so the gate_host probe and `dash-job-audit.service` stay green
-on an honest clamp; any other drift still exits 1. The residual risk is that the bound
-exceeds allocatable, so two jobs together could exceed the host. On today's pools no other
-catalogued job fits beside a gate, so that cannot happen yet.
+_Amendment (task 6.25 review, 2026-11-20, assumptions S25-A6 and S25-A7 for Dany)._ J7 launched
+an `observe` scope with `MemoryHigh` at the envelope's `memoryGib`. For a clamped entry that is 9
+GiB under a measured p95 of 10.01 GiB, which would throttle every gate as 22ce2369 was
+throttled at 6 GiB (58 h). The clamped figure is also a hand-set number that admission cannot
+check. Three rules follow. A dimension in `clampedToAllocatable` reserves the pool's whole
+allocatable in that dimension, as a calibration does (S25-A7): `fits()` admits nothing beside
+the job there, `ops pool inspect`, status and the WBS `host_job` projection show the real
+reservation, and `oversize()` still judges the envelope. Such a type may not be listed in a
+pool's `concurrencyEligible` (Dash refuses 64 at every pool open). The scope's `MemoryHigh` for a
+clamped `memoryGib` belongs to the pool (S25-A6). It is the heuristic or the pool's budget
+less `memoryBoundHeadroomGib`, whichever is lower, never below the envelope; that key is an
+optional host-pool key that defaults to 2, giving 13 GiB on h4claw and 12 on h2puni. The bound is pinned
+in the job's descriptor (`memoryBoundGib`) and the run record, the launcher names the figure
+that set it, and `throttled` clears only when the HEAD entry's bound on this pool rises above
+the run's. An overrun of a clamped dimension up to its heuristic is expected: it stays visible,
+but when it is the only drift `ops job audit` exits 0. Above the heuristic it is plain drift,
+and so is any other drift. `cap` on a clamped `memoryGib` is refused by `JOB-CATALOGUE` and by
+`ops job run` (64), because its `MemoryMax` would kill every run. The residual risk is that the
+bound leaves the host only 2 GiB of its budget (S25-A6).
 
 **J10. WBS shows the host, never admits for it (F12).** Two projections, both through
 existing transports: (a) a `host_job` use is published through the resource authority events

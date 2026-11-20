@@ -1,8 +1,9 @@
+import type { ScopeCeiling } from '../resources/runtime';
 import {
   type CommittedCatalogue,
   descriptorDigestOf,
   type JobType,
-  memoryBoundOf,
+  scopeMemoryBound,
 } from './catalogue';
 import {
   descriptorOf,
@@ -21,8 +22,8 @@ export type DriftKind =
 
 /**
  * One drift: its kind, the job type and the line the audit prints. `expected` marks an overrun
- * in a dimension the HEAD entry clamped to the pool (task 6.25): printed, but it alone does not
- * fail the audit ({@link auditFails}).
+ * in a dimension the HEAD entry clamped to the pool (task 6.25) whose peak is at most that
+ * dimension's heuristic: printed, but it alone does not fail the audit ({@link auditFails}).
  */
 export interface Drift {
   kind: DriftKind;
@@ -47,6 +48,18 @@ const UNIT: Readonly<Record<EnvelopeDimension, string>> = {
   tmpDiskGib: 'GiB',
 };
 
+/**
+ * The unclamped figure of a dimension `head`'s provenance clamped (task 6.25).
+ * @throws Error when the dimension has none, which the contract refuses.
+ */
+function heuristicOf(head: JobType, dimension: EnvelopeDimension): number {
+  const unclamped =
+    head.provenance.kind === 'calibrated' ? head.provenance.heuristic?.[dimension] : undefined;
+  if (unclamped === undefined)
+    throw new Error(`job type ${head.id} clamps ${dimension} without its heuristic`);
+  return unclamped;
+}
+
 /** The dimensions `head`'s provenance clamped to the pool's allocatable (task 6.25). */
 function clampedOf(head: JobType): readonly EnvelopeDimension[] {
   return head.provenance.kind === 'calibrated' ? (head.provenance.clampedToAllocatable ?? []) : [];
@@ -62,7 +75,7 @@ function endOfDay(date: string): number {
  * The `throttled` drift of `record` against its type's HEAD entry, or null: see {@link auditDrift}.
  * A calibration runs without `MemoryHigh`, so its high events never mean throttling.
  */
-function throttleOf(record: RunRecord, head: JobType): Drift | null {
+function throttleOf(record: RunRecord, head: JobType, ceiling: ScopeCeiling): Drift | null {
   // Proof: dropping this check made `a throttled run stays drift while it runs; …`
   // (audit.test.ts) find a throttled calibration (2026-11-12).
   if (record.calibration === true) return null;
@@ -81,7 +94,7 @@ function throttleOf(record: RunRecord, head: JobType): Drift | null {
   // Proof: comparing the HEAD envelope as before made `a throttled run under a clamped entry is
   // cleared only by a higher bound` (audit.test.ts) keep the drift under a HEAD heuristic of 15
   // (2026-11-20, S25-A6).
-  if (record.endedAt !== null && memoryBoundOf(head) > bound) return null;
+  if (record.endedAt !== null && scopeMemoryBound(head, ceiling).memoryGib > bound) return null;
   const running = record.endedAt === null ? ', still running' : '';
   const memoryHigh = bound === envelope ? '' : ` (MemoryHigh ${String(bound)} GiB)`;
   return {
@@ -149,6 +162,7 @@ export function auditDrift(
   records: readonly RunRecord[],
   catalogue: CommittedCatalogue,
   now: number,
+  ceiling: ScopeCeiling,
 ): { drifts: Drift[]; notes: string[] } {
   const drifts: Drift[] = [];
   const notes: string[] = [];
@@ -162,7 +176,7 @@ export function auditDrift(
       retired.add(record.type);
       continue;
     }
-    const throttle = throttleOf(record, head);
+    const throttle = throttleOf(record, head, ceiling);
     if (throttle !== null) drifts.push(throttle);
     if (record.endedAt === null) {
       unended.push(record.jobId);
@@ -194,7 +208,12 @@ export function auditDrift(
       if (head.envelope[dimension] >= peak) continue;
       // Proof: dropping the suffix made `an overrun of a clamped dimension stays drift, noted as
       // expected` (audit.test.ts) find the plain overrun line (2026-11-20, task 6.25).
-      const expected = clampedOf(head).includes(dimension);
+      // Expected only up to the heuristic: beyond it the job outgrew its own measurement
+      // (review S2-2).
+      // Proof: dropping the heuristic bound made `an overrun above the heuristic of a clamped
+      // dimension is plain drift` (audit.test.ts) find the 14 GiB overrun expected and the
+      // audit green (2026-11-20).
+      const expected = clampedOf(head).includes(dimension) && peak <= heuristicOf(head, dimension);
       drifts.push({
         kind: 'overrun',
         type: record.type,

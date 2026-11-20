@@ -167,6 +167,14 @@ describe('the job catalogue shape', () => {
       ).toThrow(/clampedToAllocatable\[1\]/);
     });
 
+    test('carries notes as a nonempty string', () => {
+      expect(
+        parseJobCatalogue(clamped({}, { ...marker, notes: 'containers bound declared' })).jobs[0]
+          ?.provenance,
+      ).toMatchObject({ notes: 'containers bound declared' });
+      expect(() => parseJobCatalogue(clamped({}, { ...marker, notes: '' }))).toThrow(/notes/);
+    });
+
     test('a clamped dimension never exceeds its heuristic', () => {
       expect(parseJobCatalogue(clamped({ memoryGib: 13 }, marker)).jobs).toHaveLength(1);
       expect(() => parseJobCatalogue(clamped({ memoryGib: 14 }, marker))).toThrow(

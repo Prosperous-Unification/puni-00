@@ -22,7 +22,8 @@
         ],
         "tmpDiskGibLowerBound": true,
         "clampedToAllocatable": ["cpuCores", "memoryGib"],
-        "heuristic": { "cpuCores": 9, "memoryGib": 13 }
+        "heuristic": { "cpuCores": 9, "memoryGib": 13 },
+        "notes": "the containers bound is declared, not measured: inside a Dash job the solver smoke's four direct docker runs, the supervisor's managed solver containers, the orphan proof's callers and Caddy in mcp-body-limit.test.ts take it and the job label (tasks 6.13, 6.21), and no container peak is measured; the smoke's docker build must run under BuildKit (docker-buildx), or every gate record is attribution_incomplete; maxRuntimeMinutes 480 is about 1.5 times the calibrated duration p95 of 18,958 s; the entry is clamped to the pool, so it holds the whole pool in cores and memory and is never concurrency-eligible (S25-A7)"
       }
     },
     {

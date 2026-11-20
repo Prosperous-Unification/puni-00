@@ -11,10 +11,13 @@ enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2pu
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
 throttled by the estimated `gate` envelope (the known issue in that section). The `gate`
 catalogue entry is measured since #955 (`dash-host-jobs` task 6.25): 6 cores, 9 GiB, 11 GiB
-tmp, clamped to h2puni's pool. It holds all of h2puni's pool and all but 1 core and 1 GiB of
-h4claw's, so no other catalogued job fits beside a gate in concurrent mode. Such a gate runs
-with `MemoryHigh` 13 GiB, the unclamped heuristic, not the 9 GiB it reserves (S25-A6). Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h
-27 min (p95 18,958 s), which replaces the intro's figure for an enrolled gate.
+tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's allocatable
+(S25-A7), so a gate holds all of either pool's cores and memory and nothing runs beside it, and
+`gate` may not be listed in `concurrencyEligible`. Its scope runs under
+`MemoryHigh = min(heuristic 13 GiB, pool budget − memoryBoundHeadroomGib)`, the headroom 2 GiB
+when the pool configuration leaves it out: 13 GiB on h4claw (15 − 2), 12 GiB on h2puni (14 − 2)
+(S25-A6). Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h 27 min (p95
+18,958 s), which replaces the intro's figure for an enrolled gate.
 
 ## What the host gate runs
 
@@ -430,7 +433,8 @@ ssh puni1@<h4claw public address> \
 ```
 
 Known issue, pending as of 2026-11-08 22:50Z; the held gate was ended cgroup-wide on 2026-11-17
-(`dash-host-jobs` verify.md, task 6.14) and `gate` is still uncalibrated. The first gate from this path, `gate:a5e9dbe9`, ran
+(`dash-host-jobs` verify.md, task 6.14), and `gate` has been calibrated since #955 (task 6.25).
+The first gate from this path, `gate:a5e9dbe9`, ran
 under `MemoryHigh` at the `gate` type's estimated 6 GiB and was throttled: `memory.peak` reached
 6.93 GiB, `memory.pressure` stayed above 90 %, two `bun test` runs timed out and three `eslint`
 runs hit heap OOMs. At 3 h 05 min it was still in its first `nx run-many`, and its exit is not

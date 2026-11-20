@@ -11,8 +11,6 @@ export interface JobPeak {
   memoryHighEvents: number;
   /** The run record's leftover note (`leftoverNote`, task 6.24), printed under the job's line. */
   leftoverNote?: string;
-  /** The scope's `MemoryHigh` in GiB as the run record pins it (task 6.25), when recorded. */
-  memoryBoundGib?: number;
 }
 
 /** `1h02m`, `3m05s` or `45s`; a negative span reads `0s`. */
@@ -77,7 +75,7 @@ export function formatHostPoolStatus(
     const highEvents = sampled?.memoryHighEvents ?? 0;
     // Proof: never printing the marker failed `a throttled job says so beside its peak`
     // (status.test.ts) on the running line (2026-11-12).
-    const bound = sampled?.memoryBoundGib;
+    const bound = job.descriptor.memoryBoundGib;
     // Proof: dropping it made `a clamped job names its MemoryHigh beside the envelope`
     // (status.test.ts) find `envelope 4 cores 6 GiB 0 GiB tmp peak` (2026-11-20, S25-A6).
     const memoryHigh =

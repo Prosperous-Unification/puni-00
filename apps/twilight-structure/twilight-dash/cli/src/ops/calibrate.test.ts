@@ -377,15 +377,15 @@ if (insideOpsNamespace(import.meta.path)) {
 
     test('a calibration scope sets no memory bound; a run sets MemoryHigh, and MemoryMax for cap', () => {
       const capped = { ...gate, enforcement: 'cap' as const };
-      expect(scopeArguments('u', capped, 6, false).slice(-4)).toEqual([
+      expect(scopeArguments('u', capped, false).slice(-4)).toEqual([
         '-p',
         'MemoryHigh=6G',
         '-p',
         'MemoryMax=6G',
       ]);
-      expect(
-        scopeArguments('u', capped, 6, true).filter((word) => word.startsWith('Memory')),
-      ).toEqual([]);
+      expect(scopeArguments('u', capped, true).filter((word) => word.startsWith('Memory'))).toEqual(
+        [],
+      );
     });
   });
 

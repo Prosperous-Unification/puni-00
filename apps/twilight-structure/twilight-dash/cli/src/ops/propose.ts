@@ -294,6 +294,11 @@ export function proposeEnvelope(
       // and `a lower-bound tmp entry is not waste-checkable` (audit.test.ts) name a tmpDiskGib
       // waste for the entry it proposes (2026-11-19, review S2-1).
       ...(tmpLowerBoundOnly ? { tmpDiskGibLowerBound: true as const } : {}),
+      // Proof: dropping it made `a calibrated entry's notes carry into its replacement`
+      // (propose.test.ts) find no notes (2026-11-20, review of #955 S3).
+      ...(jobType.provenance.kind === 'calibrated' && jobType.provenance.notes !== undefined
+        ? { notes: jobType.provenance.notes }
+        : {}),
       // Proof: omitting these made the four clamping tests of propose.test.ts find no
       // clampedToAllocatable or heuristic (2026-11-20, task 6.25).
       ...(clamped.length > 0

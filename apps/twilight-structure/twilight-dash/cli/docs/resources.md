@@ -705,13 +705,19 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   is shared by both gate hosts, so the landed entry is clamped by hand to the smaller pool,
   h2puni's 6 cores and 9 GiB, which a `propose` on h2puni reproduces.
 
-  A clamped `memoryGib` decouples the reservation from the bound (S25-A6): admission reserves
-  the clamped envelope, but `ops job run` starts the scope with `MemoryHigh` at
-  `heuristic.memoryGib`, reports
-  `ops job: <id> MemoryHigh 13 GiB (heuristic; reservation clamped to 9 GiB)` and pins
-  `memoryBoundGib` on the run record; `ops job status` prints `(MemoryHigh 13 GiB)` after the
-  envelope's memory. `cap` on such an entry is refused 64 before admission, as `JOB-CATALOGUE`
-  refuses it.
+  A clamped dimension reserves the pool's whole allocatable in that dimension at admission, as
+  a calibration does (S25-A7). `fits()` then admits nothing beside the job there, and
+  `ops pool inspect`, status and the WBS `host_job` projection show reserved = allocatable;
+  `oversize()` still judges the envelope. A clamped `memoryGib` also sets the scope's own bound
+  (S25-A6): `ops job run` starts the scope with `MemoryHigh` at the lower of
+  `heuristic.memoryGib` and the pool's memory budget less `memoryBoundHeadroomGib`, never below
+  the envelope. It reports which figure won, for example
+  `ops job: <id> MemoryHigh 13 GiB (heuristic 13 GiB, within the pool's 15 − 2 GiB; reservation clamped to 9 GiB)`,
+  and pins `memoryBoundGib` in the job's descriptor and on the run record. `ops job status`
+  prints `(MemoryHigh 13 GiB)` after the envelope's memory, and `ops pool inspect` shows the
+  descriptor's `memoryBoundGib`. `cap` on such an entry is refused 64 before admission, as
+  `JOB-CATALOGUE` refuses it; the refusal also stops `ops job calibrate` of that entry, though a
+  calibration sets no `MemoryMax`.
 
 - **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
   the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads
@@ -730,8 +736,9 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   - `overrun`: a peak above the envelope the run was admitted under, in memory, CPU or tmp disk.
     It stays visible however many runs follow until the HEAD entry's envelope is at least the
     peak. A new provenance alone, `calibrated` included, does not clear it. In a dimension the
-    HEAD entry clamped to the pool (task 6.25) the line ends
-    `; expected: the HEAD entry is clamped to the pool`. It stays visible, but when such
+    HEAD entry clamped to the pool (task 6.25), with a peak at most that dimension's heuristic,
+    the line ends `; expected: the HEAD entry is clamped to the pool`; above the heuristic it is a
+    plain overrun. It stays visible, but when such
     overruns are the only drift the audit prints
     `only expected drift: overruns of envelopes clamped to the pool` and exits 0, so the weekly
     unit and the gate_host role's final probe stay green on an honest clamp (S25-A6). Any other
@@ -850,9 +857,13 @@ status` shows the mark, and the run records it; `ops job audit` reports the run 
   `watch` adopts it. The 6.7 user unit must therefore use `KillMode=process`, or the holder
   dies with the unit's cgroup (S6B-A8).
 
-The configuration gains two optional fields, neither pinned by the binding:
+The configuration gains three optional fields, none pinned by the binding:
 `launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
-jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). Every
+jobs here), `concurrencyEligible` (job type ids, each named once; absent means none) and
+`memoryBoundHeadroomGib` (whole GiB of the memory budget a clamped entry's `MemoryHigh` leaves to
+the rest of the host, task 6.25; absent means 2). A type whose catalogue entry carries
+`clampedToAllocatable` may not be listed in `concurrencyEligible`: every pool open refuses it 64
+(S25-A7). Every
 `ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `job admission`, `pool inspect`,
 `switch-mode` and the record readers) refuses 64 an eligible id that no listed checkout's
 catalogue names at HEAD. A typo added later therefore stops the next command rather than

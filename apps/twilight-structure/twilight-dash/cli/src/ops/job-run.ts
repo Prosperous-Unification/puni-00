@@ -18,12 +18,15 @@ import {
   HostPoolModeRefusal,
   loadResourceConfiguration,
   ResourceRuntime,
+  type ScopeCeiling,
 } from '../resources/runtime';
 import {
   type CataloguedJob,
   currentHead,
   hostClassOf,
   readCataloguedJob,
+  type ScopeMemoryBound,
+  scopeMemoryBound,
   toolchainOf,
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
@@ -161,6 +164,27 @@ interface Launched {
   leaderExit: Promise<number>;
 }
 
+/** A catalogued job with the scope bound and the pool figures that capped it (S25-A6). */
+interface BoundJob extends CataloguedJob {
+  readonly memoryBound: ScopeMemoryBound;
+  readonly ceiling: ScopeCeiling;
+}
+
+/** The launcher's report of a clamped entry's `MemoryHigh` and the figure that set it. */
+function boundLine(job: BoundJob): string {
+  const { memoryBound, ceiling } = job;
+  const reservation = job.descriptor.envelope.memoryGib;
+  const pool = `the pool's ${String(ceiling.memoryGib)} − ${String(ceiling.memoryBoundHeadroomGib)} GiB`;
+  const heuristic = `heuristic ${String(memoryBound.heuristicGib ?? reservation)} GiB`;
+  const reason = {
+    envelope: 'the envelope',
+    heuristic: `${heuristic}, within ${pool}`,
+    pool: `${pool}, below ${heuristic}`,
+    reservation: `the reservation, since ${pool} is below it; ${heuristic}`,
+  }[memoryBound.term];
+  return `MemoryHigh ${String(memoryBound.memoryGib)} GiB (${reason}; reservation clamped to ${String(reservation)} GiB)`;
+}
+
 function launchGated(
   systemdRun: string,
   unit: string,
@@ -173,12 +197,7 @@ function launchGated(
   const child = spawn(
     systemdRun,
     [
-      ...scopeArguments(
-        unit,
-        catalogued.descriptor,
-        catalogued.memoryBoundGib,
-        job.calibration === true,
-      ),
+      ...scopeArguments(unit, catalogued.descriptor, job.calibration === true),
       '--',
       '/bin/sh',
       '-c',
@@ -384,11 +403,11 @@ async function executeHostJob(
   deps: JobRunDependencies,
   isCalibration: boolean,
 ): Promise<number> {
-  const catalogued = readCataloguedJob(deps.cwd, request.type, request.argv);
+  const read = readCataloguedJob(deps.cwd, request.type, request.argv);
   // One total wait (J12): the pool's admission and, in observe mode, the shell lock's queue.
   const arrivedAt = deps.clock.read();
   const toolchain = toolchainOf(deps.environment);
-  const typeId = catalogued.descriptor.id;
+  const typeId = read.descriptor.id;
   let runtime: ResourceRuntime;
   try {
     runtime = ResourceRuntime.open(loadResourceConfiguration(request.config), deps.clock);
@@ -405,6 +424,19 @@ async function executeHostJob(
     runtime.close();
     throw cause;
   }
+  // The scope bound belongs to the pool (review S2-3): it is pinned in the descriptor, so the
+  // ledger, `ops pool inspect`, status and the run record all carry it.
+  const ceiling = runtime.scopeCeiling();
+  const memoryBound = scopeMemoryBound(read.jobType, ceiling);
+  const catalogued: BoundJob = {
+    ...read,
+    descriptor:
+      memoryBound.term === 'envelope' || isCalibration
+        ? read.descriptor
+        : { ...read.descriptor, memoryBoundGib: memoryBound.memoryGib },
+    memoryBound,
+    ceiling,
+  };
   let records: HostJobRunRecords;
   try {
     records = HostJobRunRecords.open(runtime.configuration.root, runtime.listHostJobs().length > 0);
@@ -433,7 +465,6 @@ async function executeHostJob(
     const systemdRun = checkScopeAvailable(
       deps.environment,
       catalogued.descriptor,
-      catalogued.memoryBoundGib,
       `dash-probe-${randomUUID()}`,
       deps.user,
       isCalibration,
@@ -910,7 +941,7 @@ async function runAdmitted(
   runtime: ResourceRuntime,
   records: HostJobRunRecords,
   admitted: HostJob,
-  catalogued: CataloguedJob,
+  catalogued: BoundJob,
   systemdRun: string,
   docker: string | null,
   containers: ContainerEvidence,
@@ -932,17 +963,12 @@ async function runAdmitted(
     });
   }
   const unit = scopeUnitOf(job.id);
-  // A bound above the reservation is the clamp of task 6.25 (S25-A6): say so before the launch.
-  const decoupled =
-    job.calibration !== true &&
-    catalogued.memoryBoundGib !== catalogued.descriptor.envelope.memoryGib;
+  // A clamped memoryGib (task 6.25, S25-A6) says which figure set its bound before the launch.
   // Proof: dropping the line or the record's `memoryBoundGib` below made `a clamped entry sets
   // MemoryHigh to its heuristic; …` (job-run.test.ts) miss the line, or read `memoryBoundGib`
   // undefined (2026-11-20, S25-A6).
-  if (decoupled)
-    deps.report(
-      `ops job: ${job.id} MemoryHigh ${String(catalogued.memoryBoundGib)} GiB (heuristic; reservation clamped to ${String(catalogued.descriptor.envelope.memoryGib)} GiB)`,
-    );
+  if (job.calibration !== true && catalogued.memoryBound.term !== 'envelope')
+    deps.report(`ops job: ${job.id} ${boundLine(catalogued)}`);
   let launched: Launched;
   try {
     launched = launchGated(systemdRun, unit, catalogued, job, request.argv, request.label, deps);
@@ -1065,7 +1091,7 @@ async function runAdmitted(
         toolchain,
         ...(job.calibration === true
           ? { calibration: true as const }
-          : { memoryBoundGib: catalogued.memoryBoundGib }),
+          : { memoryBoundGib: catalogued.memoryBound.memoryGib }),
         unit,
         cgroup,
         tmpDirectory: job.locator,

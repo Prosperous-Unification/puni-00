@@ -100,6 +100,14 @@ const CalibratedProvenance = type({
    * `heuristic`, which names the unclamped figure of each of these dimensions and no other.
    */
   'clampedToAllocatable?': EnvelopeDimension.array().atLeastLength(1),
+  /**
+   * What the measurement does not say about the entry and its reader needs (review of #955 S3):
+   * the `basis` sentence of an estimate has no other home once the entry is calibrated. `ops job
+   * propose` carries it into the replacement entry.
+   */
+  // Proof: typing it `string` made `carries notes as a nonempty string` (job-catalogue.test.ts)
+  // accept an empty note (2026-11-20).
+  'notes?': type('string>=1'),
   /** The unclamped heuristic figure of each dimension in `clampedToAllocatable`. */
   'heuristic?': type({
     'cpuCores?': WholeUnits,

@@ -475,10 +475,13 @@
       (Burokrat `CalibratedProvenance`); `JOB-CATALOGUE` judges a clamped dimension's
       heuristic against its p95 and refuses an envelope above it or an unknown dimension;
       `ops job audit` marks an overrun of a clamped dimension expected, keeps it as drift,
-      notes it, never judges it for waste and exits 0 when it is the only drift. A clamped
-      `memoryGib` reserves the clamp but runs under `MemoryHigh` at its heuristic, pinned as
-      `memoryBoundGib` (S25-A6); `cap` on it is refused by the lint and at launch. The `gate`
-      entry lands clamped by hand to h2puni's pool: 6 cores, 9 GiB, 11 GiB tmp, MemoryHigh
-      13 GiB. Tests: `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`,
-      `job-run.test.ts`, `status.test.ts`, `host-jobs.test.ts`, Burokrat `job-catalogue.test.ts`
+      notes it, never judges it for waste and, up to its heuristic, exits 0 when it is the only
+      drift. A clamped dimension reserves the pool's whole allocatable (S25-A7) and its type may
+      not be concurrency-eligible; a clamped `memoryGib` runs under `MemoryHigh` at the lower of
+      its heuristic and the pool's budget less `memoryBoundHeadroomGib` (default 2), pinned as
+      `memoryBoundGib` (S25-A6); `cap` on it is refused by the lint and at launch;
+      `CalibratedProvenance` gains `notes`. The `gate` entry lands clamped by hand to h2puni's
+      pool: 6 cores, 9 GiB, 11 GiB tmp; MemoryHigh 13 GiB on h4claw, 12 on h2puni. Tests: `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`,
+      `job-run.test.ts`, `status.test.ts`, `host-jobs.test.ts`, `host-pool-mode.test.ts`,
+      Burokrat `job-catalogue.test.ts`
       (contract and rule); negatives: each new check removed in turn (verify.md, 2026-11-20).

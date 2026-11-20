@@ -465,4 +465,35 @@ describe('ops job propose clamps to the pool (task 6.25, A-ENVELOPE-CLAMP-1)', (
       heuristic: { tmpDiskGib: 11 },
     });
   });
+
+  test("a calibrated entry's notes carry into its replacement", () => {
+    const noted = committedCatalogue(
+      [{ id: 'gate', cpuCores: 4, memoryGib: 6, tmpDiskGib: 8, exclusive: ['gate_tree'] }],
+      (jobs) =>
+        jobs.map((job) => ({
+          ...job,
+          provenance: {
+            kind: 'calibrated',
+            hostClass: HOST_CLASS,
+            calibratedAt: '2026-11-20T04:05:14.759Z',
+            recordCount: 3,
+            p95: { cpuCores: 3, memoryGib: 4.4, tmpDiskGib: 3 },
+            recordIds: ['c1', 'c2', 'c3'],
+            notes: 'containers bound declared, not measured',
+          },
+        })),
+    );
+    const proposal = proposeEnvelope(
+      'gate',
+      noted,
+      measured.map((run) => runRecord(noted, { type: 'gate', ...run })),
+      partition,
+      ROOMY_POOL,
+      NOW,
+    );
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.provenance).toMatchObject({
+      notes: 'containers bound declared, not measured',
+    });
+  });
 });

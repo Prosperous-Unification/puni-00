@@ -227,7 +227,7 @@ if (insideOpsNamespace(import.meta.path))
     test('a clamped job names its MemoryHigh beside the envelope (task 6.25, S25-A6)', () => {
       const { runtime, config, root, trees } = pool(1);
       const queued = runtime.enqueueHostJob(
-        { descriptor: gate, label: 'gate:22ce2369', waitSeconds: 0 },
+        { descriptor: { ...gate, memoryBoundGib: 9 }, label: 'gate:22ce2369', waitSeconds: 0 },
         process.pid,
       );
       if (queued.kind !== 'queued') throw new Error(queued.reason);

@@ -427,6 +427,63 @@ if (insideLinuxNamespace(import.meta.path)) {
       runtime.close();
     });
 
+    test('a clamped gate reserves the whole pool in its clamped dimensions; nothing fits beside it (S25-A7)', () => {
+      const { runtime } = pool(scenarioPool);
+      // The landed gate's shape: 6 cores and 9 GiB declared, both clamped, on 8 cores and 13 GiB;
+      // 1 GiB of tmp, so the host's free space never decides the test.
+      const clamped = {
+        ...jobType('gate', 6, 9, ['gate_tree'], 1),
+        clampedToAllocatable: ['cpuCores' as const, 'memoryGib' as const],
+        memoryBoundGib: 13,
+      };
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: clamped, label: 'gate:clamped', waitSeconds: 0 }),
+      );
+      expect(job.reserved).toEqual({
+        cpuCores: 8,
+        memoryGib: 13,
+        diskUnits: 1,
+        workspaceSlots: 1,
+        tmpDiskGib: 1,
+      });
+      expect(runtime.hostPoolStatus().reserved).toMatchObject({ cpuCores: 8, memoryGib: 13 });
+      // A 1-core, 1-GiB job would fit beside the envelope's 6 and 9; it does not beside the pool.
+      const small = queue(runtime, {
+        descriptor: jobType('test-queued', 1, 1, [], 1),
+        label: 'small',
+        waitSeconds: 0,
+      });
+      expect(runtime.pollHostJob(small, silent)).toMatchObject({ kind: 'refused', exitCode: 75 });
+      // The envelope, not the reservation, is what oversize() judges: a clamped figure above the
+      // pool is still refused 73.
+      expect(
+        runtime.enqueueHostJob(
+          {
+            descriptor: { ...clamped, envelope: { ...clamped.envelope, memoryGib: 14 } },
+            label: 'gate:big',
+            waitSeconds: 0,
+          },
+          process.pid,
+        ),
+      ).toMatchObject({ kind: 'refused', exitCode: 73 });
+      runtime.close();
+      // The other order: beside a 1-GiB job already held, the clamped gate does not fit either,
+      // though its envelope (6 + 1 cores, 9 + 1 GiB) would.
+      const second = pool(scenarioPool).runtime;
+      admitted(
+        second,
+        queue(second, {
+          descriptor: jobType('test-queued', 1, 1, [], 1),
+          label: 'small',
+          waitSeconds: 0,
+        }),
+      );
+      const late = queue(second, { descriptor: clamped, label: 'gate:clamped', waitSeconds: 0 });
+      expect(second.pollHostJob(late, silent)).toMatchObject({ kind: 'refused', exitCode: 75 });
+      second.close();
+    });
+
     test('refuses an exclusive id the pool lacks, exit 73 without a ticket', () => {
       const { runtime } = pool({ ...scenarioPool, gateTrees: 0 });
       expect(

@@ -4661,21 +4661,34 @@ and 6 GiB, which hides the measurement and under-reserves by more than a third.
 - **S25-A5** (resolved by S25-A6) As first written, under `enforcement: observe` the scope's
   `MemoryHigh` was the envelope's `memoryGib`, 9 GiB for the clamped gate, under a measured p95 of
   10.01 GiB: every gate would have been reclaimed below its need, as 22ce2369 was at 6 GiB for
-  58 h. A clamped `memoryGib` now runs under its heuristic, 13 GiB. Residual risk: that bound is
-  above the pool's allocatable (10 GiB on h4claw, 9 on h2puni), so two co-running jobs could
-  together exceed the host. On these pools nothing co-runs with a gate (h2puni's pool is held
-  whole, h4claw keeps 1 core and 1 GiB, below every other entry's memory), so that cannot
-  happen today; it returns when a pool grows or a small job type is catalogued. The host stays
-  protected by the user slice and by `MemoryHigh` 13 GiB below the 15 GiB host.
+  58 h. A clamped `memoryGib` now runs under the bound S25-A6 states.
 - **S25-A6** Reservation and bound are decoupled for a clamped `memoryGib`, and an expected
-  overrun alone does not fail the audit: assumed, awaiting Dany together with S25-A1. Admission
-  reserves the clamped envelope; the scope's `MemoryHigh` is `heuristic.memoryGib`; `cap` on a
-  clamped `memoryGib` is refused (a `MemoryMax` below the p95 kills every run). The amendment is
-  in design.md under J9.
+  overrun alone does not fail the audit: assumed, awaiting Dany together with S25-A1. After the
+  Fable review (S2-3) the bound belongs to the pool: `MemoryHigh` is the lower of
+  `heuristic.memoryGib` and the pool's memory budget less `memoryBoundHeadroomGib` (an optional
+  host-pool key, absent meaning 2), never below the envelope: 13 GiB on h4claw (15 − 2, the
+  heuristic and the pool agree), 12 GiB on h2puni (14 − 2, the pool wins). An overrun is
+  expected only up to the dimension's heuristic (S2-2). `cap` on a clamped `memoryGib` is refused
+  (a `MemoryMax` below the p95 kills every run). Residual OOM risk, stated plainly: the bound
+  governs the tail above the p95 of 10.01 GiB, and it leaves the host only 2 GiB of its budget.
+  h4claw is also the platform's Kubernetes node, whose kubelet reserves 1536 MiB for the system
+  and 512 MiB for kube, together the whole 2 GiB. The gate's declared 1 GiB containers bound sits
+  outside the job scope, so a gate at its 13 GiB bound plus its containers plus the kubelet
+  reservations can exceed h4claw's 15 GiB. On h2puni, 12 GiB leaves 2 GiB of a 14 GiB budget to
+  dev WBS and monitoring. The ordinary gate (p95 10.01 GiB) fits both hosts with margin, so the
+  risk is the tail; it is strictly smaller than main's 6 GiB bound, which stalled a gate for
+  58 h. Follow-up: make `memoryBoundHeadroomGib` a gate_host role input written into each host's
+  `host-pool.json` (today the role writes no such key, so both hosts take the default 2).
+- **S25-A7** A clamped dimension reserves the whole pool, for Dany beside S25-A1 and S25-A6: a
+  dimension in `clampedToAllocatable` reserves the pool's allocatable there at admission,
+  whatever the envelope figure says, so the hand-set 9 vs 10 GiB no longer decides anything, and
+  such a type may not be concurrency-eligible. With it, "nothing runs beside a gate" holds by
+  design, not by the accident of the catalogue having no job of 1 GiB or less.
 
 ### Review fold-in (S25-A6, 2026-11-20)
 
-The coordinator held #955 on S25-A5. Same branch, laptop and environment, no host touched.
+The coordinator held #955 on S25-A5. Same branch, laptop and environment, no host touched. The
+bound and reservation rules here were revised after the Fable review; see the next section.
 
 - `memoryBoundOf` (`ops/catalogue.ts`) is `heuristic.memoryGib` for an entry whose provenance
   clamps `memoryGib`, otherwise the envelope's. `readCataloguedJob` carries it as
@@ -4719,3 +4732,63 @@ The coordinator held #955 on S25-A5. Same branch, laptop and environment, no hos
 | `expected` never set on an overrun                      | `only an expected overrun leaves the audit green` and the probe-shaped test failed (exit 1)                                                                                             |
 | `throttled` cleared against the HEAD envelope as before | `a throttled run under a clamped entry is cleared only by a higher bound` kept the drift under a HEAD heuristic of 15                                                                   |
 | `ops job status` without the MemoryHigh marker          | `a clamped job names its MemoryHigh beside the envelope (task 6.25, S25-A6)` found `envelope 4 cores 6 GiB 0 GiB tmp peak`                                                              |
+
+### Fable review fold-in (S2-1, S2-2, S2-3, S3; 2026-11-20)
+
+The Fable review of #955 at c183442da was FIX-THEN-MERGE. Same branch, laptop and environment,
+no host touched.
+
+- **S2-1, S25-A7.** `jobTypeDescriptor` (`resources/host-pool.ts`) gains `clampedToAllocatable`,
+  which `readCataloguedJob` copies from the provenance. `ResourceRuntime.reservationOf` reserves
+  the pool's whole allocatable in each clamped dimension; `fits()` and the persisted `reserved`
+  use it, so `ops pool inspect`, status and the WBS `host_job` projection carry the real
+  reservation; `oversize()` still judges the envelope. `verifyEligibleTypes`
+  (`ops/switch-mode.ts`), run at every pool open, refuses 64 a clamped type in
+  `concurrencyEligible`. Burokrat cannot see a host's pool configuration, so this check is Dash's.
+- **S2-2.** An overrun is `expected` only when its peak is at most the dimension's heuristic.
+- **S2-3.** `scopeMemoryBound` (`ops/catalogue.ts`, replacing `memoryBoundOf`) computes the
+  lower of the heuristic and the pool's budget less `memoryBoundHeadroomGib`, never below the
+  envelope, and names its term (`heuristic`, `pool`, `reservation`). `ResourceRuntime.scopeCeiling`
+  reads the pool figures, the new optional config key defaulting to 2
+  (`DEFAULT_MEMORY_BOUND_HEADROOM_GIB`). `executeHostJob` pins the bound in the descriptor as
+  `memoryBoundGib`, so `scopeArguments` takes the descriptor alone again, and the launcher's line
+  names the winning figure. `ops job status` reads the bound from the job's descriptor, and
+  `ops job audit` judges `throttled` clearing against the HEAD entry's bound on this pool.
+- **S3.** J7 in design.md points to the J9 amendments. `docs/infra/gate-hosts.md` no longer
+  calls `gate` uncalibrated, and its new paragraph is wrapped. `CalibratedProvenance` gains an
+  optional nonempty `notes` string, which `ops job propose` carries into the replacement, and the
+  gate entry's `notes` holds the old `basis` knowledge: the containers bound is declared and not
+  measured, BuildKit is required, the 480-minute rationale, and that the entry is never
+  concurrency-eligible. I chose the contract over `infra/jobs/README.md` because the knowledge is
+  about this one entry, and R3 puts it with what it describes; a README sentence would not follow
+  the entry through a `propose`. The cap-on-clamp refusal at launch also stops
+  `ops job calibrate` of such an entry, though a calibration sets no `MemoryMax`; the lint refuses
+  the entry first, so this is not reachable from a linted catalogue.
+
+| Command                                                                                                                           | Result                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` on `src/ops`, `resources/host-jobs.test.ts`, `resources/host-job-publication.test.ts`, `cli.test.ts` with the preloads | exit 0; outer 255 pass, 0 fail; inside the `unshare --user --map-user` namespaces: `calibrate` 19 pass 1 skip, `job-run` 54 pass 17 skip, `host-pool-mode` 46, `status` 8, `admission` 6, `launchers` 41, `outbox-drop` 12, all 0 fail |
+| `host-jobs.test.ts` inside its namespace                                                                                          | 47 pass, 0 fail                                                                                                                                                                                                                        |
+| Burokrat contract, rule and architecture job-catalogue tests                                                                      | 37 pass, 0 fail                                                                                                                                                                                                                        |
+| `tool-remote-scripts` `host-job-container-bound.test.ts`                                                                          | 4 pass, 0 fail                                                                                                                                                                                                                         |
+| `check staged . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-20T12:00:00.000Z`                                           | exit 0, no findings, nothing unevaluated                                                                                                                                                                                               |
+| `scopeMemoryBound` on the landed `gate` entry                                                                                     | 13 GiB, term `heuristic`, on a 15 − 2 ceiling; 12 GiB, term `pool`, on 14 − 2                                                                                                                                                          |
+| both typechecks, `--skip-nx-cache`                                                                                                | `Successfully ran target typecheck` for both                                                                                                                                                                                           |
+| `bunx eslint` on the 25 TypeScript files the branch changes                                                                       | exit 0, after `--fix` sorted two import blocks                                                                                                                                                                                         |
+| `bunx prettier --check`, `bunx openspec validate --all --json`, `check-indexes working . HEAD`                                    | FOLD2_TAIL                                                                                                                                                                                                                             |
+
+| Injected fault                                         | Observed                                                                                                                                  |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `fits()` taking the envelope for a clamped newcomer    | `a clamped gate reserves the whole pool …` (host-jobs.test.ts) admitted the gate beside a held 1-core, 1-GiB job                          |
+| the persisted `reserved` taken from the envelope       | the same test found reserved 6 cores and 9 GiB against 8 and 13                                                                           |
+| `readCataloguedJob` not copying `clampedToAllocatable` | `a clamped gate holds the whole pool through ops job run (S25-A7)` (job-run.test.ts) read reserved memoryGib 2 against 3                  |
+| `verifyEligibleTypes` without the clamp refusal        | `a type clamped to the pool may not be concurrency-eligible (S25-A7)` (host-pool-mode.test.ts) initialized the pool                       |
+| `expected` without the heuristic bound                 | `an overrun above the heuristic of a clamped dimension is plain drift (review S2-2)` (audit.test.ts) failed: the 14 GiB peak was expected |
+| `scopeMemoryBound` taking the heuristic alone          | `the pool caps the bound when …` launched `-p MemoryHigh=3G` on a 4 − 2 GiB pool, and the pure bound test failed                          |
+| `scopeMemoryBound` without the reservation floor       | the pure bound test's reservation case failed                                                                                             |
+| `ops job propose` dropping `notes`                     | `a calibrated entry's notes carry into its replacement` (propose.test.ts) found no notes                                                  |
+| `notes` typed `string`                                 | `carries notes as a nonempty string` (contract test) accepted an empty note                                                               |
+
+The first host-jobs fixture gave the clamped gate 11 GiB of tmp, and the second-order case then
+waited on the laptop's free disk (12 GiB) rather than on the vector, so the `fits()` fault went
+unseen. The fixture now declares 1 GiB of tmp, and the fault fails it.
