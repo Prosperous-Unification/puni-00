@@ -10309,3 +10309,39 @@ complete; Task5.1c remains open for the owned reader and real public-API SSH
 qualification. Task5.1b, full source/host gates, installed monitoring/delivery and
 all full-goal activation/lifecycle obligations remain open. No stopped helper or
 production host/credential was used.
+
+## Owned registry status reader — 2026-11-21
+
+The reader owns one private pin and one active exchange. Local admission checks
+directory and file identity, mode, link count, bounded EOF, the enrolled key
+digest, exact pin bytes, and read/execute access to the fixed SSH binary. The
+actor checks the original deadline at acquisition, cleanup and public receipt.
+A faulted actor refuses further reads and permits pin removal only after known
+eventual settlement. A cleanup error preserves known failure classifications.
+Successful candidate bytes require complete cleanup before receipt.
+
+| Check                                                                                     | Observed                                                                                                                                                |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Paired reader tests before either source module existed                                   | Exit 1 with the expected missing-module error in both files.                                                                                            |
+| Reader and accepted contract tests                                                        | 216 tests passed with 566 assertions. The 81 reader tests cover local admission, framing, EOF/exit, caps, deadlines, cancellation, cleanup and overlap. |
+| Scoped ESLint and Prettier, uncached `tool-fleet:typecheck`, and strict change validation | Passed.                                                                                                                                                 |
+| Bun source-only bundle and input manifest                                                 | The only fleet inputs were the actor, process supervisor and accepted contract.                                                                         |
+
+The scoped mutation campaign observed 94 selected assertion failures. Each
+fault reverted to the recorded pre-proof source before the next mutation.
+Device/inode, file state, exclusive pin creation, client credential digest
+and SSH executable admission faults failed their respective local checks.
+Changing fixed spawn policy, skipping exit or either EOF, delaying one reader
+behind the other and moving either output cap broke the corresponding fixture.
+Removing group signaling, pipe cancellation, settlement, deadline reservation,
+close admission or the fault latch broke the matching lifecycle test. Explicit
+faults reproduced leak of successful candidate bytes in a cleanup error,
+loss of the original deadline, and loss of a reserved nonzero exit
+classification. The separate execute-allowed/read-denied fault reached the
+intercepted spawn when read admission was removed.
+
+The subprocess fixtures use real owned local Bun children. Metadata, pipe
+setup/settlement faults and SSH access denials use scoped test doubles.
+Root-owned installed credentials, native SSH authentication and real SSH child
+qualification remain owed in Task5.1c. The full project suite, full build and
+exact-revision host gate remain pending for the wider change.
