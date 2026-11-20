@@ -10227,3 +10227,40 @@ Source integration from the previous slice remains merged as PR960, main
 9e8e212d6b1133e60230b12b1fda582690bde294. Its automatic CodeQL44821586407 is
 completed/success; postmerge CI44821587380 was still in progress at this check.
 Neither run was restarted. No full-goal completion or activation is inferred.
+
+## Strict registry status enrollment and SSH command — 2026-11-21
+
+The pure contract accepts an exact trusted JSON enrollment, copies and freezes
+each object, and renders the pinned host line and fixed SSH arguments. The key
+grammar fixes the text prefix and bounds standard base64 at 68 characters without
+padding, which encodes exactly 51 bytes. The decoded wire checks validate both
+length fields and compare the algorithm name without discarding high bits.
+
+| Check                                                                                                   | Observed                                                                                                           |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts`                               | RED exited 1 with the expected missing-module error. GREEN passed 118 tests with 176 assertions.                   |
+| Focused high-bit algorithm regression using `--test-name-pattern 'rejects high-bit SSH algorithm byte'` | RED accepted the mutated key when ASCII decoding discarded the high bit. GREEN rejected it for both enrolled keys. |
+| `bun node_modules/.bin/eslint` on the contract and test                                                 | Exited 0 with no diagnostics.                                                                                      |
+| `bun node_modules/.bin/prettier --check` on the contract, test and this record                          | Exited 0.                                                                                                          |
+| `NX_DAEMON=false bun node_modules/.bin/nx run tool-fleet:typecheck --skip-nx-cache`                     | Owning typecheck passed with cache skipped.                                                                        |
+| `bun node_modules/.bin/openspec validate bound-registry-storage --strict --json`                        | One valid change with zero issues.                                                                                 |
+
+Each of 96 temporary source faults made exactly its selected production-path
+test fail under `bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts
+--test-name-pattern <anchored test name>` with exit 1. The runner restored the
+identical pre-proof-comment source after each fault and verified SHA-256
+`290ee8a7fab3f7ecd90c534dcc6a2c53bc0ea3739339982b4cc8d7db75deccf6`.
+
+| Faults injected independently                                                                                                                          | Tests that failed                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Ignore unknown fields at each enrollment object, admit the wrong schema or protocol, accept a numeric machine ID, expose the ArkType diagnostic        | The selected unknown-field, wrong-version and fixed-diagnostic tests                   |
+| Admit uppercase or short machine IDs or digests, empty or 257-code-point identities, or C1 controls                                                    | The selected machine ID, digest and registry or storage identity tests                 |
+| Allow relative, overlong, empty-segment, percent, dot or dot-dot paths, or detach a path check from the target, identity or pin                        | The selected path tests at the affected boundary                                       |
+| Allow three octets, a nonprivate address, octet 256, leading zeros, root, a malformed principal, or zero, oversized or fractional ports                | The selected address, principal and port tests                                         |
+| Relax the encoded key prefix, alphabet or length, omit a decoded length field or algorithm name, use ASCII decoding, or remove a host/client key check | The selected text algorithm, alphabet, short/extra wire, header and enrolled key tests |
+| Reuse an input object, omit any freeze, or change the pin alias, enrolled host key or trailing newline                                                 | The immutable copy, freeze and fixed pin-line tests                                    |
+| Delete any one of the 31 SSH options, remove a fixed argument group or substitute the executable, target or remote command                             | The exact restricted argv test each time                                               |
+
+These checks cover the pure enrollment and command boundary. Acquisition,
+native SSH qualification, the full project suite and build, and the
+exact-revision host gate remain pending for the wider change.
