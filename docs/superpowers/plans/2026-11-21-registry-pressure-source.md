@@ -227,7 +227,7 @@ export interface RegistryPressureSource {
   close(): Promise<void>;
 }
 export class RegistrySourceCleanupError extends Error {
-  readonly outcome: RegistryStatusReply | undefined;
+  readonly outcome: Exclude<RegistryStatusReply, { readonly state: 'received' }> | undefined;
 }
 export function openRegistryPressureSource(
   input: unknown,

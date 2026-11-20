@@ -1077,11 +1077,15 @@ cleanup, without exposing the caller's arbitrary reason. A cleanup fault takes
 the typed local-error path with any known primary outcome. Abort, overflow and acquisition timeout
 terminate and reap the owned local process group and settle/cancel both pipes.
 Unsettled cleanup or local IO at the original deadline throws a local error,
-retains the already known primary outcome on that error, latches the actor fault
+retains only an already known failure outcome on that error, latches the actor fault
 and prevents overlap. No later read is admitted after that fault. close may
 release the pin only after actual eventual settlement proves owned resources
 released; permanent or unresolved cleanup keeps close blocked. A received frame
-is never returned after its deadline.
+is never returned after its deadline. A complete-looking received candidate is
+suppressed on cleanup failure: if the original deadline expired during cleanup,
+the error carries source-timeout/deadline; an earlier local settlement failure
+has no primary failure outcome unless another modeled failure was already known.
+`RegistrySourceCleanupError.outcome` excludes the received variant.
 Stream retention bounds do not establish total RSS or physical allocation bounds;
 local exit does not prove remote work stopped. Server timeout/concurrency and
 supervisor resource qualification remain mandatory before installation.
