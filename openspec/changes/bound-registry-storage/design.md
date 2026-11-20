@@ -1046,7 +1046,8 @@ files, and is idempotent after a successful close.
 
 Before every spawn, require the expected pin and private key as bounded readable
 regular single-link files, without following a final symlink, with owner-only
-permissions and current-UID or root ownership as appropriate. Compare the pin
+permissions and current-UID or root ownership as appropriate. The identity admits
+mode0400 or0600; the pin requires0400 and current-UID ownership. Compare the pin
 bytes and private-key SHA-256. Use no-follow/nonblocking bounded reads; distinguish
 missing and unreadable local state as thrown local failures. These metadata and
 hash checks assume immutable credentials and an owner-only runtime directory for
@@ -1069,11 +1070,18 @@ Other modeled outcomes use `{state:'unavailable',reason,code}` with only:
 `source-command-failed/ssh-exit` for all other unsuccessful exchanges, including
 ambiguous SSH255, and `source-command-failed/stderr-too-large` for stderr overflow.
 Never infer network unreachability from SSH255 or include raw stderr in failures.
-External abort is controlled cancellation. Abort, overflow and acquisition timeout
+Run from cwd `/` with exactly `LANG=C` and `LC_ALL=C`; no ambient environment
+is inherited. External abort yields the fixed
+`DOMException('registry status read cancelled','AbortError')` after successful
+cleanup, without exposing the caller's arbitrary reason. A cleanup fault takes
+the typed local-error path with any known primary outcome. Abort, overflow and acquisition timeout
 terminate and reap the owned local process group and settle/cancel both pipes.
 Unsettled cleanup or local IO at the original deadline throws a local error,
 retains the already known primary outcome on that error, latches the actor fault
-and prevents overlap. A received frame is never returned after its deadline.
+and prevents overlap. No later read is admitted after that fault. close may
+release the pin only after actual eventual settlement proves owned resources
+released; permanent or unresolved cleanup keeps close blocked. A received frame
+is never returned after its deadline.
 Stream retention bounds do not establish total RSS or physical allocation bounds;
 local exit does not prove remote work stopped. Server timeout/concurrency and
 supervisor resource qualification remain mandatory before installation.
