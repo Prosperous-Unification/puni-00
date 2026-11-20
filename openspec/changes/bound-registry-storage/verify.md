@@ -10264,3 +10264,25 @@ identical pre-proof-comment source after each fault and verified SHA-256
 These checks cover the pure enrollment and command boundary. Acquisition,
 native SSH qualification, the full project suite and build, and the
 exact-revision host gate remain pending for the wider change.
+
+### Exact own enrollment fields — independent review correction
+
+ArkType's generated object traversal admitted own JSON names inherited from
+`Object.prototype`. The parser now compares each object's own keys with the
+literal field union derived from its schema. This proof supersedes the five
+earlier unknown-field receipts for ArkType's undeclared-key setting.
+
+The focused JSON regression exited 1 before the fix with 16 unexpected
+admissions, one for each combination of enrollment object and `__proto__`,
+`constructor`, `toString` or `hasOwnProperty`. The covering file then passed
+135 tests with 193 assertions.
+
+Seven temporary faults proved the revised boundary, with the valid JSON
+enrollment control passing every time. Removing the root, target, peer or
+identity guard independently failed six, five, five or five selected negatives.
+Allowing inherited names through the lookup failed all 16 JSON negatives.
+Enumerating only string keys failed the symbol negative, and exposing field
+names failed the fixed diagnostic assertion. The source matched SHA-256
+`7cd8bce7acf7b96cd7b7e2f04bc797a1a47e91fe51ee13f74b1c7ee9bcdfca00`
+before and after each temporary fault, before the adjacent proof comments
+were added.

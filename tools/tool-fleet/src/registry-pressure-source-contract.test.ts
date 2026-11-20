@@ -179,6 +179,25 @@ it.each([
   expect(() => parseRegistryStatusEnrollment(enrollment)).toThrow(invalidEnrollment);
 });
 
+it('admits an exact enrollment decoded from JSON', () => {
+  const decoded: unknown = JSON.parse(JSON.stringify(input));
+  expect(parseRegistryStatusEnrollment(decoded)).toEqual(input);
+});
+
+const sections = ['enrollment', 'target', 'peer', 'identity'] as const;
+const prototypeFields = ['__proto__', 'constructor', 'toString', 'hasOwnProperty'];
+it.each(sections.flatMap((section) => prototypeFields.map((field) => [section, field] as const)))(
+  'rejects an unknown own JSON field at %s named %s',
+  (section, field) => {
+    const tagged =
+      section === 'enrollment'
+        ? { ...input, [field]: {} }
+        : { ...input, [section]: { ...input[section], [field]: {} } };
+    const decoded: unknown = JSON.parse(JSON.stringify(tagged));
+    expect(() => parseRegistryStatusEnrollment(decoded)).toThrow(invalidEnrollment);
+  },
+);
+
 it.each([
   ['absent enrollment', undefined],
   ['array enrollment', []],

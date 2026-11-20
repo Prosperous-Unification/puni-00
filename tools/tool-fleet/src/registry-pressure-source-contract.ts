@@ -80,8 +80,6 @@ const Enrollment = type({
     // Proof: Accepting arbitrary strings broke the C1 storage identity and relative registry path tests.
     storageId: Identity,
     registryPath: Path,
-    // Proof: Ignoring unknown target keys broke the unknown target field test.
-    '+': 'reject',
   },
   peer: {
     address: Address,
@@ -91,8 +89,6 @@ const Enrollment = type({
     user: type(/^[a-z_][a-z0-9_-]{0,31}$/).narrow((user) => user !== 'root'),
     // Proof: Accepting a raw string broke the malformed host key test.
     hostKey: PublicKey,
-    // Proof: Ignoring unknown peer keys broke the unknown peer field test.
-    '+': 'reject',
   },
   identity: {
     // Proof: Accepting raw strings broke the relative identity path and malformed client key tests.
@@ -100,12 +96,22 @@ const Enrollment = type({
     // Proof: Admitting uppercase or shorter digests broke the malformed credential digest tests.
     sha256: /^[a-f0-9]{64}$/,
     publicKey: PublicKey,
-    // Proof: Ignoring unknown identity keys broke the unknown identity field test.
-    '+': 'reject',
   },
-  // Proof: Ignoring unknown top-level keys broke the unknown top-level and symbol field tests.
-  '+': 'reject',
 });
+
+const Keys = {
+  enrollment: Enrollment.keyof(),
+  target: Enrollment.get('target').keyof(),
+  peer: Enrollment.get('peer').keyof(),
+  identity: Enrollment.get('identity').keyof(),
+};
+
+/** Checks every own key against declared schema keys independently of inherited names. */
+function hasOnlyKeys(input: object, keys: { allows(key: PropertyKey): boolean }): boolean {
+  // Proof: Allowing inherited names broke all 16 JSON field tests. Enumerating only strings
+  // broke the unknown symbol enrollment field test.
+  return Reflect.ownKeys(input).every((key) => keys.allows(key));
+}
 
 /** Returns an immutable copy of an exact trusted JSON enrollment. Throws on malformed input. */
 export function parseRegistryStatusEnrollment(input: unknown): RegistryStatusEnrollment {
@@ -114,6 +120,16 @@ export function parseRegistryStatusEnrollment(input: unknown): RegistryStatusEnr
   if (admitted instanceof type.errors) throw new Error('invalid registry status enrollment');
 
   const { schemaVersion, protocol, target, peer, identity } = admitted;
+  // Proof: Omitting any one guard broke its JSON and ordinary unknown-field tests.
+  if (
+    !hasOnlyKeys(admitted, Keys.enrollment) ||
+    !hasOnlyKeys(target, Keys.target) ||
+    !hasOnlyKeys(peer, Keys.peer) ||
+    !hasOnlyKeys(identity, Keys.identity)
+  ) {
+    // Proof: Including field names in the diagnostic broke the enrollment __proto__ test.
+    throw new Error('invalid registry status enrollment');
+  }
   // Proof: Reusing any nested input or omitting any freeze broke the copy or freeze test.
   return Object.freeze({
     schemaVersion,
