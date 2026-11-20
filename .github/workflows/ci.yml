@@ -434,8 +434,64 @@ jobs:
           # The workspace job is 120m; preserve the same 15m reserve as dedicated 90m/75m jobs.
           # Run 42437062542 completed 74m21s of commands, then 75m killed source lint unfinished.
           # This bounded 105m allowance needs fresh hosted proof; it changes no operation limit.
+          # R5-32 (A-CI-WORKSPACE-MEMORY-1): from 2026-11-18 to 2026-11-20 this 16 GB runner was
+          # lost eight times ("The hosted runner lost communication with the server") with no step
+          # conclusion and no log. Nothing yet localises the death, so this step leaves evidence
+          # in nx-gate.log for the next run that survives long enough to upload it.
+          # - Start record (strict): image, OS, Node heap limit, `free -m`, `df -h /`. It runs before
+          #   any gate work, so a missing tool fails in seconds instead of hiding behind 70 minutes.
+          # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
+          #   MemAvailable, node/bun process counts and the largest-RSS process. Its failure writes
+          #   `unavailable` and never changes the gate status; it is stopped before the end record.
+          # - End record (best-effort): `free -m`, `df -h /` and leaked children; its failure writes
+          #   `runtime headroom end unavailable` and must not turn a passing gate red.
+          # Every record runs with NO_COLOR=1 and prints the heap limit without util.inspect: on
+          # ab1607590 the runner's colour-capable environment made `node -p` wrap it in ANSI escapes.
+          # A lost runner uploads no log, so none of this explains a loss by itself.
+          # Proof (2026-11-20, pr-merge-base.test.ts headroom tests): removing the start record, the
+          # first sample, the heap limit or the sampler stop failed `records headroom start,
+          # samples and end`; a strict end record, a hard sample failure or `|| :` on the start
+          # record failed `telemetry failures leave the gate status unchanged`. Under FORCE_COLOR=1,
+          # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
+          headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+          record_headroom_start() {
+            printf 'runtime headroom start partition=workspace utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s\n' \
+              "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
+              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')"
+            free -m
+            df -h /
+          }
+          sample_headroom() {
+            local available processes
+            if available="$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)" &&
+              processes="$(ps -eo rss=,comm=)"; then
+              printf 'runtime headroom sample utc=%s memAvailableKiB=%s %s\n' "$(headroom_utc)" "$available" \
+                "$(awk '$2 == "node" { n++ } $2 == "bun" { b++ } $1 > top { top = $1; name = $2 }
+                  END { printf "node=%d bun=%d topRssKiB=%d top=%s", n, b, top, name }' <<< "$processes")"
+            else
+              printf 'runtime headroom sample unavailable utc=%s\n' "$(headroom_utc)"
+            fi
+          }
+          record_headroom_end() {
+            printf 'runtime headroom end partition=workspace utc=%s\n' "$(headroom_utc)" &&
+              free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5'
+          }
           phase_started=$SECONDS
-          printf 'runtime phase start partition=workspace head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          printf 'runtime phase start partition=workspace head=%s utc=%s\n' "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
+          NO_COLOR=1 record_headroom_start >> nx-gate.log
+          NO_COLOR=1 sample_headroom >> nx-gate.log
+          (
+            nap=
+            trap '[ -z "$nap" ] || kill "$nap" 2> /dev/null; exit 0' TERM
+            while :; do
+              sleep 30 &
+              nap=$!
+              wait "$nap"
+              NO_COLOR=1 sample_headroom
+            done
+          ) >> nx-gate.log 2>&1 &
+          sampler_pid=$!
+          printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
           timeout --signal=TERM --kill-after=30s 105m \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
@@ -446,6 +502,12 @@ jobs:
           # status/timing oracle fail with a missing completion marker.
           printf 'runtime phase end partition=workspace utc=%s elapsedSeconds=%s exit=%s\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          sampler_status=0
+          kill "$sampler_pid" || sampler_status=$?
+          wait "$sampler_pid" || sampler_status=$?
+          printf 'runtime headroom sampler stopped status=%s\n' "$sampler_status" >> nx-gate.log
+          NO_COLOR=1 record_headroom_end >> nx-gate.log 2>&1 ||
+            printf 'runtime headroom end unavailable utc=%s\n' "$(headroom_utc)" >> nx-gate.log
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
           if [ "$gate_status" -ne 0 ]; then

@@ -160,3 +160,41 @@ with zero failures. Original stdout, stderr, native exits and before/after sourc
 hashes are retained in local capture receipts under
 `.superpowers/sdd/runtime-write-delivery-20261101/ci-allowance-task1-attempt17-*`;
 the implementation report indexes the exact receipts.
+
+## Workspace lint at parallelism one, 2026-11-20
+
+Workspace lint now runs at `--parallel=1`
+([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log),
+A-CI-WORKSPACE-MEMORY-1). In full mode it is now a separate `run-many -t lint` after
+`test typecheck build`, which keep parallelism two. In affected mode lint already ran as its
+own phase after the tests, so only its parallelism changes. The other shards are unchanged.
+This is a cheap narrowing lever: the timings do not place the runner losses in lint.
+
+These are the measurements the estimate starts from:
+
+| Run                                                       | Phase                               | Time     | Task time summed |
+| --------------------------------------------------------- | ----------------------------------- | -------- | ---------------- |
+| Full, main `d40d0aee8`, run 44496836205, job 135466352451 | one `run-many`, 185 tasks           | 71m21s   | 137.5 min        |
+| same                                                      | its 49 lint tasks                   | (inside) | 12.2 min         |
+| Affected, PR #955 run 44684301175 attempt 2               | `test typecheck build`, 50 projects | 68m24s   | not summed       |
+| same                                                      | `affected -t lint`, 12 projects     | 7m04s    | 11.6 min         |
+
+The full run's critical path was 40m56s (`tool-fleet:test`). The affected lint summary said
+"Increase parallelism to recover up to 3m 56s". Its largest tasks were `wbs-fe-01:lint` (3m06s)
+and `wbs-be-01:lint` (2m04s). That pull request's whole gate step took 76m12s.
+
+These are estimates, not measurements. In full mode the remaining 125.3 minutes of non-lint
+task time take at least 62.7 minutes at two, and likely close to the 71 minutes measured. Lint
+then adds about 12 to 13 minutes. That gives 75 to 84 minutes against the 105-minute phase,
+which is up to 13 minutes more than before. In affected mode lint takes about 11.6 minutes
+instead of 7, so a full-scope pull request would take about 81 minutes instead of 76.
+
+`--parallel=1` for every phase was rejected. The full run's 137.5 minutes of task time already
+exceed the 105-minute phase. Even if serial tasks ran a quarter faster without contention, the
+run would leave almost no reserve. The next five hosted workspace runs should confirm or
+correct these figures.
+
+The workspace gate step now records its runner in `nx-gate.log`. The first record, from the
+#957 workspace job at `ab1607590`, was `ubuntu-24.04` image 20261116.376.1 on Ubuntu 24.04.5 LTS
+with a Node `heap_size_limit` of 4345298944 bytes (about 4144 MiB). Per-run image versions now
+let a duration change be matched against an image roll.
