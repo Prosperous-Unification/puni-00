@@ -401,11 +401,8 @@ jobs:
       - name: Install solver dependencies
         run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
 
-      # Fleet's default source suite compiles owned pthread fixtures and uses local user namespaces.
-      # Proof: deleting package installation, profile rendering/loading or namespace probing failed actual-step toolchain-pins tests.
-      - name: Provision registry source fixtures
-        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'tool-fleet') }}
-        run: bash bin/registry-source-test-prerequisites.sh
+      # No registry source fixtures here: tool-fleet's tests, the only consumer, run in
+      # gate_heavy since A-CI-WORKSPACE-MEMORY-2; this shard lints tool-fleet only, which needs none.
 
       # The shared runner records the validated project roster, commands and elapsed time.
       # A failed or timed-out Nx phase remains failed after annotation and log upload.
@@ -420,8 +417,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GATE_MODE" = affected ]; then
-            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
-            # the workspace production-step negative failed (31 pass / 1 fail).
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx; the
+            # pr-merge-base.test.ts production-step negative failed (31 pass / 1 fail, 2026-09).
             base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
             # Proof: removing this comparison accepted a stale cross-job base
             # in the production workflow test (29 pass / 1 fail).
@@ -435,13 +432,13 @@ jobs:
             printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
             exit 1
           fi
-          # The workspace job is 120m; preserve the same 15m reserve as dedicated 90m/75m jobs.
-          # Run 42437062542 completed 74m21s of commands, then 75m killed source lint unfinished.
+          # Both whole-runtime jobs are 120m; keep the same 15m reserve as dedicated 90m/75m jobs.
+          # Workspace run 42437062542 completed 74m21s of commands, then 75m killed source lint.
           # This bounded 105m allowance needs fresh hosted proof; it changes no operation limit.
-          # R5-32 (A-CI-WORKSPACE-MEMORY-1): from 2026-11-18 to 2026-11-20 this 16 GB runner was
-          # lost eight times ("The hosted runner lost communication with the server") with no step
-          # conclusion and no log. Nothing yet localises the death, so this step leaves evidence
-          # in nx-gate.log for the next run that survives long enough to upload it.
+          # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
+          # ("The hosted runner lost communication with the server") with no step conclusion and
+          # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
+          # leaves evidence in nx-gate.log for the next run that survives long enough to upload it.
           # - Start record (strict): image, OS, Node heap limit, `free -m`, `df -h /`. It runs before
           #   any gate work, so a missing tool fails in seconds instead of hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
@@ -502,7 +499,7 @@ jobs:
             >> nx-gate.log 2>&1
           gate_status=$?
           set -e
-          # Proof: renaming this end record made the workspace production-shell
+          # Proof: renaming this end record made the production-shell
           # status/timing oracle fail with a missing completion marker.
           printf 'runtime phase end partition=workspace utc=%s elapsedSeconds=%s exit=%s\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
@@ -619,8 +616,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GATE_MODE" = affected ]; then
-            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
-            # the workspace production-step negative failed (31 pass / 1 fail).
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx; the
+            # pr-merge-base.test.ts production-step negative failed (31 pass / 1 fail, 2026-09).
             base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
             # Proof: removing this comparison accepted a stale cross-job base
             # in the production workflow test (29 pass / 1 fail).
@@ -634,13 +631,13 @@ jobs:
             printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
             exit 1
           fi
-          # The workspace job is 120m; preserve the same 15m reserve as dedicated 90m/75m jobs.
-          # Run 42437062542 completed 74m21s of commands, then 75m killed source lint unfinished.
+          # Both whole-runtime jobs are 120m; keep the same 15m reserve as dedicated 90m/75m jobs.
+          # Workspace run 42437062542 completed 74m21s of commands, then 75m killed source lint.
           # This bounded 105m allowance needs fresh hosted proof; it changes no operation limit.
-          # R5-32 (A-CI-WORKSPACE-MEMORY-1): from 2026-11-18 to 2026-11-20 this 16 GB runner was
-          # lost eight times ("The hosted runner lost communication with the server") with no step
-          # conclusion and no log. Nothing yet localises the death, so this step leaves evidence
-          # in nx-gate.log for the next run that survives long enough to upload it.
+          # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
+          # ("The hosted runner lost communication with the server") with no step conclusion and
+          # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
+          # leaves evidence in nx-gate.log for the next run that survives long enough to upload it.
           # - Start record (strict): image, OS, Node heap limit, `free -m`, `df -h /`. It runs before
           #   any gate work, so a missing tool fails in seconds instead of hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
@@ -701,7 +698,7 @@ jobs:
             >> nx-gate.log 2>&1
           gate_status=$?
           set -e
-          # Proof: renaming this end record made the workspace production-shell
+          # Proof: renaming this end record made the production-shell
           # status/timing oracle fail with a missing completion marker.
           printf 'runtime phase end partition=heavy utc=%s elapsedSeconds=%s exit=%s\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log

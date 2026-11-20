@@ -288,10 +288,18 @@ tasks out of the shard (`tool-fleet:test` 41 minutes, `tool-devsync:test` 22, `w
 
 Main `1730d911f` (run 44703647201) then lost its full-mode workspace runner in all three
 attempts, each with the same annotation: job 136177983041 (08:35 to 09:52Z), job 136408071558
-(16:12 to 17:29Z) and job 136456452906 (17:35 to 18:52Z).
-That makes at least ten identified losses, and full mode on that commit failed every time. This met the
-rollback criterion above before the lint change could be judged. The next lever therefore
-ships now, as assumption A-CI-WORKSPACE-MEMORY-2.
+(16:12 to 17:29Z) and job 136456452906 (17:35 to 18:52Z). Full mode on that commit failed every
+time. This met the rollback criterion above before the lint change could be judged.
+
+Thirteen losses are identified so far. `gh run list` hides lost first attempts of reruns that
+later passed, so the count is a floor:
+
+- **Eight in full mode on main:** 134530902111, 134597863162, 134855261065, 135387150530,
+  135837476331, 136177983041, 136408071558 and 136456452906.
+- **Five in affected mode on pull requests:** 134885299476 (run 44328159268, 2026-11-18, missing
+  from the table above), 135532626496, 136115143031, and #956's 136422257017 and 136464251678.
+  The next lever therefore
+  ships now, as assumption A-CI-WORKSPACE-MEMORY-2.
 
 A new shard, `gate workspace-heavy` (job `gate_heavy`, partition `heavy` in
 `ci-run-runtime.ts`), owns `tool-fleet`, `tool-devsync` and `wbs-store-sqlite` whole. It runs
@@ -306,12 +314,12 @@ These are estimates from the passing full-mode run 44496836205 (task times measu
 parallelism two):
 
 - **Heavy shard.** `tool-fleet:test` 40.9 min, `tool-devsync:test` 22.0 min and
-  `wbs-store-sqlite:test` 18.5 min sum to 81.4 min. Their lint adds 2.8 min, plus typecheck,
-  build and dependency builds. That is about 85 minutes at parallelism one, under the
-  105-minute phase.
-- **Workspace shard.** About 137.5 − 81.4 = 56 minutes of task time remain. The non-lint part
-  (about 44 minutes) takes about 22 to 26 minutes at parallelism two. Lint at one adds about
-  9 minutes, for about 30 to 35 minutes in all.
+  `wbs-store-sqlite:test` 18.5 min sum to 81.4 min. Their lint adds 2.8 min and their
+  typecheck 0.7 min, for 85.0 min of task time plus dependency builds. That is about 85
+  minutes at parallelism one, under the 105-minute phase.
+- **Workspace shard.** 137.5 − 85.0 = 52.5, so about 52 minutes of task time remain. The
+  non-lint part (about 43 minutes) takes about 22 to 26 minutes at parallelism two. Lint at one
+  adds about 9 minutes, for about 30 to 35 minutes in all.
 
 This lever assumes the loss is memory in the `bun test` tail: from minute 55 the lost runner
 was running only these suites.

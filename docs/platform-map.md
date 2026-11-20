@@ -188,9 +188,11 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
   `h2puni gate: running on <sha>`. Exit codes 64–78 and 127 each name a refusal.
 - **CI** (`.github/workflows/ci.yml`): PRs run `nx affected` or document checks from the
   validated synthetic merge parent; push, merge_group and dispatch run the full gate; an unmapped
-  event is refused. Jobs: `gate_workspace` (ubuntu-24.04, 120 min cap; plus secrets scan,
-  migration lint, doc caps), `gate_docs`, `gate_twilight`, the `gate` reducer, `pixels` shards
-  1–4. `infra-check.yml` on infra paths; `twilight-burokrat-release.yml` on
+  event is refused. Jobs: `gate_workspace` (ubuntu-24.04, 120 min cap), `gate_heavy` (gate
+  workspace-heavy: tool-fleet, tool-devsync and wbs-store-sqlite at parallel 1, 120 min cap),
+  `gate_backend`, `gate_remote`, `gate_remote_model` and `gate_frontend` (90 min caps),
+  `gate_checks` (secrets scan, migration lint, doc caps), `gate_docs`, `gate_twilight`, the
+  `gate` reducer, `pixels` shards 1–4. `infra-check.yml` on infra paths; `twilight-burokrat-release.yml` on
   `twilight-burokrat-v*` tags; `trusted-wiki.yml` paused.
 - **Merge:** merge commits to `main`. Ruleset 25730010 (since 2026-10-23) requires a pull request
   and the `gate` and `pixels` checks, administrators included

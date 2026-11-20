@@ -206,10 +206,10 @@ let a duration change be matched against an image roll.
 owns `tool-fleet`, `tool-devsync` and `wbs-store-sqlite` and runs them at `--parallel=1`. These
 are estimates from the full-mode run 44496836205 above, not measurements:
 
-| Shard     | Task time moved or kept                                | Estimated wall time | Phase   |
-| --------- | ------------------------------------------------------ | ------------------- | ------- |
-| heavy     | tests 81.4 min, lint 2.8 min, typecheck/build and deps | about 85 min        | 105 min |
-| workspace | about 44 min non-lint at two, about 9 min lint at one  | about 30 to 35 min  | 105 min |
+| Shard     | Task time moved or kept                               | Estimated wall time | Phase   |
+| --------- | ----------------------------------------------------- | ------------------- | ------- |
+| heavy     | tests 81.4 min, lint 2.8 min, typecheck 0.7 min, deps | about 85 min        | 105 min |
+| workspace | about 43 min non-lint at two, about 9 min lint at one | about 30 to 35 min  | 105 min |
 
 The heavy shard's 41-minute `tool-fleet:test` is now its single largest task. Both shards
 start together, so the slowest required shard sets the gate's wall time. That is the heavy

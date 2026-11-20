@@ -504,9 +504,9 @@ describe('the CI gate scope', () => {
   const registrySourceJobs = [
     [
       '.github/workflows/ci.yml',
-      'gate_workspace',
+      'gate_heavy',
       "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'tool-fleet') }}",
-      'Gate — test, lint, typecheck, build',
+      'Heavy — test, lint, typecheck, build',
     ],
     [
       '.github/workflows/infra-check.yml',
@@ -569,7 +569,14 @@ describe('the CI gate scope', () => {
       expect(commandsOf(await read('bin/registry-source-test-prerequisites.sh'))).not.toMatch(
         /sysctl|sudo unshare|continue-on-error|\|\| true/,
       );
-      for (const unrelated of ['gate_mode', 'gate_docs', 'gate_twilight'] as const)
+      // Proof: keeping the step in gate_workspace after tool-fleet's tests moved to gate_heavy
+      // failed here (A-CI-WORKSPACE-MEMORY-2, 2026-11-20).
+      for (const unrelated of [
+        'gate_mode',
+        'gate_docs',
+        'gate_twilight',
+        'gate_workspace',
+      ] as const)
         expect(
           workflow.jobs?.[unrelated]?.steps?.some(
             (candidate) => candidate.name === 'Provision registry source fixtures',
