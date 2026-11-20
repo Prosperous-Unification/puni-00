@@ -1001,7 +1001,10 @@ have different authority, protocols and bounds. No default caller changes here.
 
 The exact enrollment has schemaVersion1, protocol `registry-pressure-status/1`,
 `target:{machineId,registryId,storageId,registryPath}`, `peer:{address,port,user,hostKey}`
-and `identity:{path,sha256,publicKey}`. Every object rejects unknown fields.
+and `identity:{path,sha256,publicKey}`. Enrollment is trusted JSON configuration;
+every object rejects unknown JSON fields. Parsing explicitly copies only admitted
+fields. Hostile in-process JavaScript descriptors/prototypes are outside this
+configuration boundary.
 Machine ID is32 lower-case hex digits; SHA-256 is64 lower-case hex digits.
 Registry/storage identities contain1..256 Unicode code points and no control
 characters. Paths are canonical absolute ASCII paths of at most256 bytes, with
