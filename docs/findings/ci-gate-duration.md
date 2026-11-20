@@ -198,3 +198,19 @@ The workspace gate step now records its runner in `nx-gate.log`. The first recor
 #957 workspace job at `ab1607590`, was `ubuntu-24.04` image 20261116.376.1 on Ubuntu 24.04.5 LTS
 with a Node `heap_size_limit` of 4345298944 bytes (about 4144 MiB). Per-run image versions now
 let a duration change be matched against an image roll.
+
+## Heavy bun test shard, 2026-11-20
+
+`gate workspace-heavy` (A-CI-WORKSPACE-MEMORY-2,
+[R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log))
+owns `tool-fleet`, `tool-devsync` and `wbs-store-sqlite` and runs them at `--parallel=1`. These
+are estimates from the full-mode run 44496836205 above, not measurements:
+
+| Shard     | Task time moved or kept                                | Estimated wall time | Phase   |
+| --------- | ------------------------------------------------------ | ------------------- | ------- |
+| heavy     | tests 81.4 min, lint 2.8 min, typecheck/build and deps | about 85 min        | 105 min |
+| workspace | about 44 min non-lint at two, about 9 min lint at one  | about 30 to 35 min  | 105 min |
+
+The heavy shard's 41-minute `tool-fleet:test` is now its single largest task. Both shards
+start together, so the slowest required shard sets the gate's wall time. That is the heavy
+shard or Twilight, not the workspace shard.

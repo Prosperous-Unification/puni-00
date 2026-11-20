@@ -227,6 +227,7 @@ interface CiWorkflow {
     gate_remote?: CiJob;
     gate_remote_model?: CiJob;
     gate_frontend?: CiJob;
+    gate_heavy?: CiJob;
     gate_checks?: CiJob;
     gate_twilight?: CiJob;
     'fleet-check'?: CiJob;
@@ -642,6 +643,7 @@ describe('the CI gate scope', () => {
       'gate_remote',
       'gate_remote_model',
       'gate_frontend',
+      'gate_heavy',
       'gate_checks',
       'gate_twilight',
     ] as const) {

@@ -284,6 +284,42 @@ loss that recurs with this change refutes the lint hypothesis for that mode. The
 then the test phase: run it at parallelism one on a larger runner, or move the long `bun test`
 tasks out of the shard (`tool-fleet:test` 41 minutes, `tool-devsync:test` 22, `wbs-store-sqlite:test` 18).
 
+### Amendment, 2026-11-20: the heavy bun tests get their own shard
+
+Main `1730d911f` (run 44703647201) then lost its full-mode workspace runner in all three
+attempts, each with the same annotation: job 136177983041 (08:35 to 09:52Z), job 136408071558
+(16:12 to 17:29Z) and job 136456452906 (17:35 to 18:52Z).
+That makes at least ten identified losses, and full mode on that commit failed every time. This met the
+rollback criterion above before the lint change could be judged. The next lever therefore
+ships now, as assumption A-CI-WORKSPACE-MEMORY-2.
+
+A new shard, `gate workspace-heavy` (job `gate_heavy`, partition `heavy` in
+`ci-run-runtime.ts`), owns `tool-fleet`, `tool-devsync` and `wbs-store-sqlite` whole. It runs
+their targets at `--parallel=1` on its own 16 GB runner, with the same setup, 105-minute phase,
+120-minute job and headroom sampler as the workspace shard. In affected mode it runs only when
+`Gate mode` reports `heavy=run`. The workspace shard no longer runs those projects' test,
+typecheck or build, but its independent `nx affected -t lint` still lints them.
+`Require every gate shard` requires the new job, in the same way as the backend and frontend
+shards.
+
+These are estimates from the passing full-mode run 44496836205 (task times measured at
+parallelism two):
+
+- **Heavy shard.** `tool-fleet:test` 40.9 min, `tool-devsync:test` 22.0 min and
+  `wbs-store-sqlite:test` 18.5 min sum to 81.4 min. Their lint adds 2.8 min, plus typecheck,
+  build and dependency builds. That is about 85 minutes at parallelism one, under the
+  105-minute phase.
+- **Workspace shard.** About 137.5 − 81.4 = 56 minutes of task time remain. The non-lint part
+  (about 44 minutes) takes about 22 to 26 minutes at parallelism two. Lint at one adds about
+  9 minutes, for about 30 to 35 minutes in all.
+
+This lever assumes the loss is memory in the `bun test` tail: from minute 55 the lost runner
+was running only these suites.
+
+The proof plan is the next five full-mode main runs going green with both shards, with sample
+lines in both logs. If the heavy shard is lost too, the next lever is a larger runner, because
+these suites cannot be split further without changing their projects.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved

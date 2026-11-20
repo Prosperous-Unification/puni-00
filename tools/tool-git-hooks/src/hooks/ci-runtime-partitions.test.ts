@@ -1,14 +1,24 @@
 import { expect, test } from 'bun:test';
 
-import { partitionRuntimeProjects } from './ci-runtime-partitions';
+import { HEAVY_TEST_PROJECTS, partitionRuntimeProjects } from './ci-runtime-partitions';
 
-test('partitions all three heavy projects and every new residual project exactly once', () => {
-  const selected = ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', 'core', 'new-runtime'];
+test('partitions every dedicated project and every new residual project exactly once', () => {
+  const selected = [
+    'wbs-be-01',
+    'tool-remote-scripts',
+    'wbs-fe-01',
+    'tool-fleet',
+    'tool-devsync',
+    'wbs-store-sqlite',
+    'core',
+    'new-runtime',
+  ];
   const partitions = partitionRuntimeProjects(selected);
   expect(partitions).toEqual({
     backend: ['wbs-be-01'],
     remote: ['tool-remote-scripts'],
     frontend: ['wbs-fe-01'],
+    heavy: ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite'],
     workspace: ['core', 'new-runtime'],
   });
   expect(Object.values(partitions).flat().sort()).toEqual([...selected].sort());
@@ -21,7 +31,7 @@ test('partitions all three heavy projects and every new residual project exactly
 });
 
 test('empty residual and individual selections retain explicit ownership', () => {
-  for (const project of ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01']) {
+  for (const project of ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', ...HEAVY_TEST_PROJECTS]) {
     const partitions = partitionRuntimeProjects([project]);
     expect(partitions.workspace).toEqual([]);
     expect(Object.values(partitions).flat()).toEqual([project]);
@@ -30,10 +40,21 @@ test('empty residual and individual selections retain explicit ownership', () =>
     backend: [],
     remote: [],
     frontend: [],
+    heavy: [],
     workspace: [],
   });
 });
 
+// A-CI-WORKSPACE-MEMORY-2: the three longest `bun test` suites leave the workspace shard.
+test('the heavy shard owns exactly the three long bun test projects', () => {
+  expect([...HEAVY_TEST_PROJECTS].sort()).toEqual([
+    'tool-devsync',
+    'tool-fleet',
+    'wbs-store-sqlite',
+  ]);
+});
+
 test('duplicate direct ownership refuses', () => {
   expect(() => partitionRuntimeProjects(['wbs-be-01', 'wbs-be-01'])).toThrow(/distinct/);
+  expect(() => partitionRuntimeProjects(['tool-fleet', 'tool-fleet'])).toThrow(/distinct/);
 });

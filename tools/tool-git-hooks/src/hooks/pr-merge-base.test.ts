@@ -180,6 +180,7 @@ const runtimeSteps = [
   ['gate_remote', 'Remote — test, lint, typecheck, build'],
   ['gate_remote_model', 'Remote isolated leaf — test'],
   ['gate_frontend', 'Frontend — test, lint, typecheck, build'],
+  ['gate_heavy', 'Heavy — test, lint, typecheck, build'],
 ] as const;
 function runtimePartition(job: string): string {
   if (job === 'gate_remote') return 'remote-rest';
@@ -219,7 +220,7 @@ case "$*" in
   *ci-gate-annotations.ts*) exit "\${ANNOTATION_STATUS:-0}" ;;
   *ci-plan.ts*)
     printf '%s\\n' "$*" >> "$NX_CALLS"
-    printf '{"schemaVersion":1,"base":"%s","head":"%s","mode":"affected","twilight":"skip","projects":["wbs-fe-01"],"workspaceProjects":["wbs-fe-01"],"partitions":{"backend":[],"remote":[],"frontend":["wbs-fe-01"],"workspace":[]},"twilightProjects":[],"reasons":["test boundary"]}\\n' "$3" "$4"
+    printf '{"schemaVersion":1,"base":"%s","head":"%s","mode":"affected","twilight":"skip","projects":["wbs-fe-01"],"workspaceProjects":["wbs-fe-01"],"partitions":{"backend":[],"remote":[],"frontend":["wbs-fe-01"],"heavy":[],"workspace":[]},"twilightProjects":[],"reasons":["test boundary"]}\\n' "$3" "$4"
     exit 0 ;;
   *ci-run-runtime.ts*) printf '%s\\n' "$*" >> "$NX_CALLS"; exit "\${RUNTIME_STATUS:-0}" ;;
 esac
@@ -385,7 +386,21 @@ describe('production workflow PR consumers', () => {
 // R5-32 (A-CI-WORKSPACE-MEMORY-1): a surviving workspace job ships its image, heap limit,
 // memory samples and end headroom. A lost runner uploads no log at all, so this trail can only
 // localise a death in a run whose log survives.
-const workspaceGate = (): string => step('gate_workspace', 'Gate — test, lint, typecheck, build');
+const headroomShards = [
+  ['gate_workspace', 'Gate — test, lint, typecheck, build', 'workspace'],
+  ['gate_heavy', 'Heavy — test, lint, typecheck, build', 'heavy'],
+] as const;
+
+// A-CI-WORKSPACE-MEMORY-2: the heavy shard reuses the workspace step text with only the
+// partition renamed, so the headroom sampler and status handling cannot drift apart.
+test('the heavy gate step is the workspace step with only its partition renamed', () => {
+  const workspace = step('gate_workspace', 'Gate — test, lint, typecheck, build');
+  expect(step('gate_heavy', 'Heavy — test, lint, typecheck, build')).toBe(
+    workspace
+      .replaceAll('partition=workspace', 'partition=heavy')
+      .replace('ci-run-runtime.ts workspace ', 'ci-run-runtime.ts heavy '),
+  );
+});
 
 function headroomLog(text: string) {
   const lines = text.split('\n');
@@ -403,94 +418,100 @@ function isRunning(pid: number): boolean {
   }
 }
 
-test('workspace gate step records headroom start, samples and end around its Nx phase', async () => {
-  for (const status of ['0', '7']) {
-    const h = history();
-    const execution = runStep(h, workspaceGate(), {
-      GATE_MODE: 'affected',
-      GATE_BASE: h.base,
-      RUNTIME_STATUS: status,
-      ImageOS: 'ubuntu24',
-      ImageVersion: '20261116.376.1',
-      // Hosted runners export a colour-capable environment; `node -p` then wrapped the heap
-      // limit in ANSI escapes (job on ab1607590). The record must stay plain text.
-      FORCE_COLOR: '1',
-    });
-    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
-      Number(status),
-    );
-    const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
-    expect(log.includes('\u001b'), status).toBe(false);
-    const { lines, at } = headroomLog(log);
-    const start = at('runtime headroom start partition=workspace utc=');
-    const phaseEnd = at('runtime phase end partition=workspace');
-    const end = at('runtime headroom end partition=workspace utc=');
-    expect(at('runtime phase start partition=workspace'), status).toBe(0);
-    expect(start, status).toBe(1);
-    expect(lines[start], status).toMatch(
-      / imageOS=ubuntu24 imageVersion=20261116\.376\.1 os=.+ heapSizeLimit=[1-9][0-9]*$/,
-    );
-    expect(
-      lines.filter((line) =>
-        /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+$/.test(
-          line,
-        ),
-      ).length,
-      status,
-    ).toBeGreaterThanOrEqual(1);
-    const sampler = /^runtime headroom sampler pid=([0-9]+)$/.exec(
-      lines[at('runtime headroom sampler pid=')] ?? '',
-    );
-    expect(sampler, status).not.toBeNull();
-    expect(isRunning(Number(sampler?.[1])), status).toBe(false);
-    expect(lines, status).toContain('runtime headroom sampler stopped status=0');
-    expect(phaseEnd, status).toBeGreaterThan(start);
-    expect(end, status).toBeGreaterThan(phaseEnd);
-    for (const section of [lines.slice(start, phaseEnd), lines.slice(end)]) {
+test.each(headroomShards)(
+  '%s step records headroom start, samples and end around its Nx phase',
+  async (job, name, partition) => {
+    for (const status of ['0', '7']) {
+      const h = history();
+      const execution = runStep(h, step(job, name), {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_STATUS: status,
+        ImageOS: 'ubuntu24',
+        ImageVersion: '20261116.376.1',
+        // Hosted runners export a colour-capable environment; `node -p` then wrapped the heap
+        // limit in ANSI escapes (job on ab1607590). The record must stay plain text.
+        FORCE_COLOR: '1',
+      });
+      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+        Number(status),
+      );
+      const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
+      expect(log.includes('\u001b'), status).toBe(false);
+      const { lines, at } = headroomLog(log);
+      const start = at(`runtime headroom start partition=${partition} utc=`);
+      const phaseEnd = at(`runtime phase end partition=${partition}`);
+      const end = at(`runtime headroom end partition=${partition} utc=`);
+      expect(at(`runtime phase start partition=${partition}`), status).toBe(0);
+      expect(start, status).toBe(1);
+      expect(lines[start], status).toMatch(
+        / imageOS=ubuntu24 imageVersion=20261116\.376\.1 os=.+ heapSizeLimit=[1-9][0-9]*$/,
+      );
       expect(
-        section.filter((line) => line.startsWith('Mem:')),
+        lines.filter((line) =>
+          /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+$/.test(
+            line,
+          ),
+        ).length,
         status,
-      ).toHaveLength(1);
-      expect(
-        section.filter((line) => line.startsWith('Filesystem')),
-        status,
-      ).toHaveLength(1);
+      ).toBeGreaterThanOrEqual(1);
+      const sampler = /^runtime headroom sampler pid=([0-9]+)$/.exec(
+        lines[at('runtime headroom sampler pid=')] ?? '',
+      );
+      expect(sampler, status).not.toBeNull();
+      expect(isRunning(Number(sampler?.[1])), status).toBe(false);
+      expect(lines, status).toContain('runtime headroom sampler stopped status=0');
+      expect(phaseEnd, status).toBeGreaterThan(start);
+      expect(end, status).toBeGreaterThan(phaseEnd);
+      for (const section of [lines.slice(start, phaseEnd), lines.slice(end)]) {
+        expect(
+          section.filter((line) => line.startsWith('Mem:')),
+          status,
+        ).toHaveLength(1);
+        expect(
+          section.filter((line) => line.startsWith('Filesystem')),
+          status,
+        ).toHaveLength(1);
+      }
     }
-  }
-});
+  },
+);
 
-test('workspace headroom telemetry failures leave the gate status unchanged', async () => {
-  for (const status of ['0', '7']) {
+test.each(headroomShards)(
+  '%s headroom telemetry failures leave the gate status unchanged',
+  async (job, name, partition) => {
+    for (const status of ['0', '7']) {
+      const h = history();
+      mkdirSync(join(h.root, 'bin'), { recursive: true });
+      writeFileSync(join(h.root, 'bin', 'ps'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+      const execution = runStep(h, step(job, name), {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_STATUS: status,
+      });
+      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+        Number(status),
+      );
+      const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+      expect(
+        lines.some((line) => line.startsWith('runtime headroom sample unavailable utc=')),
+      ).toBe(true);
+      expect(lines.some((line) => line.startsWith('runtime headroom end unavailable utc='))).toBe(
+        true,
+      );
+      expect(
+        lines.some((line) => line.startsWith(`runtime phase end partition=${partition}`)),
+      ).toBe(true);
+    }
+    // The start record is strict: a missing tool fails before any gate work.
     const h = history();
     mkdirSync(join(h.root, 'bin'), { recursive: true });
-    writeFileSync(join(h.root, 'bin', 'ps'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
-    const execution = runStep(h, workspaceGate(), {
-      GATE_MODE: 'affected',
-      GATE_BASE: h.base,
-      RUNTIME_STATUS: status,
-    });
-    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
-      Number(status),
-    );
-    const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
-    expect(lines.some((line) => line.startsWith('runtime headroom sample unavailable utc='))).toBe(
-      true,
-    );
-    expect(lines.some((line) => line.startsWith('runtime headroom end unavailable utc='))).toBe(
-      true,
-    );
-    expect(lines.some((line) => line.startsWith('runtime phase end partition=workspace'))).toBe(
-      true,
-    );
-  }
-  // The start record is strict: a missing tool fails before any gate work.
-  const h = history();
-  mkdirSync(join(h.root, 'bin'), { recursive: true });
-  writeFileSync(join(h.root, 'bin', 'free'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
-  const execution = runStep(h, workspaceGate(), { GATE_MODE: 'affected', GATE_BASE: h.base });
-  expect(execution.invocation.exitCode).not.toBe(0);
-  expect(await execution.calls.text()).not.toContain('ci-run-runtime.ts');
-});
+    writeFileSync(join(h.root, 'bin', 'free'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    const execution = runStep(h, step(job, name), { GATE_MODE: 'affected', GATE_BASE: h.base });
+    expect(execution.invocation.exitCode).not.toBe(0);
+    expect(await execution.calls.text()).not.toContain('ci-run-runtime.ts');
+  },
+);
 
 test.each([
   'remote-model',

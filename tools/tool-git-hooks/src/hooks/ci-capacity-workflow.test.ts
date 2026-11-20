@@ -46,6 +46,7 @@ test('all Python consumers use a hosted distribution available for the pinned ru
     'gate_remote',
     'gate_remote_model',
     'gate_frontend',
+    'gate_heavy',
     'gate_checks',
   ];
   const actual = Object.entries(workflow.jobs ?? {})
@@ -73,10 +74,12 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
     ['workspace', 'Gate'],
     ['backend', 'Backend'],
     ['frontend', 'Frontend'],
+    ['heavy', 'Heavy'],
   ]) {
     const runtime = job(`gate_${partition}`);
+    const whole = partition === 'workspace' || partition === 'heavy';
     expect(runtime.needs).toBe('gate_mode');
-    expect(runtime['timeout-minutes']).toBe(partition === 'workspace' ? 120 : 90);
+    expect(runtime['timeout-minutes']).toBe(whole ? 120 : 90);
     expect(runtime.if).toBe(
       partition === 'workspace'
         ? "${{ needs.gate_mode.outputs.mode != 'docs' }}"
@@ -84,7 +87,7 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
     );
     const execution = step(runtime, `${title} — test, lint, typecheck, build`);
     expect(execution.run).toContain(
-      `timeout --signal=TERM --kill-after=30s ${partition === 'workspace' ? '105' : '75'}m \\`,
+      `timeout --signal=TERM --kill-after=30s ${whole ? '105' : '75'}m \\`,
     );
     expect(execution.run).toContain(
       `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
@@ -112,6 +115,7 @@ test('every runtime keeps exact checkout and native provisioning before Nx', () 
     'gate_remote',
     'gate_remote_model',
     'gate_frontend',
+    'gate_heavy',
   ];
   const prefix = job(names[0]).steps?.slice(0, 7);
   expect(prefix).toHaveLength(7);
