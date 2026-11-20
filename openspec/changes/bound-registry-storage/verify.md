@@ -1,6 +1,6 @@
 ## Verification status
 
-Latest continuation: [durable backup effect consumption](#durable-backup-effect-consumption--2026-11-01).
+Latest continuation: [independent reporting-availability consumer](#independent-reporting-availability-consumer--2026-11-20).
 
 Implementation in progress, 2026-10-25. Policy, journal, physical-storage, capacity/fencing, publication and manifest-census slices have independent
 review approval. Deployment code review and corrected native smoke/Caddy checks passed. These receipts do not establish live capacity enforcement,
@@ -10099,3 +10099,91 @@ The failed main workflow was allowed to finish; it was not retried. New-head CI,
 normal hooks, independent review and the eventual exact-revision canonical h2puni
 gate remain required. No authenticated authority/Restic/provider probe, stopped
 privileged proof campaign, installed state or production deployment was performed.
+
+## Independent reporting-availability consumer — 2026-11-20
+
+Source integration starts from current-main
+`659f663800df3c96a0a64e5a7135c5a53de8bef6`, in the clean managed worktree
+`/home/df/.codex/worktrees/9758/puni-00`. Exactly five source/configuration files
+were copied byte-for-byte from the independently accepted consumer. None of the
+unfinished producer, observer, backup, storage-proof or privileged helper source
+was copied, imported, bundled or executed. The existing owning OpenSpec change
+receives only the consumer contract and explicit remaining integration task.
+
+The initial scoped review and correction re-review accepted this pure consumer
+with zero Critical or Important findings. The correction makes all five synthetic
+promtool inputs0444 after writing, including under umask077. The pre-integration
+correction manifest SHA-256 is
+`aa3ec3dea598d6c2c469bf061975e137dd736e7605d790d8af9a59be25c7b43f`;
+the approving re-review SHA-256 is
+`4455c016942d6f5e4d632e47a1f52dbad12eecf5f711a1dc68cf87b397a54b37`.
+
+Historical source acceptance observed155tests210assertions across five covering
+files before the correction, then68tests92assertions across the two corrected
+files. Native validation covered59scenarios and76alert evaluations on
+Prometheus3.14.0, revision`d7598b7141418fa35be2b5ec5d0fefb634199610`.
+These historical receipts are distinct from the current-main checks below.
+
+### Retained R5 proof evidence
+
+The original source campaign retained87mutation attempts:83selected failures,
+two failures outside their selected assertion and two green non-proofs. Only the
+83selected failures support the adjacent production `Proof:` comments. Root
+verified their patches, restored bytes, baseline identities and evidence-file
+hashes before accepting the source; integration preserves those production bytes.
+
+| Removed check or broken dependency                                                                                      | Observed production-path negative                                                              |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Exact inventory, target/date/environment/address bounds or private port/range checks                                    | Corresponding invalid-inventory renderer fixture stops rejecting the supplied input            |
+| Ordered enrollment tuple or unchanged-default/read-only mount contract                                                  | Wire-key or overlay contract fixture fails                                                     |
+| Expected vector, scoped join, up status/age/cardinality, exact job/instance/enrollment or unique complete core operands | Native missing/conflicting/foreign or stale evidence scenario incorrectly confirms health      |
+| Evaluation age, baseline ordering, original deadline or millisecond rounding                                            | Native future/stale/order/deadline-equality or precision fixture fails                         |
+| Rule labels, enrollment annotation or no-delay evaluation                                                               | Exact native alert identity/annotation or first-evaluation expectation fails                   |
+| Pinned image inventory/schema, offline container options, either native command or subprocess exit check                | Lock/command fixture fails or exit42 incorrectly returns success                               |
+| Searchable staging directory or writable native `/tmp`                                                                  | Actual pinned promtool refuses input access or native scratch writes                           |
+| Final completed-input chmod0444                                                                                         | Actual native config check under077 fails with permission denied; mode regression observes0600 |
+
+The historical future-sample fixture alone does not prove a future sample was
+already in the TSDB: pinned engine `vectorSelectorSingle` source establishes the
+plain instant-selector nonfuture bound. No redundant unbreakable lower-age guard
+was added. Production selectors contain no `@` or offset modifier.
+
+### Current-main integration checks
+
+The frozen install passed with Bun1.4.4. Before copying the consumer, the
+uncached owning test target passed876tests,2238assertions across27files in118.47s.
+An initial attempt used an obsolete internal Nx entrypoint and failed before any
+test ran; the actual installed `node_modules/.bin/nx` resolved correctly.
+
+After copying the five byte-identical accepted files, this command exited0:
+
+```sh
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false bun node_modules/.bin/nx run-many \
+  -p tool-observability-stack -t test lint typecheck build validate-registry-pressure \
+  --parallel=1 --skip-nx-cache
+```
+
+All five owning targets passed in2m12s with cache skipped. Nx hid successful task
+stdout, so no new numeric test count is claimed from that run. Its typecheck uses
+the actual `@typescript/native`7.0.2 executable and its build copies the full tool.
+The current-main CLI also bundled192modules successfully with `bun build`.
+
+The explicit non-cached native target then exited0 under umask077 with full output:
+config syntax valid, both existing/new rule files valid, and both synthetic rule
+suites `SUCCESS`; Nx reported0/1cache hits and1.1s. Containers used the exact central
+Prometheus3.14.0 digest, `--pull=never --network=none --read-only` and synthetic
+read-only inputs. This verifies the restrictive-mode correction after integration.
+
+Prettier checked all nine changed files successfully; strict owning OpenSpec
+validation passed1change with zero issues; `git diff --check` exited0. No original
+mutation campaign was replayed. Broad source-integration review remains pending.
+Two prior Minor findings are carried to it: raw-identity assertions search JSON
+quoting within YAML, and the umask regression uses GNU `/usr/bin/stat -c`.
+
+Not established: actual producer admission/wire integration, authenticated
+acquisition, private serving, independent scheduling/storage, installed rule
+inventory or monitoring health, warning/cutoff/maintenance or missed-report Slack
+receipts, physical storage/backup/recovery proofs, complete candidate CI or the
+required exact-revision host gate before adoption. Nothing was activated and
+Task5.1, Task5.2 and the full registry objective remain open. The stopped storage
+and producer correction campaigns remain stopped.

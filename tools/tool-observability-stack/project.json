@@ -55,6 +55,13 @@
         "command": "bunx tsc --build --force tools/tool-observability-stack/tsconfig.json"
       }
     },
+    "validate-registry-pressure": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun tools/tool-observability-stack/src/registry/pressure-rules.ts ."
+      },
+      "cache": false
+    },
     "validate-parity": {
       "executor": "nx:run-commands",
       "options": {
