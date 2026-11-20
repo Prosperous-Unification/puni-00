@@ -39,8 +39,8 @@ function isProjectNames(names: unknown): names is string[] {
 const WORKSPACE_LINT_PARALLELISM = '--parallel=1';
 
 /**
- * Nx parallelism for a partition's test, typecheck and build. The heavy shard runs its three long
- * `bun test` suites one at a time (A-CI-WORKSPACE-MEMORY-2): its job exists because two of them
+ * Nx parallelism for a partition's test, typecheck and build. The heavy shard runs its
+ * memory- and time-heavy `bun test` suites one at a time (A-CI-WORKSPACE-MEMORY-2): two of them
  * beside each other were the last thing a lost 16 GB runner was doing (R5-32).
  * Proof (2026-11-20): returning `--parallel=2` for heavy failed ci-plan.test.ts `the heavy shard
  * runs its projects one task at a time…` in affected and full modes.

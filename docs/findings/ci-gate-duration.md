@@ -203,14 +203,18 @@ let a duration change be matched against an image roll.
 
 `gate workspace-heavy` (A-CI-WORKSPACE-MEMORY-2,
 [R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log))
-owns `tool-fleet`, `tool-devsync` and `wbs-store-sqlite` and runs them at `--parallel=1`. These
-are estimates from the full-mode run 44496836205 above, not measurements:
+owns `tool-fleet`, `tool-devsync`, `wbs-store-sqlite` and `wbs-core` and runs them at
+`--parallel=1`. `wbs-core` is there for memory, not time: its 4-minute test suite peaked at 7.3
+GiB RSS in CI and 5.7 GiB locally. The fix at the source is #959.
+
+These are estimates from the full-mode run 44496836205 above, not measurements:
 
 | Shard     | Task time moved or kept                               | Estimated wall time | Phase   |
 | --------- | ----------------------------------------------------- | ------------------- | ------- |
-| heavy     | tests 81.4 min, lint 2.8 min, typecheck 0.7 min, deps | about 85 min        | 105 min |
-| workspace | about 43 min non-lint at two, about 9 min lint at one | about 30 to 35 min  | 105 min |
+| heavy     | tests 85.2 min, lint 4.2 min, typecheck 3.9 min, deps | about 93 min        | 105 min |
+| workspace | about 36 min non-lint at two, about 8 min lint at one | about 26 to 30 min  | 105 min |
 
-The heavy shard's 41-minute `tool-fleet:test` is now its single largest task. Both shards
-start together, so the slowest required shard sets the gate's wall time. That is the heavy
-shard or Twilight, not the workspace shard.
+The heavy shard's 41-minute `tool-fleet:test` is now its single largest task, and its estimate
+leaves about 12 minutes of the 105-minute phase. Both shards start together, so the slowest
+required shard sets the gate's wall time. That is the heavy shard or Twilight, not the
+workspace shard.

@@ -6,12 +6,18 @@ export const DEDICATED_RUNTIME_PROJECTS = {
 } as const;
 
 /**
- * The three longest `bun test` suites, owned whole by the heavy shard (A-CI-WORKSPACE-MEMORY-2).
- * The 16 GB workspace runner was lost in every full-mode attempt on main 1730d911f while these
- * ran (`tool-fleet:test` 41 min, `tool-devsync:test` 22 min, `wbs-store-sqlite:test` 18 min);
- * see R5-32 in docs/findings/checks-that-cannot-fail.md.
+ * The `bun test` suites the 16 GB workspace runner cannot carry, owned whole by the heavy shard
+ * (A-CI-WORKSPACE-MEMORY-2). The three longest (`tool-fleet:test` 41 min, `tool-devsync:test`
+ * 22 min, `wbs-store-sqlite:test` 18 min) were running when full-mode runners on main 1730d911f
+ * were lost. `wbs-core:test` runs only about 2 minutes but one Bun process peaks at 5.7–7.3 GiB RSS
+ * (#959 tracks fixing that at the source). See R5-32 in docs/findings/checks-that-cannot-fail.md.
  */
-export const HEAVY_TEST_PROJECTS = ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite'] as const;
+export const HEAVY_TEST_PROJECTS = [
+  'tool-fleet',
+  'tool-devsync',
+  'wbs-store-sqlite',
+  'wbs-core',
+] as const;
 
 export type RuntimePartition = keyof typeof DEDICATED_RUNTIME_PROJECTS | 'heavy' | 'workspace';
 

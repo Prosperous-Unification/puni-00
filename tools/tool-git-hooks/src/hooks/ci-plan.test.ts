@@ -42,6 +42,7 @@ function history(path: string, content?: string) {
     'tool-fleet',
     'tool-devsync',
     'wbs-store-sqlite',
+    'wbs-core',
   ]) {
     const targets = Object.fromEntries(
       ['test', 'typecheck', 'build', 'lint', 'lint:source'].map((target) => [
@@ -136,6 +137,7 @@ const dedicatedInventory = [
   'tool-fleet',
   'tool-devsync',
   'wbs-store-sqlite',
+  'wbs-core',
 ];
 
 function invokeRuntime(
@@ -154,6 +156,7 @@ function invokeRuntime(
     'tool-fleet',
     'tool-devsync',
     'wbs-store-sqlite',
+    'wbs-core',
     'new-runtime',
   ],
 ) {
@@ -275,6 +278,7 @@ describe('production CI plan and execution', () => {
     ['wbs-fe-01', 'frontend'],
     ['tool-fleet', 'heavy'],
     ['wbs-store-sqlite', 'heavy'],
+    ['wbs-core', 'heavy'],
   ])(
     'plans %s only in its dedicated %s partition',
     (project, partition) => {
@@ -399,14 +403,14 @@ describe('production CI plan and execution', () => {
       'run-many -t lint -p core,website-contracts,new-runtime --parallel=1',
     );
     expect(commands[3]).toHaveLength(3);
-    expect(commands[3].join('\n')).not.toMatch(/tool-fleet|tool-devsync|wbs-store-sqlite/);
+    expect(commands[3].join('\n')).not.toMatch(/tool-fleet|tool-devsync|wbs-store-sqlite|wbs-core/);
     expect(commands[4].slice(1)).toEqual([
-      'nx run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite --parallel=1 --output-style=stream',
+      'nx run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite,wbs-core --parallel=1 --output-style=stream',
     ]);
   }, 20000);
 
-  // A-CI-WORKSPACE-MEMORY-2: the heavy shard owns the three long bun test suites and runs them
-  // one at a time; the workspace shard keeps only their affected lint.
+  // A-CI-WORKSPACE-MEMORY-2: the heavy shard owns HEAVY_TEST_PROJECTS and runs them one at a
+  // time; the workspace shard keeps only their affected lint.
   test('the heavy shard runs its projects one task at a time in affected and full modes', () => {
     const candidate = history('modules/tool-fleet/source.ts');
     const planned = invokePlan(candidate);
@@ -428,7 +432,7 @@ describe('production CI plan and execution', () => {
     const full = invokeRuntime(candidate, 'heavy', '0', 'full');
     expect(full.invocation.exitCode, full.invocation.stderr.toString()).toBe(0);
     expect(readFileSync(full.calls, 'utf8')).toContain(
-      'run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite --parallel=1 --output-style=stream',
+      'run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite,wbs-core --parallel=1 --output-style=stream',
     );
   }, 20000);
 
@@ -524,6 +528,7 @@ describe('production CI plan and execution', () => {
       'tool-fleet',
       'tool-devsync',
       'wbs-store-sqlite',
+      'wbs-core',
       'twilight-burokrat',
     ];
     const { invocation, calls } = invokeRuntime(candidate, 'workspace', '0', 'full', selected);
@@ -542,7 +547,7 @@ describe('production CI plan and execution', () => {
     expect(readFileSync(missing.calls, 'utf8')).not.toContain('run-many');
     // Proof: dropping HEAVY_TEST_PROJECTS from the inventory guard let a full heavy run with
     // tool-devsync missing reach run-many (2026-11-20).
-    for (const omitted of ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite']) {
+    for (const omitted of ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite', 'wbs-core']) {
       const heavy = invokeRuntime(
         candidate,
         'heavy',

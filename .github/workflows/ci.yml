@@ -287,8 +287,8 @@ jobs:
                   (.partitions.backend == (if (.workspaceProjects | index("wbs-be-01")) then ["wbs-be-01"] else [] end)) and
                   (.partitions.remote == (if (.workspaceProjects | index("tool-remote-scripts")) then ["tool-remote-scripts"] else [] end)) and
                   (.partitions.frontend == (if (.workspaceProjects | index("wbs-fe-01")) then ["wbs-fe-01"] else [] end)) and
-                  (.partitions.heavy == [.workspaceProjects[] | select(. == "tool-fleet" or . == "tool-devsync" or . == "wbs-store-sqlite")]) and
-                  (.partitions.workspace == [.workspaceProjects[] | select(. != "wbs-be-01" and . != "tool-remote-scripts" and . != "wbs-fe-01" and . != "tool-fleet" and . != "tool-devsync" and . != "wbs-store-sqlite")]) and
+                  (.partitions.heavy == [.workspaceProjects[] | select(. == "tool-fleet" or . == "tool-devsync" or . == "wbs-store-sqlite" or . == "wbs-core")]) and
+                  (.partitions.workspace == [.workspaceProjects[] | select(. != "wbs-be-01" and . != "tool-remote-scripts" and . != "wbs-fe-01" and . != "tool-fleet" and . != "tool-devsync" and . != "wbs-store-sqlite" and . != "wbs-core")]) and
                   (.twilightProjects | all(.[]; . == "twilight-burokrat" or . == "twilight-dash")) and
                   (.twilight == (if (.twilightProjects | length) > 0 then "run" else "skip" end)) and
                   (.mode != "docs" or (.projects | length) == 0)
@@ -532,12 +532,14 @@ jobs:
     # Proof: workspace job 124617218173 failed setup-python on 26.04;
     # job 124582747681 installed 3.14.4 and passed on 24.04.
     runs-on: ubuntu-24.04
-    # A-CI-WORKSPACE-MEMORY-2: the three longest `bun test` suites run here one at a time, so the
-    # 16 GB workspace runner no longer carries them. The workspace runner was lost in all three
-    # full-mode attempts on main 1730d911f (R5-32, docs/findings/checks-that-cannot-fail.md).
-    # Their summed task time was about 81 minutes in run 44496836205; the 105-minute phase and
-    # 120-minute job match the workspace allowance. This step text is the workspace step's with
-    # the partition renamed; pr-merge-base.test.ts holds the two copies equal.
+    # A-CI-WORKSPACE-MEMORY-2: HEAVY_TEST_PROJECTS in ci-runtime-partitions.ts run here one task at
+    # a time, so the 16 GB workspace runner no longer carries them: the three longest `bun test`
+    # suites and wbs-core, whose 2-minute suite peaked at 7.3 GiB RSS in one Bun process (#959).
+    # The workspace runner was lost in all three full-mode attempts on main 1730d911f (R5-32,
+    # docs/findings/checks-that-cannot-fail.md). Their task time is about 89 minutes (run
+    # 44496836205); the 105-minute phase and 120-minute job match the workspace allowance. This step
+    # text is the workspace step's with the partition renamed; pr-merge-base.test.ts holds the two
+    # copies equal.
     timeout-minutes: 120
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and

@@ -10,6 +10,7 @@ test('partitions every dedicated project and every new residual project exactly 
     'tool-fleet',
     'tool-devsync',
     'wbs-store-sqlite',
+    'wbs-core',
     'core',
     'new-runtime',
   ];
@@ -18,7 +19,7 @@ test('partitions every dedicated project and every new residual project exactly 
     backend: ['wbs-be-01'],
     remote: ['tool-remote-scripts'],
     frontend: ['wbs-fe-01'],
-    heavy: ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite'],
+    heavy: ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite', 'wbs-core'],
     workspace: ['core', 'new-runtime'],
   });
   expect(Object.values(partitions).flat().sort()).toEqual([...selected].sort());
@@ -45,11 +46,13 @@ test('empty residual and individual selections retain explicit ownership', () =>
   });
 });
 
-// A-CI-WORKSPACE-MEMORY-2: the three longest `bun test` suites leave the workspace shard.
-test('the heavy shard owns exactly the three long bun test projects', () => {
+// A-CI-WORKSPACE-MEMORY-2: the three longest `bun test` suites and wbs-core's 6–7.6 GiB suite
+// leave the workspace shard.
+test('the heavy shard owns exactly the four memory- and time-heavy bun test projects', () => {
   expect([...HEAVY_TEST_PROJECTS].sort()).toEqual([
     'tool-devsync',
     'tool-fleet',
+    'wbs-core',
     'wbs-store-sqlite',
   ]);
 });

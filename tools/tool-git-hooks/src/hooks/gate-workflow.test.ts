@@ -412,6 +412,13 @@ describe('the validated CI selection step', () => {
         workspaceProjects: ['tool-fleet', 'wbs-be-01'],
         partitions: { ...affectedPlan.partitions, heavy: ['tool-fleet'] },
       },
+      // Proof: dropping wbs-core from either Gate mode heavy clause refused this valid plan.
+      {
+        ...affectedPlan,
+        projects: ['twilight-burokrat', 'wbs-be-01', 'wbs-core'],
+        workspaceProjects: ['wbs-be-01', 'wbs-core'],
+        partitions: { ...affectedPlan.partitions, heavy: ['wbs-core'] },
+      },
       {
         ...affectedPlan,
         twilight: 'skip',
@@ -501,6 +508,12 @@ describe('the validated CI selection step', () => {
       {
         ...affectedPlan,
         partitions: { ...affectedPlan.partitions, heavy: ['tool-fleet'] },
+      },
+      {
+        ...affectedPlan,
+        projects: ['twilight-burokrat', 'wbs-be-01', 'wbs-core'],
+        workspaceProjects: ['wbs-be-01', 'wbs-core'],
+        partitions: { ...affectedPlan.partitions, workspace: ['wbs-core'] },
       },
       {
         ...affectedPlan,
