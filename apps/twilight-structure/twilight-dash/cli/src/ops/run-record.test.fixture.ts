@@ -1,3 +1,4 @@
+import type { PoolEnvelope } from '../resources/runtime';
 import { type CommittedCatalogue, descriptorDigestOf, parseCatalogueJobs } from './catalogue';
 import { catalogueOf, type FixtureJobType } from './ops.test.fixture';
 import {
@@ -12,6 +13,8 @@ export const CHECKOUT = '/srv/checkout';
 export const CATALOGUE_PATH = `${CHECKOUT}/infra/jobs/catalogue.json`;
 export const HOST_CLASS = 'linux-x64-8c-15g';
 export const TOOLCHAIN = 'bun 1.4.4+38afee6c8';
+/** A pool no fixture envelope reaches, so no proposal is clamped (task 6.25). */
+export const ROOMY_POOL: PoolEnvelope = { cpuCores: 64, memoryGib: 256, tmpDiskGib: 1024 };
 
 /** A catalogue at a fixed revision, as `readCommittedCatalogue` would read it. */
 export function committedCatalogue(

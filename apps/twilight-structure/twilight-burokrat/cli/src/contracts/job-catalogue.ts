@@ -9,6 +9,9 @@ const JobId = type(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/);
 /** Upper-cased into `DASH_JOB_UNIT_<ID>`, so it is one identifier word. */
 const ExclusiveId = type(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
 const WholeUnits = type('number.integer>=1');
+/** An envelope dimension a pool's allocatable bounds. */
+const EnvelopeDimension = type("'cpuCores'|'memoryGib'|'tmpDiskGib'");
+type EnvelopeDimension = typeof EnvelopeDimension.infer;
 
 /**
  * A repository path, or a JSON file and the dotted key path of one value inside it
@@ -90,6 +93,27 @@ const CalibratedProvenance = type({
   // Proof: typing it `boolean` made `marks a calibrated tmp p95 as a lower bound with true
   // alone` (job-catalogue.test.ts) accept `false` (2026-11-19, review S2-1).
   'tmpDiskGibLowerBound?': 'true',
+  /**
+   * The envelope dimensions `ops job propose` lowered to the pool's allocatable because the
+   * heuristic figure exceeded it (task 6.25): the job measured more than the pool holds, so an
+   * overrun in such a dimension is expected and `ops job audit` says so. Present only with
+   * `heuristic`, which names the unclamped figure of each of these dimensions and no other.
+   */
+  'clampedToAllocatable?': EnvelopeDimension.array().atLeastLength(1),
+  /**
+   * What the measurement does not say about the entry and its reader needs (review of #955 S3):
+   * the `basis` sentence of an estimate has no other home once the entry is calibrated. `ops job
+   * propose` carries it into the replacement entry.
+   */
+  // Proof: typing it `string` made `carries notes as a nonempty string` (job-catalogue.test.ts)
+  // accept an empty note (2026-11-20).
+  'notes?': type('string>=1'),
+  /** The unclamped heuristic figure of each dimension in `clampedToAllocatable`. */
+  'heuristic?': type({
+    'cpuCores?': WholeUnits,
+    'memoryGib?': WholeUnits,
+    'tmpDiskGib?': type('number.integer>=0'),
+  }).onUndeclaredKey('reject'),
 })
   .onUndeclaredKey('reject')
   .narrow((provenance, context) =>
@@ -97,7 +121,32 @@ const CalibratedProvenance = type({
     provenance.recordIds.length === provenance.recordCount
       ? true
       : context.mustBe('as many unique record ids as its record count'),
+  )
+  .narrow((provenance, context) => {
+    const clamped = provenance.clampedToAllocatable ?? [];
+    const named = Object.keys(provenance.heuristic ?? {});
+    // Proof: returning `true` here made `accepts the clamp and its heuristic, and neither
+    // alone` accept a clamp without its heuristic, and `a clamp names each dimension once, each
+    // with its heuristic` accept a repeated dimension (2026-11-20, task 6.25).
+    return new Set(clamped).size === clamped.length &&
+      (provenance.clampedToAllocatable === undefined) === (provenance.heuristic === undefined) &&
+      named.length === clamped.length &&
+      clamped.every((dimension) => named.includes(dimension))
+      ? true
+      : context.mustBe(
+          'clampedToAllocatable naming distinct dimensions, each with its heuristic and no other',
+        );
+  });
+
+/** A dimension's unclamped figure is never below the clamped envelope (task 6.25). */
+function clampsDown(
+  envelope: { cpuCores: number; memoryGib: number; tmpDiskGib: number },
+  provenance: { heuristic?: Partial<Record<EnvelopeDimension, number>> },
+): boolean {
+  return Object.entries(provenance.heuristic ?? {}).every(
+    ([dimension, figure]) => EnvelopeDimension.allows(dimension) && figure >= envelope[dimension],
   );
+}
 
 /**
  * One declared job type: what it runs, what it reserves and where that figure came from.
@@ -113,7 +162,15 @@ export const JobType = type({
   enforcement: "'observe'|'cap'",
   'maxRuntimeMinutes?': WholeUnits,
   provenance: EstimatedProvenance.or(CalibratedProvenance),
-}).onUndeclaredKey('reject');
+})
+  .onUndeclaredKey('reject')
+  .narrow((job, context) =>
+    // Proof: returning `true` here made `a clamped dimension never exceeds its heuristic`
+    // (job-catalogue.test.ts) accept memoryGib 14 under heuristic 13 (2026-11-20, task 6.25).
+    job.provenance.kind === 'estimated' || clampsDown(job.envelope, job.provenance)
+      ? true
+      : context.mustBe('an envelope no larger than its heuristic in each clamped dimension'),
+  );
 export type JobType = typeof JobType.infer;
 
 /** The catalogue file before its entries are judged one by one. */

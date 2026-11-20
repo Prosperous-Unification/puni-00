@@ -88,6 +88,12 @@ export interface RunStart {
   toolchain?: string;
   /** Present on a calibration record (`ops job calibrate`, J9); an ordinary run omits it. */
   calibration?: true;
+  /**
+   * The scope's `MemoryHigh` in GiB on an ordinary run (task 6.25): the envelope's `memoryGib`,
+   * or the heuristic of an entry clamped to the pool. Absent on a calibration, which runs
+   * unbounded, and on a record written before task 6.25.
+   */
+  memoryBoundGib?: number;
   unit: string;
   cgroup: string;
   tmpDirectory: string;
@@ -208,6 +214,7 @@ const StartShape = type({
   hostClass: 'string',
   'toolchain?': 'string > 0',
   'calibration?': 'true',
+  'memoryBoundGib?': 'number.integer > 0',
   unit: 'string',
   cgroup: 'string',
   tmpDirectory: 'string',

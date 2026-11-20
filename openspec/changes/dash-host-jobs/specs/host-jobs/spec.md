@@ -517,6 +517,78 @@ whose provenance carries that marker, printing a note that says so.
 - **THEN** the sample's failure names the tmp directory, and the run records a telemetry
   failure that leaves it out of every dimension
 
+### Requirement: A proposal never exceeds the pool's allocatable, and says when it is clamped
+
+`ops job propose` SHALL clamp each of `cpuCores`, `memoryGib` and `tmpDiskGib` whose heuristic
+figure exceeds the largest envelope its pool admits (allocatable cores and memory, and the
+whole GiB its disk units hold) to that figure, SHALL print `clamped to allocatable` with the
+heuristic on that dimension's line, and SHALL record the clamped dimensions in
+`clampedToAllocatable` and their unclamped figures in `heuristic`. A figure equal to
+allocatable SHALL NOT be clamped. `JOB-CATALOGUE` SHALL refuse `clampedToAllocatable` naming an
+unknown or repeated dimension, either field without the other, and an envelope above its
+heuristic, and SHALL judge a clamped dimension's heuristic against the p95 in place of its
+envelope. `ops job audit` SHALL keep an overrun in a clamped dimension as drift, marked
+expected when its peak is at most that dimension's heuristic, SHALL print a note for each
+clamped dimension, and SHALL NOT judge it for waste. When its only drift is such an expected
+overrun it SHALL exit 0; an overrun above the heuristic and any other drift SHALL exit 1. An
+ordinary run of a type with a clamped dimension SHALL reserve the pool's whole allocatable in
+that dimension, and Dash SHALL refuse such a type in `concurrencyEligible`. A clamped `memoryGib`
+SHALL run its scope with `MemoryHigh` at the lower of `heuristic.memoryGib` and the pool's
+memory budget less `memoryBoundHeadroomGib` (2 when absent), never below the envelope, reporting
+the figure that set it and recording `memoryBoundGib` in the descriptor and the run record.
+`JOB-CATALOGUE` and `ops job run` SHALL refuse `cap` enforcement on a clamped `memoryGib`,
+naming the clamp and the p95.
+
+#### Scenario: A heuristic above allocatable
+
+- **WHEN** `ops job propose --type gate` on a pool of 7 cores and 10 GiB reads calibrations with
+  p95 10.01 GiB and 6.88 cores
+- **THEN** it proposes `memoryGib` 10 and `cpuCores` 7, prints
+  `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …`, and the
+  provenance carries `clampedToAllocatable: ["cpuCores", "memoryGib"]` and
+  `heuristic: { cpuCores: 9, memoryGib: 13 }`
+
+#### Scenario: An overrun of a clamped envelope
+
+- **WHEN** a gate run peaks at 10 GiB under the clamped 9 GiB entry
+- **THEN** `ops job audit` names the overrun, its line ending
+  `expected: the HEAD entry is clamped to the pool`, exits 0 when nothing else drifted, and
+  prints the note
+  `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`
+
+#### Scenario: Only an expected overrun
+
+- **WHEN** the only drift `ops job audit` finds is an overrun of a clamped dimension, up to its
+  heuristic
+- **THEN** it prints the overrun and its note and exits 0; with an overrun in an unclamped
+  dimension beside it, or a 14 GiB peak on a heuristic of 13, it exits 1
+
+#### Scenario: A clamped gate runs under its heuristic
+
+- **WHEN** `ops job run --type gate` launches the entry clamped to 6 cores and 9 GiB with
+  heuristic 13 GiB on h4claw's pool (budget 15 GiB, allocatable 7 cores and 10 GiB)
+- **THEN** admission reserves 7 cores and 10 GiB, the scope gets `-p MemoryHigh=13G`, the
+  launcher names the heuristic as the figure that set it, and the descriptor and the run record
+  carry `memoryBoundGib: 13`; on h2puni's 14 GiB budget the pool's 12 GiB sets it
+
+#### Scenario: Nothing runs beside a clamped gate
+
+- **WHEN** a 1-core, 1-GiB job arrives while a clamped gate is held, or the gate arrives while
+  that job is held
+- **THEN** the newcomer does not fit and waits, though the gate's envelope would leave room
+
+#### Scenario: Cap on a clamped memory
+
+- **WHEN** an entry with `memoryGib` in `clampedToAllocatable` declares `enforcement: cap`
+- **THEN** `JOB-CATALOGUE` names it, and `ops job run` refuses 64 before admission, naming the
+  clamp and the p95
+
+#### Scenario: A bad clamp marker
+
+- **WHEN** an entry's `clampedToAllocatable` names `swapGib`, or its `memoryGib` is 14 under a
+  heuristic of 13
+- **THEN** `JOB-CATALOGUE` names the entry malformed
+
 ### Requirement: Processes left in a job's scope are ended before tmp settlement
 
 Once a host job's leader has exited and its launched session has no live member, `ops job

@@ -106,6 +106,83 @@ describe('the job catalogue shape', () => {
     );
   });
 
+  describe('an envelope clamped to the pool (Dash task 6.25, A-ENVELOPE-CLAMP-1)', () => {
+    /** The h4claw proposal clamped by hand to h2puni's pool: 6 cores, 9 GiB. */
+    const clamped = (
+      envelope: Record<string, unknown>,
+      marker: Record<string, unknown>,
+    ): unknown => {
+      const job = gateJob();
+      job['envelope'] = {
+        cpuCores: 6,
+        memoryGib: 9,
+        tmpDiskGib: 11,
+        exclusive: ['gate_tree'],
+        ...envelope,
+      };
+      job['provenance'] = {
+        kind: 'calibrated',
+        hostClass: 'linux-x64-8c-15g',
+        calibratedAt: '2026-11-20T04:05:14.759Z',
+        recordCount: 3,
+        p95: { cpuCores: 6.88, memoryGib: 10.01, tmpDiskGib: 8.01 },
+        recordIds: ['r1', 'r2', 'r3'],
+        ...marker,
+      };
+      return catalogueWith([job]);
+    };
+    const marker = {
+      clampedToAllocatable: ['cpuCores', 'memoryGib'],
+      heuristic: { cpuCores: 9, memoryGib: 13 },
+    };
+
+    test('accepts the clamp and its heuristic, and neither alone', () => {
+      expect(parseJobCatalogue(clamped({}, marker)).jobs[0]?.provenance).toMatchObject(marker);
+      expect(() =>
+        parseJobCatalogue(clamped({}, { clampedToAllocatable: ['cpuCores', 'memoryGib'] })),
+      ).toThrow('each with its heuristic and no other');
+      expect(() =>
+        parseJobCatalogue(clamped({}, { heuristic: { cpuCores: 9, memoryGib: 13 } })),
+      ).toThrow('each with its heuristic and no other');
+    });
+
+    test('a clamp names each dimension once, each with its heuristic', () => {
+      expect(() =>
+        parseJobCatalogue(
+          clamped({}, { ...marker, clampedToAllocatable: ['cpuCores', 'memoryGib', 'memoryGib'] }),
+        ),
+      ).toThrow('each with its heuristic and no other');
+      expect(() =>
+        parseJobCatalogue(
+          clamped({}, { ...marker, heuristic: { cpuCores: 9, memoryGib: 13, tmpDiskGib: 11 } }),
+        ),
+      ).toThrow('each with its heuristic and no other');
+      expect(() => parseJobCatalogue(clamped({}, { ...marker, clampedToAllocatable: [] }))).toThrow(
+        /clampedToAllocatable/,
+      );
+      expect(() =>
+        parseJobCatalogue(
+          clamped({}, { ...marker, clampedToAllocatable: ['cpuCores', 'swapGib'] }),
+        ),
+      ).toThrow(/clampedToAllocatable\[1\]/);
+    });
+
+    test('carries notes as a nonempty string', () => {
+      expect(
+        parseJobCatalogue(clamped({}, { ...marker, notes: 'containers bound declared' })).jobs[0]
+          ?.provenance,
+      ).toMatchObject({ notes: 'containers bound declared' });
+      expect(() => parseJobCatalogue(clamped({}, { ...marker, notes: '' }))).toThrow(/notes/);
+    });
+
+    test('a clamped dimension never exceeds its heuristic', () => {
+      expect(parseJobCatalogue(clamped({ memoryGib: 13 }, marker)).jobs).toHaveLength(1);
+      expect(() => parseJobCatalogue(clamped({ memoryGib: 14 }, marker))).toThrow(
+        'an envelope no larger than its heuristic in each clamped dimension',
+      );
+    });
+  });
+
   test('refuses an impossible until date', () => {
     const job = gateJob();
     job['provenance'] = { kind: 'estimated', basis: 'fixture', until: '2026-02-30' };

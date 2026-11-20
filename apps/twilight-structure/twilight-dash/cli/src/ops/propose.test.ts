@@ -7,6 +7,7 @@ import {
   committedCatalogue,
   type FixtureRun,
   HOST_CLASS,
+  ROOMY_POOL,
   runRecord,
   TOOLCHAIN,
 } from './run-record.test.fixture';
@@ -25,12 +26,13 @@ const catalogue = committedCatalogue([
 ]);
 const partition: Partition = { argumentProfile: '', hostClass: HOST_CLASS, toolchain: TOOLCHAIN };
 
-function propose(type: string, runs: readonly FixtureRun[]) {
+function propose(type: string, runs: readonly FixtureRun[], allocatable = ROOMY_POOL) {
   return proposeEnvelope(
     type,
     catalogue,
     runs.map((run) => runRecord(catalogue, { type, ...run })),
     partition,
+    allocatable,
     NOW,
   );
 }
@@ -116,6 +118,7 @@ describe('ops job propose (task 4.1, J9)', () => {
       catalogue,
       [...records.slice(0, 3), { ...unsized, peakTmpBytes: null }],
       partition,
+      ROOMY_POOL,
       NOW,
     );
     if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
@@ -359,5 +362,138 @@ describe('ops job propose with tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)',
       recordIds: ['calibration-1', 'calibration-2', 'calibration-3'],
     });
     expect(proposal.entry.provenance).not.toHaveProperty('tmpDiskGibLowerBound');
+  });
+});
+
+describe('ops job propose clamps to the pool (task 6.25, A-ENVELOPE-CLAMP-1)', () => {
+  /** Three calibrations shaped like h4claw's gate: p95 10.01 GiB, 6.88 cores, 8.01 GiB tmp. */
+  const measured: FixtureRun[] = [
+    {
+      id: 'calibration-1',
+      calibration: true,
+      memoryGib: 9.5,
+      cpuCores: 6.5,
+      tmpGib: 7.5,
+      seconds: 600,
+    },
+    {
+      id: 'calibration-2',
+      calibration: true,
+      memoryGib: 10.01,
+      cpuCores: 6.88,
+      tmpGib: 8.01,
+      seconds: 660,
+    },
+    {
+      id: 'calibration-3',
+      calibration: true,
+      memoryGib: 9.8,
+      cpuCores: 6.7,
+      tmpGib: 7.9,
+      seconds: 720,
+    },
+  ];
+  const IDS = 'calibration-1, calibration-2, calibration-3';
+
+  test("a heuristic above the pool's allocatable is clamped to it, and marked", () => {
+    // h4claw's pool: 7 cores, 10 GiB, 48 GiB of disk units.
+    const proposal = propose('gate', measured, { cpuCores: 7, memoryGib: 10, tmpDiskGib: 48 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB over 3 uncapped, unthrottled records: ${IDS})`,
+    );
+    expect(proposal.lines).toContain(
+      `cpuCores: 7 (clamped to allocatable 7 cores; heuristic 9 from p95 6.88 cores over 3 calibration records: ${IDS})`,
+    );
+    expect(proposal.lines).toContain(`tmpDiskGib: 11 (p95 8.01 GiB over 3 records: ${IDS})`);
+    expect(proposal.entry.envelope).toEqual({
+      cpuCores: 7,
+      memoryGib: 10,
+      tmpDiskGib: 11,
+      exclusive: ['gate_tree'],
+    });
+    expect(proposal.entry.provenance).toMatchObject({
+      p95: { cpuCores: 6.88, memoryGib: 10.01, tmpDiskGib: 8.01 },
+      clampedToAllocatable: ['cpuCores', 'memoryGib'],
+      heuristic: { cpuCores: 9, memoryGib: 13 },
+    });
+  });
+
+  test("h2puni's smaller pool clamps further, as the landed entry is clamped by hand", () => {
+    const proposal = propose('gate', measured, { cpuCores: 6, memoryGib: 9, tmpDiskGib: 12 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.envelope).toMatchObject({ cpuCores: 6, memoryGib: 9, tmpDiskGib: 11 });
+    expect(proposal.entry.provenance).toMatchObject({
+      clampedToAllocatable: ['cpuCores', 'memoryGib'],
+      heuristic: { cpuCores: 9, memoryGib: 13 },
+    });
+  });
+
+  test('a heuristic equal to allocatable is not clamped', () => {
+    const proposal = propose('gate', measured, { cpuCores: 9, memoryGib: 13, tmpDiskGib: 11 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.envelope).toMatchObject({ cpuCores: 9, memoryGib: 13, tmpDiskGib: 11 });
+    expect(proposal.entry.provenance).not.toHaveProperty('clampedToAllocatable');
+    expect(proposal.entry.provenance).not.toHaveProperty('heuristic');
+    expect(proposal.lines).not.toContainEqual(expect.stringContaining('clamped'));
+  });
+
+  test("tmp disk clamps to the whole GiB the pool's disk units hold", () => {
+    const proposal = propose('gate', measured, { cpuCores: 9, memoryGib: 13, tmpDiskGib: 10 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      `tmpDiskGib: 10 (clamped to allocatable 10 GiB; heuristic 11 from p95 8.01 GiB over 3 records: ${IDS})`,
+    );
+    expect(proposal.entry.envelope.tmpDiskGib).toBe(10);
+    expect(proposal.entry.provenance).toMatchObject({
+      clampedToAllocatable: ['tmpDiskGib'],
+      heuristic: { tmpDiskGib: 11 },
+    });
+  });
+
+  test("a tmp lower bound clamps after it is raised to the entry's figure", () => {
+    // Lower bounds only: the 8.01 GiB p95 needs 11, the entry holds 8, the pool 9.
+    const lower = measured.map((run) => ({ ...run, tmpUnreadable: ['fixture/inaccessible'] }));
+    const proposal = propose('gate', lower, { cpuCores: 9, memoryGib: 13, tmpDiskGib: 9 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      `tmpDiskGib: 9 (clamped to allocatable 9 GiB; heuristic 11 from lower bound only, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 8.01 GiB over 3 records: ${IDS})`,
+    );
+    expect(proposal.entry.provenance).toMatchObject({
+      tmpDiskGibLowerBound: true,
+      clampedToAllocatable: ['tmpDiskGib'],
+      heuristic: { tmpDiskGib: 11 },
+    });
+  });
+
+  test("a calibrated entry's notes carry into its replacement", () => {
+    const noted = committedCatalogue(
+      [{ id: 'gate', cpuCores: 4, memoryGib: 6, tmpDiskGib: 8, exclusive: ['gate_tree'] }],
+      (jobs) =>
+        jobs.map((job) => ({
+          ...job,
+          provenance: {
+            kind: 'calibrated',
+            hostClass: HOST_CLASS,
+            calibratedAt: '2026-11-20T04:05:14.759Z',
+            recordCount: 3,
+            p95: { cpuCores: 3, memoryGib: 4.4, tmpDiskGib: 3 },
+            recordIds: ['c1', 'c2', 'c3'],
+            notes: 'containers bound declared, not measured',
+          },
+        })),
+    );
+    const proposal = proposeEnvelope(
+      'gate',
+      noted,
+      measured.map((run) => runRecord(noted, { type: 'gate', ...run })),
+      partition,
+      ROOMY_POOL,
+      NOW,
+    );
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.provenance).toMatchObject({
+      notes: 'containers bound declared, not measured',
+    });
   });
 });

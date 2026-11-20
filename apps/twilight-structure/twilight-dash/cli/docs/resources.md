@@ -694,22 +694,55 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   not cited. Records are partitioned by `cataloguePath` here, while `audit` below judges each
   record by job id against the current checkout's catalogue (S4-A19). Exit 0.
 
+  The proposal is host-aware (task 6.25, A-ENVELOPE-CLAMP-1). A figure above the largest
+  envelope the `--config` pool admits, its allocatable cores and memory and the whole GiB its
+  disk units hold, would be refused 73 on every run, so it is clamped to that figure. The line
+  then reads `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …)`,
+  and the provenance names the clamped dimensions in `clampedToAllocatable` and their unclamped
+  figures in `heuristic`. A figure equal to allocatable is not clamped. A clamped figure may sit
+  below its p95: the job measured more than the pool holds. On h4claw the gate's three
+  calibrations proposed 13 GiB and 9 cores, clamped to 10 GiB and 7 cores there. The catalogue
+  is shared by both gate hosts, so the landed entry is clamped by hand to the smaller pool,
+  h2puni's 6 cores and 9 GiB, which a `propose` on h2puni reproduces.
+
+  A clamped dimension reserves the pool's whole allocatable in that dimension at admission, as
+  a calibration does (S25-A7). `fits()` then admits nothing beside the job there, and
+  `ops pool inspect`, status and the WBS `host_job` projection show reserved = allocatable;
+  `oversize()` still judges the envelope. A clamped `memoryGib` also sets the scope's own bound
+  (S25-A6): `ops job run` starts the scope with `MemoryHigh` at the lower of
+  `heuristic.memoryGib` and the pool's memory budget less `memoryBoundHeadroomGib`, never below
+  the envelope. It reports which figure won, for example
+  `ops job: <id> MemoryHigh 13 GiB (heuristic 13 GiB, within the pool's 15 − 2 GiB; reservation clamped to 9 GiB)`,
+  and pins `memoryBoundGib` in the job's descriptor and on the run record. `ops job status`
+  prints `(MemoryHigh 13 GiB)` after the envelope's memory, and `ops pool inspect` shows the
+  descriptor's `memoryBoundGib`. `cap` on such an entry is refused 64 before admission, as
+  `JOB-CATALOGUE` refuses it; the refusal also stops `ops job calibrate` of that entry, though a
+  calibration sets no `MemoryMax`.
+
 - **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
   the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads
   the checkout a record ran from, which may be a deleted scratch worktree: the record pins the
   envelope it was admitted under. It prints one line per drift and exits 1, or prints
   `no drift` and exits 0. `--now` (default: the clock) is the instant estimates are judged at;
   one that is malformed or names no real instant (`2026-02-30T00:00:00Z`) is 64.
-  - `throttled` (printed first, the most urgent): an ordinary run, not a calibration, whose scope
+  - `throttled` (printed first, the most urgent; the line adds `(MemoryHigh <n> GiB)` when the
+    run's recorded bound differs from its envelope): an ordinary run, not a calibration, whose scope
     sampled `memory.events high` above zero, whether or not it has ended. The line names the
     type, the job id, the event count, the envelope `memoryGib` the run ran under and its peak
     `memoryGib`. It gives the remedy: calibrate the type (`ops job calibrate --type <id>`) and
     `ops job propose --type <id>`, because the estimated envelope is below the job's real
-    memory. It stays until the HEAD entry's `memoryGib` is above the envelope the run was
-    throttled under (task 6.11).
+    memory. It stays until the HEAD entry's bound (its `memoryGib`, or the heuristic of a
+    clamped one) is above the bound the run was throttled under (tasks 6.11, 6.25).
   - `overrun`: a peak above the envelope the run was admitted under, in memory, CPU or tmp disk.
     It stays visible however many runs follow until the HEAD entry's envelope is at least the
-    peak. A new provenance alone, `calibrated` included, does not clear it.
+    peak. A new provenance alone, `calibrated` included, does not clear it. In a dimension the
+    HEAD entry clamped to the pool (task 6.25), with a peak at most that dimension's heuristic,
+    the line ends `; expected: the HEAD entry is clamped to the pool`; above the heuristic it is a
+    plain overrun. It stays visible, but when such
+    overruns are the only drift the audit prints
+    `only expected drift: overruns of envelopes clamped to the pool` and exits 0, so the weekly
+    unit and the gate_host role's final probe stay green on an honest clamp (S25-A6). Any other
+    drift still exits 1.
   - `waste`: a dimension's p95 below half the HEAD envelope over at least ten complete runs of
     the HEAD entry. Any edit to an entry changes its digest, so the runs before the edit stop
     counting: adding `maxRuntimeMinutes` to `gate` restarted its count (task 6.11).
@@ -727,6 +760,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
     entry whose provenance carries `tmpDiskGibLowerBound: true` is never judged for tmp waste,
     and the audit prints `note:` with the id and
     `tmp entry is a lower bound; waste cannot fire for tmpDiskGib`.
+  - Each dimension in the HEAD entry's `clampedToAllocatable` prints a note and is never judged
+    for `waste`. When its p95 is above the entry the note reads, for example:
+    `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`.
+    Otherwise it says the entry holds its p95 without the heuristic's headroom.
   - Runs of a type the catalogue does not name print a `note: not judged` line. Runs without an
     outcome print a `note: not judged beyond throttling` line, because only `throttled` judges a
     run still in progress.
@@ -820,9 +857,14 @@ status` shows the mark, and the run records it; `ops job audit` reports the run 
   `watch` adopts it. The 6.7 user unit must therefore use `KillMode=process`, or the holder
   dies with the unit's cgroup (S6B-A8).
 
-The configuration gains two optional fields, neither pinned by the binding:
+The configuration gains three optional fields, none pinned by the binding:
 `launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
-jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). Every
+jobs here), `concurrencyEligible` (job type ids, each named once; absent means none) and
+`memoryBoundHeadroomGib` (whole GiB of the memory budget a clamped entry's `MemoryHigh` leaves to
+the rest of the host, task 6.25; absent means 2). Today the gate_host role cannot deploy it yet: `roles/gate_host/tasks/validate.yml` asserts the exact key list of `host-pool.json`, and `templates/host-pool.json.j2` renders no such key, so a hand-set key fails the validate play. The key is absent on both hosts until the role gains the input, and the default 2 applies. Follow-up: an inventory input (for example `puni_gate_pool_memory_bound_headroom_gib`), a line in the template, and the key in validate.yml's key list. When the budget less this headroom falls below the calibrated
+p95, the launcher's line and the audit's notes add `below the calibrated p95 <n> GiB`. A type whose catalogue entry carries
+`clampedToAllocatable` may not be listed in `concurrencyEligible`: every pool open refuses it 64
+(S25-A7). Every
 `ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `job admission`, `pool inspect`,
 `switch-mode` and the record readers) refuses 64 an eligible id that no listed checkout's
 catalogue names at HEAD. A typo added later therefore stops the next command rather than

@@ -467,3 +467,21 @@
       `job-run.test.ts` (fake seam, and the real seam outside the namespace); negatives: each
       new check removed in turn, Fable review fixes included (verify.md, 2026-11-19). The host
       proof follows the next calibration (S24-A3).
+- [x] 6.25 the measured gate envelope, clamped to the pool (A-ENVELOPE-CLAMP-1; PR #955):
+      three complete h4claw gate calibrations (29b8b406, 29d3503e, 43923656) proposed 13 GiB
+      and 9 cores, which no enrolled pool holds and J5 would refuse 73 on every gate.
+      `ops job propose` clamps a heuristic figure above the pool's largest admissible envelope
+      (`ResourceRuntime.largestEnvelope`) and records `clampedToAllocatable` and `heuristic`
+      (Burokrat `CalibratedProvenance`); `JOB-CATALOGUE` judges a clamped dimension's
+      heuristic against its p95 and refuses an envelope above it or an unknown dimension;
+      `ops job audit` marks an overrun of a clamped dimension expected, keeps it as drift,
+      notes it, never judges it for waste and, up to its heuristic, exits 0 when it is the only
+      drift. A clamped dimension reserves the pool's whole allocatable (S25-A7) and its type may
+      not be concurrency-eligible; a clamped `memoryGib` runs under `MemoryHigh` at the lower of
+      its heuristic and the pool's budget less `memoryBoundHeadroomGib` (default 2), pinned as
+      `memoryBoundGib` (S25-A6); `cap` on it is refused by the lint and at launch;
+      `CalibratedProvenance` gains `notes`. The `gate` entry lands clamped by hand to h2puni's
+      pool: 6 cores, 9 GiB, 11 GiB tmp; MemoryHigh 13 GiB on h4claw, 12 on h2puni. Tests: `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`,
+      `job-run.test.ts`, `status.test.ts`, `host-jobs.test.ts`, `host-pool-mode.test.ts`,
+      Burokrat `job-catalogue.test.ts`
+      (contract and rule); negatives: each new check removed in turn (verify.md, 2026-11-20).

@@ -9,13 +9,16 @@ import {
 } from '@twilight-burokrat/contracts';
 
 import type { JobTypeDescriptor } from '../resources/host-pool';
-import type { HostFacts } from '../resources/runtime';
+import type { HostFacts, ScopeCeiling } from '../resources/runtime';
 import { causeText, OpsRefusal } from './refusal';
 
 /** A job type read from a checkout's catalogue at one commit, as the run record pins it (J2). */
 export interface CataloguedJob {
   readonly jobType: JobType;
-  /** What the host pool admits from: the envelope, containers and enforcement, nothing else. */
+  /**
+   * What the host pool admits from: the envelope, containers, enforcement and the dimensions
+   * clamped to the pool; `executeHostJob` adds the scope bound once the pool is open.
+   */
   readonly descriptor: JobTypeDescriptor;
   /** The checkout's top directory. */
   readonly checkout: string;
@@ -25,6 +28,73 @@ export interface CataloguedJob {
   readonly cataloguePath: string;
   /** SHA-256 of the entry's JSON as the catalogue states it. */
   readonly descriptorDigest: string;
+}
+
+/** Which figure set a scope's `MemoryHigh` ({@link scopeMemoryBound}). */
+export type BoundTerm = 'envelope' | 'heuristic' | 'pool' | 'reservation';
+
+/** A job scope's `MemoryHigh` on one pool and the figure that set it. */
+export interface ScopeMemoryBound {
+  readonly memoryGib: number;
+  readonly term: BoundTerm;
+  /** The clamped entry's `heuristic.memoryGib`; absent for term `envelope`. */
+  readonly heuristicGib?: number;
+  /**
+   * The calibrated `p95.memoryGib` when the bound is below it (review S3-2): the scope will be
+   * throttled at its measured need. Absent otherwise.
+   */
+  readonly belowP95Gib?: number;
+}
+
+/**
+ * The memory a job's scope may use before `MemoryHigh` throttles it (J7) on a pool `ceiling`:
+ * the envelope's `memoryGib` (term `envelope`), except for an entry whose provenance clamped
+ * `memoryGib` to the pool (task 6.25, S25-A6). That entry reserves the pool (S25-A7) but runs
+ * under `min(heuristic.memoryGib, ceiling.memoryGib − ceiling.memoryBoundHeadroomGib)`: the
+ * heuristic, or the pool's budget less the room it leaves to the rest of the host, whichever is
+ * lower (term `heuristic` or `pool`), and never below its own envelope (term `reservation`).
+ * @throws Error when a clamped `memoryGib` has no heuristic, which the contract refuses.
+ */
+export function scopeMemoryBound(jobType: JobType, ceiling: ScopeCeiling): ScopeMemoryBound {
+  const { provenance } = jobType;
+  const envelope = jobType.envelope.memoryGib;
+  if (provenance.kind !== 'calibrated' || !provenance.clampedToAllocatable?.includes('memoryGib'))
+    return { memoryGib: envelope, term: 'envelope' };
+  // Proof: answering the envelope here (then `memoryBoundOf`) made `a clamped entry sets
+  // MemoryHigh to its heuristic; an unclamped one to its envelope` (job-run.test.ts) find the
+  // scope launched with `MemoryHigh=2G` (2026-11-20, S25-A6).
+  const heuristic = provenance.heuristic?.memoryGib;
+  if (heuristic === undefined)
+    throw new Error(`job type ${jobType.id} clamps memoryGib without its heuristic`);
+  const pool = ceiling.memoryGib - ceiling.memoryBoundHeadroomGib;
+  // Proof: taking the heuristic alone made `the pool caps the bound when …` (job-run.test.ts)
+  // launch `-p MemoryHigh=3G` on a 4 − 2 GiB pool, and `the scope bound is the lower of the
+  // heuristic and the pool, never below the reservation` fail; dropping the floor failed the
+  // latter's reservation case (2026-11-20, review S2-3).
+  const bound: ScopeMemoryBound =
+    pool < envelope
+      ? { memoryGib: envelope, term: 'reservation', heuristicGib: heuristic }
+      : heuristic <= pool
+        ? { memoryGib: heuristic, term: 'heuristic', heuristicGib: heuristic }
+        : { memoryGib: pool, term: 'pool', heuristicGib: heuristic };
+  // Proof: never marking it made `a pool bound below the calibrated p95 says so`
+  // (job-run.test.ts) find no `below the calibrated p95` (2026-11-20, review S3-2).
+  return bound.memoryGib < provenance.p95.memoryGib
+    ? { ...bound, belowP95Gib: provenance.p95.memoryGib }
+    : bound;
+}
+
+/**
+ * The refusal for a `cap` entry whose `memoryGib` is clamped to the pool, or null: its
+ * `MemoryMax` would sit below the measured p95 and kill every run (task 6.25, S25-A6).
+ */
+export function cappedClampOf(jobType: JobType): string | null {
+  const { provenance } = jobType;
+  return jobType.enforcement === 'cap' &&
+    provenance.kind === 'calibrated' &&
+    provenance.clampedToAllocatable?.includes('memoryGib') === true
+    ? `job type ${jobType.id} enforces cap with memoryGib clamped to the pool: MemoryMax ${String(jobType.envelope.memoryGib)}G is below its calibrated p95 ${String(provenance.p95.memoryGib)} GiB and would kill every run; use observe enforcement or raise the pool's allocatable`
+    : null;
 }
 
 function git(cwd: string, ...arguments_: string[]): { exitCode: number; stdout: string } {
@@ -142,6 +212,11 @@ export function readCataloguedJob(
       64,
       `ops job run: job type ${typeId} is not in ${cataloguePath} at ${revision}`,
     );
+  const capped = cappedClampOf(jobType);
+  // Proof: dropping this refusal made `a cap entry with memoryGib clamped to the pool is refused
+  // 64 before admission` (job-run.test.ts) admit and launch the job (2026-11-20, S25-A6).
+  if (capped !== null)
+    throw new OpsRefusal(64, `ops job run: ${capped} (${cataloguePath} at ${revision})`);
   try {
     parseJobArguments(jobType, argv.slice(1));
   } catch (cause) {
@@ -156,6 +231,12 @@ export function readCataloguedJob(
       envelope: jobType.envelope,
       containers: jobType.containers,
       enforcement: jobType.enforcement,
+      // Proof: leaving it out made `a clamped gate holds the whole pool through ops job run`
+      // (job-run.test.ts) find reserved memoryGib 2 of 3 (2026-11-20, S25-A7).
+      ...(jobType.provenance.kind === 'calibrated' &&
+      jobType.provenance.clampedToAllocatable !== undefined
+        ? { clampedToAllocatable: [...jobType.provenance.clampedToAllocatable] }
+        : {}),
     },
     checkout,
     revision,

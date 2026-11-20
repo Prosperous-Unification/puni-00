@@ -1,4 +1,10 @@
-import { type CommittedCatalogue, descriptorDigestOf, type JobType } from './catalogue';
+import type { ScopeCeiling } from '../resources/runtime';
+import {
+  type CommittedCatalogue,
+  descriptorDigestOf,
+  type JobType,
+  scopeMemoryBound,
+} from './catalogue';
 import {
   descriptorOf,
   figure,
@@ -14,14 +20,50 @@ import { type HostServiceBound, isAttributed, leftoverNote, type RunRecord } fro
 export type DriftKind =
   'throttled' | 'overrun' | 'waste' | 'estimate_expired' | 'attribution_incomplete';
 
-/** One drift: its kind, the job type and the line the audit prints. */
+/**
+ * One drift: its kind, the job type and the line the audit prints. `expected` marks an overrun
+ * in a dimension the HEAD entry clamped to the pool (task 6.25) whose peak is at most that
+ * dimension's heuristic: printed, but it alone does not fail the audit ({@link auditFails}).
+ */
 export interface Drift {
   kind: DriftKind;
   type: string;
   line: string;
+  expected?: true;
+}
+
+/**
+ * Whether `ops job audit` exits 1: any drift but an expected overrun of a clamped envelope, so
+ * an honest clamp leaves the gate_host probe and the weekly audit unit green (S25-A6).
+ */
+export function auditFails(drifts: readonly Drift[]): boolean {
+  return drifts.some((drift) => drift.expected !== true);
 }
 
 const ENVELOPE_DIMENSIONS = ['memoryGib', 'cpuCores', 'tmpDiskGib'] as const;
+type EnvelopeDimension = (typeof ENVELOPE_DIMENSIONS)[number];
+const UNIT: Readonly<Record<EnvelopeDimension, string>> = {
+  memoryGib: 'GiB',
+  cpuCores: 'cores',
+  tmpDiskGib: 'GiB',
+};
+
+/**
+ * The unclamped figure of a dimension `head`'s provenance clamped (task 6.25).
+ * @throws Error when the dimension has none, which the contract refuses.
+ */
+function heuristicOf(head: JobType, dimension: EnvelopeDimension): number {
+  const unclamped =
+    head.provenance.kind === 'calibrated' ? head.provenance.heuristic?.[dimension] : undefined;
+  if (unclamped === undefined)
+    throw new Error(`job type ${head.id} clamps ${dimension} without its heuristic`);
+  return unclamped;
+}
+
+/** The dimensions `head`'s provenance clamped to the pool's allocatable (task 6.25). */
+function clampedOf(head: JobType): readonly EnvelopeDimension[] {
+  return head.provenance.kind === 'calibrated' ? (head.provenance.clampedToAllocatable ?? []) : [];
+}
 const DAY_MS = 86_400_000;
 
 /** The instant an `estimated` entry's `until` date ends: its last UTC millisecond (Burokrat's reading). */
@@ -33,7 +75,7 @@ function endOfDay(date: string): number {
  * The `throttled` drift of `record` against its type's HEAD entry, or null: see {@link auditDrift}.
  * A calibration runs without `MemoryHigh`, so its high events never mean throttling.
  */
-function throttleOf(record: RunRecord, head: JobType): Drift | null {
+function throttleOf(record: RunRecord, head: JobType, ceiling: ScopeCeiling): Drift | null {
   // Proof: dropping this check made `a throttled run stays drift while it runs; …`
   // (audit.test.ts) find a throttled calibration (2026-11-12).
   if (record.calibration === true) return null;
@@ -43,16 +85,29 @@ function throttleOf(record: RunRecord, head: JobType): Drift | null {
   // find no drift (2026-11-12).
   if (memoryHighEvents === 0) return null;
   const envelope = descriptorOf(record).envelope.memoryGib;
+  // The scope ran under its recorded MemoryHigh, the envelope before task 6.25 (S25-A6).
+  const bound = record.memoryBoundGib ?? envelope;
   // A run still in progress keeps its throttle whatever HEAD says: it still holds the pool.
   // Proof: dropping this check made the same running-run test keep the drift under a HEAD
   // envelope raised to 8 GiB; dropping the `endedAt` term made it lose the drift of the run
   // still running under that envelope (2026-11-12).
-  if (record.endedAt !== null && head.envelope.memoryGib > envelope) return null;
+  // Proof: comparing the HEAD envelope as before made `a throttled run under a clamped entry is
+  // cleared only by a higher bound` (audit.test.ts) keep the drift under a HEAD heuristic of 15
+  // (2026-11-20, S25-A6).
+  if (record.endedAt !== null && scopeMemoryBound(head, ceiling).memoryGib > bound) return null;
   const running = record.endedAt === null ? ', still running' : '';
+  const memoryHigh = bound === envelope ? '' : ` (MemoryHigh ${String(bound)} GiB)`;
+  // A bound under the measured need throttles by construction (review S3-2): say so.
+  // Proof: dropping it made `a throttled run under a bound below the calibrated p95 says so`
+  // (audit.test.ts) find no `below the calibrated p95` (2026-11-20).
+  const belowP95 =
+    head.provenance.kind === 'calibrated' && bound < head.provenance.p95.memoryGib
+      ? `; MemoryHigh ${String(bound)} GiB is below the calibrated p95 ${String(head.provenance.p95.memoryGib)} GiB`
+      : '';
   return {
     kind: 'throttled',
     type: record.type,
-    line: `${record.type} throttled in run ${record.jobId}${running}: memory.events high ${String(memoryHighEvents)} under envelope memoryGib ${String(envelope)}, peak memoryGib ${memoryGib === null ? 'unmeasured' : figure(memoryGib)} (${record.cataloguePath}); calibrate the type (\`ops job calibrate --type ${record.type}\`) and \`ops job propose --type ${record.type}\`; the estimated envelope is below the job's real memory`,
+    line: `${record.type} throttled in run ${record.jobId}${running}: memory.events high ${String(memoryHighEvents)} under envelope memoryGib ${String(envelope)}${memoryHigh}, peak memoryGib ${memoryGib === null ? 'unmeasured' : figure(memoryGib)} (${record.cataloguePath}); calibrate the type (\`ops job calibrate --type ${record.type}\`) and \`ops job propose --type ${record.type}\`; the estimated envelope is below the job's real memory${belowP95}`,
   };
 }
 
@@ -106,11 +161,15 @@ function hostServicesOf(record: RunRecord): string | null {
  * bound, which still proves an overrun but never waste. An entry whose calibrated provenance
  * marks `tmpDiskGibLowerBound` is never judged for tmp waste, and a note says so. A run whose
  * scope still held processes after its session ended gets a note saying what ended them (task 6.24).
+ * A dimension the HEAD entry's provenance clamped to the pool (task 6.25) gets a note: an
+ * overrun there is expected, since the job measured more than the pool holds, and stays drift
+ * so it remains visible; that dimension is never judged for waste.
  */
 export function auditDrift(
   records: readonly RunRecord[],
   catalogue: CommittedCatalogue,
   now: number,
+  ceiling: ScopeCeiling,
 ): { drifts: Drift[]; notes: string[] } {
   const drifts: Drift[] = [];
   const notes: string[] = [];
@@ -124,7 +183,7 @@ export function auditDrift(
       retired.add(record.type);
       continue;
     }
-    const throttle = throttleOf(record, head);
+    const throttle = throttleOf(record, head, ceiling);
     if (throttle !== null) drifts.push(throttle);
     if (record.endedAt === null) {
       unended.push(record.jobId);
@@ -154,10 +213,21 @@ export function auditDrift(
       // also clearing it on a changed `calibrated` entry made `a calibrated entry that does not
       // cover the peak keeps the overrun` find no drift (2026-11-02, review A1).
       if (head.envelope[dimension] >= peak) continue;
+      // Proof: dropping the suffix made `an overrun of a clamped dimension stays drift, noted as
+      // expected` (audit.test.ts) find the plain overrun line (2026-11-20, task 6.25).
+      // Expected only up to the heuristic: beyond it the job outgrew its own measurement
+      // (review S2-2).
+      // Proof: dropping the heuristic bound made `an overrun above the heuristic of a clamped
+      // dimension is plain drift` (audit.test.ts) find the 14 GiB overrun expected and the
+      // audit green (2026-11-20).
+      const expected = clampedOf(head).includes(dimension) && peak <= heuristicOf(head, dimension);
       drifts.push({
         kind: 'overrun',
         type: record.type,
-        line: `${record.type} overrun ${dimension} ${figure(peak)} above envelope ${String(envelope[dimension])} in run ${record.jobId} at ${at} (${record.cataloguePath}); kept until an accepted envelope covers it`,
+        line: `${record.type} overrun ${dimension} ${figure(peak)} above envelope ${String(envelope[dimension])} in run ${record.jobId} at ${at} (${record.cataloguePath}); kept until an accepted envelope covers it${expected ? '; expected: the HEAD entry is clamped to the pool' : ''}`,
+        // Proof: never marking it made `only an expected overrun leaves the audit green`
+        // (audit.test.ts) find the audit failing (2026-11-20, S25-A6).
+        ...(expected ? { expected: true as const } : {}),
       });
     }
     if (record.attributionIncomplete) {
@@ -213,6 +283,28 @@ export function auditDrift(
       notes.push(
         `${head.id} tmp entry is a lower bound; waste cannot fire for tmpDiskGib (${location})`,
       );
+    const clamped = clampedOf(head);
+    // Proof: dropping these notes made `an overrun of a clamped dimension stays drift, noted as
+    // expected` and `a clamped dimension the p95 fits is noted, never judged for waste`
+    // (audit.test.ts) find no note (2026-11-20, task 6.25).
+    if (head.provenance.kind === 'calibrated')
+      for (const dimension of clamped) {
+        const p95 = head.provenance.p95[dimension];
+        const declared = head.envelope[dimension];
+        const scope = dimension === 'memoryGib' ? scopeMemoryBound(head, ceiling) : null;
+        // Proof: `scopeMemoryBound` never marking `belowP95Gib` made `a clamped memoryGib whose
+        // pool bound is below the p95 is noted` (audit.test.ts) find the note without the
+        // suffix (2026-11-20, review S3-2).
+        const bound =
+          scope?.belowP95Gib === undefined
+            ? ''
+            : `; MemoryHigh ${String(scope.memoryGib)} GiB on this pool is below the calibrated p95 ${String(scope.belowP95Gib)} GiB`;
+        notes.push(
+          p95 > declared
+            ? `${head.id} ${dimension} overruns a clamped envelope: p95 ${figure(p95)} ${UNIT[dimension]} measured, entry ${String(declared)} clamped to the pool; an overrun is expected and stays drift, waste is not judged${bound} (${location})`
+            : `${head.id} ${dimension} is clamped to the pool: entry ${String(declared)} holds its p95 ${figure(p95)} ${UNIT[dimension]} without the heuristic's headroom; waste is not judged${bound} (${location})`,
+        );
+      }
     const digest = descriptorDigestOf(head);
     const runs = records.filter(
       (record) =>
@@ -223,6 +315,9 @@ export function auditDrift(
     if (runs.length < HEURISTICS.wasteRuns) continue;
     for (const dimension of ENVELOPE_DIMENSIONS) {
       if (dimension === 'tmpDiskGib' && tmpUnjudged) continue;
+      // Proof: dropping this skip made `a clamped dimension the p95 fits is noted, never judged
+      // for waste` (audit.test.ts) name a memoryGib waste (2026-11-20, task 6.25).
+      if (clamped.includes(dimension)) continue;
       // A zero tmp envelope needs no skip: no p95 is below half of zero.
       const declared = head.envelope[dimension];
       const values = runs.flatMap((record) => {

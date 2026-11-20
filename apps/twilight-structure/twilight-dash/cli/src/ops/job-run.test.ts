@@ -27,6 +27,7 @@ import { scriptedTools } from '../mcp/testing/scripted-tools';
 import { ampleHost, fixtureGit, hostPoolFixture } from '../resources/host-pool.test.fixture';
 import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
+import { parseCatalogueJobs, scopeMemoryBound } from './catalogue';
 import { type OpsDependencies, opsHandlers, runOps } from './commands';
 import { type JobRunDependencies, type JobRunRequest, killSession, runHostJob } from './job-run';
 import { dimensionStandings, incompleteness } from './measures';
@@ -69,6 +70,16 @@ if (insideOpsNamespace(import.meta.path)) {
   });
   const clock = wallClock();
   const monotonic = monotonicClock();
+  const clampedProvenance = {
+    kind: 'calibrated',
+    hostClass: 'linux-x64-4c-4g',
+    calibratedAt: '2026-11-20T04:05:14.759Z',
+    recordCount: 3,
+    p95: { cpuCores: 0.5, memoryGib: 2.4, tmpDiskGib: 0 },
+    recordIds: ['c1', 'c2', 'c3'],
+    clampedToAllocatable: ['memoryGib'],
+    heuristic: { memoryGib: 3 },
+  };
   const types: FixtureJobType[] = [
     { id: 'test-queued', cpuCores: 1, memoryGib: 1, tmpDiskGib: 1 },
     { id: 'gate', cpuCores: 2, memoryGib: 1, tmpDiskGib: 1, exclusive: ['gate_tree'] },
@@ -77,17 +88,29 @@ if (insideOpsNamespace(import.meta.path)) {
     { id: 'huge', cpuCores: 1, memoryGib: 99 },
     { id: 'pinned', cpuCores: 1, memoryGib: 1, argumentProfile: '<sha>' },
     { id: 'bounded', cpuCores: 1, memoryGib: 1, maxRuntimeMinutes: 1 },
+    // Clamped from a heuristic of 3 GiB to 2 (task 6.25, S25-A6); the pool allocates 3.
+    { id: 'clamped', cpuCores: 1, memoryGib: 2, provenance: clampedProvenance },
+    {
+      id: 'clamped-cap',
+      cpuCores: 1,
+      memoryGib: 2,
+      enforcement: 'cap',
+      provenance: clampedProvenance,
+    },
   ];
 
   /** A pool of 4 cores and 4 GiB (headroom 1 GiB), one gate tree, initialized by `ops pool init`. */
-  function pool() {
-    const fixture = hostPoolFixture({
-      cpuCores: 4,
-      memoryGib: 4,
-      headroom: { cpuCores: 0, memoryGib: 1 },
-      gateTrees: 1,
-      credential: fakeCredential(),
-    });
+  function pool(overrides: Record<string, unknown> = {}) {
+    const fixture = hostPoolFixture(
+      {
+        cpuCores: 4,
+        memoryGib: 4,
+        headroom: { cpuCores: 0, memoryGib: 1 },
+        gateTrees: 1,
+        credential: fakeCredential(),
+      },
+      overrides,
+    );
     cleanups.push(fixture.remove);
     const checkout = catalogueCheckout(join(fixture.base, 'checkout'), types);
     const out: string[] = [];
@@ -1403,6 +1426,126 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       expect(job.state).toBe('released');
     }, 60000);
+  });
+
+  describe('a clamped entry runs under its bound and holds the whole pool (task 6.25, S25-A6, S25-A7)', () => {
+    /** The fake `systemd-run`'s launch call (the one that is not the `true` probe) for `type`. */
+    async function launchCall(type: string, overrides: Record<string, unknown> = {}) {
+      const { config, checkout, base, root } = pool(overrides);
+      const bin = fakeBin('exec');
+      const payload = payloadScript(join(base, 'quick.sh'), 'exit 0');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, type, [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          sampleIntervalMs: 100,
+        }),
+      );
+      expect(code).toBe(0);
+      const calls = readFileSync(join(bin, 'calls'), 'utf8').trim().split('\n');
+      const call = calls.find((line) => !line.endsWith(' -- true'));
+      if (call === undefined) throw new Error(`no launch call in ${calls.join(' | ')}`);
+      const job = onlyJob(config);
+      return { call, report, root, id: job.id, job };
+    }
+
+    test('a clamped entry sets MemoryHigh to its heuristic; an unclamped one to its envelope', async () => {
+      // A 4 GiB budget leaving 0 to the host: the heuristic 3 is the lower term.
+      const clamped = await launchCall('clamped', { memoryBoundHeadroomGib: 0 });
+      // Proof: the bound answering the envelope (then `memoryBoundOf`) made this find
+      // `MemoryHigh=2G` (2026-11-20, S25-A6).
+      expect(clamped.call).toContain('-p MemoryHigh=3G');
+      expect(clamped.report).toContain(
+        `ops job: ${clamped.id} MemoryHigh 3 GiB (heuristic 3 GiB, within the pool's 4 − 0 GiB; reservation clamped to 2 GiB)`,
+      );
+      expect(runRecord(clamped.root, clamped.id).memoryBoundGib).toBe(3);
+      expect(clamped.job.descriptor.memoryBoundGib).toBe(3);
+      const plain = await launchCall('test-queued');
+      expect(plain.call).toContain('-p MemoryHigh=1G');
+      expect(plain.report).not.toContainEqual(expect.stringContaining('reservation clamped'));
+      expect(runRecord(plain.root, plain.id).memoryBoundGib).toBe(1);
+      expect(plain.job.descriptor).not.toHaveProperty('memoryBoundGib');
+    }, 60000);
+
+    test('the pool caps the bound when its budget less the bound headroom is lower', async () => {
+      // Absent memoryBoundHeadroomGib means 2: 4 − 2 = 2 GiB is below the heuristic 3.
+      const capped = await launchCall('clamped');
+      expect(capped.call).toContain('-p MemoryHigh=2G');
+      expect(capped.report).toContain(
+        `ops job: ${capped.id} MemoryHigh 2 GiB (the pool's 4 − 2 GiB, below heuristic 3 GiB; reservation clamped to 2 GiB; below the calibrated p95 2.4 GiB, so the scope will be throttled at its measured need)`,
+      );
+    }, 60000);
+
+    test('a clamped gate holds the whole pool through ops job run (S25-A7)', async () => {
+      const { job } = await launchCall('clamped', { memoryBoundHeadroomGib: 0 });
+      // The pool allocates 3 GiB; the entry declares 2.
+      expect(job.reserved.memoryGib).toBe(3);
+      expect(job.descriptor.clampedToAllocatable).toEqual(['memoryGib']);
+    }, 60000);
+
+    test('the scope bound is the lower of the heuristic and the pool, never below the reservation', () => {
+      const entry = parseCatalogueJobs(catalogueOf(types)).find((job) => job.id === 'clamped');
+      if (entry === undefined) throw new Error('no clamped fixture type');
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 0 })).toEqual({
+        memoryGib: 3,
+        term: 'heuristic',
+        heuristicGib: 3,
+      });
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 2 })).toEqual({
+        memoryGib: 2,
+        term: 'pool',
+        heuristicGib: 3,
+        belowP95Gib: 2.4,
+      });
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 3 })).toEqual({
+        memoryGib: 2,
+        term: 'reservation',
+        heuristicGib: 3,
+        belowP95Gib: 2.4,
+      });
+      // h4claw and h2puni with the landed gate entry (heuristic 13): 15 − 2 and 14 − 2.
+      const gate = { ...entry, provenance: { ...entry.provenance, heuristic: { memoryGib: 13 } } };
+      expect(scopeMemoryBound(gate, { memoryGib: 15, memoryBoundHeadroomGib: 2 }).memoryGib).toBe(
+        13,
+      );
+      expect(scopeMemoryBound(gate, { memoryGib: 14, memoryBoundHeadroomGib: 2 })).toMatchObject({
+        memoryGib: 12,
+        term: 'pool',
+      });
+      const unclamped = parseCatalogueJobs(catalogueOf(types)).find((job) => job.id === 'gate');
+      if (unclamped === undefined) throw new Error('no gate fixture type');
+      expect(scopeMemoryBound(unclamped, { memoryGib: 4, memoryBoundHeadroomGib: 2 })).toEqual({
+        memoryGib: 1,
+        term: 'envelope',
+      });
+    });
+
+    test('a pool bound below the calibrated p95 says so', () => {
+      const entry = parseCatalogueJobs(catalogueOf(types)).find((job) => job.id === 'clamped');
+      if (entry === undefined) throw new Error('no clamped fixture type');
+      // 4 − 2 = 2 GiB is below the fixture's p95 of 2.4; 4 − 0 lets the heuristic 3 hold it.
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 2 })).toMatchObject({
+        memoryGib: 2,
+        belowP95Gib: 2.4,
+      });
+      expect(
+        scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 0 }),
+      ).not.toHaveProperty('belowP95Gib');
+    });
+
+    test('a cap entry with memoryGib clamped to the pool is refused 64 before admission', async () => {
+      const { config, checkout, base } = pool();
+      const payload = payloadScript(join(base, 'quick.sh'), 'exit 0');
+      const refused = await refusal(
+        runHostJob(request(config, 'clamped-cap', [payload]), runDependencies(checkout, [])),
+      );
+      expect(refused.exitCode).toBe(64);
+      expect(refused.message).toContain(
+        'job type clamped-cap enforces cap with memoryGib clamped to the pool: MemoryMax 2G is below its calibrated p95 2.4 GiB and would kill every run',
+      );
+      expect(ledger(config).listHostJobs()).toEqual([]);
+    });
   });
 
   describe('the runtime bound over the fake seam (task 6.11)', () => {
