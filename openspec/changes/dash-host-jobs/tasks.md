@@ -485,7 +485,7 @@
       `job-run.test.ts`, `status.test.ts`, `host-jobs.test.ts`, `host-pool-mode.test.ts`,
       Burokrat `job-catalogue.test.ts`
       (contract and rule); negatives: each new check removed in turn (verify.md, 2026-11-20).
-- [x] 6.26 the gate payload pins the Node heap (A-NODE-HEAP-1; PR #PRNUM): Node sizes its
+- [x] 6.26 the gate payload pins the Node heap (A-NODE-HEAP-1; PR #956): Node sizes its
       default old space from the job scope's `MemoryHigh` (2240 MB under 13 GiB on h4claw against
       4288 MB plain), so the first ordinary gate under the measured entry (h4claw job f776195f)
       lost four lint tasks to a heap out of memory its unbounded calibrations never met.
