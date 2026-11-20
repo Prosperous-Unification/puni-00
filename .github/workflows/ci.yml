@@ -445,16 +445,19 @@ jobs:
           #   `unavailable` and never changes the gate status; it is stopped before the end record.
           # - End record (best-effort): `free -m`, `df -h /` and leaked children; its failure writes
           #   `runtime headroom end unavailable` and must not turn a passing gate red.
+          # Every record runs with NO_COLOR=1 and prints the heap limit without util.inspect: on
+          # ab1607590 the runner's colour-capable environment made `node -p` wrap it in ANSI escapes.
           # A lost runner uploads no log, so none of this explains a loss by itself.
           # Proof (2026-11-20, pr-merge-base.test.ts headroom tests): removing the start record, the
           # first sample, the heap limit or the sampler stop failed `records headroom start,
           # samples and end`; a strict end record, a hard sample failure or `|| :` on the start
-          # record failed `telemetry failures leave the gate status unchanged`.
+          # record failed `telemetry failures leave the gate status unchanged`. Under FORCE_COLOR=1,
+          # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
           record_headroom_start() {
             printf 'runtime headroom start partition=workspace utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s\n' \
               "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
-              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -p 'v8.getHeapStatistics().heap_size_limit')"
+              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')"
             free -m
             df -h /
           }
@@ -475,8 +478,8 @@ jobs:
           }
           phase_started=$SECONDS
           printf 'runtime phase start partition=workspace head=%s utc=%s\n' "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
-          record_headroom_start >> nx-gate.log
-          sample_headroom >> nx-gate.log
+          NO_COLOR=1 record_headroom_start >> nx-gate.log
+          NO_COLOR=1 sample_headroom >> nx-gate.log
           (
             nap=
             trap '[ -z "$nap" ] || kill "$nap" 2> /dev/null; exit 0' TERM
@@ -484,7 +487,7 @@ jobs:
               sleep 30 &
               nap=$!
               wait "$nap"
-              sample_headroom
+              NO_COLOR=1 sample_headroom
             done
           ) >> nx-gate.log 2>&1 &
           sampler_pid=$!
@@ -503,7 +506,7 @@ jobs:
           kill "$sampler_pid" || sampler_status=$?
           wait "$sampler_pid" || sampler_status=$?
           printf 'runtime headroom sampler stopped status=%s\n' "$sampler_status" >> nx-gate.log
-          record_headroom_end >> nx-gate.log 2>&1 ||
+          NO_COLOR=1 record_headroom_end >> nx-gate.log 2>&1 ||
             printf 'runtime headroom end unavailable utc=%s\n' "$(headroom_utc)" >> nx-gate.log
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?

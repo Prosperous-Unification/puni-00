@@ -412,11 +412,16 @@ test('workspace gate step records headroom start, samples and end around its Nx 
       RUNTIME_STATUS: status,
       ImageOS: 'ubuntu24',
       ImageVersion: '20261116.376.1',
+      // Hosted runners export a colour-capable environment; `node -p` then wrapped the heap
+      // limit in ANSI escapes (job on ab1607590). The record must stay plain text.
+      FORCE_COLOR: '1',
     });
     expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
       Number(status),
     );
-    const { lines, at } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+    const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
+    expect(log.includes('\u001b'), status).toBe(false);
+    const { lines, at } = headroomLog(log);
     const start = at('runtime headroom start partition=workspace utc=');
     const phaseEnd = at('runtime phase end partition=workspace');
     const end = at('runtime headroom end partition=workspace utc=');

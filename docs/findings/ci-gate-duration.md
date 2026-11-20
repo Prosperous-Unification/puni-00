@@ -193,3 +193,8 @@ instead of 7, so a full-scope pull request would take about 81 minutes instead o
 exceed the 105-minute phase. Even if serial tasks ran a quarter faster without contention, the
 run would leave almost no reserve. The next five hosted workspace runs should confirm or
 correct these figures.
+
+The workspace gate step now records its runner in `nx-gate.log`. The first record, from the
+#957 workspace job at `ab1607590`, was `ubuntu-24.04` image 20261116.376.1 on Ubuntu 24.04.5 LTS
+with a Node `heap_size_limit` of 4345298944 bytes (about 4144 MiB). Per-run image versions now
+let a duration change be matched against an image roll.

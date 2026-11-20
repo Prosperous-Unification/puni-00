@@ -258,11 +258,19 @@ memory trend up to the minute the losses were declared.
 A per-process heap cap was tried and rejected. `NODE_OPTIONS=--max-old-space-size=3072` made
 `wbs-fe-01:lint` die with `JavaScript heap out of memory`. The workspace shard runs that lint
 on affected pull requests, so the cap would have turned them red. At 3584 it passed with 3.7
-GiB RSS, which leaves almost no margin. Node's default was 4096 MB of old space (heap limit
-4288 MB), but that was measured on a laptop with Node v24.20.0 and on h4claw, not on CI. The
-start record will report CI's figure. Either way the losses look like the sum of processes:
-the long workspace tests are `bun test` processes and native children, which no Node flag
-bounds.
+GiB RSS, which leaves almost no margin. Node's default was first measured on a laptop with
+Node v24.20.0 and on h4claw: 4096 MB of old space, heap limit 4288 MB. The first CI start
+record, from the #957 workspace job at `ab1607590`, reported `ubuntu-24.04` image
+20261116.376.1, Ubuntu 24.04.5 LTS and `heap_size_limit` 4345298944 bytes (about 4144 MiB).
+That answers #956's S26-A2: CI's Node default is about 4.1 GB, so a 3072 cap would have
+lowered it. The losses still look like the sum of processes, because the long workspace tests
+are `bun test` processes and native children, which no Node flag bounds.
+
+The same job showed a telemetry defect. The runner's colour-capable environment made `node -p`
+wrap the heap figure in ANSI escapes, and the production-shell test's pattern rejected it.
+The step now prints the figure with `process.stdout.write`, runs every record with
+`NO_COLOR=1`, and its test runs with `FORCE_COLOR=1` and refuses any ESC byte in
+`nx-gate.log`.
 
 **Proof plan, per mode.** The argv ledger in `ci-plan.test.ts` fails when lint returns to
 `--parallel=2` in either mode, or when lint is folded back into the full run-many.
