@@ -237,6 +237,22 @@ and so is any other drift. `cap` on a clamped `memoryGib` is refused by `JOB-CAT
 `ops job run` (64), because its `MemoryMax` would kill every run. The residual risk is that the
 bound leaves the host only 2 GiB of its budget (S25-A6).
 
+_Amendment (task 6.26, 2026-11-20, assumption A-NODE-HEAP-1 for Dany)._ Node heaps follow this
+bound unless the payload pins them. Node derives its default old-space size from the cgroup's
+memory constraint, and libuv's constrained memory honours `memory.high`: on h4claw (Node 24.18.1,
+15.2 GiB) `v8.getHeapStatistics().heap_size_limit` is 4288 MB in a plain shell and 2240 MB inside
+`systemd-run --user --scope -p MemoryHigh=13G`, also with `MemoryMax=infinity`. Calibration runs
+with no `MemoryHigh`, so the three calibrations behind the `gate` entry ran Node at the plain
+default, and the first ordinary gate under the 13 GiB bound (job f776195f) lost four `bunx eslint`
+lint tasks to a heap out of memory at about 2017 MB. What calibration measured was therefore not
+what the bounded run gets. The gate payload now exports
+`NODE_OPTIONS=--max-old-space-size=4096`, the plain default on these hosts, keeping inherited
+options and refusing 78 another heap figure, so bounded and unbounded runs size Node alike and
+the measured envelope still applies. The launcher stays payload-agnostic: it does not set or
+report Node options. Rejected: raising `MemoryHigh`, which still shrinks the heap below the plain
+default; launching a calibration under the bound it will later get, which makes the bound an
+input of its own measurement; and a per-task heap figure, left to Dany (S26-A1).
+
 **J10. WBS shows the host, never admits for it (F12).** Two projections, both through
 existing transports: (a) a `host_job` use is published through the resource authority events
 as a versioned use variant (`resourceRuntimeUse` v2: `kind: 'host_job'`, optional project, work

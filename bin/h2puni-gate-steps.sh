@@ -5,6 +5,42 @@ repo=${1:?repository is required}
 : "${2:?committed revision is required}"
 cd "$repo"
 
+# Every Node process the gate starts (Nx itself, `bunx eslint`, `bunx vitest` and its forks, all
+# `#!/usr/bin/env node`) runs with a 4096 MiB old space (assumption A-NODE-HEAP-1, `dash-host-jobs`
+# task 6.26, awaiting Dany). Node sizes its default heap from the cgroup's memory constraint, and
+# libuv's constrained memory honours `memory.high`: on h4claw (Node 24.18.1, 15.2 GiB) the heap
+# limit is 4288 MB in a plain shell and 2240 MB under `systemd-run --user --scope -p
+# MemoryHigh=13G`, with or without `MemoryMax=infinity`. The `gate` entry was measured by three
+# calibrations, which run with no MemoryHigh and so with the plain default; the first ordinary
+# gate under its 13 GiB bound (h4claw job f776195f, 2026-11-20, launcher main 1730d911f) lost
+# wbs-core, wbs-be-01, tool-fleet and wbs-fe-01 lint to `JavaScript heap out of memory` at
+# ~2017 MB. Pinning makes bounded and unbounded runs alike. The trade-off: vitest still fans out
+# by nproc and each worker may grow to 4 GiB, exactly as in the calibrations, so the measured
+# envelope still describes this payload. `bun test` and Bun-run scripts ignore NODE_OPTIONS (Bun
+# has its own heap); a Node child they spawn inherits it. Another heap figure already in
+# NODE_OPTIONS would make the gate unlike its calibration, so it is refused rather than overridden.
+# Revert by deleting this block. See docs/infra/gate-hosts.md.
+# Proof (2026-11-20): with this block deleted, h2puni-gate.test.sh case 48 failed `48: every Nx
+# call ran with the pinned heap`; with only the refusal branch deleted, `48: a conflicting heap
+# size refuses the gate steps: want exit 78, got 0`.
+gate_node_heap='--max-old-space-size=4096'
+read -ra node_options <<<"${NODE_OPTIONS:-}"
+heap_pinned=no
+for option in "${node_options[@]}"; do
+  case $option in
+    "$gate_node_heap" | --max_old_space_size=4096) heap_pinned=yes ;;
+    --max-old-space-size* | --max_old_space_size*)
+      printf 'h2puni gate: NODE_OPTIONS already sets %s; the gate pins %s (A-NODE-HEAP-1)\n' \
+        "$option" "$gate_node_heap" >&2
+      exit 78
+      ;;
+  esac
+done
+if [[ $heap_pinned == no ]]; then
+  NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }$gate_node_heap"
+fi
+export NODE_OPTIONS
+
 # The gate tree is a long-lived shared checkout, so its node_modules is whatever an earlier gate
 # left behind; on 2026-09-20 that was 2026-09-18's install and the first batch 2 group gate failed
 # apps/wbs/be-01/src/production-entrypoint.test.ts on `Could not resolve: "di-bag"`. Frozen,

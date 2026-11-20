@@ -4818,3 +4818,74 @@ line, the audit's `throttled` line and the audit's clamp note.
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scopeMemoryBound` never marking `belowP95Gib` | `a pool bound below the calibrated p95 says so`, the pool-caps launch test (its line lacked the suffix), the pure bound test and `a clamped memoryGib whose pool bound is below the p95 is noted` failed |
 | the audit's `throttled` suffix dropped         | `a throttled run under a bound below the calibrated p95 says so` failed                                                                                                                                  |
+
+## 2026-11-20 Node sized its heap from MemoryHigh (task 6.26)
+
+Branch `ops/gate-payload-node-heap-20261120` from `main` 1730d911f (after #955); laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change. The h4claw
+evidence is the coordinator's, from the gate log and shells on h4claw (Node v24.18.1, 15.2 GiB
+RAM).
+
+- The first ordinary gate under the measured `gate` entry (h4claw job f776195f, 2026-11-20
+  08:35Z to 11:50Z, launcher `main` 1730d911f, scope `MemoryHigh=13G` from #955) failed with
+  payload exit 1. Four lint tasks, `wbs-core:lint`, `wbs-be-01:lint`, `tool-fleet:lint` and
+  `wbs-fe-01:lint`, each `bunx eslint …` on Node (eslint's bin is `#!/usr/bin/env node`), died
+  with `FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory`
+  at about 2017 MB of heap.
+- The three calibrations the entry was measured from (29b8b406, 29d3503e, 43923656; task 6.25)
+  ran the same tasks with no `MemoryHigh` and passed them.
+- On h4claw, `node -e 'console.log(v8.getHeapStatistics().heap_size_limit)'` reports 4288 MB in
+  a plain shell and 2240 MB inside `systemd-run --user --scope -p MemoryHigh=13G`, also with
+  `-p MemoryMax=infinity`. Node derives its default old-space size from the cgroup memory
+  constraint, and libuv's constrained memory honours `memory.high`, so any `MemoryHigh` on the
+  job scope shrinks every Node heap below the default the calibrations ran with. What was
+  measured was not what the bounded run gets (S26-A1).
+- The laptop (Node v24.20.0, Bun 1.4.4, 24 cores, 30 GiB) reproduces it: 4288 MB plain;
+  2240 MB inside `systemd-run --user --scope -p MemoryHigh=13G`, where
+  `process.constrainedMemory()` reads 13 GiB; 4288 MB in the same scope with
+  `NODE_OPTIONS=--max-old-space-size=4096`. A probe bin with a `#!/usr/bin/env node` shebang
+  run through `bunx` inside that scope ran on Node with 2240 MB, and with 4288 MB once
+  `NODE_OPTIONS` carried the pin, which it received unchanged through `bunx`.
+- Bun ignores `NODE_OPTIONS`: `NODE_OPTIONS=--definitely-not-a-flag bun -e …` ran (Node refuses
+  the same value with `--definitely-not-a-flag is not allowed in NODE_OPTIONS`), and Bun's
+  `v8.getHeapStatistics().heap_size_limit` read 178.7 MB with and without
+  `--max-old-space-size=100`. So `bun test` targets keep Bun's own heap. `bunx vitest` is not
+  Bun: vitest's bin (`node_modules/vitest/vitest.mjs`) is `#!/usr/bin/env node`, so vitest and
+  the forks it starts run on Node and inherit the pin, as do Nx and every `bunx eslint`.
+
+`bin/h2puni-gate-steps.sh` now exports `NODE_OPTIONS` with `--max-old-space-size=4096`, the
+plain default's figure on these hosts, before any other step. Inherited options are kept (the
+pin is appended); an inherited `--max-old-space-size=4096` is kept once; any other
+`--max-old-space-size` or `--max_old_space_size` is refused with exit 78 before the install.
+The trade-off: vitest still fans out by nproc and each worker may grow to 4 GiB, as in the
+unbounded calibrations, so the measured envelope still applies. The launcher stays
+payload-agnostic, so `job-run.ts`'s `MemoryHigh` line is unchanged; the knowledge is in the J9
+amendment of `design.md`, the scope-bound paragraph of `resources.md` and the measured-gate
+paragraph of `docs/infra/gate-hosts.md`.
+
+| Command                                                                                                                 | Result                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `bash bin/h2puni-gate.test.sh`                                                                                          | exit 0, `all cases passed` (case 48: 14 ok lines)                                           |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                                | 36 pass, 0 fail                                                                             |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                 | 58 pass, 0 fail (bare `bun test` without that environment: 56 pass, 2 fail, also on `main`) |
+| `bash -n` on both changed scripts                                                                                       | exit 0                                                                                      |
+| `shellcheck -s bash bin/h2puni-gate-steps.sh bin/h2puni-gate.test.sh` (local 0.9.0; both are in `uncheckedExecutables`) | exit 0, no findings                                                                         |
+| `bunx prettier --check` on every changed Markdown file                                                                  | all matched files use Prettier code style (Prettier has no parser for the `.sh` files)      |
+| `bunx openspec validate --all --json`                                                                                   | exit 0; 346 items, 346 passed, 0 failed                                                     |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`          | exit 0 (review debt listed only for two unrelated pre-existing indexes)                     |
+| host gate                                                                                                               | not run: no host touched; the next gate on a launcher carrying this change is the proof     |
+
+| Injected fault                                        | Observed                                                                                                                                                                                                |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the pin block deleted from `bin/h2puni-gate-steps.sh` | exit 1, 8 failing cases: `48: every Nx call ran with the pinned heap` for the empty and kept-options inputs (`got ''`, `got '--enable-source-maps'`), and both conflicting inputs `want exit 78, got 0` |
+| only the refusal branch deleted                       | exit 1, 6 failing cases: both conflicting inputs `want exit 78, got 0`, the refusal message missing and the install reached                                                                             |
+
+- **S26-A1** A-NODE-HEAP-1: pinning every Node process in the gate payload to 4096 MiB, the plain
+  default on the 15 GiB gate hosts, is assumed and awaits Dany's confirmation. Dany may prefer a
+  per-task figure (only the lint tasks needed more than the bounded 2240 MB) or a different
+  figure; it is reversible by deleting the block.
+- **S26-A2** CI runners are unaffected: GitHub-hosted `ubuntu-24.04` and `ubuntu-latest` jobs run
+  without a Dash scope bound, so Node keeps its plain default there, and no workflow sets
+  `NODE_OPTIONS`. CI's actual Node heap figure is unverified: no run log prints it.
+- **S26-A3** The host proof is the next gate on a launcher carrying this change; until then the
+  fix rests on the laptop reproduction and the fixture test.

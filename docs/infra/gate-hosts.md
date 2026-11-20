@@ -19,7 +19,10 @@ when the pool configuration leaves it out: 13 GiB on h4claw (15 − 2), 12 GiB o
 (S25-A6). The key is absent on both hosts until the gate_host role gains the input:
 `tasks/validate.yml` asserts the exact key list of `host-pool.json` and the template renders no
 such key, so a hand-set key fails the validate play, and the default 2 applies. Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h 27 min (p95
-18,958 s), which replaces the intro's figure for an enrolled gate.
+18,958 s), which replaces the intro's figure for an enrolled gate. Node sizes its default heap
+from that bound (2240 MB under 13 GiB on h4claw, 4288 MB unbounded), so since the first bounded
+gate lost four lint tasks to a heap out of memory `bin/h2puni-gate-steps.sh` pins
+`--max-old-space-size=4096` in `NODE_OPTIONS` (A-NODE-HEAP-1, `dash-host-jobs` task 6.26).
 
 ## What the host gate runs
 
