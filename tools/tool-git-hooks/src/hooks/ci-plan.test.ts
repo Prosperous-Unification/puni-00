@@ -130,6 +130,9 @@ function invokePlan(candidate: ReturnType<typeof history>) {
   );
 }
 
+const heavyProjects = ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite', 'wbs-core'];
+const heavyLeaves = heavyProjects.map((project) => `heavy-${project}`);
+
 const dedicatedInventory = [
   'wbs-be-01',
   'tool-remote-scripts',
@@ -294,7 +297,10 @@ describe('production CI plan and execution', () => {
       };
       expect(plan.partitions[partition]).toEqual([project]);
       expect(Object.values(plan.partitions).flat()).toEqual([project]);
-      const execution = invokeRuntime(candidate, partition);
+      const execution = invokeRuntime(
+        candidate,
+        partition === 'heavy' ? `heavy-${project}` : partition,
+      );
       expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
       expect(readFileSync(execution.calls, 'utf8')).toContain(`-p ${project}`);
     },
@@ -381,7 +387,7 @@ describe('production CI plan and execution', () => {
 
   test('full partitions cover every non-Twilight project with canonical targets', () => {
     const candidate = history('modules/core/source.ts');
-    const commands = ['backend', 'remote', 'frontend', 'workspace', 'heavy'].map((part) => {
+    const commands = ['backend', 'remote', 'frontend', 'workspace', ...heavyLeaves].map((part) => {
       const { invocation, calls } = invokeRuntime(candidate, part, '0', 'full');
       expect(invocation.exitCode, `${part}: ${invocation.stderr.toString()}`).toBe(0);
       expect(invocation.stdout.toString()).toContain('elapsedMs');
@@ -404,44 +410,63 @@ describe('production CI plan and execution', () => {
     );
     expect(commands[3]).toHaveLength(3);
     expect(commands[3].join('\n')).not.toMatch(/tool-fleet|tool-devsync|wbs-store-sqlite|wbs-core/);
-    expect(commands[4].slice(1)).toEqual([
-      'nx run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite,wbs-core --parallel=1 --output-style=stream',
-    ]);
+    for (const [index, project] of heavyProjects.entries())
+      expect(commands[4 + index].slice(1), project).toEqual([
+        `nx run-many -t test lint typecheck build -p ${project} --parallel=1 --output-style=stream`,
+      ]);
   }, 20000);
 
-  // A-CI-WORKSPACE-MEMORY-2: the heavy shard owns HEAVY_TEST_PROJECTS and runs them one at a
-  // time; the workspace shard keeps only their affected lint.
-  test('the heavy shard runs its projects one task at a time in affected and full modes', () => {
+  // A-CI-WORKSPACE-MEMORY-3: one leaf per heavy project, each one task at a time; the workspace
+  // shard keeps only their affected lint.
+  test('each heavy leaf runs only its project one task at a time in affected and full modes', () => {
     const candidate = history('modules/tool-fleet/source.ts');
     const planned = invokePlan(candidate);
     expect(planned.exitCode, planned.stderr.toString()).toBe(0);
     const plan = JSON.parse(planned.stdout.toString()) as { partitions: Record<string, string[]> };
     expect(plan.partitions['heavy']).toEqual(['tool-fleet']);
     expect(plan.partitions['workspace']).toEqual([]);
-    const affected = invokeRuntime(candidate, 'heavy');
+    const affected = invokeRuntime(candidate, 'heavy-tool-fleet');
     expect(affected.invocation.exitCode, affected.invocation.stderr.toString()).toBe(0);
     expect(readFileSync(affected.calls, 'utf8').trim().split('\n')).toEqual([
       'nx run-many -t test typecheck build -p tool-fleet --parallel=1 --output-style=stream',
     ]);
+    for (const unselected of ['heavy-tool-devsync', 'heavy-wbs-store-sqlite', 'heavy-wbs-core']) {
+      const refused = invokeRuntime(candidate, unselected);
+      expect(refused.invocation.exitCode, unselected).not.toBe(0);
+      expect(refused.invocation.stderr.toString(), unselected).toContain(
+        'Selected runtime partition has no projects',
+      );
+      expect(existsSync(refused.calls), unselected).toBe(false);
+    }
     const workspace = invokeRuntime(candidate, 'workspace');
     expect(workspace.invocation.exitCode, workspace.invocation.stderr.toString()).toBe(0);
     const residual = readFileSync(workspace.calls, 'utf8').trim().split('\n');
     expect(residual).toHaveLength(2);
     expect(residual[0]).toContain('affected -t lint');
     expect(residual[1]).toContain('run twilight-burokrat:lint:source');
-    const full = invokeRuntime(candidate, 'heavy', '0', 'full');
-    expect(full.invocation.exitCode, full.invocation.stderr.toString()).toBe(0);
-    expect(readFileSync(full.calls, 'utf8')).toContain(
-      'run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite,wbs-core --parallel=1 --output-style=stream',
-    );
-  }, 20000);
+    for (const project of heavyProjects) {
+      const full = invokeRuntime(candidate, `heavy-${project}`, '0', 'full');
+      expect(full.invocation.exitCode, full.invocation.stderr.toString()).toBe(0);
+      expect(readFileSync(full.calls, 'utf8').trim().split('\n').slice(1), project).toEqual([
+        `nx run-many -t test lint typecheck build -p ${project} --parallel=1 --output-style=stream`,
+      ]);
+    }
+  }, 30000);
 
-  test('the heavy shard refuses an affected plan that selects none of its projects', () => {
-    const { invocation, calls } = invokeRuntime(history('modules/core/source.ts'), 'heavy');
-    expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain('Selected runtime partition has no projects');
-    expect(existsSync(calls)).toBe(false);
-  }, 20000);
+  test('heavy leaves refuse an affected plan without their project and the retired bare partition', () => {
+    const candidate = history('modules/core/source.ts');
+    for (const part of [...heavyLeaves, 'heavy', 'heavy-core', 'heavy-']) {
+      const { invocation, calls } = invokeRuntime(candidate, part);
+      expect(invocation.exitCode, part).not.toBe(0);
+      expect(invocation.stderr.toString(), part).toMatch(
+        /Selected runtime partition has no projects|Unknown runtime partition/,
+      );
+      expect(existsSync(calls), part).toBe(false);
+    }
+    expect(invokeRuntime(candidate, 'heavy', '0', 'full').invocation.stderr.toString()).toContain(
+      'Unknown runtime partition',
+    );
+  }, 30000);
 
   // A-CI-WORKSPACE-MEMORY-1: two concurrent type-aware eslints plus test workers can exhaust the
   // 16 GB hosted runner, which then dies without a log (docs/findings/checks-that-cannot-fail.md,
@@ -550,7 +575,7 @@ describe('production CI plan and execution', () => {
     for (const omitted of ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite', 'wbs-core']) {
       const heavy = invokeRuntime(
         candidate,
-        'heavy',
+        'heavy-wbs-core',
         '0',
         'full',
         dedicatedInventory.filter((name) => name !== omitted),

@@ -16,7 +16,8 @@ interface Job {
   name?: string;
   needs?: string | string[];
   if?: string;
-  'timeout-minutes'?: number;
+  // A number, or a matrix expression on the heavy leaves.
+  'timeout-minutes'?: number | string;
   'runs-on'?: string;
   steps?: Step[];
   strategy?: unknown;
@@ -69,36 +70,48 @@ test('all Python consumers use a hosted distribution available for the pinned ru
 
 // Proof: the original production workspace 75m failed this consumer expecting 105m;
 // dedicated 75m and whole-job 120m/90m controls remain, restoration passed.
-// The heavy shard has its own finite allowance, 135m of 150m (about 93 minutes of task time at
-// parallel-2 timings). Proof: setting gate_heavy back to 120 failed this test (2026-11-20).
 test('each whole-project runtime has a finite Nx phase and whole-job limit with durable status and log', () => {
   for (const [partition, title] of [
     ['workspace', 'Gate'],
     ['backend', 'Backend'],
     ['frontend', 'Frontend'],
-    ['heavy', 'Heavy'],
   ]) {
     const runtime = job(`gate_${partition}`);
-    const [jobLimit, phaseLimit] =
-      partition === 'heavy' ? [150, '135'] : partition === 'workspace' ? [120, '105'] : [90, '75'];
+    const shared = partition === 'workspace';
     expect(runtime.needs).toBe('gate_mode');
-    expect(runtime['timeout-minutes'], partition).toBe(jobLimit);
+    expect(runtime['timeout-minutes'], partition).toBe(shared ? 120 : 90);
     expect(runtime.if).toBe(
-      partition === 'workspace'
+      shared
         ? "${{ needs.gate_mode.outputs.mode != 'docs' }}"
         : `\${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.${partition} == 'run' }}`,
     );
     const execution = step(runtime, `${title} — test, lint, typecheck, build`);
-    expect(execution.run).toContain(`timeout --signal=TERM --kill-after=30s ${phaseLimit}m \\`);
-    expect(execution.run).toContain(
-      `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
-    );
+    // The workspace step text is shared with the heavy leaves, so it names its partition and
+    // budget once (partition=workspace, phase_limit=105) and reads them everywhere else.
+    if (shared) {
+      expect(execution.run).toContain('partition=workspace\nphase_limit=105\n');
+      expect(execution.run).toContain(
+        'timeout --signal=TERM --kill-after=30s "${phase_limit}m" \\',
+      );
+      expect(execution.run).toContain(
+        'ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"',
+      );
+      expect(execution.run).toContain('runtime phase start partition=%s head=%s utc=%s');
+      expect(execution.run).toContain(
+        'runtime phase end partition=%s utc=%s elapsedSeconds=%s exit=%s',
+      );
+    } else {
+      expect(execution.run).toContain('timeout --signal=TERM --kill-after=30s 75m \\');
+      expect(execution.run).toContain(
+        `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
+      );
+      expect(execution.run).toContain(`runtime phase start partition=${partition} head=%s utc=%s`);
+      expect(execution.run).toContain(
+        `runtime phase end partition=${partition} utc=%s elapsedSeconds=%s exit=%s`,
+      );
+    }
     expect(execution.run).toContain('if [ "$GATE_BASE" != "$base" ]; then');
     expect(execution.run).toContain('gate_status=$?');
-    expect(execution.run).toContain(`runtime phase start partition=${partition} head=%s utc=%s`);
-    expect(execution.run).toContain(
-      `runtime phase end partition=${partition} utc=%s elapsedSeconds=%s exit=%s`,
-    );
     expect(execution.run).toContain('"$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log');
     expect(execution.run).toContain('exit "$gate_status"');
     expect(execution.run).toContain('exit "$annotation_status"');
@@ -107,6 +120,26 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
     expect(upload.with?.['name']).toBe(`nx-gate-log-${partition}-\${{ github.run_attempt }}`);
     expect(upload.with?.['if-no-files-found']).toBe('error');
   }
+});
+
+// A-CI-WORKSPACE-MEMORY-3: each heavy leaf takes its finite budget from its matrix entry (Gate
+// mode's table, held by gate-workflow.test.ts) and uploads its own log.
+// Proof (2026-11-21): a literal 150 job limit or a per-project-blind log name failed this test.
+test('each heavy leaf takes its job and phase budget from its matrix entry and keeps its own log', () => {
+  const leaf = job('gate_heavy');
+  expect(leaf.needs).toBe('gate_mode');
+  expect(leaf.if).toBe("${{ needs.gate_mode.outputs.heavy == 'run' }}");
+  expect(leaf['timeout-minutes']).toBe('${{ matrix.job }}');
+  const execution = step(leaf, 'Heavy leaf — test, lint, typecheck, build');
+  expect(execution.env?.['RUNTIME_PARTITION']).toBe('heavy-${{ matrix.project }}');
+  expect(execution.env?.['PHASE_MINUTES']).toBe('${{ matrix.phase }}');
+  expect(execution.run).toContain('partition="$RUNTIME_PARTITION"\nphase_limit="$PHASE_MINUTES"\n');
+  const upload = step(leaf, 'Upload gate log');
+  expect(upload.if).toBe("${{ always() && steps.nx_gate.outcome != 'skipped' }}");
+  expect(upload.with?.['name']).toBe(
+    'nx-gate-log-heavy-${{ matrix.project }}-${{ github.run_attempt }}',
+  );
+  expect(upload.with?.['if-no-files-found']).toBe('error');
 });
 
 test('every runtime keeps exact checkout and native provisioning before Nx', () => {

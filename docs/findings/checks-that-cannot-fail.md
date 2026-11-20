@@ -357,6 +357,50 @@ The proof plan is the next five full-mode main runs going green with both shards
 lines in both logs. If the heavy shard is lost too, the next lever is a larger runner, because
 these suites cannot be split further without changing their projects.
 
+### Amendment, 2026-11-21: one job per heavy project
+
+The heavy shard from #958 was then lost too. On main `982f36697` (run 44825497250) `gate
+workspace` passed in 21 minutes, but `gate workspace-heavy` (job 136597156506, 22:02 to 23:26Z, 84
+minutes) ended with the same "lost communication" annotation and no log. The sampler trail died
+with the runner. This is the fourteenth identified loss.
+
+That job ran its four projects one task at a time, so the loss refutes the idea that the sum of
+parallel tasks starves the runner. A single suite among `tool-fleet`, `tool-devsync`,
+`wbs-store-sqlite` and `wbs-core` starves or terminates a 16 GB runner by itself. Termination is
+plausible too. `tool-fleet` kills process groups (`process.kill(-child.pid, 'SIGKILL')` in
+`discover.ts` and `lab.ts`, and `os.killpg` in its `lab-guest-*.py` fixtures). A process-group kill
+that hits the wrong group would match the annotation's "anything that terminates the runner
+process".
+
+The next lever is A-CI-WORKSPACE-MEMORY-3. `gate_heavy` becomes a matrix with one leaf per
+`HEAVY_TEST_PROJECTS` entry, named `gate workspace-heavy (<project>)`, with `fail-fast: false`.
+
+- **What each leaf runs.** `run-many -t test [lint] typecheck build -p <project> --parallel=1`
+  under the runtime partition `heavy-<project>`, with the workspace shard's step text including the
+  headroom sampler. Only the `tool-fleet` leaf provisions the registry source fixtures.
+- **How leaves are selected.** `Gate mode` publishes `heavy_leaves`, the selected leaves with their
+  `[job, phase]` budgets in minutes. Full mode gets all four; affected mode gets only the
+  affected projects.
+- **How the gate reads them.** `Require every gate shard` reads the matrix's aggregate result with
+  the same truth table as before.
+- **What a loss tells us.** A lost leaf names its project by elimination, and the other leaves keep
+  their logs. That suite is then fixed at the source, or runs only on the gate hosts, as
+  `tool-remote-scripts` does under A-GATE-REMOTE-1.
+
+The budgets come from the per-project task times of run 44496836205, measured at parallelism
+two, plus a finite allowance and a 15-minute reserve:
+
+| Leaf               | Task time | Phase  | Job    |
+| ------------------ | --------- | ------ | ------ |
+| `tool-fleet`       | 42.9 min  | 75 min | 90 min |
+| `tool-devsync`     | 22.4 min  | 45 min | 60 min |
+| `wbs-store-sqlite` | 19.7 min  | 45 min | 60 min |
+| `wbs-core`         | 8.2 min   | 30 min | 45 min |
+
+The proof plan is the next full-mode main run. At least three leaves should be green; if one is
+lost, that project gets its own issue. Telemetry from the surviving leaves should also show
+which suite's samples were climbing.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved
