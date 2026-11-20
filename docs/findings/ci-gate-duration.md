@@ -198,3 +198,26 @@ The workspace gate step now records its runner in `nx-gate.log`. The first recor
 #957 workspace job at `ab1607590`, was `ubuntu-24.04` image 20261116.376.1 on Ubuntu 24.04.5 LTS
 with a Node `heap_size_limit` of 4345298944 bytes (about 4144 MiB). Per-run image versions now
 let a duration change be matched against an image roll.
+
+## Heavy bun test shard, 2026-11-20
+
+`gate workspace-heavy` (A-CI-WORKSPACE-MEMORY-2,
+[R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log))
+owns `tool-fleet`, `tool-devsync`, `wbs-store-sqlite` and `wbs-core` and runs them at
+`--parallel=1`. `wbs-core` is there for memory, not time: its 4-minute test suite peaked at 7.3
+GiB RSS in CI and 5.7 GiB locally. The fix at the source is #959.
+
+These are estimates from the full-mode run 44496836205 above, not measurements:
+
+| Shard     | Task time moved or kept                               | Estimated wall time | Phase   |
+| --------- | ----------------------------------------------------- | ------------------- | ------- |
+| heavy     | tests 85.2 min, lint 4.2 min, typecheck 3.9 min, deps | about 93 min        | 135 min |
+| workspace | about 36 min non-lint at two, about 8 min lint at one | about 26 to 30 min  | 105 min |
+
+The heavy shard's 41-minute `tool-fleet:test` is now its single largest task. About 93
+minutes of task time at parallel-2 timings would have left only about 12 minutes of a
+105-minute phase. So `gate_heavy` has its own finite budget: a 135-minute phase in a 150-minute
+job. The workspace shard stays at 105 of 120. Parallel-1 timings are unknown until the first
+full-mode heavy logs. Both shards start together, so the slowest
+required shard sets the gate's wall time. That is the heavy shard or Twilight, not the
+workspace shard.

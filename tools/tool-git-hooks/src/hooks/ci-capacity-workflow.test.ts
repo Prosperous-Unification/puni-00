@@ -46,6 +46,7 @@ test('all Python consumers use a hosted distribution available for the pinned ru
     'gate_remote',
     'gate_remote_model',
     'gate_frontend',
+    'gate_heavy',
     'gate_checks',
   ];
   const actual = Object.entries(workflow.jobs ?? {})
@@ -68,24 +69,27 @@ test('all Python consumers use a hosted distribution available for the pinned ru
 
 // Proof: the original production workspace 75m failed this consumer expecting 105m;
 // dedicated 75m and whole-job 120m/90m controls remain, restoration passed.
+// The heavy shard has its own finite allowance, 135m of 150m (about 93 minutes of task time at
+// parallel-2 timings). Proof: setting gate_heavy back to 120 failed this test (2026-11-20).
 test('each whole-project runtime has a finite Nx phase and whole-job limit with durable status and log', () => {
   for (const [partition, title] of [
     ['workspace', 'Gate'],
     ['backend', 'Backend'],
     ['frontend', 'Frontend'],
+    ['heavy', 'Heavy'],
   ]) {
     const runtime = job(`gate_${partition}`);
+    const [jobLimit, phaseLimit] =
+      partition === 'heavy' ? [150, '135'] : partition === 'workspace' ? [120, '105'] : [90, '75'];
     expect(runtime.needs).toBe('gate_mode');
-    expect(runtime['timeout-minutes']).toBe(partition === 'workspace' ? 120 : 90);
+    expect(runtime['timeout-minutes'], partition).toBe(jobLimit);
     expect(runtime.if).toBe(
       partition === 'workspace'
         ? "${{ needs.gate_mode.outputs.mode != 'docs' }}"
         : `\${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.${partition} == 'run' }}`,
     );
     const execution = step(runtime, `${title} — test, lint, typecheck, build`);
-    expect(execution.run).toContain(
-      `timeout --signal=TERM --kill-after=30s ${partition === 'workspace' ? '105' : '75'}m \\`,
-    );
+    expect(execution.run).toContain(`timeout --signal=TERM --kill-after=30s ${phaseLimit}m \\`);
     expect(execution.run).toContain(
       `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
     );
@@ -112,6 +116,7 @@ test('every runtime keeps exact checkout and native provisioning before Nx', () 
     'gate_remote',
     'gate_remote_model',
     'gate_frontend',
+    'gate_heavy',
   ];
   const prefix = job(names[0]).steps?.slice(0, 7);
   expect(prefix).toHaveLength(7);

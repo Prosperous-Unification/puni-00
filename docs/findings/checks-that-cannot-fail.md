@@ -284,6 +284,79 @@ loss that recurs with this change refutes the lint hypothesis for that mode. The
 then the test phase: run it at parallelism one on a larger runner, or move the long `bun test`
 tasks out of the shard (`tool-fleet:test` 41 minutes, `tool-devsync:test` 22, `wbs-store-sqlite:test` 18).
 
+### Amendment, 2026-11-20: the heavy bun tests get their own shard
+
+Main `1730d911f` (run 44703647201) then lost its full-mode workspace runner in all three
+attempts, each with the same annotation: job 136177983041 (08:35 to 09:52Z), job 136408071558
+(16:12 to 17:29Z) and job 136456452906 (17:35 to 18:52Z). Full mode on that commit failed every
+time. This met the rollback criterion above before the lint change could be judged.
+
+Thirteen losses are identified so far. `gh run list` hides lost first attempts of reruns that
+later passed, so the count is a floor:
+
+- **Eight in full mode on main:** 134530902111, 134597863162, 134855261065, 135387150530,
+  135837476331, 136177983041, 136408071558 and 136456452906.
+- **Five in affected mode on pull requests:** 134885299476 (run 44328159268, 2026-11-18, missing
+  from the table above), 135532626496, 136115143031, and #956's 136422257017 and 136464251678.
+
+The next lever therefore ships now, as assumption A-CI-WORKSPACE-MEMORY-2.
+
+A new shard, `gate workspace-heavy` (job `gate_heavy`, partition `heavy` in
+`ci-run-runtime.ts`), owns `tool-fleet`, `tool-devsync`, `wbs-store-sqlite` and `wbs-core` whole.
+It runs their targets at `--parallel=1` on its own 16 GB runner. It has the same setup and
+headroom sampler as the workspace shard, but its own budget: a 135-minute phase inside a
+150-minute job, keeping the usual 15-minute reserve. The workspace shard stays at 105 of 120. In affected mode
+it runs only when `Gate mode` reports `heavy=run`. The workspace shard no longer runs those
+projects' test, typecheck or build, but its independent `nx affected -t lint` still lints them.
+`Require every gate shard` requires the new job, in the same way as the backend and frontend
+shards.
+
+`wbs-core` joined after main's first full-mode run with telemetry (run 44797660117), in which
+the workspace shard survived in 63 minutes.
+
+- **What the samples showed.** At 19:05:16Z one `bun` process reached `topRssKiB=7639660`
+  (7.3 GiB) while MemAvailable fell to 7.26 GB. The streamed log places that window
+  (19:03 to 19:05:30Z) right after `> nx run wbs-core:test`.
+- **Local measurement.** `/usr/bin/time -v bunx nx run wbs-core:test --skip-nx-cache` ran 1,784
+  tests in 142 files in 113 seconds, with a maximum resident set of 5,986,892 kB (5.7 GiB). For
+  comparison, `tool-observability-stack:test` peaks at 236 MB, `wbs-auth` at 124 MB and
+  `wbs-observability` at 133 MB.
+- **Why it moves.** Beside a second Nx task on a 16 GB runner, that one suite is enough to
+  starve it.
+- **The real fix is in wbs-core.** A two-minute unit-test suite that needs 6 to 7.6 GiB is a
+  wbs-core test problem to fix at the source, tracked in #959. Moving it to the heavy shard only
+  contains it.
+
+The late tail of that run, 19:30 to 19:37Z, came from `tool-devsync`'s Bun children, which were
+already moving.
+
+These are estimates from the passing full-mode run 44496836205, with task times measured at
+parallelism two:
+
+- **Heavy shard.**
+  - Tests: `tool-fleet` 40.9 min, `tool-devsync` 22.0, `wbs-store-sqlite` 18.5 and `wbs-core`
+    3.8, for 85.2 min.
+  - Lint: 4.2 min.
+  - Typecheck: 1.3 min, plus `wbs-core:typecheck:module` at 2.6 min.
+  - Total: 93.3 min of task time plus dependency builds.
+
+  Parallel-1 timings are unknown. A 105-minute phase would have left a margin of only about
+  12 minutes, and a timeout in this shard would only trade one red gate for another. So the
+  shard has a finite 135-minute phase in a 150-minute job. The first full-mode heavy logs will
+  show the real figure.
+
+- **Workspace shard.** 137.5 − 93.3 = 44.2, so about 44 minutes of task time remain. The non-lint
+  part (about 36 minutes) takes about 18 to 22 minutes at parallelism two. Lint at one adds about
+  8 minutes, for about 26 to 30 minutes in all.
+
+This lever assumes the loss is memory in the `bun test` processes. From minute 55 the lost
+runner was running only the long suites, and the surviving run shows `wbs-core:test` as the
+largest single process.
+
+The proof plan is the next five full-mode main runs going green with both shards, with sample
+lines in both logs. If the heavy shard is lost too, the next lever is a larger runner, because
+these suites cannot be split further without changing their projects.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved

@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createGatePlan } from './ci-plan';
 import {
   DEDICATED_RUNTIME_PROJECTS,
+  HEAVY_TEST_PROJECTS,
   partitionRuntimeProjects,
   type RuntimePartition,
 } from './ci-runtime-partitions';
@@ -36,6 +37,17 @@ function isProjectNames(names: unknown): names is string[] {
  * (`full partitions cover…`); folding lint back into the full run-many failed both again.
  */
 const WORKSPACE_LINT_PARALLELISM = '--parallel=1';
+
+/**
+ * Nx parallelism for a partition's test, typecheck and build. The heavy shard runs its
+ * memory- and time-heavy `bun test` suites one at a time (A-CI-WORKSPACE-MEMORY-2): two of them
+ * beside each other were the last thing a lost 16 GB runner was doing (R5-32).
+ * Proof (2026-11-20): returning `--parallel=2` for heavy failed ci-plan.test.ts `the heavy shard
+ * runs its projects one task at a time…` in affected and full modes.
+ */
+function selectTaskParallelism(partition: string): string {
+  return partition === 'heavy' ? '--parallel=1' : '--parallel=2';
+}
 
 /** Runs one Nx command and records its real duration and exit status even when the command fails. */
 async function runNx(repository: string, args: string[]): Promise<void> {
@@ -161,6 +173,8 @@ export async function runRuntime(
       // restored affected/full command ledgers passed (2026-11-05).
       'remote-storage',
       'frontend',
+      // Proof: omitting heavy refused the heavy CLI cases in ci-plan.test.ts (2026-11-20).
+      'heavy',
       'twilight',
     ].includes(partition)
   )
@@ -226,7 +240,7 @@ export async function runRuntime(
     // `full runner refuses stale head, missing owner and failed Nx inventory` failed.
     if (!isProjectNames(names) || new Set(names).size !== names.length)
       throw new Error('Nx project inventory is malformed');
-    for (const project of Object.values(DEDICATED_RUNTIME_PROJECTS))
+    for (const project of [...Object.values(DEDICATED_RUNTIME_PROJECTS), ...HEAVY_TEST_PROJECTS])
       if (!names.includes(project)) throw new Error(`Nx project inventory omits ${project}`);
     const owned = partitionRuntimeProjects(
       names.filter((name) => name !== 'twilight-burokrat' && name !== 'twilight-dash'),
@@ -259,7 +273,7 @@ export async function runRuntime(
         'build',
         '-p',
         projects.join(','),
-        '--parallel=2',
+        selectTaskParallelism(partition),
         '--output-style=stream',
       ]);
       return;
@@ -315,7 +329,7 @@ export async function runRuntime(
       'build',
       '-p',
       complete.join(','),
-      '--parallel=2',
+      selectTaskParallelism(partition),
       '--output-style=stream',
     ]);
   }
@@ -327,7 +341,7 @@ export async function runRuntime(
       'build',
       '-p',
       test.project,
-      '--parallel=2',
+      selectTaskParallelism(partition),
       '--output-style=stream',
     ]);
     await runNx(repository, [
@@ -381,7 +395,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|remote-storage|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|remote-storage|frontend|heavy|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {
