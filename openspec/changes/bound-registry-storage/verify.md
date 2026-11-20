@@ -10286,3 +10286,26 @@ names failed the fixed diagnostic assertion. The source matched SHA-256
 `7cd8bce7acf7b96cd7b7e2f04bc797a1a47e91fe51ee13f74b1c7ee9bcdfca00`
 before and after each temporary fault, before the adjacent proof comments
 were added.
+
+### Independent status client contract accepted — 2026-11-21
+
+The pure enrollment/pin/SSH-argv prerequisite is accepted at
+`d70cacfb54b37aa0134c833278d33133b8b9d54f` in the isolated status-client branch.
+Independent review found16 own JSON fields with prototype-inherited names bypassed
+ArkType undeclared-key rejection. The correction derives exact own-key membership
+from the schema and was independently re-reviewed with no new issue. The saved
+covering suite passed135 tests/193 assertions; seven correction faults observed39
+intended failed assertions with valid controls and exact source restoration.
+Those replace five earlier unknown-field guard receipts;91 unaffected initial
+fault observations retain their original scope. Source/test hashes matched the
+reviewed report and the worktree was clean at acceptance.
+
+Root separately ran the17 JSON boundary/control cases against the committed fix:
+17 passed,118 filtered out, zero failures and17 assertions. This resolves the
+review's unverified separate filtered-invocation receipt without rerunning broader
+checks. Scoped lint/format, uncached owning typecheck, strict OpenSpec and normal
+hooks are recorded in the implementation report. The parser/pin/argv slice is
+complete; Task5.1c remains open for the owned reader and real public-API SSH
+qualification. Task5.1b, full source/host gates, installed monitoring/delivery and
+all full-goal activation/lifecycle obligations remain open. No stopped helper or
+production host/credential was used.

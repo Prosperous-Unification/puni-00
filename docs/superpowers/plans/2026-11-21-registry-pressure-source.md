@@ -87,7 +87,7 @@ argument of the two pure renderers is an already parsed internal value; pinPath 
 still validated as a canonical ASCII file path before interpolation. No IO occurs
 in this task. Private key matching is the actor's responsibility in Task2.
 
-- [ ] **Step 1: Write failing parser/command tests.** Generate a canonical synthetic public key from the actual SSH wire format, without private material. Build a complete enrollment and exercise the exported functions.
+- [x] **Step 1: Write failing parser/command tests.** Generate a canonical synthetic public key from the actual SSH wire format, without private material. Build a complete enrollment and exercise the exported functions.
 
 ```ts
 import { expect, it } from 'bun:test';
@@ -154,8 +154,8 @@ positive private address boundaries, ports1/65535 and canonical key/path forms.
 Check every fixed SSH option in the produced argv and no free-form extra option.
 Test rejected pin paths directly through the builder.
 
-- [ ] **Step 2: Run RED.** `bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts`; capture the missing export/module failure before implementation.
-- [ ] **Step 3: Implement the pure boundary.** ArkType exact objects reject unknown fields, including nested target/peer/identity. Bound strings before detailed parsing. Validate code-point identity length and controls, ASCII canonical paths, decimal RFC1918 octets and integer port. Decode public-key base64 only after exact bounded shape; the exact68-character standard-base64 grammar establishes canonical51-byte decoding; check the algorithm header and32-byte payload length without redundant decoded-length/round-trip predicates. Copy and freeze each returned object. Reject with fixed nonsecret diagnostics.
+- [x] **Step 2: Run RED.** `bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts`; capture the missing export/module failure before implementation.
+- [x] **Step 3: Implement the pure boundary.** ArkType exact objects reject unknown fields, including nested target/peer/identity. Bound strings before detailed parsing. Validate code-point identity length and controls, ASCII canonical paths, decimal RFC1918 octets and integer port. Decode public-key base64 only after exact bounded shape; the exact68-character standard-base64 grammar establishes canonical51-byte decoding; check the algorithm header and32-byte payload length without redundant decoded-length/round-trip predicates. Copy and freeze each returned object. Reject with fixed nonsecret diagnostics.
 
 Use the following fixed option sequence with `-o` before every entry, followed by
 `-i <identity.path> -p <decimal-port> -- <user>@<address> registry-pressure-status-v1`:
@@ -211,8 +211,8 @@ const argv = [
 ];
 ```
 
-- [ ] **Step 4: GREEN and breakability.** Run focused tests. Remove each new validation family or break its dependency in a separate temporary source edit, run its selected negative and observe failure; restore source exactly. Include unknown-field, address, key wire, identity/path, version, root/port, immutable-copy and fixed-command/SSH restriction negatives. Record failures that actually occurred; consolidate only guards genuinely exercised by the same selected mutant. Add adjacent Proof comments naming the observed tests. Do not fabricate a proof for an equivalent mutant that still passes because a downstream check catches it.
-- [ ] **Step 5: Verify and commit.** Run scoped ESLint/Prettier, owning TypeScript typecheck and focused tests. Append commands, RED/GREEN and mutant observations to verify.md. Commit only this task's code/tests/evidence using normal hooks; report exact counts, skipped checks and concerns to the controller.
+- [x] **Step 4: GREEN and breakability.** Run focused tests. Remove each new validation family or break its dependency in a separate temporary source edit, run its selected negative and observe failure; restore source exactly. Include unknown-field, address, key wire, identity/path, version, root/port, immutable-copy and fixed-command/SSH restriction negatives. Record failures that actually occurred; consolidate only guards genuinely exercised by the same selected mutant. Add adjacent Proof comments naming the observed tests. Do not fabricate a proof for an equivalent mutant that still passes because a downstream check catches it.
+- [x] **Step 5: Verify and commit.** Run scoped ESLint/Prettier, owning TypeScript typecheck and focused tests. Append commands, RED/GREEN and mutant observations to verify.md. Commit only this task's code/tests/evidence using normal hooks; report exact counts, skipped checks and concerns to the controller.
 
 ### Task 2: Owned bounded reader
 
