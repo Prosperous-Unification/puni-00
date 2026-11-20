@@ -193,6 +193,18 @@ protected owners`; negatives: dead monitor, rejected notification, full alert
       five-minute missed-source delivery, installed/native storage and credential
       boundaries, complete protected-owner evidence and final real delivery
       receipts remain required before completion.
+- [x] 5.1a Stage the independently reviewed opt-in Prometheus reporting-availability
+      consumer in `tools/tool-observability-stack/src/registry/`. Retain one expected
+      enrollment, original deadline, stable alert identity and unchanged defaults.
+      Validate the emitted configuration and synthetic wire against the exact
+      central Prometheus image through the non-cached `validate-registry-pressure`
+      target. This source prerequisite does not complete operational Task5.1.
+- [ ] 5.1b Integrate the accepted actual producer wire and original enrollment with
+      authenticated acquisition, independent scheduling/storage and private serving.
+      Verify installed rule inventory, monitoring health and actual missed-report
+      destination receipts before adopting the source consumer. Producer admission
+      and its stopped correction remain unresolved outside this integration.
+
 - [ ] 5.2 Run the complete lifecycle rehearsal on disposable enforced storage:
       concurrent publication, successful and partial releases, old protected rollback,
       untagged multi-platform images, safe retirement, uncached pulls, inode/byte

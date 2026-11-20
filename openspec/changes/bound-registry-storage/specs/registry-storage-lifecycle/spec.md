@@ -483,3 +483,41 @@ before runtime tests without widening unrelated job selection or host permission
 
 - **WHEN** compiler installation, executable-specific profile loading or namespace probing fails
 - **THEN** each selecting job refuses before running fleet tests
+
+### Requirement: Independent reporting availability survives scrape loss
+
+The opted-in rule SHALL retain an independently expected target and fire when
+valid visible evidence cannot confirm its original five-minute deadline.
+Source-to-scrape loss SHALL retain one alert identity. Defaults SHALL remain
+unchanged. Resolution SHALL describe reporting availability, not registry recovery
+or destination delivery. Native engine and installed delivery evidence remain distinct.
+
+#### Scenario: A source misses its original deadline
+
+- **WHEN** no newer accepted measurement is visible at or after baseline plus300000ms
+- **THEN** the next native rule evaluation fires without another five-minute wait
+
+#### Scenario: Observer or exporter disappears while missing
+
+- **WHEN** the target remains enrolled but up, evaluation or required metric evidence disappears, freezes, conflicts or becomes future-dated
+- **THEN** the same observation-unavailable alert remains firing without a healthy fallback
+
+#### Scenario: Reporting becomes visible again
+
+- **WHEN** valid bound visibility returns within the original deadline, or a later accepted report restores an expired baseline
+- **THEN** reporting availability may resolve while historical pressure and fence remain separate and registry recovery remains unverified
+
+#### Scenario: Registry overlay is not selected
+
+- **WHEN** existing dev configuration is rendered without explicit registry enrollment
+- **THEN** its files, admission, topology and alert destination remain unchanged
+
+#### Scenario: Existing Slack formatting renders the availability alert
+
+- **WHEN** the rule supplies annotations to the unchanged configured Slack template
+- **THEN** its description contains the fixed derived enrollment key for correlation and distinguishes reporting visibility from capacity recovery and destination receipt
+
+#### Scenario: Private scrape address contains overlong port text
+
+- **WHEN** the supplied address has more than five decimal port digits, including leading zeroes with a numerically small value
+- **THEN** opted-in rendering refuses before output, while one-to-five-digit forms remain subject to the numeric1..65535 range
