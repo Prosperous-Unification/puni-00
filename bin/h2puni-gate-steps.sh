@@ -10,7 +10,11 @@ cd "$repo"
 # task 6.26, awaiting Dany). Node sizes its default heap from the cgroup's memory constraint, and
 # libuv's constrained memory honours `memory.high`: on h4claw (Node 24.18.1, 15.2 GiB) the heap
 # limit is 4288 MB in a plain shell and 2240 MB under `systemd-run --user --scope -p
-# MemoryHigh=13G`, with or without `MemoryMax=infinity`. The `gate` entry was measured by three
+# MemoryHigh=13G`, with or without `MemoryMax=infinity`; h2puni (15.24 GiB) gives 4288 MB plain
+# and 2240 MB under 12G. V8 doubles its default only at 15360 MiB of constrained or physical
+# memory and above, so a host below 15 GiB would get 2240 MB even unbounded: the pin is a constant
+# so that heap sizing depends on neither host RAM nor the cgroup. MemoryHigh still throttles the
+# scope, so a runaway process stays bounded by the cgroup. The `gate` entry was measured by three
 # calibrations, which run with no MemoryHigh and so with the plain default; the first ordinary
 # gate under its 13 GiB bound (h4claw job f776195f, 2026-11-20, launcher main 1730d911f) lost
 # wbs-core, wbs-be-01, tool-fleet and wbs-fe-01 lint to `JavaScript heap out of memory` at

@@ -722,7 +722,9 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   so under `MemoryHigh=13G` on a 15 GiB host its heap limit is 2240 MB where an unbounded
   calibration had 4288 MB. A payload that runs Node therefore pins its heap, as the gate's
   `bin/h2puni-gate-steps.sh` does (`dash-host-jobs` task 6.26, A-NODE-HEAP-1), or its measured
-  envelope describes a different heap than its ordinary runs get.
+  envelope describes a different heap than its ordinary runs get. The pin changes only V8's
+  sizing input: `MemoryHigh` still throttles the scope (there is no `MemoryMax`), so a runaway
+  Node process stays bounded by the cgroup.
 
 - **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
   the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads

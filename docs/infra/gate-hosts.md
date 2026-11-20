@@ -15,13 +15,14 @@ tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's all
 (S25-A7), so a gate holds all of either pool's cores and memory and nothing runs beside it, and
 `gate` may not be listed in `concurrencyEligible`. Its scope runs under
 `MemoryHigh = min(heuristic 13 GiB, pool budget − memoryBoundHeadroomGib)`, the headroom 2 GiB
-when the pool configuration leaves it out: 13 GiB on h4claw (15 − 2), 12 GiB on h2puni (14 − 2)
-(S25-A6). The key is absent on both hosts until the gate_host role gains the input:
+when the pool configuration leaves it out: 13 GiB on h4claw (15 − 2), 12 GiB on h2puni (14 − 2;
+14 GiB is h2puni's pool memory budget, not its 15.24 GiB of RAM) (S25-A6). The key is absent on both hosts until the gate_host role gains the input:
 `tasks/validate.yml` asserts the exact key list of `host-pool.json` and the template renders no
 such key, so a hand-set key fails the validate play, and the default 2 applies. Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h 27 min (p95
 18,958 s), which replaces the intro's figure for an enrolled gate. Node sizes its default heap
-from that bound (2240 MB under 13 GiB on h4claw, 4288 MB unbounded), so since the first bounded
-gate lost four lint tasks to a heap out of memory `bin/h2puni-gate-steps.sh` pins
+from that bound (2240 MB under 13 GiB on h4claw and under 12 GiB on h2puni, 4288 MB unbounded on
+both), so since the first bounded gate lost four lint tasks to a heap out of memory
+`bin/h2puni-gate-steps.sh` pins
 `--max-old-space-size=4096` in `NODE_OPTIONS` (A-NODE-HEAP-1, `dash-host-jobs` task 6.26).
 
 ## What the host gate runs

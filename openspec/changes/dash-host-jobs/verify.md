@@ -4822,9 +4822,9 @@ line, the audit's `throttled` line and the audit's clamp note.
 ## 2026-11-20 Node sized its heap from MemoryHigh (task 6.26)
 
 Branch `ops/gate-payload-node-heap-20261120` from `main` 1730d911f (after #955); laptop,
-`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change. The h4claw
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change. The host
 evidence is the coordinator's, from the gate log and shells on h4claw (Node v24.18.1, 15.2 GiB
-RAM).
+RAM) and h2puni (Node v24.18.1, `MemTotal` 15.24 GiB).
 
 - The first ordinary gate under the measured `gate` entry (h4claw job f776195f, 2026-11-20
   08:35Z to 11:50Z, launcher `main` 1730d911f, scope `MemoryHigh=13G` from #955) failed with
@@ -4840,6 +4840,15 @@ RAM).
   constraint, and libuv's constrained memory honours `memory.high`, so any `MemoryHigh` on the
   job scope shrinks every Node heap below the default the calibrations ran with. What was
   measured was not what the bounded run gets (S26-A1).
+- On h2puni the same probe reports 4288 MB in a plain shell, 2240 MB inside
+  `systemd-run --user --scope -p MemoryHigh=12G`, and 4288 MB in a plain shell with
+  `NODE_OPTIONS=--max-old-space-size=4096`. h2puni's unbounded cold calibration logs (2026-11-18f,
+  2026-11-18i) contain no `heap out of memory`. The 14 GiB in `docs/infra/gate-hosts.md` is
+  h2puni's pool memory budget, not its `MemTotal`, so the two figures do not conflict.
+- The Fable review's probe of V8's default: it doubles only at a constrained or physical memory
+  of 15360 MiB and above. From 12 GiB to 15359 MiB the limit is 2240 MB, from 15360 MiB it is
+  4288 MB. Both gate hosts sit just above the threshold, so a host below 15 GiB would default to
+  2240 MB even unbounded.
 - The laptop (Node v24.20.0, Bun 1.4.4, 24 cores, 30 GiB) reproduces it: 4288 MB plain;
   2240 MB inside `systemd-run --user --scope -p MemoryHigh=13G`, where
   `process.constrainedMemory()` reads 13 GiB; 4288 MB in the same scope with
@@ -4858,14 +4867,18 @@ plain default's figure on these hosts, before any other step. Inherited options 
 pin is appended); an inherited `--max-old-space-size=4096` is kept once; any other
 `--max-old-space-size` or `--max_old_space_size` is refused with exit 78 before the install.
 The trade-off: vitest still fans out by nproc and each worker may grow to 4 GiB, as in the
-unbounded calibrations, so the measured envelope still applies. The launcher stays
+unbounded calibrations, so the measured envelope still applies. The pin changes only V8's sizing
+input: `MemoryHigh` still throttles the scope (there is no `MemoryMax`), so a runaway process
+stays bounded by the cgroup. A `--max-old-space-size 2048` (space form) is refused 78 with the
+bare flag in the message and no figure; Node itself rejects that form in `NODE_OPTIONS`, so the
+message is not improved (review S3-3). The launcher stays
 payload-agnostic, so `job-run.ts`'s `MemoryHigh` line is unchanged; the knowledge is in the J9
 amendment of `design.md`, the scope-bound paragraph of `resources.md` and the measured-gate
 paragraph of `docs/infra/gate-hosts.md`.
 
 | Command                                                                                                                 | Result                                                                                      |
 | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `bash bin/h2puni-gate.test.sh`                                                                                          | exit 0, `all cases passed` (case 48: 14 ok lines)                                           |
+| `bash bin/h2puni-gate.test.sh`                                                                                          | exit 0, `all cases passed` (case 48: 12 ok lines)                                           |
 | `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                                | 36 pass, 0 fail                                                                             |
 | `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                 | 58 pass, 0 fail (bare `bun test` without that environment: 56 pass, 2 fail, also on `main`) |
 | `bash -n` on both changed scripts                                                                                       | exit 0                                                                                      |
@@ -4880,12 +4893,21 @@ paragraph of `docs/infra/gate-hosts.md`.
 | the pin block deleted from `bin/h2puni-gate-steps.sh` | exit 1, 8 failing cases: `48: every Nx call ran with the pinned heap` for the empty and kept-options inputs (`got ''`, `got '--enable-source-maps'`), and both conflicting inputs `want exit 78, got 0` |
 | only the refusal branch deleted                       | exit 1, 6 failing cases: both conflicting inputs `want exit 78, got 0`, the refusal message missing and the install reached                                                                             |
 
-- **S26-A1** A-NODE-HEAP-1: pinning every Node process in the gate payload to 4096 MiB, the plain
-  default on the 15 GiB gate hosts, is assumed and awaits Dany's confirmation. Dany may prefer a
-  per-task figure (only the lint tasks needed more than the bounded 2240 MB) or a different
-  figure; it is reversible by deleting the block.
+- **S26-A1** A-NODE-HEAP-1: pinning every Node process in the gate payload to 4096 MiB is
+  assumed and awaits Dany's confirmation. It is the unbounded default on both gate hosts
+  (h4claw 15.2 GiB and h2puni 15.24 GiB: 4288 MB plain, 2240 MB under their `MemoryHigh` of 13
+  and 12 GiB, 4288 MB with the pin). The figure is a constant on purpose: V8 doubles its default
+  only from 15360 MiB, so the pin decouples heap sizing from host RAM and cgroup, which is what
+  f776195f lacked. A host-class figure would recreate that dependency. Dany may still prefer a
+  per-task figure (only the lint tasks needed more than the bounded 2240 MB); the pin is
+  reversible by deleting the block.
 - **S26-A2** CI runners are unaffected: GitHub-hosted `ubuntu-24.04` and `ubuntu-latest` jobs run
   without a Dash scope bound, so Node keeps its plain default there, and no workflow sets
   `NODE_OPTIONS`. CI's actual Node heap figure is unverified: no run log prints it.
-- **S26-A3** The host proof is the next gate on a launcher carrying this change; until then the
-  fix rests on the laptop reproduction and the fixture test.
+- **S26-A3** The host proof is the next ordinary gate on a launcher carrying this change; until
+  then the fix rests on the host and laptop measurements and the fixture test. The sequence:
+  merge; the hourly `gate-launcher-refresh.timer` moves the idle `~/puni-00-gate-launcher`
+  checkout to `origin/main` (`docs/infra/gate-hosts.md`, step 5 on); confirm that checkout's
+  HEAD carries the merge; run one ordinary gate on h4claw and expect the four lint tasks to pass
+  under `MemoryHigh=13G` and `ops job audit` to show no new drift; then the same on h2puni under
+  `MemoryHigh=12G`.
