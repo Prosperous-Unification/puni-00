@@ -76,7 +76,7 @@ export type RegistryStatusReply =
     };
 export function parseRegistryStatusEnrollment(input: unknown): RegistryStatusEnrollment;
 export function renderRegistryStatusPin(enrollment: RegistryStatusEnrollment): string;
-export function registryStatusSshArguments(
+export function buildRegistryStatusSshArguments(
   enrollment: RegistryStatusEnrollment,
   pinPath: string,
 ): readonly string[];
@@ -93,7 +93,7 @@ in this task. Private key matching is the actor's responsibility in Task2.
 import { expect, it } from 'bun:test';
 import {
   parseRegistryStatusEnrollment,
-  registryStatusSshArguments,
+  buildRegistryStatusSshArguments,
   renderRegistryStatusPin,
 } from './registry-pressure-source-contract';
 
@@ -129,7 +129,7 @@ it('copies and freezes enrollment and emits only the pinned fixed command', () =
   expect(Object.isFrozen(admitted.target)).toBe(true);
   expect(Object.isFrozen(admitted.identity)).toBe(true);
   expect(renderRegistryStatusPin(admitted)).toBe(`puni-registry-pressure-source ${key}\n`);
-  const argv = registryStatusSshArguments(admitted, '/run/registry-status/known_hosts');
+  const argv = buildRegistryStatusSshArguments(admitted, '/run/registry-status/known_hosts');
   expect(argv[0]).toBe('/usr/bin/ssh');
   expect(argv.slice(-3)).toEqual([
     '--',
@@ -155,7 +155,7 @@ Check every fixed SSH option in the produced argv and no free-form extra option.
 Test rejected pin paths directly through the builder.
 
 - [ ] **Step 2: Run RED.** `bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts`; capture the missing export/module failure before implementation.
-- [ ] **Step 3: Implement the pure boundary.** ArkType exact objects reject unknown fields, including nested target/peer/identity. Bound strings before detailed parsing. Validate code-point identity length and controls, ASCII canonical paths, decimal RFC1918 octets and integer port. Decode public-key base64 only after exact bounded shape; compare canonical encoding,51-byte length, algorithm header and32-byte payload length. Copy and freeze each returned object. Reject with fixed nonsecret diagnostics.
+- [ ] **Step 3: Implement the pure boundary.** ArkType exact objects reject unknown fields, including nested target/peer/identity. Bound strings before detailed parsing. Validate code-point identity length and controls, ASCII canonical paths, decimal RFC1918 octets and integer port. Decode public-key base64 only after exact bounded shape; the exact68-character standard-base64 grammar establishes canonical51-byte decoding; check the algorithm header and32-byte payload length without redundant decoded-length/round-trip predicates. Copy and freeze each returned object. Reject with fixed nonsecret diagnostics.
 
 Use the following fixed option sequence with `-o` before every entry, followed by
 `-i <identity.path> -p <decimal-port> -- <user>@<address> registry-pressure-status-v1`:
