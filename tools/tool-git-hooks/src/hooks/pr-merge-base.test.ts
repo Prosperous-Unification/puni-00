@@ -382,6 +382,42 @@ describe('production workflow PR consumers', () => {
   );
 });
 
+// R5-32 (A-CI-WORKSPACE-MEMORY-1): a surviving workspace job ships its memory and disk headroom.
+// A lost runner uploads no log at all, so this trail can only bound how close a passing or
+// failing run came.
+test('workspace gate step records memory and disk headroom around its Nx phase', async () => {
+  for (const status of ['0', '7']) {
+    const h = history();
+    const execution = runStep(h, step('gate_workspace', 'Gate — test, lint, typecheck, build'), {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      RUNTIME_STATUS: status,
+    });
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+      Number(status),
+    );
+    const lines = (await Bun.file(join(h.root, 'nx-gate.log')).text()).split('\n');
+    const at = (prefix: string) => lines.findIndex((line) => line.startsWith(prefix));
+    const headroomStart = at('runtime headroom start partition=workspace utc=');
+    const phaseEnd = at('runtime phase end partition=workspace');
+    const headroomEnd = at('runtime headroom end partition=workspace utc=');
+    expect(at('runtime phase start partition=workspace'), status).toBe(0);
+    expect(headroomStart, status).toBe(1);
+    expect(phaseEnd, status).toBeGreaterThan(headroomStart);
+    expect(headroomEnd, status).toBeGreaterThan(phaseEnd);
+    for (const section of [lines.slice(headroomStart, phaseEnd), lines.slice(headroomEnd)]) {
+      expect(
+        section.filter((line) => line.startsWith('Mem:')),
+        status,
+      ).toHaveLength(1);
+      expect(
+        section.filter((line) => line.startsWith('Filesystem')),
+        status,
+      ).toHaveLength(1);
+    }
+  }
+});
+
 test.each([
   'remote-model',
   'remote-model-continuation',

@@ -434,8 +434,21 @@ jobs:
           # The workspace job is 120m; preserve the same 15m reserve as dedicated 90m/75m jobs.
           # Run 42437062542 completed 74m21s of commands, then 75m killed source lint unfinished.
           # This bounded 105m allowance needs fresh hosted proof; it changes no operation limit.
+          # R5-32 (A-CI-WORKSPACE-MEMORY-1): between 2026-11-18 and 2026-11-20 this 16 GB runner
+          # was lost seven times ("The hosted runner lost communication with the server") with no
+          # step conclusion and no log; ci-run-runtime.ts now lints one task at a time. Record
+          # memory and disk headroom at phase start and end: a surviving job shows how close it
+          # came, but a lost runner uploads no log, so this cannot explain a loss by itself.
+          # Proof: replacing either call, `free -m` or `df -h /` with `:` failed
+          # pr-merge-base.test.ts `workspace gate step records memory and disk headroom…`.
+          record_headroom() {
+            printf 'runtime headroom %s partition=workspace utc=%s\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            free -m
+            df -h /
+          } >> nx-gate.log
           phase_started=$SECONDS
           printf 'runtime phase start partition=workspace head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          record_headroom start
           set +e
           timeout --signal=TERM --kill-after=30s 105m \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
@@ -446,6 +459,7 @@ jobs:
           # status/timing oracle fail with a missing completion marker.
           printf 'runtime phase end partition=workspace utc=%s elapsedSeconds=%s exit=%s\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          record_headroom end
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
           if [ "$gate_status" -ne 0 ]; then

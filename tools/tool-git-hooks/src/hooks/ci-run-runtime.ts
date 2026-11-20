@@ -25,6 +25,17 @@ function isProjectNames(names: unknown): names is string[] {
   );
 }
 
+/**
+ * Workspace lint runs one task at a time (A-CI-WORKSPACE-MEMORY-1). One type-aware eslint peaks
+ * at 2.8–4.0 GiB RSS (wbs-fe-01 the largest), and two beside test workers can exhaust the 16 GB
+ * hosted runner, which then dies without a log; lint recovered about four minutes in parallel.
+ * Test, typecheck and build stay at two. See docs/findings/checks-that-cannot-fail.md (R5-32).
+ * Proof (2026-11-20): restoring `--parallel=2` here failed ci-plan.test.ts in affected mode
+ * (`workspace lint runs one task at a time…`, received `--parallel=2`) and in full mode
+ * (`full partitions cover…`); folding lint back into the full run-many failed both again.
+ */
+const WORKSPACE_LINT_PARALLELISM = '--parallel=1';
+
 /** Runs one Nx command and records its real duration and exit status even when the command fails. */
 async function runNx(repository: string, args: string[]): Promise<void> {
   const started = performance.now();
@@ -237,16 +248,39 @@ export async function runRuntime(
       await runRemoteLeaf(repository, head, remoteLeaf, mode);
       return;
     }
+    if (partition !== 'workspace') {
+      await runNx(repository, [
+        'run-many',
+        '-t',
+        'test',
+        'lint',
+        'typecheck',
+        'build',
+        '-p',
+        projects.join(','),
+        '--parallel=2',
+        '--output-style=stream',
+      ]);
+      return;
+    }
     await runNx(repository, [
       'run-many',
       '-t',
       'test',
-      'lint',
       'typecheck',
       'build',
       '-p',
       projects.join(','),
       '--parallel=2',
+      '--output-style=stream',
+    ]);
+    await runNx(repository, [
+      'run-many',
+      '-t',
+      'lint',
+      '-p',
+      projects.join(','),
+      WORKSPACE_LINT_PARALLELISM,
       '--output-style=stream',
     ]);
     return;
@@ -316,7 +350,7 @@ export async function runRuntime(
       `--base=${base}`,
       `--head=${head}`,
       '--exclude=twilight-burokrat',
-      '--parallel=2',
+      WORKSPACE_LINT_PARALLELISM,
       '--output-style=stream',
     ]);
     // Proof: tying source lint to runtime selection omitted it for shared lint-loader edits;

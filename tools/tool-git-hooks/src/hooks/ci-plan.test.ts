@@ -376,8 +376,29 @@ describe('production CI plan and execution', () => {
       'run-many -t test lint typecheck build -p wbs-fe-01 --parallel=2',
     );
     expect(commands[3][1]).toContain(
-      'run-many -t test lint typecheck build -p core,website-contracts,new-runtime --parallel=2',
+      'run-many -t test typecheck build -p core,website-contracts,new-runtime --parallel=2',
     );
+    expect(commands[3][2]).toContain(
+      'run-many -t lint -p core,website-contracts,new-runtime --parallel=1',
+    );
+    expect(commands[3]).toHaveLength(3);
+  }, 20000);
+
+  // A-CI-WORKSPACE-MEMORY-1: two concurrent type-aware eslints plus test workers can exhaust the
+  // 16 GB hosted runner, which then dies without a log (docs/findings/checks-that-cannot-fail.md,
+  // R5-32). Lint is the phase with the largest single heaps and recovers only minutes in parallel.
+  test('workspace lint runs one task at a time in affected and full modes', () => {
+    const candidate = history('modules/core/source.ts');
+    for (const mode of ['affected', 'full']) {
+      const { invocation, calls } = invokeRuntime(candidate, 'workspace', '0', mode);
+      expect(invocation.exitCode, `${mode}: ${invocation.stderr.toString()}`).toBe(0);
+      const lint = readFileSync(calls, 'utf8')
+        .trim()
+        .split('\n')
+        .filter((line) => / -t (?:\S+ )*lint /.test(line));
+      expect(lint, mode).toHaveLength(1);
+      expect(lint[0], mode).toEndWith(' --parallel=1 --output-style=stream');
+    }
   }, 20000);
 
   test('fixed remote leaves retain one logical owner and explicit static/dependency execution', () => {
