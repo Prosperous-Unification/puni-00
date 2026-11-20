@@ -1070,8 +1070,14 @@ Other modeled outcomes use `{state:'unavailable',reason,code}` with only:
 `source-command-failed/ssh-exit` for all other unsuccessful exchanges, including
 ambiguous SSH255, and `source-command-failed/stderr-too-large` for stderr overflow.
 Never infer network unreachability from SSH255 or include raw stderr in failures.
+An independently observed natural nonzero exit remains known through an unrelated
+later pipe failure. An actually observed stdout or stderr cap takes precedence
+over a cached natural exit, on both clean and failed cleanup. Recheck caller
+cancellation before public delivery of natural success and nonzero candidates.
+An already primary timeout/cap interruption remains primary when abort arrives
+later; successful cleanup of a cancelled natural candidate yields fixed AbortError.
 Run from cwd `/` with exactly `LANG=C` and `LC_ALL=C`; no ambient environment
-is inherited. External abort yields the fixed
+is inherited. External abort before a timeout/cap interruption yields the fixed
 `DOMException('registry status read cancelled','AbortError')` after successful
 cleanup, without exposing the caller's arbitrary reason. A cleanup fault takes
 the typed local-error path with any known primary outcome. Abort, overflow and acquisition timeout
