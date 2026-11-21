@@ -11,6 +11,8 @@ export const DEDICATED_RUNTIME_PROJECTS = {
  * 22 min, `wbs-store-sqlite:test` 18 min) were running when full-mode runners on main 1730d911f
  * were lost. `wbs-core:test` runs only about 2 minutes but one Bun process peaks at 5.7–7.3 GiB RSS
  * (#959 tracks fixing that at the source). See R5-32 in docs/findings/checks-that-cannot-fail.md.
+ * Each runs in its own CI job, runtime partition `heavy-<project>` (A-CI-WORKSPACE-MEMORY-3).
+ * Gate mode's budget table in ci.yml must list exactly these projects.
  */
 export const HEAVY_TEST_PROJECTS = [
   'tool-fleet',
