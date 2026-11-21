@@ -15,7 +15,7 @@ Recover or relabel old images; activate registry lifecycle adapters; replace Com
 
 ## Constraints
 
-Use read-only provider access and provider-neutral core types; no runner identities in core policy. Refuse unsupported providers and incomplete observations. Reuse existing credentials only with an explicit registry-authority binding. Preserve secrets, tenant boundaries, unrelated checkouts and runtime. Demonstrate production-path negatives and watched guard-removal proofs. Develop, push and merge autonomously under the user's goal; application rollout scope is being clarified separately.
+Use read-only provider access and provider-neutral core types; no runner identities in core policy. Refuse unsupported providers and incomplete observations. Reuse existing credentials only with an explicit registry-authority binding. Preserve secrets, tenant boundaries, unrelated checkouts and runtime. Demonstrate production-path negatives and watched guard-removal proofs. Develop, push and merge autonomously under the user's goal. Application production rollout, installed-executor adoption, secret changes and global host/pool/catalogue changes require separate authorization.
 
 ## Capabilities
 
