@@ -10911,3 +10911,41 @@ Strict owning validation passed with zero issues and all 347 OpenSpec artifacts
 passed. The final actor and supervisor SHA-256 values are
 `63b4103ebc9d306c9d50080a109724fe1a7108d98c8af358dd67d5514d2ef800`
 and `16345a7065897c8af41b886700f66addda3ddc68e1d939c78413f5075217149f`.
+
+### Genuine cancellation after a false event and recorded cleanup timeout
+
+The scoped review of `fedea3eac` found that a manually dispatched abort event
+consumed the process listener while the caller signal remained live. A later
+genuine abort delivered the fixed error only after the owned child exited
+naturally. A separate pipe-read failure produced a cleanup error with no
+outcome even after the bounded cleanup wait recorded timeout. Both public
+regressions failed on that revision. Immediate release failure and cancellation
+before cleanup expiry passed as undefined-outcome controls.
+
+The active child now owns a disposable listener on a private signal derived
+from the caller. Decisions still sample the original caller signal. The public
+sequential test observes a live group after the false event, then real SIGKILL,
+group disappearance and prompt fixed AbortError after the genuine transition.
+Failed cleanup now carries its eligible earlier failure or a recorded timeout.
+A successful candidate is discarded. An unresolved wait still faults the actor
+and refuses close until settlement.
+
+Seven guard faults each failed their selected public test and passed after
+identical restoration. Direct parent subscription lost the genuine wakeup.
+Omitting disposal left an active listener. Omitting the recorded timeout lost
+the overdue pipe-fault outcome. Selecting by elapsed time misclassified prior
+cancellation. An unconditional timeout misclassified immediate release failure.
+Giving timeout priority lost an earlier reserved exit. Admitting a received
+candidate exposed bytes on failed cleanup. The former false-event callback
+proof applies to the earlier implementation, since a synthetic parent event
+cannot notify the current private signal. Unchanged native checks retain their
+earlier fault receipts.
+
+The four client files passed 325 tests with 1,073 assertions. The uncached
+native target qualified all 12 generated-key cases on UID 1000, port 44653.
+The absolute timeout returned in 1,504 ms under its original 2,500 ms deadline.
+The independent server bound ended the dispatcher with exit 124 and server
+settlement at 5,191 ms. The daemon exited zero, its parent was reaped and the
+fixture was removed. The complete current-source owning suite, scoped review
+and exact-revision adoption remain pending. Task 3 step 5, 5.1c, 5.1b and the
+original installed/checkpoint/activation and alert goals remain open.

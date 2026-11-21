@@ -208,11 +208,12 @@ export async function readRegistryStatusProcess(
   }
   const onAbort = () => {
     const interruption = read.observeCancellation();
-    // Proof: Missing wakeup delayed shared abort; waking on a synthetic event interrupted a nonaborted signal.
+    // Proof: Suppressing the wakeup delayed the shared-signal abort until the acquisition timer.
     if (interruption !== undefined) stop.resolve(interruption);
   };
-  // Proof: A plain listener let the active fixture finish after shared abort. Omitting disposal leaked a listener.
-  using _subscription = addAbortListener(read.signal, onAbort);
+  // Proof: Subscribing directly to the caller lost genuine abort after a synthetic event and the idle child exited naturally.
+  // Omitting disposal missed the process subscription release on ordinary completion.
+  using _subscription = addAbortListener(AbortSignal.any([read.signal]), onAbort);
   // Proof: Skipping the stopped return reached spawn after the no-abort preflight handoff crossed cutoff.
   const initial = read.admitStart();
   if (initial !== undefined) return initial;
@@ -307,14 +308,13 @@ export async function readRegistryStatusProcess(
   // Proof: Granting extra cleanup time broke the known overflow original-deadline test.
   const cleanup = await read.waitUntil(settled);
   if (cleanup !== true) {
-    // Proof: Always attaching timeout on overdue success lost the preceding cancellation during release.
-    const knownOutcome =
-      admitted?.state === 'received'
-        ? cleanup === deadlineReached && read.observeCancellation() !== cancelled
-          ? statusTimeout
-          : undefined
-        : admitted;
-    return { state: 'cleanup-failed', outcome: knownOutcome, settled };
+    // Proof: Accepting a received candidate exposed its bytes on immediate release failure.
+    const failure = admitted?.state === 'received' ? undefined : admitted;
+    // Proof: Dropping the observed timeout lost it after a pipe fault. Giving timeout priority lost exit77.
+    // Unconditional timeout mislabeled immediate failure; deadline alone mislabeled cancellation before expiry.
+    const outcome =
+      failure ?? (read.observeCancellation() === statusTimeout ? statusTimeout : undefined);
+    return { state: 'cleanup-failed', outcome, settled };
   }
   // Proof: Omitting controlled cancellation lost AbortError when the caller aborted before stdout overflow.
   if (read.observeCancellation() === cancelled) throw registryStatusCancelled();

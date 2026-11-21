@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { getEventListeners } from 'node:events';
+import * as events from 'node:events';
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 
 import { expect, spyOn, test } from 'bun:test';
@@ -176,6 +176,20 @@ async function withExchange(
     }
     await rm(parent, { recursive: true });
   }
+}
+
+function observeAbortDisposal(observe: (ordinal: number, signal: AbortSignal) => void) {
+  const subscribe = events.addAbortListener;
+  let disposals = 0;
+  return spyOn(events, 'addAbortListener').mockImplementation((signal, listener) => {
+    const subscription = subscribe(signal, listener);
+    return {
+      [Symbol.dispose]() {
+        subscription[Symbol.dispose]();
+        observe(++disposals, signal);
+      },
+    };
+  });
 }
 
 function read(source: RegistryPressureSource, milliseconds = 2500) {
@@ -567,6 +581,7 @@ for (const [name, exit, when, expected] of [
   ['successful candidate and immediate release failure', 0, 0, undefined],
   ['reserved nonzero exit and immediate release failure', 77, 0, refused],
   ['successful candidate and release past the deadline', 0, 1250, timeout],
+  ['reserved nonzero exit and release past the deadline', 77, 1250, refused],
 ] as const) {
   test('preserves only eligible outcomes after ' + name, () =>
     withExchange(
@@ -740,10 +755,23 @@ test('disposes preflight and process abort subscriptions after settling the exch
     const caller = new AbortController();
     const observe = () => undefined;
     caller.signal.addEventListener('abort', observe, { once: true });
-    const reply = await source.read(caller.signal, performance.now() + 2500);
-    expect(reply).toEqual({ state: 'received', bytes: new Uint8Array() });
-    expect(getEventListeners(caller.signal, 'abort')).toEqual([observe]);
-    await source.close();
+    const released: AbortSignal[] = [];
+    const spy = observeAbortDisposal((_ordinal, signal) => {
+      released.push(signal);
+    });
+    try {
+      const reply = await source.read(caller.signal, performance.now() + 2500);
+      expect(reply).toEqual({ state: 'received', bytes: new Uint8Array() });
+      expect(released).toHaveLength(2);
+      for (const signal of released) {
+        expect(events.getEventListeners(signal, 'abort')).toEqual(
+          signal === caller.signal ? [observe] : [],
+        );
+      }
+    } finally {
+      spy.mockRestore();
+      await source.close();
+    }
   }));
 
 test('keeps an earlier abort primary when a later exit observation precedes pipe cancellation failure', () => {
@@ -818,17 +846,9 @@ for (const [code, candidate] of [
       "await Bun.write(Bun.stdout, 'fixture'); process.exit(" + String(code) + ');',
       async (source, spawned) => {
         const caller = new AbortController();
-        const remove = caller.signal.removeEventListener.bind(caller.signal);
-        let disposals = 0;
-        const observer = spyOn(caller.signal, 'removeEventListener').mockImplementation(((
-          name: string,
-          listener: EventListenerOrEventListenerObject,
-          options?: EventListenerOptions | boolean,
-        ) => {
-          remove(name, listener, options);
-          disposals += 1;
-          if (disposals === 2) caller.abort('private fixture abort reason');
-        }) as typeof caller.signal.removeEventListener);
+        const observer = observeAbortDisposal((ordinal) => {
+          if (ordinal === 2) caller.abort('private fixture abort reason');
+        });
         try {
           const failure = await source
             .read(caller.signal, performance.now() + 2500)
@@ -953,22 +973,17 @@ for (const handoff of ['pre-spawn', 'delivery'] as const) {
             },
             { once: true },
           );
-          const remove = caller.signal.removeEventListener.bind(caller.signal);
-          let disposals = 0;
           let entered = false;
-          const spy = spyOn(caller.signal, 'removeEventListener').mockImplementation(
-            (...args: Parameters<typeof remove>) => {
-              remove(...args);
-              if (++disposals !== (handoff === 'pre-spawn' ? 1 : 2)) return;
-              entered = performance.now() < deadline - 1000;
-              if (order === 'abort-in-reserve')
-                Bun.sleepSync(Math.ceil(deadline - 1000 - performance.now()) + 20);
-              if (order === 'abort-first' || order === 'abort-in-reserve')
-                caller.abort('private handoff reason');
-              Bun.sleepSync(Math.max(0, Math.ceil(boundary - performance.now()) + 20));
-              if (order === 'deadline-first') caller.abort('private handoff reason');
-            },
-          );
+          const spy = observeAbortDisposal((ordinal) => {
+            if (ordinal !== (handoff === 'pre-spawn' ? 1 : 2)) return;
+            entered = performance.now() < deadline - 1000;
+            if (order === 'abort-in-reserve')
+              Bun.sleepSync(Math.ceil(deadline - 1000 - performance.now()) + 20);
+            if (order === 'abort-first' || order === 'abort-in-reserve')
+              caller.abort('private handoff reason');
+            Bun.sleepSync(Math.max(0, Math.ceil(boundary - performance.now()) + 20));
+            if (order === 'deadline-first') caller.abort('private handoff reason');
+          });
           try {
             const reply = await source
               .read(caller.signal, deadline)
@@ -1330,3 +1345,84 @@ test('an abort event on a nonaborted signal cannot interrupt the exchange', () =
     expect(await reading).toEqual({ state: 'received', bytes: new Uint8Array() });
     await source.close();
   }));
+
+test('a synthetic event followed by genuine abort promptly terminates and reaps the idle group', () =>
+  withExchange('await Bun.sleep(1300);', async (source, spawned) => {
+    const caller = new AbortController();
+    const reading = source
+      .read(caller.signal, performance.now() + 4000)
+      .catch((cause: unknown) => cause);
+    const child = await spawned;
+    expect(process.kill(-child.pid, 0)).toBe(true);
+    caller.signal.dispatchEvent(new Event('abort'));
+    expect(caller.signal.aborted).toBe(false);
+    expect(child.exitCode).toBe(null);
+    const interrupted = performance.now();
+    caller.abort('private fixture abort reason');
+    const failure = await reading;
+    expect(failure).toBeInstanceOf(DOMException);
+    expect(failure).toHaveProperty('name', 'AbortError');
+    expect(failure).toHaveProperty('message', 'registry status read cancelled');
+    expect(child.signalCode).toBe('SIGKILL');
+    groupGone(child);
+    expect(performance.now() - interrupted).toBeLessThan(350);
+    await source.close();
+  }));
+
+test.each(['overdue', 'cancelled before expiry', 'immediate failure'] as const)(
+  'unclassified pipe fault with %s cleanup retains only an observed failure',
+  async (settlement) => {
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    await withExchange(
+      hold,
+      async (source, spawned) => {
+        const caller = new AbortController();
+        const deadline = performance.now() + 1300;
+        const reading = source.read(caller.signal, deadline).catch((cause: unknown) => cause);
+        try {
+          await entered.promise;
+          expect(performance.now()).toBeLessThan(deadline - 1000);
+          if (settlement === 'cancelled before expiry') caller.abort();
+          const failure = await reading;
+          expect(failure).toBeInstanceOf(RegistrySourceCleanupError);
+          expect(failure).toHaveProperty('outcome', settlement === 'overdue' ? timeout : undefined);
+          if (settlement !== 'immediate failure')
+            expect(performance.now()).toBeGreaterThanOrEqual(deadline);
+          expect((await spawned).signalCode).toBe('SIGKILL');
+          groupGone(await spawned);
+          await expectFailure(read(source), /fault/);
+          await expectFailure(source.close(), /unresolved/);
+        } finally {
+          release.resolve(undefined);
+        }
+        if (settlement !== 'immediate failure') {
+          await Bun.sleep(0);
+          await source.close();
+        }
+      },
+      (child) => {
+        const pipe = new ReadableStream<Uint8Array>();
+        const getReader = pipe.getReader.bind(pipe);
+        Object.defineProperty(pipe, 'getReader', {
+          value: () => {
+            const reader = getReader();
+            reader.read = (): Promise<never> =>
+              Promise.reject(new Error('private fixture read failure'));
+            return reader;
+          },
+        });
+        Object.defineProperty(child, 'stdout', { value: pipe });
+        Object.defineProperty(child, 'stderr', {
+          value: new ReadableStream<Uint8Array>({
+            cancel() {
+              entered.resolve(undefined);
+              if (settlement === 'immediate failure') throw new Error('fixture release failed');
+              return release.promise;
+            },
+          }),
+        });
+      },
+    );
+  },
+);
