@@ -1,10 +1,10 @@
 ## Context
 
 Read at `origin/main` `b17861f83` on 2026-11-21. Live figures are read-only `kubectl` readings
-of the same day unless a date says otherwise. This is the eighth draft of the change: the
-seventh, revised after a seventh review, with PostgreSQL hosting added at the owner's request
-(decision 11). [verify.md](verify.md#replaced-drafts) records the drafts it replaces, what the
-seven reviews found, and how ids moved. The PostgreSQL part has not been reviewed.
+of the same day unless a date says otherwise. This is the ninth draft of the change: the
+eighth, revised after an eighth review, the first to read the PostgreSQL part (decision 11).
+[verify.md](verify.md#replaced-drafts) records the drafts it replaces, what the eight reviews
+found, and how ids moved.
 
 What runs today:
 
@@ -62,7 +62,8 @@ What the repository can already do from an empty host, and what Argo CD changes 
 - Porting any app from SQLite to PostgreSQL. Each port is a follow-up change (decision 11).
 - Databases for client apps, and a database replica (decision 11).
 - A switch without downtime (R26).
-- Any duty of h1claw (R30).
+- Any duty of h1claw (R30). Installing or migrating OpenClaw, and setting up the
+  workstation's tooling and accounts (R43, R44).
 - Delivering a dev environment. This change sizes and contains it; a follow-up change
   delivers it (R34, decision 9).
 
@@ -78,65 +79,71 @@ executor on the CI host serves every trigger; and that the recommendations then 
 are accepted. He first chose the apps node for staging; after the sixth review he decided that
 dev and staging get a node of their own (R29). Last, he asked for PostgreSQL hosting in this
 plan, said that every app uses it once it is in place, which reverses SQLite as the lasting
-store, and that the database server is planned now and created when he chooses (R36, R37).
+store, that the database server is planned now and created when he chooses, and that it
+has 16 GiB (R36, R37). Then he asked for a host for OpenClaw (R43) and, on 2026-11-22, for a
+host for his logged-in agent accounts (R44).
 A row marked **decided** records one of those; the rest are assumed and can be overruled by
 id. R14 and R18 of the second draft stay withdrawn.
 
-| Id  | Assumption                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Alternative and its cost                                                                                                                                                                                                                            |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | The new cluster is built on newly created servers. An old host is deleted once its data is confirmed restored and, for a gate host, once its successor is calibrated                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Reinstall the existing servers. Cost: gates stop for other sessions while a gate host is rebuilt                                                                                                                                                    |
-| R2  | **Decided.** Three servers of 8 vCPUs and 16 GiB, and a CI host of 16 vCPUs and 32 GiB. The observability server's root disk is at least 180 GiB (decision 2). Assumed: the non-production server of R29 is 8 vCPUs and 16 GiB as well; the database server is R37's                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | A CI host of the smaller class. Cost: one gate at a time at about 5 h 20 min. A non-production server of half the size. Cost: decision 2 shows staging alone does not fit beside one solve, before any dev environment                              |
-| R3  | **Decided.** Node ids and host names are `h5plat`, `h6apps`, `h7obs` and `h8ci`. Assumed: `h9stg` for the non-production server and `h10db` for the database server                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | none                                                                                                                                                                                                                                                |
-| R4  | **Decided.** The owner creates each server in the provider console; it is enrolled by static inventory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Terragrunt provisioning. Cost: it has never run against the provider and needs a remote state backend first                                                                                                                                         |
-| R5  | The new cluster keeps the cluster id `platform-production`. In `desired.yaml` it is a second platform cluster, fleet id `platform-2`, until the old one is removed. **Decided:** machine ids and private addresses are recorded where the fleet model records them today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | A new cluster id. Cost: the id list is closed in the `backup` role, `platform.ts` and `recover.ts`                                                                                                                                                  |
-| R6  | New: k3s credentials, a SOPS age identity that never enters the cluster, the repository read keys, the Argo CD account, everything OpenBao generates. Carried from escrow: the registry CA, the object storage credentials                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Reuse every secret. Cost: the old cluster's credentials would open the new one                                                                                                                                                                      |
-| R7  | Build order: platform, CI, observability, apps, then retirement (decision 6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Apps before observability. Cost: data arrives before the alert and backup units are healthy                                                                                                                                                         |
-| R8  | One new capability, `platform-services`, pins Argo CD, cert-manager, Harbor, OpenBao and the External Secrets Operator                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | One label per service, as pull request #935 proposes with `secret-store`. Cost: several labels that always sit on one node                                                                                                                          |
-| R9  | Storage stays node-local with policy `Retain`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Provider volumes. Cost: SQLite on a network volume is what the owner ruled out                                                                                                                                                                      |
-| R10 | Harbor is the only registry the new cluster ever runs. Its tree has no Distribution unit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Install Distribution first. Cost: a registry replaced before its first consumer                                                                                                                                                                     |
-| R11 | **Decided.** The website and the request app run on the new cluster from the same release pins and source registry as today, moved after the release bootstrap finishes; the session that owns it writes the fleet repository's directory for the new cluster                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Route them to Harbor during the build. Cost: it changes exactly what that session asked to keep untouched                                                                                                                                           |
-| R12 | The CI role is gates and builds: release builds and the staging builds of R31, every one a job of the host pool. No app, staging or production, and no database runs there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Dev stacks on the CI host, as the third draft had it. Cost: the agents' tracker slows under every gate and sits beside branch code                                                                                                                  |
-| R13 | **Decided.** Backups of everything on the new cluster run inside it: each app's own backup job, and retention and the freshness alert as cluster units (slice 3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Keep an outside puller. Cost: a host whose only job is to watch another                                                                                                                                                                             |
-| R15 | **Decided:** MLflow is kept. Assumed: it runs on the observability node as a cluster unit with a `Retain` claim and the same backup job as the apps (slice 3.6); Victoria and Grafana are not rebuilt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | A Compose service with a host timer. Cost: a second backup mechanism for one store                                                                                                                                                                  |
-| R16 | Each node is probed from another node; the observability node from the platform node                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | In-cluster monitoring only. Cost: the node that hosts monitoring cannot report its own loss                                                                                                                                                         |
-| R17 | The Ansible controller lives on the operator workstation and reaches private addresses through a jump on `h5plat`. When `h5plat` is off, the jump is the target server's own public SSH endpoint, which the fleet firewall keeps open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | A jump on the CI host. Cost: a host that runs branch code sits on the path to every node                                                                                                                                                            |
-| R19 | One root Application owns plain Application files (app of apps). It syncs automatically and manages only Application and AppProject objects. The ApplicationSet controller is not installed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | An ApplicationSet with a cluster generator. Cost: a generator and a controller for one cluster                                                                                                                                                      |
-| R20 | **Decided.** The owner on 2026-11-21: what merges to `main` is deployed on staging; a production deployment is done by hand, on command. Staging Applications sync automatically from `main`. Production Applications track `main` with automated sync off. Every overlay names its images by digest, so what runs in production is the digest set of its overlay at the last sync, promoted there by a merge. Assumed: platform units have no staging copy and are synced on command too                                                                                                                                                                                                                                                                                                                                                                                                            | Platform units automated. Cost: a merged infrastructure change rolls out with no second look, on the one cluster there is                                                                                                                           |
-| R21 | The new cluster's definitions live under `infra/argocd` and share no file with a Flux-reconciled path, except chart archives locked by digest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Reference the existing plain manifests. Cost: an edit for one cluster reaches the workers clusters and the labs                                                                                                                                     |
-| R22 | **Decided.** The owner on 2026-11-21: OpenBao is set up before the other services. No decryption runs in the cluster. Ansible applies only the bootstrap Secrets that Argo CD and OpenBao themselves need (decision 5); every other Secret is an ExternalSecret from the first day                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Bootstrap Secrets for the first stages. Cost: a second delivery path, built to be removed                                                                                                                                                           |
-| R23 | **Decided.** The Argo CD interface has no public route and one local account, which reads everything and may sync Applications of the `production` project only, at the revision the Application names; it may not roll back. The built-in `admin` account is disabled. Break-glass is `kubectl` on the platform node                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Keep `admin` enabled. Cost: a second write path with one shared password                                                                                                                                                                            |
-| R24 | Argo CD's four workloads are limited to 1,536 MiB together until A8 measures them                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | No limits. Cost: the repo server's rendering can take memory from the secret store                                                                                                                                                                  |
-| R25 | The platform node is registered with the taint `CriticalAddonsOnly=true:NoSchedule`. Platform services and three named node agents tolerate it; nothing else may                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Node selectors alone. Cost: a workload outside the checked tree can land beside the secret store                                                                                                                                                    |
-| R26 | **Decided.** The switch may be unsafe. The owner on 2026-11-21: "we can make the switch unsafe that's ok / no prod users yet". It holds only while there are no production users; the guards of decision 7 stay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | A staged switch with fences and a retained old side. Cost: the ceremony of the second draft                                                                                                                                                         |
-| R27 | Workers clusters and the existing labs stay on Flux. The repository carries two delivery tools until a later change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Move them now. Cost: no workers cluster exists in production to prove it on                                                                                                                                                                         |
-| R28 | **Decided.** WBS production crosses the simple way, like the website: stop, one backup, restore, start. The cutover plan's first-start coordinator and its replay and digest guards are not used for the move. Its images come from Harbor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | The guarded cutover plan. Cost: its coordinator reads and patches Flux objects and would have to be ported first                                                                                                                                    |
-| R29 | **Decided.** The owner on 2026-11-21: "let's do dev & staging on a sep node", and then "yeah - staging and dev must be separate envs". A fifth server, `h9stg`, holds the non-production role, with the capabilities `nonproduction` and `ingress`, and is where two environments of the three apps run, staging and dev, each with its own namespaces, hostnames, certificates, claims, OpenBao paths and backup prefix. The production apps node carries production only. He had first chosen the apps node for staging; the sixth review then read the WBS solver's host supervisor, which is written for one node (decision 1). This change delivers staging there and prepares dev (R34)                                                                                                                                                                                                        | One capability per environment. Cost: two labels that always sit on one node; the AppProjects and namespaces already separate the two                                                                                                               |
-| R30 | **Decided.** h1claw is outside this plan and the owner may delete it at any time. Asked on 2026-11-21 to choose between accepting the backup windows of decision 7's table and keeping h1claw until WBS has moved, he answered "backup - ok". One step must precede the deletion: the escrow of task 0.5, because the existing encrypted archive is unreadable without its key                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Keep h1claw until retirement as a rule of the plan. Cost: a guard the owner said he does not want                                                                                                                                                   |
-| R31 | **Decided.** The owner on 2026-11-21: "let's keep the custom runner that can be triggered either by github actions or by agents through cli/mcp/call to 'wbs' api (it will all converge to puni-user-platform)". One executor runs every job on the CI host: the host pool and its job catalogue. A trigger is a thin adapter that submits a catalogue job through the pool's admission; it has no execution path, credential store or queue of its own. This plan has two adapters: GitHub Actions, through a self-hosted runner on the CI host, for a push to `main` and a manual run at `main`; and the command line that agents use for gates today. MCP and the `puni-user-platform` API are a direction and are not designed here. Assumed: staging images are built this way, pushed to Harbor by digest, and pinned in a staging pins repository that nothing but staging reads (decision 9) | Argo Workflows, which he considered. Cost: an inbound webhook, CI inside the production cluster, and a second scheduler beside the pool. The provider's hosted runners. Cost: they cannot reach Harbor on the private network                       |
-| R33 | **Decided** for staging. Asked on 2026-11-21 whether staging is automatic from `main`, holds the agents' tracker and promotes to production, the owner answered "ok for all three". **Staging** is deployed automatically from `main` (R20) and is the rehearsal of exactly what production will get; it holds the agents' live tracker, because today's WBS dev, which holds it, follows `main`. It replaces today's dev stacks: the `website-dev` namespace and the Compose dev stacks. Assumed, and the follow-up's to confirm (R34): **dev** is deployed on command from any ref, by an agent or the owner, to try a branch or a pull request; its data is disposable and it is never synced from `main` by itself. Promotion is staging to production only; dev promotes nowhere                                                                                                                | The tracker on dev. Cost: it stops following `main`, or dev stops being disposable                                                                                                                                                                  |
-| R32 | On the rebuilt cluster the WBS solver is bound per environment: a trusted namespace, a selector and a parameter ConfigMap for each, and each backend's caller name in the supervisor's closed list. A node runs one supervisor with one pod caller: production's on the production apps node, staging's on the non-production node. The staging caller's rule names no caller image, which the supervisor's decoder is changed to allow for that one name; the staging list of trusted backend images is owned by the staging pins, and production's stays outside Git (decision 1, slice 3.8). A second caller on the non-production node, dev's, waits for the follow-up (R34)                                                                                                                                                                                                                     | Per-digest rules for staging as for production. Cost: every staging backend deploy waits for a person to run `solver.yml`, which is what R20 rules out                                                                                              |
-| R34 | The planning session's scoping, made on 2026-11-21 after the seventh review so that the plan converges; the owner may overrule it. This change delivers staging and only prepares dev: the non-production node is sized for both, the capability `nonproduction` and three dev namespaces exist from the start, and the platform-side containment of decision 3 binds every non-production namespace at admission, whatever a ref holds. Dev's Applications, project, account, build trigger and solver use are a follow-up change, proposed name `add-dev-environment` (decision 9)                                                                                                                                                                                                                                                                                                                 | Dev delivered here, as the sixth draft had it. Cost: its isolation rested on rules in `gate`, which never see the ref a dev sync applies                                                                                                            |
-| R35 | Assumed, under the condition of R26 (no production users): the CI host is one trust zone. The gate user is root-equivalent there, so code that a gate runs can read the build credentials and change what a later build produces. What is accepted is the integrity of images built on that host, which staging runs at once and production runs after a promotion. The credentials themselves reach staging only: the push robot writes one Harbor project, and the GitHub App is installed on the staging pins repository alone (decision 9)                                                                                                                                                                                                                                                                                                                                                       | Rootless Docker for gates, or builds on a host of their own. Cost: a change to the gate role and a new calibration, or one more server                                                                                                              |
-| R36 | **Decided.** The owner on 2026-11-21: "i'll also need you to include hosting postgres in the plan", and, asked who uses it, "i want everybody to use it once it's in place". Earlier the same day he had said "I want to use SQLite for as long as possible"; this reverses it. A brief from another session came with the request; he then said "this session supersedes the decisions from brief". Assumed: this change hosts PostgreSQL and ports no app. The three apps and MLflow arrive on SQLite as already planned and move in follow-up changes (decision 11); every SQLite-specific element of this plan holds until that app's port lands                                                                                                                                                                                                                                                 | SQLite kept, with continuous replication to object storage. Cost: one writer bound to one node stays, so deployments stop the backend and nothing fails over; far less work, and it remains the fallback for an app whose port proves too expensive |
-| R37 | A sixth role, `database`: one server, `h10db`, assumed 4 vCPUs and 8 GiB with a root disk of at least 135 GiB (decision 2), an agent of the new cluster that carries the capability `database` alone and is registered with the taint `puni.dev/role=database:NoSchedule`. **Decided:** the owner on 2026-11-21, "just plan for it for now, i'll evaluate the options": the server is created when he chooses, and nothing in stages 1 to 5 waits for it                                                                                                                                                                                                                                                                                                                                                                                                                                             | The production instance on the production apps node. Cost: the database shares a node with the public edge and with the apps it serves. Dedicated vCPUs or 16 GiB from the start. Cost: paid before the first consumer exists                       |
-| R38 | CloudNativePG runs PostgreSQL: operator v1.30.2 on the platform node, physical backups and WAL archiving through its Barman Cloud plugin v0.16.0. The in-tree Barman integration is deprecated and is not used (decision 11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | A hand-written StatefulSet with nightly dumps. Cost: no point-in-time recovery and no managed switchover when a replica comes                                                                                                                       |
-| R39 | One production cluster, `platform-db`, with one instance. Each app gets one database and one owner role, and no role can read another app's database. A cluster for client apps and a cluster per large client come later, each with its first consumer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | A cluster per app. Cost: an instance's memory for each, on a server of 8 GiB                                                                                                                                                                        |
-| R40 | Staging's databases are in a second cluster, `nonproduction-db`, one instance on the non-production node, with its own backup credential and bucket. It needs no database server, so it can run as soon as the operator does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | A second cluster on the database node. Cost: staging, which follows `main`, shares a disk and a kernel with production data, and the node's taint no longer means production only                                                                   |
-| R41 | Recovery targets for `platform-db`, assumed: at most 5 minutes of committed data lost when the node is lost (the WAL archive interval), 30 days of point-in-time recovery, logical dumps kept 90 days, and a full restore into a new cluster within 2 hours, to be replaced by the measured time of the first drill (A28)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Hourly base backups without WAL archiving. Cost: up to an hour lost, which is what SQLite gives today                                                                                                                                               |
-| R42 | Harbor keeps the database its own change bundles, on the platform node. "Everybody" (R36) is read as the apps and MLflow                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Harbor on `platform-db`. Cost: a registry that cannot serve a pull while the database node is down, and a start-up loop if a database image ever came from Harbor                                                                                   |
+| Id  | Assumption                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Alternative and its cost                                                                                                                                                                                                                            |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | The new cluster is built on newly created servers. An old host is deleted once its data is confirmed restored and, for a gate host, once its successor is calibrated                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Reinstall the existing servers. Cost: gates stop for other sessions while a gate host is rebuilt                                                                                                                                                    |
+| R2  | **Decided.** Three servers of 8 vCPUs and 16 GiB, a CI host of 16 vCPUs and 32 GiB, and a database server of 8 vCPUs and 16 GiB (R37). The observability server's root disk is at least 180 GiB (decision 2). Assumed: the non-production server of R29 is 8 vCPUs and 16 GiB as well                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | A CI host of the smaller class. Cost: one gate at a time at about 5 h 20 min. A non-production server of half the size. Cost: decision 2 shows staging alone does not fit beside one solve, before any dev environment                              |
+| R3  | **Decided.** Node ids and host names are `h5plat`, `h6apps`, `h7obs` and `h8ci`. Assumed: `h9stg` for the non-production server and `h10db` for the database server                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | none                                                                                                                                                                                                                                                |
+| R4  | **Decided.** The owner creates each server in the provider console; it is enrolled by static inventory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Terragrunt provisioning. Cost: it has never run against the provider and needs a remote state backend first                                                                                                                                         |
+| R5  | The new cluster keeps the cluster id `platform-production`. In `desired.yaml` it is a second platform cluster, fleet id `platform-2`, until the old one is removed. **Decided:** machine ids and private addresses are recorded where the fleet model records them today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | A new cluster id. Cost: the id list is closed in the `backup` role, `platform.ts` and `recover.ts`                                                                                                                                                  |
+| R6  | New: k3s credentials, a SOPS age identity that never enters the cluster, the repository read keys, the Argo CD account, everything OpenBao generates. Carried from escrow: the registry CA, the object storage credentials                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Reuse every secret. Cost: the old cluster's credentials would open the new one                                                                                                                                                                      |
+| R7  | Build order: platform, CI, observability, apps, then retirement (decision 6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Apps before observability. Cost: data arrives before the alert and backup units are healthy                                                                                                                                                         |
+| R8  | One new capability, `platform-services`, pins Argo CD, cert-manager, Harbor, OpenBao and the External Secrets Operator                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | One label per service, as pull request #935 proposes with `secret-store`. Cost: several labels that always sit on one node                                                                                                                          |
+| R9  | Storage stays node-local with policy `Retain`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Provider volumes. Cost: SQLite on a network volume is what the owner ruled out                                                                                                                                                                      |
+| R10 | Harbor is the only registry the new cluster ever runs. Its tree has no Distribution unit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Install Distribution first. Cost: a registry replaced before its first consumer                                                                                                                                                                     |
+| R11 | **Decided.** The website and the request app run on the new cluster from the same release pins and source registry as today, moved after the release bootstrap finishes; the session that owns it writes the fleet repository's directory for the new cluster                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Route them to Harbor during the build. Cost: it changes exactly what that session asked to keep untouched                                                                                                                                           |
+| R12 | The CI role is gates and builds: release builds and the staging builds of R31, every one a job of the host pool. No app, staging or production, and no database runs there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Dev stacks on the CI host, as the third draft had it. Cost: the agents' tracker slows under every gate and sits beside branch code                                                                                                                  |
+| R13 | **Decided.** Backups of everything on the new cluster run inside it: each app's own backup job, and retention and the freshness alert as cluster units (slice 3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Keep an outside puller. Cost: a host whose only job is to watch another                                                                                                                                                                             |
+| R15 | **Decided:** MLflow is kept. Assumed: it runs on the observability node as a cluster unit with a `Retain` claim and the same backup job as the apps (slice 3.6); Victoria and Grafana are not rebuilt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | A Compose service with a host timer. Cost: a second backup mechanism for one store                                                                                                                                                                  |
+| R16 | Each node is probed from another node; the observability node from the platform node                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | In-cluster monitoring only. Cost: the node that hosts monitoring cannot report its own loss                                                                                                                                                         |
+| R17 | The Ansible controller lives on the operator's laptop, or on the workstation of R44 if the owner moves it there, and reaches private addresses through a jump on `h5plat`. When `h5plat` is off, the jump is the target server's own public SSH endpoint, which the fleet firewall keeps open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | A jump on the CI host. Cost: a host that runs branch code sits on the path to every node                                                                                                                                                            |
+| R19 | One root Application owns plain Application files (app of apps). It syncs automatically and manages only Application and AppProject objects. The ApplicationSet controller is not installed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | An ApplicationSet with a cluster generator. Cost: a generator and a controller for one cluster                                                                                                                                                      |
+| R20 | **Decided.** The owner on 2026-11-21: what merges to `main` is deployed on staging; a production deployment is done by hand, on command. A merge to `main` that touches an app starts a build on the CI host, which commits that app's rendered staging manifests to the staging pins repository; the staging Application's source is that directory and it syncs automatically (decision 9). The website and the request app keep the fleet repository's staging overlays as their source until their owner adopts that path (R11). Production Applications track `main` with automated sync off. Every overlay names its images by digest, so what runs in production is the digest set of its overlay at the last sync, promoted there by a merge. Assumed: platform units have no staging copy and are synced on command too                                                                                                                     | Platform units automated. Cost: a merged infrastructure change rolls out with no second look, on the one cluster there is                                                                                                                           |
+| R21 | The new cluster's definitions live under `infra/argocd` and share no file with a Flux-reconciled path, except chart archives locked by digest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Reference the existing plain manifests. Cost: an edit for one cluster reaches the workers clusters and the labs                                                                                                                                     |
+| R22 | **Decided.** The owner on 2026-11-21: OpenBao is set up before the other services. No decryption runs in the cluster. Ansible applies only the bootstrap Secrets that Argo CD and OpenBao themselves need (decision 5); every other Secret is an ExternalSecret from the first day                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Bootstrap Secrets for the first stages. Cost: a second delivery path, built to be removed                                                                                                                                                           |
+| R23 | **Decided.** The Argo CD interface has no public route and one local account, which reads everything and may sync Applications of the `production` project only, at the revision the Application names; it may not roll back. The built-in `admin` account is disabled. Break-glass is `kubectl` on the platform node                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Keep `admin` enabled. Cost: a second write path with one shared password                                                                                                                                                                            |
+| R24 | Argo CD's four workloads are limited to 1,536 MiB together until A8 measures them                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | No limits. Cost: the repo server's rendering can take memory from the secret store                                                                                                                                                                  |
+| R25 | The platform node is registered with the taint `CriticalAddonsOnly=true:NoSchedule`. Platform services and three named node agents tolerate it; nothing else may                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Node selectors alone. Cost: a workload outside the checked tree can land beside the secret store                                                                                                                                                    |
+| R26 | **Decided.** The switch may be unsafe. The owner on 2026-11-21: "we can make the switch unsafe that's ok / no prod users yet". It holds only while there are no production users; the guards of decision 7 stay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | A staged switch with fences and a retained old side. Cost: the ceremony of the second draft                                                                                                                                                         |
+| R27 | Workers clusters and the existing labs stay on Flux. The repository carries two delivery tools until a later change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Move them now. Cost: no workers cluster exists in production to prove it on                                                                                                                                                                         |
+| R28 | **Decided.** WBS production crosses the simple way, like the website: stop, one backup, restore, start. The cutover plan's first-start coordinator and its replay and digest guards are not used for the move. Its images come from Harbor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | The guarded cutover plan. Cost: its coordinator reads and patches Flux objects and would have to be ported first                                                                                                                                    |
+| R29 | **Decided.** The owner on 2026-11-21: "let's do dev & staging on a sep node", and then "yeah - staging and dev must be separate envs". A fifth server, `h9stg`, holds the non-production role, with the capabilities `nonproduction` and `ingress`, and is where two environments of the three apps run, staging and dev, each with its own namespaces, hostnames, certificates, claims, OpenBao paths and backup prefix. The production apps node carries production only. He had first chosen the apps node for staging; the sixth review then read the WBS solver's host supervisor, which is written for one node (decision 1). This change delivers staging there and prepares dev (R34)                                                                                                                                                                                                                                                        | One capability per environment. Cost: two labels that always sit on one node; the AppProjects and namespaces already separate the two                                                                                                               |
+| R30 | **Decided.** h1claw is outside this plan and the owner may delete it at any time. Asked on 2026-11-21 to choose between accepting the backup windows of decision 7's table and keeping h1claw until WBS has moved, he answered "backup - ok". One step must precede the deletion: the escrow of task 0.5, because the existing encrypted archive is unreadable without its key                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Keep h1claw until retirement as a rule of the plan. Cost: a guard the owner said he does not want                                                                                                                                                   |
+| R31 | **Decided.** The owner on 2026-11-21: "let's keep the custom runner that can be triggered either by github actions or by agents through cli/mcp/call to 'wbs' api (it will all converge to puni-user-platform)". One executor runs every job on the CI host: the host pool and its job catalogue. A trigger is a thin adapter that submits a catalogue job through the pool's admission; it has no execution path, credential store or queue of its own. This plan has two adapters: GitHub Actions, through a self-hosted runner on the CI host, for a push to `main` and a manual run at `main`; and the command line that agents use for gates today. MCP and the `puni-user-platform` API are a direction and are not designed here. Assumed: staging images are built this way and pushed to Harbor by digest, and the same job commits the rendered staging manifests to a staging pins repository that nothing but staging reads (decision 9) | Argo Workflows, which he considered. Cost: an inbound webhook, CI inside the production cluster, and a second scheduler beside the pool. The provider's hosted runners. Cost: they cannot reach Harbor on the private network                       |
+| R33 | **Decided** for staging. Asked on 2026-11-21 whether staging is automatic from `main`, holds the agents' tracker and promotes to production, the owner answered "ok for all three". **Staging** is deployed automatically from `main` (R20) and is the rehearsal of exactly what production will get; it holds the agents' live tracker, because today's WBS dev, which holds it, follows `main`. It replaces today's dev stacks: the `website-dev` namespace and the Compose dev stacks. Assumed, and the follow-up's to confirm (R34): **dev** is deployed on command from any ref, by an agent or the owner, to try a branch or a pull request; its data is disposable and it is never synced from `main` by itself. Promotion is staging to production only; dev promotes nowhere                                                                                                                                                                | The tracker on dev. Cost: it stops following `main`, or dev stops being disposable                                                                                                                                                                  |
+| R32 | On the rebuilt cluster the WBS solver is bound per environment: a trusted namespace, a selector and a parameter ConfigMap for each, and each backend's caller name in the supervisor's closed list. A node runs one supervisor with one pod caller: production's on the production apps node, staging's on the non-production node. The staging caller's rule names no caller image, which the supervisor's decoder is changed to allow for that one name; the staging list of trusted backend images is rendered by the staging build into the pins repository, and production's stays outside Git (decision 1, slice 3.8). A second caller on the non-production node, dev's, waits for the follow-up (R34)                                                                                                                                                                                                                                        | Per-digest rules for staging as for production. Cost: every staging backend deploy waits for a person to run `solver.yml`, which is what R20 rules out                                                                                              |
+| R34 | The planning session's scoping, made on 2026-11-21 after the seventh review so that the plan converges; the owner may overrule it. This change delivers staging and only prepares dev: the non-production node is sized for both, the capability `nonproduction` and three dev namespaces exist from the start, and the platform-side containment of decision 3 binds every non-production namespace at admission, whatever a ref holds. Dev's Applications, project, account, build trigger and solver use are a follow-up change, proposed name `add-dev-environment` (decision 9)                                                                                                                                                                                                                                                                                                                                                                 | Dev delivered here, as the sixth draft had it. Cost: its isolation rested on rules in `gate`, which never see the ref a dev sync applies                                                                                                            |
+| R35 | Assumed, under the condition of R26 (no production users): the CI host is one trust zone. The gate user is root-equivalent there, so code that a gate runs can read the build credentials and change what a later build produces. What is accepted is the integrity of images built on that host, which staging runs at once and production runs after a promotion. The credentials themselves reach staging only: the push robot writes one Harbor project, and the GitHub App is installed on the staging pins repository alone. There they can commit any manifest that the `staging` project and admission allow, the list that admits a backend to the solver socket included (decision 9)                                                                                                                                                                                                                                                      | Rootless Docker for gates, or builds on a host of their own. Cost: a change to the gate role and a new calibration, or one more server                                                                                                              |
+| R36 | **Decided.** The owner on 2026-11-21: "i'll also need you to include hosting postgres in the plan", and, asked who uses it, "i want everybody to use it once it's in place". Earlier the same day he had said "I want to use SQLite for as long as possible"; this reverses it. A brief from another session came with the request; he then said "this session supersedes the decisions from brief". Assumed: this change hosts PostgreSQL and ports no app. The three apps and MLflow arrive on SQLite as already planned and move in follow-up changes (decision 11); every SQLite-specific element of this plan holds until that app's port lands                                                                                                                                                                                                                                                                                                 | SQLite kept, with continuous replication to object storage. Cost: one writer bound to one node stays, so deployments stop the backend and nothing fails over; far less work, and it remains the fallback for an app whose port proves too expensive |
+| R37 | A sixth role, `database`: one server, `h10db`, an agent of the new cluster that carries the capability `database` alone and is registered with the taint `puni.dev/role=database:NoSchedule`, with a root disk of at least 115 GiB (decision 2). **Decided:** the owner on 2026-11-21, "let's do db node at 16GiB": 8 vCPUs and 16 GiB; and "just plan for it for now, i'll evaluate the options": the server is created when he chooses, and nothing in stages 1 to 5 waits for it                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | The production instance on the production apps node. Cost: the database shares a node with the public edge and with the apps it serves. Dedicated vCPUs from the start. Cost: paid before the first consumer exists                                 |
+| R38 | CloudNativePG runs PostgreSQL: operator v1.30.2 on the platform node, physical backups and WAL archiving through its Barman Cloud plugin v0.16.0. The in-tree Barman integration is deprecated and is not used (decision 11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | A hand-written StatefulSet with nightly dumps. Cost: no point-in-time recovery and no managed switchover when a replica comes                                                                                                                       |
+| R39 | One production cluster, `platform-db`, with one instance. Each app gets one database and one owner role, and no role can read another app's database. A cluster for client apps and a cluster per large client come later, each with its first consumer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | A cluster per app. Cost: an instance's memory for each, on one server                                                                                                                                                                               |
+| R40 | Staging's databases are in a second cluster, `nonproduction-db`, one instance on the non-production node, with a backup credential and bucket of its own. It needs no database server: it can run once the non-production node has joined and the operator runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | A second cluster on the database node. Cost: staging, which follows `main`, shares a disk and a kernel with production data, and the node's taint no longer means production only                                                                   |
+| R41 | Recovery targets for `platform-db`, assumed: at most 5 minutes of committed data lost when the node is lost (the WAL archive interval), 30 days of point-in-time recovery, logical dumps kept 90 days, and a full restore into a new cluster within 2 hours, to be replaced by the measured time of the first drill (A28)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Hourly base backups without WAL archiving. Cost: up to an hour lost, which is what SQLite gives today                                                                                                                                               |
+| R42 | Harbor keeps the database its own change bundles, on the platform node. "Everybody" (R36) is read as the apps and MLflow                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Harbor on `platform-db`. Cost: a registry that cannot serve a pull while the database node is down, and a start-up loop if a database image ever came from Harbor                                                                                   |
+| R43 | **Decided.** The owner on 2026-11-21: "let's also add a host for openclaw to this mix". A seventh role, `agents`: one server, proposed name `h11claw`, outside the k3s cluster and outside the gate pool, prepared by the base host role only. Assumed: 4 vCPUs and 8 GiB with the disk its type includes, and no interface on the cluster's private network (decisions 1 and 2). This change provisions and contains the host. Installing OpenClaw and moving its state is a follow-up, proposed name `host-openclaw`: its code and units live in a private repository and are not designed here. The host does not take over h1claw's backup pull or its alert relay; those duties end with h1claw, because backups run in the cluster (R13) and alerts go to Slack                                                                                                                                                                                | OpenClaw on the CI host. Cost: unattended agent sessions with credentials of their own beside builds whose images production later runs. 16 GiB from the start. Cost: paid before more sessions than today's are measured                           |
+| R44 | **Decided.** The owner on 2026-11-22: "and a sep host for logged in agent's accounts that i'll access through herdr". An eighth role, `workstation`: one server, proposed name `h12work`, outside the k3s cluster and outside the gate pool, prepared by the base host role only. It is a remote operator workstation: interactive coding-agent sessions logged in to the owner's own accounts run there, and he reaches it from his laptop with `herdr` over SSH. Assumed: 16 vCPUs and 32 GiB with the disk its type includes (decision 2). Installing the agent tooling, logging accounts in and setting `herdr` up are the owner's and are not designed here                                                                                                                                                                                                                                                                                     | The sessions on the agents host of R43. Cost: the owner's logged-in accounts and keys beside unattended agents. 12 vCPUs and 24 GiB. Cost: fewer sessions at once; memory and disk are what today's sessions fill                                   |
 
 ## Decisions
 
 ### 1. Roles, capabilities and placement
 
-| Role            | Host   | Capabilities                         | In the k3s cluster |
-| --------------- | ------ | ------------------------------------ | ------------------ |
-| Platform        | h5plat | `control-plane`, `platform-services` | server             |
-| CI              | h8ci   | none: it is not a k3s node           | no                 |
-| Observability   | h7obs  | `observability`                      | agent              |
-| Production apps | h6apps | `product`, `ingress`                 | agent              |
-| Non-production  | h9stg  | `nonproduction`, `ingress`           | agent              |
-| Database        | h10db  | `database`                           | agent              |
+| Role            | Host    | Capabilities                         | In the k3s cluster |
+| --------------- | ------- | ------------------------------------ | ------------------ |
+| Platform        | h5plat  | `control-plane`, `platform-services` | server             |
+| CI              | h8ci    | none: it is not a k3s node           | no                 |
+| Observability   | h7obs   | `observability`                      | agent              |
+| Production apps | h6apps  | `product`, `ingress`                 | agent              |
+| Non-production  | h9stg   | `nonproduction`, `ingress`           | agent              |
+| Database        | h10db   | `database`                           | agent              |
+| Agents          | h11claw | none: it is not a k3s node           | no                 |
+| Workstation     | h12work | none: it is not a k3s node           | no                 |
 
 - `platform-services`, `nonproduction` and `database` are new. Each is added to
   `CapabilitySchema`, `fleetCapabilities`, `purposeCapabilities.platform` and
@@ -145,10 +152,30 @@ id. R14 and R18 of the second draft stay withdrawn.
   `puni.dev/role=database:NoSchedule` (R37). The agent template already writes `node-taint`
   entries; slice 4.1 adds this one for a node that carries `database`. Unlike the platform
   node's taint it is a key of our own: no packaged k3s workload has to run on an agent, so
-  none has to tolerate it. Only the PostgreSQL instances of `platform-db`, their backup
-  sidecars and the three node agents may tolerate it (decision 11).
+  none has to tolerate it. Only pods of the `platform-db` unit and the three node agents may
+  tolerate it: the unit's PostgreSQL instances with their backup sidecars, its dump and
+  drill jobs, and a drill's throwaway instance (decision 11).
 - The server carries none of `product`, `nonproduction` and `ingress`; no node carries both
-  `product` and `nonproduction`; and no gate host is a k3s node.
+  `product` and `nonproduction`; and no gate host, agents host or workstation is a k3s node.
+- **The agents host is outside the cluster for the CI host's reason** (R43): unattended
+  agent sessions run code there with credentials of their own. It is never a k3s node or a
+  gate host and never the same server as another role. It holds no cluster-admin
+  credential, no k3s token, no object storage key of the cluster's backups, and no store
+  token unless the follow-up grants one by name. It has no interface on the cluster's
+  private network (assumed), so it is no path into it: it reaches the
+  `puni-user-platform` API by its public name, and Git and the model providers over the
+  internet. If the follow-up needs a private name, it has to say which. What the
+  repository can check, slice 1.6 checks; the rest is A29's receipt.
+- **The workstation is an extension of the operator's laptop** (R44) and is trusted as the
+  laptop is. Unlike the CI host and the agents host it may hold what the owner puts there:
+  SSH keys, a kubeconfig, Git credentials and logged-in account sessions. That makes it
+  one of the most sensitive hosts. It accepts inbound SSH by key only, or only over a
+  private overlay if the owner uses one, and serves nothing public. It is never the same
+  server as another role and runs no gate, no build and no OpenClaw. No automation of the
+  cluster, the CI host or the agents host may log in to it: no key of theirs is among its
+  authorized keys. The controller of R17 may run there. That would also lift the two
+  blockers decision 10 names for the laptop, the rehearsal's disk and the controller
+  image; it is an option and is not decided here.
 - `ingress` is the one capability two roles share: Traefik is a DaemonSet on every node that
   carries it, and each environment's names point at its own node. Either Traefik would route
   for the other environment's hosts if a name pointed at it; rule 2.4(m) keeps the two sets of
@@ -239,13 +266,15 @@ id. R14 and R18 of the second draft stay withdrawn.
   list, and the operator writes both before the owner syncs a new backend (the WBS owner's
   procedure, decision 9). For staging that would make every merge wait for a person, so
   staging differs in two ways, and slice 3.8 makes both possible. Its parameter ConfigMap is
-  an object of the staging overlay and takes its digests from the staging pins, so the pin
-  that deploys a backend also admits it. And the decoder allows a null caller image for
+  an object of the staging overlay, so the staging build renders it with the backend's
+  digest into the same commit of the pins repository: the commit that deploys a backend
+  also admits it. And the decoder allows a null caller image for
   `k8s_wbs-solver-staging_backend` and for no other pod caller; production's refusal and its
   proof stay. A staging backend deploy then needs no command; only a new solver image needs
   a run of `solver.yml`. What this gives up is stated plainly: on staging the supervisor
-  checks the caller's name and not its image, so a merged pin is the only authority for
-  which backend may reach the solver socket.
+  checks the caller's name and not its image, so a commit in the pins repository is the only
+  authority for which backend may reach the solver socket, and that repository is written
+  with a credential that code in a gate can read (R35).
 - The capability floors of a cluster apply as soon as it has one node (`decodeFleet`). The new
   cluster entry starts with the floor `platform-services: 1` and gains `observability: 1`, then
   `nonproduction: 1`, `product: 1` and `ingress: 1`, in the revision that adds each node.
@@ -322,33 +351,47 @@ the image filesystem (both k3s templates), so a fifth leaves room above both. Th
 hosts report about 150 GiB, which is below the floor. A12 reads the new server's disk and stops
 on a smaller one, and A14 measures growth.
 
-**Database node** (R37). A server of 8 GiB is assumed to offer about 6,000 MiB after the same
-reservations as an app node, as above.
+**Database node** (R37). 8 vCPUs and 16 GiB by the owner's decision, with the reservations
+and allocatable of an app node, 13,938.
 
-| Workload                                                    |     Limit | Source                                             |
-| ----------------------------------------------------------- | --------: | -------------------------------------------------- |
-| `platform-db`: one PostgreSQL instance                      |     2,560 | assumed; `shared_buffers` a quarter of it          |
-| Its backup sidecar                                          |       256 | assumed                                            |
-| Node exporter, OTel collector, Velero node agent            |     1,408 | sizing document                                    |
-| **Steady sum**                                              | **4,224** | margin about 1,776                                 |
-| Restore drill: a throwaway instance and its sidecar, weekly |     1,280 | assumed: 1,024 and 256                             |
-| Nightly logical dump                                        |       256 | assumed                                            |
-| **Peak sum**                                                | **5,760** | margin about 240, if the drill and a dump coincide |
+| Workload                                                    |     Limit | Source                                         |
+| ----------------------------------------------------------- | --------: | ---------------------------------------------- |
+| `platform-db`: one PostgreSQL instance                      |     4,096 | assumed; `shared_buffers` a quarter of it      |
+| Its backup sidecar                                          |       256 | assumed                                        |
+| Node exporter, OTel collector, Velero node agent            |     1,408 | sizing document                                |
+| **Steady sum**                                              | **5,760** | margin 8,178                                   |
+| Restore drill: a throwaway instance and its sidecar, weekly |     1,280 | assumed: 1,024 and 256                         |
+| Nightly logical dump                                        |       256 | assumed                                        |
+| **Peak sum**                                                | **7,296** | margin 6,642, if the drill and a dump coincide |
 
 These are limits, and every figure but the node agents' is assumed: no app has run on
-PostgreSQL here. The peak is tight and is shown as it is. The drill and the dump
-are scheduled apart, and A27 and A28 measure. What moves the server up to 16 GiB: a measured
-peak that leaves less than 512 MiB, or a `shared_buffers` the first ported app needs. What
-moves it to dedicated vCPUs: commit or query latency that follows the neighbours' load and
-not the database's own. CloudNativePG moves an instance by adding a replica on the new node
-and switching over, so either change needs a second node for a while and no restore.
+PostgreSQL here, and A27 and A28 measure. The margin is room for the `shared_buffers` a
+ported app needs. What moves the server to dedicated vCPUs: commit or query latency that
+follows the neighbours' load and not the database's own. CloudNativePG moves an instance by
+adding a replica on the new node and switching over, so that change needs a second node for
+a while and no restore.
 
-Its disk: a data claim of 30 GiB and a separate WAL claim of 8 GiB for `platform-db`, the
-same again while a restore drill runs, and 30 GiB assumed for the system and images. With a
-fifth kept free that is (38 + 38 + 30) / 0.8 = 133 GiB, so the root disk is at least 135 GiB
-and A24 stops on a smaller one. The largest SQLite store today is 2.2 GB. A WAL volume
-cannot be removed from a cluster once it has one (storage page at the tag), so it is there
-from the first sync.
+Its disk: one claim of 30 GiB for `platform-db`, which holds data and WAL, the same again
+while a restore drill runs, and 30 GiB assumed for the system and images. With a fifth kept
+free that is (30 + 30 + 30) / 0.8 = 113 GiB, so the root disk is at least 115 GiB and A24
+stops on a smaller one. The largest SQLite store today is 2.2 GB. A claim's size is a
+request and not a bound: the provisioner is local-path, which enforces no size, and every
+claim on a node is a directory of one filesystem. A separate WAL claim would separate
+nothing there, and the operator cannot remove one once it is added (storage page at the
+tag), so the clusters start without one. What bounds disk use instead is in decision 11.
+
+**Agents host** (R43). Measured on h1claw on 2026-11-21: 4 vCPUs; 7.75 GiB of memory with
+3.2 GiB available; the OpenClaw gateway at about 2 GiB resident; a 75 GB disk at 91%, of
+which about 21 GiB is OpenClaw's state. The same shape is assumed, 4 vCPUs and 8 GiB, with
+the disk its type includes, which is larger. What moves it to 16 GiB: available memory under
+1 GiB with the sessions it runs today, or more sessions at once.
+
+**Workstation** (R44). Measured on the operator's laptop on 2026-11-22: 29 agent processes
+at 3.3 GiB resident, yet 21 of 30 GiB of memory in use and a 460 GB disk full, on 24 cores.
+The sessions' work fills it, not the agents: worktrees, test runs, Nx daemons and temporary
+directories. Memory and disk bind; CPU does not. 16 vCPUs and 32 GiB with the type's
+included disk are assumed. 12 vCPUs and 24 GiB would hold fewer sessions at once: today's
+use is already 21 GiB.
 
 **CI host.** A gate is measured at 6 cores, 9 GiB and 11 GiB of temporary space, and runs under
 `min(13 GiB, pool budget − headroom)`. On 16 vCPUs and 32 GiB (R2) two such gates fit side by
@@ -357,13 +400,13 @@ headroom, are the pool owner's to set from the calibration (A10).
 
 **Disk elsewhere.**
 
-| Node            | What lands there                                                                                                                                                 |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Platform        | Harbor's 40 GiB of bounded filesystems, OpenBao's store, etcd and its local snapshots                                                                            |
-| Production apps | Production SQLite claims: `website-data` 2 GiB, `wbs-data` 5 GiB, `wbs-mcp` 1 GiB                                                                                |
-| Non-production  | The same three claims, with `wbs-data` assumed at 10 GiB because the dev database is 2.2 GB today; `nonproduction-db`: 10 GiB of data and 4 GiB of WAL (assumed) |
-| CI              | gate trees, caches, 11 GiB of temporary space per gate, release build layers                                                                                     |
-| Database        | `platform-db`: 30 GiB of data and 8 GiB of WAL, and the same for a restore drill while it runs                                                                   |
+| Node            | What lands there                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Platform        | Harbor's 40 GiB of bounded filesystems, OpenBao's store, etcd and its local snapshots                                                                |
+| Production apps | Production SQLite claims: `website-data` 2 GiB, `wbs-data` 5 GiB, `wbs-mcp` 1 GiB                                                                    |
+| Non-production  | The same three claims, with `wbs-data` assumed at 10 GiB because the dev database is 2.2 GB today; `nonproduction-db`: one claim of 10 GiB (assumed) |
+| CI              | gate trees, caches, 11 GiB of temporary space per gate, release build layers                                                                         |
+| Database        | `platform-db`: one claim of 30 GiB, and the same for a restore drill while it runs                                                                   |
 
 ### 3. Delivery by Argo CD
 
@@ -403,12 +446,12 @@ from the managed set and the playbook alone creates it.
 
 **Environments, projects and who syncs.**
 
-| Project      | Holds                                                            | Source                                                               | Sync                                                        |
-| ------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `root`       | the root Application alone                                       | this repository, the root's one path                                 | automatic: self-heal, no prune                              |
-| `platform`   | every platform unit, the database units, the public-name issuers | this repository; one path of the fleet repository for the issuers    | on command, by the operator                                 |
-| `staging`    | the staging copy of the three apps                               | the fleet repository and the WBS deploy repository, staging overlays | automatic from `main`: prune, self-heal, retry with backoff |
-| `production` | the three production apps                                        | the same repositories, production overlays                           | on command, by the owner                                    |
+| Project      | Holds                                                            | Source                                                                                                                                                                                   | Sync                                            |
+| ------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `root`       | the root Application alone                                       | this repository, the root's one path                                                                                                                                                     | automatic: self-heal, no prune                  |
+| `platform`   | every platform unit, the database units, the public-name issuers | this repository; one path of the fleet repository for the issuers                                                                                                                        | on command, by the operator                     |
+| `staging`    | the staging copy of the three apps                               | the staging pins repository, one rendered directory per app (decision 9); the fleet repository's staging overlays for the website and the request app until their owner adopts that path | automatic: prune, self-heal, retry with backoff |
+| `production` | the three production apps                                        | the fleet repository and the WBS deploy repository, production overlays                                                                                                                  | on command, by the owner                        |
 
 - The root Application is the one automated Application outside staging. It belongs to a
   project of its own, `root`, whose only destination is the `argocd` namespace and whose only
@@ -452,10 +495,19 @@ from the managed set and the playbook alone creates it.
   `ClusterIssuer` objects live in the fleet repository; their Application belongs to
   `platform`, and the `delivery` check holds a fleet-sourced Application in `platform` to that
   one path.
-- **Staging follows `main`** (R20). A merge that changes a staging overlay is applied within
-  the reconciliation interval, and a manual edit in the cluster is reverted. A staging overlay
-  names images by digest, so staging runs new code only when a merge moves a pin; how a merge
-  to `main` of an app becomes a pin is slice 3.7 (R31, decision 9).
+- **Staging follows `main`** (R20). A merge to `main` that touches an app's paths starts the
+  staging build on the CI host. The job builds the images, pushes them to Harbor, renders
+  the app's staging overlay at that commit with the new digests, and commits the result to
+  the app's directory in the staging pins repository. The staging Application's source is
+  that directory, plain manifests at that repository's `main`: it applies a new commit
+  within the reconciliation interval and reverts a manual edit in the cluster. So staging
+  follows `main` for code and for manifests with no command, once slice 3.7 and A23 are in
+  place (R31, decision 9). Until then nothing replaces the poller that makes the tracker
+  follow `main` today, so A18's WBS part waits for A23's receipt or the owner's dated
+  waiver. The `delivery` check reads the staging overlay in its source repository, which
+  is what the build renders. What the pins repository holds is written with the build's
+  credential and is bounded by the `staging` project and by admission, not by `gate`
+  (R35).
 - **Containment that does not depend on what a ref holds** (slice 2.10). The rules of slice
   2.4 run in `gate` and read `main`. That is enough for staging and production, which sync
   nothing else. A rule in `gate` cannot bind an object that is applied from another ref or by
@@ -463,13 +515,18 @@ from the managed set and the playbook alone creates it.
   is applied, keyed on the namespace's environment label:
   - _Placement._ An admission policy denies a pod in a `staging` or `dev` namespace that
     does not select `nonproduction`, and one in a `production` namespace that does not
-    select `product`.
+    select `product`. Nothing is exempt, so a pod that a controller makes there has to
+    carry the selector too (below).
   - _Names._ An admission policy denies an Ingress, a Traefik `IngressRoute` or
     `IngressRouteTCP`, and a Certificate whose host is not in the list the `policy` unit
-    holds for that namespace. Rule 2.4(m) reads the same list in `gate`, for the same kinds.
+    holds for that namespace, and one with no host, a wildcard host or a host pattern. The
+    lists are one ConfigMap in a platform namespace, which the policy reads as its
+    parameter, so nothing in an app namespace can change its own list. Rule 2.4(m) reads
+    the same list in `gate`, for the same kinds.
   - _Quota._ Every non-production namespace has a ResourceQuota from the `policy` unit.
   - _Network._ Every non-production namespace has a default-deny NetworkPolicy from the
-    `policy` unit. NetworkPolicy is additive, so another object in the namespace can still
+    `policy` unit, and every app namespace an allow from Traefik to pods that carry
+    cert-manager's HTTP-01 solver label. NetworkPolicy is additive, so another object in the namespace can still
     allow more. For staging that object comes from `main`, and rule 2.4(k) reads its peers.
     For anything applied from another ref the plan relies on the project's kind list: a
     project whose whitelist leaves NetworkPolicy out cannot widen the policy. Whether an
@@ -477,6 +534,17 @@ from the managed set and the playbook alone creates it.
     not claimed.
   - _Kinds._ The `namespaceResourceWhitelist` of a project, which Argo CD applies at sync
     time to any revision.
+  - _Pods a controller makes._ cert-manager creates an HTTP-01 solver pod in the
+    Certificate's namespace, with no selector unless the issuer gives it one. Every ACME
+    issuer therefore carries one solver per environment, chosen by that environment's
+    host names (`selector.dnsNames`, as the staging issuer does today), whose
+    `podTemplate.spec.nodeSelector` names the environment's capability. The field is in
+    the `ClusterIssuer` CRD of the locked cert-manager chart, v1.21.2. This holds for the
+    staging ACME issuer of the `issuers` unit and for the fleet repository's public-name
+    issuers alike; without it no public certificate becomes Ready. CloudNativePG places
+    the instance and job pods of a `Cluster` by its `affinity` section (decision 11). A
+    hook Job is rendered from the tree and falls under rule 2.4(f). The External Secrets
+    Operator, ECK and Velero make no pod in an app namespace.
 
   The label is guarded too: the namespace-label policy of the `policy` unit reserves
   `puni.dev/environment`, and no app project admits a Namespace. This is the base the dev
@@ -522,39 +590,39 @@ holds back `secret-sync` and what needs it.
 Order and needs are derived from what each unit reads and from the Flux `dependsOn` graph,
 not from the Flux stage names. A need is always of a lower order.
 
-| Order | Unit                         | Project    | Needs                                                                                                               | First synced                         |
-| ----: | ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-|     0 | `argocd`                     | platform   | none                                                                                                                | A4                                   |
-|     1 | `namespaces`                 | platform   | none; the playbook applied them already                                                                             | A4                                   |
-|     2 | `policy`, `storage`          | platform   | `namespaces`                                                                                                        | A4                                   |
-|     3 | `cert-manager`               | platform   | `namespaces`                                                                                                        | A4                                   |
-|     4 | `openbao`                    | platform   | `storage`; `cert-manager`, for its server certificate; the seal key and the server CA Secret from the playbook      | A7                                   |
-|     5 | `external-secrets`           | platform   | `policy`                                                                                                            | A7                                   |
-|     6 | `secret-sync`                | platform   | `openbao`, `external-secrets`                                                                                       | A7                                   |
-|     7 | `issuers`                    | platform   | `secret-sync`, for `registry-ca`; `cert-manager`                                                                    | A7                                   |
-|     8 | `otel-certificates`          | platform   | `secret-sync`, for `otel-server-ca`; `cert-manager`                                                                 | A14                                  |
-|     8 | `eck-operator`               | platform   | `policy`                                                                                                            | A14                                  |
-|     8 | `prometheus-stack`           | platform   | `secret-sync`; `storage`                                                                                            | A14                                  |
-|     9 | `elasticsearch`              | platform   | `eck-operator`; `storage`; `secret-sync`                                                                            | A14                                  |
-|    10 | `kibana`, `elastic-settings` | platform   | `elasticsearch` and the Secrets ECK makes for it                                                                    | A14                                  |
-|    10 | `otel-collector`             | platform   | `elasticsearch`; `otel-certificates`                                                                                | A14                                  |
-|    10 | `signals`                    | platform   | `elasticsearch`; `otel-certificates`; `prometheus-stack`                                                            | A14                                  |
-|    11 | `alerts`, `probes`           | platform   | `prometheus-stack`                                                                                                  | A14                                  |
-|    12 | `velero`                     | platform   | `alerts`, as the Flux `backup` stage does; `secret-sync`                                                            | A14                                  |
-|    12 | `elastic-snapshots`          | platform   | `alerts`; `elasticsearch`                                                                                           | A14                                  |
-|    12 | `mlflow`                     | platform   | `alerts`; `secret-sync`; `storage`                                                                                  | A15                                  |
-|    12 | `sqlite-custody`             | platform   | `alerts`; `secret-sync`                                                                                             | A18                                  |
-|    13 | `traefik`                    | platform   | `policy`; a node that carries `ingress`                                                                             | A17                                  |
-|    14 | `harbor`                     | platform   | `secret-sync`; `storage`; `issuers`                                                                                 | Harbor's change, before any WBS unit |
-|    15 | `public-issuers`             | platform   | `traefik`; `cert-manager`                                                                                           | A18                                  |
-|    16 | `website-staging`            | staging    | `public-issuers`; `secret-sync`                                                                                     | A18                                  |
-|    16 | `wbs-staging`                | staging    | `public-issuers`; `secret-sync`; `harbor`                                                                           | A18                                  |
-|    17 | `website`                    | production | `public-issuers`; `secret-sync`                                                                                     | A19                                  |
-|    17 | `wbs`                        | production | `public-issuers`; `secret-sync`; `harbor`                                                                           | A20                                  |
-|    18 | `cnpg-operator`              | platform   | `policy`                                                                                                            | A26                                  |
-|    19 | `barman-plugin`              | platform   | `cnpg-operator`; `cert-manager`, which issues the plugin's certificates                                             | A26                                  |
-|    20 | `nonproduction-db`           | platform   | `barman-plugin`; `storage`; `secret-sync`; `prometheus-stack`, for the PodMonitor kind; a node with `nonproduction` | A26                                  |
-|    20 | `platform-db`                | platform   | `barman-plugin`; `storage`; `secret-sync`; `prometheus-stack`; a node that carries `database`                       | A27                                  |
+| Order | Unit                         | Project    | Needs                                                                                                                         | First synced                         |
+| ----: | ---------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+|     0 | `argocd`                     | platform   | none                                                                                                                          | A4                                   |
+|     1 | `namespaces`                 | platform   | none; the playbook applied them already                                                                                       | A4                                   |
+|     2 | `policy`, `storage`          | platform   | `namespaces`                                                                                                                  | A4                                   |
+|     3 | `cert-manager`               | platform   | `namespaces`                                                                                                                  | A4                                   |
+|     4 | `openbao`                    | platform   | `storage`; `cert-manager`, for its server certificate; the seal key and the server CA Secret from the playbook                | A7                                   |
+|     5 | `external-secrets`           | platform   | `policy`                                                                                                                      | A7                                   |
+|     6 | `secret-sync`                | platform   | `openbao`, `external-secrets`                                                                                                 | A7                                   |
+|     7 | `issuers`                    | platform   | `secret-sync`, for `registry-ca`; `cert-manager`                                                                              | A7                                   |
+|     8 | `otel-certificates`          | platform   | `secret-sync`, for `otel-server-ca`; `cert-manager`                                                                           | A14                                  |
+|     8 | `eck-operator`               | platform   | `policy`                                                                                                                      | A14                                  |
+|     8 | `prometheus-stack`           | platform   | `secret-sync`; `storage`                                                                                                      | A14                                  |
+|     9 | `elasticsearch`              | platform   | `eck-operator`; `storage`; `secret-sync`                                                                                      | A14                                  |
+|    10 | `kibana`, `elastic-settings` | platform   | `elasticsearch` and the Secrets ECK makes for it                                                                              | A14                                  |
+|    10 | `otel-collector`             | platform   | `elasticsearch`; `otel-certificates`                                                                                          | A14                                  |
+|    10 | `signals`                    | platform   | `elasticsearch`; `otel-certificates`; `prometheus-stack`                                                                      | A14                                  |
+|    11 | `alerts`, `probes`           | platform   | `prometheus-stack`                                                                                                            | A14                                  |
+|    12 | `velero`                     | platform   | `alerts`, as the Flux `backup` stage does; `secret-sync`                                                                      | A14                                  |
+|    12 | `elastic-snapshots`          | platform   | `alerts`; `elasticsearch`                                                                                                     | A14                                  |
+|    12 | `mlflow`                     | platform   | `alerts`; `secret-sync`; `storage`                                                                                            | A15                                  |
+|    12 | `sqlite-custody`             | platform   | `alerts`; `secret-sync`                                                                                                       | A18                                  |
+|    13 | `traefik`                    | platform   | `policy`; a node that carries `ingress`                                                                                       | A17                                  |
+|    14 | `harbor`                     | platform   | `secret-sync`; `storage`; `issuers`                                                                                           | Harbor's change, before any WBS unit |
+|    15 | `public-issuers`             | platform   | `traefik`; `cert-manager`                                                                                                     | A18                                  |
+|    16 | `website-staging`            | staging    | `policy`; `public-issuers`; `secret-sync`                                                                                     | A18                                  |
+|    16 | `wbs-staging`                | staging    | `policy`; `public-issuers`; `secret-sync`; `harbor`                                                                           | A18                                  |
+|    17 | `website`                    | production | `policy`; `public-issuers`; `secret-sync`                                                                                     | A19                                  |
+|    17 | `wbs`                        | production | `policy`; `public-issuers`; `secret-sync`; `harbor`                                                                           | A20                                  |
+|    18 | `cnpg-operator`              | platform   | `policy`                                                                                                                      | A26                                  |
+|    19 | `barman-plugin`              | platform   | `cnpg-operator`; `cert-manager`, which issues the plugin's certificates                                                       | A26                                  |
+|    20 | `nonproduction-db`           | platform   | `policy`; `barman-plugin`; `storage`; `secret-sync`; `prometheus-stack`, for the PodMonitor kind; a node with `nonproduction` | A26                                  |
+|    20 | `platform-db`                | platform   | `policy`; `barman-plugin`; `storage`; `secret-sync`; `prometheus-stack`; a node that carries `database`                       | A27                                  |
 
 - **OpenBao is first among the services** (R22). The four units before it are Argo CD, the
   namespaces, policy and storage it runs under, and cert-manager, which is there only because
@@ -565,7 +633,8 @@ not from the Flux stage names. A need is always of a lower order.
   SecretStore for each namespace that reads a Secret, the app namespaces included, each bound
   to that namespace's role in the store. An app's own ExternalSecrets are in its overlay. The plan relies on Argo CD's bundled health check for
   ExternalSecret, so the unit is Healthy only when every value has arrived.
-- `issuers` holds the registry CA issuer and the staging ACME issuer. The `otel-server` Issuer
+- `issuers` holds the registry CA issuer and the staging ACME issuer, with its solver per
+  environment. The `otel-server` Issuer
   and Certificate, which read the Secret `otel-server-ca`, are their own unit,
   `otel-certificates`.
 - A Secret has one of four providers, and its consumer has a higher order than the providing
@@ -581,7 +650,8 @@ not from the Flux stage names. A need is always of a lower order.
 - An Application file is merged in the revision that adds its node or its dependency.
 - Orders 18 to 20 are the database stage (decision 11). They are numbered after the apps
   because no app needs them yet, not because they need the apps: every need outside the
-  stage is of order 8 or lower. `nonproduction-db` needs no database node.
+  stage is of order 8 or lower. `nonproduction-db` needs no database node, only the
+  non-production one.
 - The `alerts` unit carries only rules whose subject exists at that revision. The copied rule
   set has a group that watches the WBS backup CronJob and a rule that watches a workers
   cluster. The WBS group lands with each WBS Application; the workers rule is not copied
@@ -652,7 +722,9 @@ file is removed. Last, the sync playbook's removal mode deletes the Application 
 refuses one that still has a file or whose live source is more than the marker. The removal
 mode takes a unit of any project, since nothing else can delete a staging or production
 Application; syncing stays limited to platform units. A staging unit reduced to its marker is
-pruned by its own automation.
+pruned by its own automation. An object that carries `Prune=false` stays through all of
+this, as data must; that includes the CloudNativePG CRDs (decision 11), which are removed by
+hand once no object of their kinds is left.
 
 **What guards `main`.** The bootstrapping guide's warning applies: whoever can change the
 root's source is an administrator of the cluster. That source is a path on `main`, so the
@@ -662,7 +734,9 @@ request with zero approvals and two status checks, `gate` and `pixels`, without 
 requirement; `tool-fleet:check` runs only in a workflow that is not required. The `delivery`
 rules therefore also run as a test over the real tree inside `gate` (slice 2.4). The fleet
 repository's `main` had no rule; task 0.6 gives it one before A2 writes there, and gives the
-WBS deploy repository one before its first Application is merged. With R20 a merge
+WBS deploy repository one before its first Application is merged. The staging pins
+repository is different by design: the build's App writes its `main` without a pull request,
+and a forced or deleting push is refused for everyone (decision 9). With R20 a merge
 reaches staging at once and production only through a sync, so the ruleset is the whole guard
 for staging and half of it for the rest.
 
@@ -673,9 +747,8 @@ the built-in `admin` account is disabled (R23).
 **Data survives delivery mistakes.** Every PersistentVolumeClaim in the tree, and every
 namespace that holds one, carries `Prune=false` and `Delete=false`, so removing a manifest
 never deletes it. Claims that an operator creates from a custom resource are not in the tree.
-The Elasticsearch, Prometheus and Alertmanager resources and every CloudNativePG `Cluster`
-carry the same two options, and
-Elasticsearch keeps `volumeClaimDeletePolicy: DeleteOnScaledownOnly`, which the copied manifest
+The Elasticsearch, Prometheus and Alertmanager resources, every CloudNativePG `Cluster` and
+the CloudNativePG CRDs carry the same two options, and Elasticsearch keeps `volumeClaimDeletePolicy: DeleteOnScaledownOnly`, which the copied manifest
 already sets. A custom resource deleted by hand is outside what delivery can protect. No
 Application carries the resources finalizer, so deleting an Application leaves its resources.
 
@@ -683,42 +756,44 @@ Application carries the resources finalizer, so deleting an Application leaves i
 
 Each row is an agent slice in [tasks.md](tasks.md). Slices 1.1 to 1.3, 2.1 to 2.6, 2.9 and
 the first receipt of 2.7 are needed before the platform stage can start; 1.4, 1.5, 2.8, 3.2
-and 3.6 before stage 3; 2.10, 3.1, 3.5 and 3.8 before stage 4; 4.1 to 4.5 before stage 6. Slice
-3.7 blocks no step: until it lands, staging advances when a pin is moved by hand.
+and 3.6 before stage 3; 2.10, 3.1, 3.5, 3.7 and 3.8 before stage 4; 4.1 to 4.5 before stage 6;
+1.6 before A29 and A30.
+Slice 3.7 is due before A23, which A18's WBS part waits for.
 
-| Gap                                                                                                                                                                                                                                                  | Slice |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| No capability for platform services                                                                                                                                                                                                                  | 1.1   |
-| Nothing refuses a server with `product` or `ingress`, a gate host that is a k3s node, or an untainted server                                                                                                                                         | 1.2   |
-| `validate-enrollment.yml` replaces CoreDNS's tolerations, and has never run on a cluster of one tainted node                                                                                                                                         | 1.2   |
-| One static inventory and one hard-coded cluster id in `placement.test.ts`                                                                                                                                                                            | 1.3   |
-| The coexistence record and reservations describe h3mon with its Docker services                                                                                                                                                                      | 1.4   |
-| `observability-source.ts` hard-codes the inventory path, the two peers and the API endpoint                                                                                                                                                          | 1.5   |
-| No locked Argo CD install and no locked `argocd` CLI                                                                                                                                                                                                 | 2.1   |
-| Every chart is consumed through a Flux `HelmRelease`                                                                                                                                                                                                 | 2.2   |
-| The platform-stage manifests exist only under Flux-reconciled paths                                                                                                                                                                                  | 2.3   |
-| `validatePlatform` checks Flux units; nothing checks an Application graph, its environments, its isolation or its placement, or that a claim has a backup                                                                                            | 2.4   |
-| `tool-fleet:check` is not a required check, so a merge can skip the `delivery` rules                                                                                                                                                                 | 2.4   |
-| `playbooks/platform.yml` installs Flux and needs the age key on the server; only it writes the cluster identity ConfigMap; nothing syncs a unit on command                                                                                           | 2.5   |
-| The controller image has no `sops`, and `fleet_ansible` mounts no fleet checkout                                                                                                                                                                     | 2.5   |
-| `tool-fleet:health` reports "no Flux objects" as a failure; the recovery manifest and drill assume Flux                                                                                                                                              | 2.6   |
-| The lab's `platform` profile runs Flux; nothing rehearses the new tree, a one-node start or staged joins                                                                                                                                             | 2.7   |
-| The observability, alert and backup manifests exist only under Flux-reconciled paths; the copied alert rules watch a CronJob and a cluster that do not exist yet                                                                                     | 2.8   |
-| The only build runbook is written for two adopted hosts                                                                                                                                                                                              | 2.9   |
-| Retention and the freshness alert for `sqlite/<database>/` run on h1claw; both clusters would share the prefix                                                                                                                                       | 3.1   |
-| No probe of a node from outside itself                                                                                                                                                                                                               | 3.2   |
-| The gate instructions name h2puni and h4claw                                                                                                                                                                                                         | 3.3   |
-| `desired.yaml` and the inventories still name the old cluster after retirement                                                                                                                                                                       | 3.4   |
-| The WBS `staging` and `prod` overlays both render the namespaces `wbs` and `wbs-solver`, select no node for three workloads, set no cluster prefix, expect SOPS Secrets, and nothing stops staging configuration from naming a production Service    | 3.5   |
-| The solver admission policy trusts one namespace, one selector and one parameter ConfigMap; the supervisor's caller list has no staging name and its decoder refuses a pod caller's rule without a caller image; the `solver` role asserts `product` | 3.8   |
-| Nothing binds at admission: a pod in an app namespace may select any node, an Ingress, IngressRoute or Certificate may claim any host, and a non-production namespace has no quota or default-deny of the platform's own                             | 2.10  |
-| MLflow runs as a Compose service with no backup of its own                                                                                                                                                                                           | 3.6   |
-| Nothing turns a merge to `main` into an image pin in a staging overlay; the one self-hosted runner serves a manual deploy workflow only, and its job-started hook admits that one workflow                                                           | 3.7   |
-| No role or capability for a database node; the agent template writes one taint, the enrollment one                                                                                                                                                   | 4.1   |
-| No PostgreSQL operator, backup plugin or operand image is locked or has a unit                                                                                                                                                                       | 4.2   |
-| No PostgreSQL cluster is defined; nothing checks where its instances run, that its WAL is archived, that it is scraped, or that Velero leaves its volumes alone                                                                                      | 4.3   |
-| No alert rule, log setting or query statistics for PostgreSQL                                                                                                                                                                                        | 4.4   |
-| No logical dump, no scheduled restore drill, no way to roll back one database                                                                                                                                                                        | 4.5   |
+| Gap                                                                                                                                                                                                                                                                       | Slice |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| No capability for platform services                                                                                                                                                                                                                                       | 1.1   |
+| Nothing refuses a server with `product` or `ingress`, a gate host that is a k3s node, or an untainted server                                                                                                                                                              | 1.2   |
+| `validate-enrollment.yml` replaces CoreDNS's tolerations, and has never run on a cluster of one tainted node                                                                                                                                                              | 1.2   |
+| One static inventory and one hard-coded cluster id in `placement.test.ts`                                                                                                                                                                                                 | 1.3   |
+| The coexistence record and reservations describe h3mon with its Docker services                                                                                                                                                                                           | 1.4   |
+| `observability-source.ts` hard-codes the inventory path, the two peers and the API endpoint                                                                                                                                                                               | 1.5   |
+| No inventory group, play or placement rule for a host outside the cluster that is not a gate host                                                                                                                                                                         | 1.6   |
+| No locked Argo CD install and no locked `argocd` CLI                                                                                                                                                                                                                      | 2.1   |
+| Every chart is consumed through a Flux `HelmRelease`                                                                                                                                                                                                                      | 2.2   |
+| The platform-stage manifests exist only under Flux-reconciled paths                                                                                                                                                                                                       | 2.3   |
+| `validatePlatform` checks Flux units; nothing checks an Application graph, its environments, its isolation or its placement, or that a claim has a backup                                                                                                                 | 2.4   |
+| `tool-fleet:check` is not a required check, so a merge can skip the `delivery` rules                                                                                                                                                                                      | 2.4   |
+| `playbooks/platform.yml` installs Flux and needs the age key on the server; only it writes the cluster identity ConfigMap; nothing syncs a unit on command                                                                                                                | 2.5   |
+| The controller image has no `sops`, and `fleet_ansible` mounts no fleet checkout                                                                                                                                                                                          | 2.5   |
+| `tool-fleet:health` reports "no Flux objects" as a failure; the recovery manifest and drill assume Flux                                                                                                                                                                   | 2.6   |
+| The lab's `platform` profile runs Flux; nothing rehearses the new tree, a one-node start or staged joins                                                                                                                                                                  | 2.7   |
+| The observability, alert and backup manifests exist only under Flux-reconciled paths; the copied alert rules watch a CronJob and a cluster that do not exist yet                                                                                                          | 2.8   |
+| The only build runbook is written for two adopted hosts                                                                                                                                                                                                                   | 2.9   |
+| Retention and the freshness alert for `sqlite/<database>/` run on h1claw; both clusters would share the prefix                                                                                                                                                            | 3.1   |
+| No probe of a node from outside itself                                                                                                                                                                                                                                    | 3.2   |
+| The gate instructions name h2puni and h4claw                                                                                                                                                                                                                              | 3.3   |
+| `desired.yaml` and the inventories still name the old cluster after retirement                                                                                                                                                                                            | 3.4   |
+| The WBS `staging` and `prod` overlays both render the namespaces `wbs` and `wbs-solver`, select no node for three workloads, set no cluster prefix, expect SOPS Secrets, and nothing stops staging configuration from naming a production Service                         | 3.5   |
+| The solver admission policy trusts one namespace, one selector and one parameter ConfigMap; the supervisor's caller list has no staging name and its decoder refuses a pod caller's rule without a caller image; the `solver` role asserts `product`                      | 3.8   |
+| Nothing binds at admission: a pod in an app namespace may select any node, an Ingress, IngressRoute or Certificate may claim any host, a non-production namespace has no quota or default-deny of the platform's own, and cert-manager's solver pods carry no selector    | 2.10  |
+| MLflow runs as a Compose service with no backup of its own                                                                                                                                                                                                                | 3.6   |
+| Nothing turns a merge to `main` into a staging deployment: no job builds on a merge, renders the staging manifests or writes them where Argo CD reads; the one self-hosted runner serves a manual deploy workflow only, and its job-started hook admits that one workflow | 3.7   |
+| No role or capability for a database node; the agent template writes one taint, the enrollment one                                                                                                                                                                        | 4.1   |
+| No PostgreSQL operator, backup plugin or operand image is locked or has a unit                                                                                                                                                                                            | 4.2   |
+| No PostgreSQL cluster is defined; nothing checks where its instances run, that its WAL is archived, that it is scraped, or that Velero leaves its volumes alone                                                                                                           | 4.3   |
+| No alert rule, log setting or query statistics for PostgreSQL                                                                                                                                                                                                             | 4.4   |
+| No logical dump, no scheduled restore drill, no way to roll back one database, and no storage class that reclaims a drill's volume is named                                                                                                                               | 4.5   |
 
 Outside this repository: the fleet repository's check and its website overlays are written for
 Flux (decision 9).
@@ -764,13 +839,13 @@ credential.
 | Registry CA key pair                                           | `issuers`                                                                              | carried                                | A7                   | escrow                                                                                                                                                                                |
 | `velero-credentials`, `velero-repo-credentials`                | `velero`                                                                               | carried; generated                     | A14                  | escrow; the repository password is escrowed before it is written                                                                                                                      |
 | `elastic-s3-credentials`                                       | Elasticsearch snapshots                                                                | carried                                | A14                  | escrow                                                                                                                                                                                |
-| `alertmanager-puni`                                            | Alertmanager                                                                           | new                                    | A14                  | **decided:** alerts go to the Slack channel `#puni-alerts-dev`. The owner writes its incoming-webhook address (open question 1); until then the configuration has no outside receiver |
+| `alertmanager-puni`                                            | Alertmanager                                                                           | new                                    | A14                  | **decided:** alerts go to the Slack channel `#puni-alerts-dev`. Its incoming-webhook address exists and the owner holds it outside the repository; he writes it into the store in A14 |
 | `otel-server-ca`, `otel-client-trust`, nine `signal-*` Secrets | observability                                                                          | new                                    | A14                  | generated by the operator                                                                                                                                                             |
 | MLflow backup credentials                                      | `mlflow`                                                                               | carried                                | A15                  | escrow                                                                                                                                                                                |
 | Staging app Secrets: runtime, pull and backup credentials      | staging namespaces                                                                     | carried from dev                       | A18                  | the fleet repository under the old key; the dev stacks' env files                                                                                                                     |
 | Production app Secrets                                         | production namespaces                                                                  | carried; WBS as its overlay names them | A19, A20             | the fleet repository under the old key; escrow                                                                                                                                        |
 | Harbor's Secrets and robot credentials                         | Harbor and its consumers                                                               | as the Harbor change states            | its steps            | generated                                                                                                                                                                             |
-| Object storage credential for `nonproduction-db`'s backups     | its `ObjectStore`                                                                      | new                                    | A26                  | a key that cannot read a production bucket, as for staging's SQLite backups                                                                                                           |
+| Object storage credential for `nonproduction-db`'s backups     | its `ObjectStore`                                                                      | new                                    | A26                  | a key and bucket of its own, separate from staging's SQLite backup key; it cannot read a production bucket                                                                            |
 | Object storage credential for `platform-db`'s backups          | its `ObjectStore`, the dump job                                                        | new                                    | A27                  | a key of its own, limited to the database bucket if the provider can (not checked)                                                                                                    |
 | One owner-role password per app and environment                | the role's Secret in the database namespace and the app's connection Secret in its own | generated in the store                 | with each app's port | the port's follow-up change; this change makes them for the canary databases only                                                                                                     |
 
@@ -786,15 +861,15 @@ request #935 owns the alerts for a sealed store and a failed sync.
 
 ### 6. Build order
 
-| Stage | Role          | Needs                                                                                                              | Receipt that ends the stage                                                                                                                                                                   |
-| ----- | ------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Decisions     | none                                                                                                               | overrules recorded; the secrets of task 0.5 read back from escrow; the `main` rulesets read back; the slices decision 4 lists for stage 1 landed, except 1.3, whose first revision follows A1 |
-| 1     | Platform      | stage 0; rehearsal receipts 2.7/A3 and 2.7/A7; pull request #935, for A7 only                                      | server Ready; orders 0 to 7 Synced and Healthy; a canary read from OpenBao through an ExternalSecret; one etcd restore on the empty cluster                                                   |
-| 2     | CI            | nothing from the cluster                                                                                           | a gate exits 0 on the new host and its calibration is recorded by the pool's owner                                                                                                            |
-| 3     | Observability | the server; OpenBao serving; slices 2.8, 3.2 and 3.6                                                               | orders 8 to 12 Healthy, `sqlite-custody` excepted, which lands in stage 4; memory and disk measured; a test alert raised; MLflow restored (A15)                                               |
-| 4     | Apps          | the server; orders 11 and 12 Healthy; slices 2.10, 3.1, 3.5, 3.8; Harbor, for WBS; the two servers of A16          | staging and then production answer on their names with their data checked against the final backup                                                                                            |
-| 5     | Retirement    | stage 4's receipts; stage 2's receipt for the gate hosts                                                           | old servers deleted; `desired.yaml` and the inventories name only the new cluster                                                                                                             |
-| 6     | Database      | stage 3's receipt; slices 4.1 to 4.5; for `platform-db`, the server, which the owner creates when he chooses (R37) | both clusters Healthy with WAL archived; a base backup of each; a restore of `platform-db` into a throwaway cluster, timed; one database rolled back by the runbook                           |
+| Stage | Role          | Needs                                                                                                                                                                                    | Receipt that ends the stage                                                                                                                                                                                |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Decisions     | none                                                                                                                                                                                     | overrules recorded; the secrets of task 0.5 read back from escrow; the `main` rulesets read back; the slices decision 4 lists for stage 1 landed, except 1.3, whose first revision follows A1              |
+| 1     | Platform      | stage 0; rehearsal receipts 2.7/A3 and 2.7/A7; pull request #935, for A7 only                                                                                                            | server Ready; orders 0 to 7 Synced and Healthy; a canary read from OpenBao through an ExternalSecret; one etcd restore on the empty cluster                                                                |
+| 2     | CI            | nothing from the cluster                                                                                                                                                                 | a gate exits 0 on the new host and its calibration is recorded by the pool's owner                                                                                                                         |
+| 3     | Observability | the server; OpenBao serving; slices 2.8, 3.2 and 3.6                                                                                                                                     | orders 8 to 12 Healthy, `sqlite-custody` excepted, which lands in stage 4; memory and disk measured; a test alert raised; MLflow restored (A15)                                                            |
+| 4     | Apps          | the server; orders 11 and 12 Healthy; slices 2.10, 3.1, 3.5, 3.8; for WBS, Harbor, slice 3.7 and A23; the two servers of A16                                                             | staging and then production answer on their names with their data checked against the final backup                                                                                                         |
+| 5     | Retirement    | stage 4's receipts; stage 2's receipt for the gate hosts                                                                                                                                 | old servers deleted; `desired.yaml` and the inventories name only the new cluster                                                                                                                          |
+| 6     | Database      | stage 3's receipt; slices 4.1 to 4.5; for `nonproduction-db`, the non-production node (A17) and slice 2.10; for `platform-db`, the server, which the owner creates when he chooses (R37) | both clusters Healthy with WAL archived; a base backup, a dump and one restore of each; the restore of `platform-db` timed; one database rolled back by the runbook; no volume of a throwaway cluster left |
 
 - **Platform first, and OpenBao first on it.** Every other node joins this server, and every
   later unit reads its Secrets from the store.
@@ -809,11 +884,15 @@ request #935 owns the alerts for a sealed store and a failed sync.
 Harbor lands on the platform node by its own change. It blocks the two WBS units and nothing
 else.
 
+- **The agents host and the workstation are outside the stages** (R43, R44). The owner
+  creates each when he wants (A29, A30); nothing waits for either, and h1claw may be
+  deleted before or after (R30).
 - **The database stage is numbered last and waits for no one.** It needs the alert and
   metrics units of stage 3 and nothing of stages 4 and 5, and nothing in stages 1 to 5
-  needs it: no app reads PostgreSQL until its own port lands. Its first half, the operator,
-  the plugin and `nonproduction-db`, needs no new server and may follow stage 3 at once.
-  Its second half starts when the owner creates the server.
+  needs it: no app reads PostgreSQL until its own port lands. The operator and the plugin
+  need no new server and may follow stage 3 at once. `nonproduction-db` follows A17, when
+  the non-production node has joined under slice 2.10's policies. `platform-db` starts
+  when the owner creates the server.
 
 ### 7. The switch
 
@@ -935,7 +1014,7 @@ assumption ids in this list are the Harbor change's own.
 - No Distribution on the new cluster: its H11, its migration steps 10 and 12, its attended
   steps Harbor-A9 and Harbor-A11 and the `:5000` endpoint fall away, and so do Harbor-A1 and
   Harbor-A2a, which read and re-enroll h4claw.
-- A project and robots for WBS images, staging and production, before A18's WBS part.
+- A project and robots for WBS images, staging and production, before A23.
 - Its first slice can measure on h5plat once A3 is done.
 - Its bundled PostgreSQL stays (R42). If the owner overrules that, the Harbor change needs:
   the chart's external database settings in place of the bundled one, a database and owner
@@ -946,7 +1025,8 @@ assumption ids in this list are the Harbor change's own.
 **Fleet repository and release bootstrap.** Website registry routing, the fleet's website pins
 and `release-pin.ts` stay untouched. The website's present overlays cannot be read by Argo CD
 as they are: they carry encrypted Secrets that only a decrypting reconciler can apply. The new
-cluster needs a directory of its own there with the public-name issuers, a staging and a
+cluster needs a directory of its own there with the public-name issuers, each with the
+solver per environment of decision 3, a staging and a
 production overlay per app whose Secrets are ExternalSecrets, and a check that plays the part
 `fleet-check` plays for Flux units. That check carries rules (f), (g), (k), (m)
 and (n) of slice 2.4 and the prefix rule of slice 3.1 for its overlays. No automated identity
@@ -1005,33 +1085,48 @@ only the third line:
 The build itself:
 
 - **Push.** Images go to Harbor by digest with a robot that may push to one project.
-- **Pin.** The job writes the new digests into a **staging pins repository**: a new private
-  repository that holds staging pins and nothing else, and that only staging Applications
-  read. It writes there as a GitHub App installed on that repository alone. The App is not
-  installed on this repository, whose `main` is the cluster's administrative boundary
-  (decision 3), nor on the fleet repository, whose `main` the old cluster's Flux reads and
-  which holds production overlays and the bootstrap Secret files. Its reach is staging by
-  construction: nothing it can write is read by a production or platform Application.
-- **How an overlay reads its pins.** Not settled by reading. Argo CD documents a second
-  source by reference for Helm value files only (the multiple-sources guide at the tag), and
-  rule 2.4(d) refuses a remote kustomize base. Two candidates for slice 3.7 and the app
-  owners: the pins repository carries each app's top `kustomization.yaml` with its `images`
-  entries and reaches the overlay through a Git submodule fixed at a commit; or the staging
-  unit is rendered as a chart whose value file is the pin. Until one is shown in the
-  rehearsal, a staging pin is moved by a person's pull request in the repository that holds
-  the overlay.
-- **The website's pins.** The website's and the request app's pins are in the private fleet
+- **Render and commit.** The job then renders the app's staging overlay at the built
+  commit, with its images set to the new digests, and commits the rendered manifests to
+  the app's directory in a **staging pins repository**: a new private repository that holds
+  rendered staging manifests and nothing else, and that only staging Applications read. A
+  staging Application's source is its directory there, so no overlay reads a second
+  repository: Argo CD documents a reference source for Helm value files only, and rule
+  2.4(d) refuses a remote kustomize base. Before it commits, the job checks that the built
+  commit is on `main` of the source repository and that the render holds only kinds and
+  namespaces the `staging` project admits. It replaces the directory whole, so a manifest
+  removed from the overlay is pruned. Each commit names the source commit and the digests.
+- **How the commit lands.** The job writes as a GitHub App installed on that repository
+  alone, with permission to write contents and nothing else. It pushes to `main` directly:
+  a pull request that the App merged itself would add a step and no second pair of eyes.
+  Two rulesets hold `main` there. One has no bypass actor and refuses a forced or deleting
+  push, so history cannot be rewritten by anyone. The other requires a pull request and
+  names the App as its only bypass actor, so a person still needs one. That rulesets
+  combine this way is from memory and is read back in A23.
+- **What limits the App.** It is not installed on this repository, whose `main` is the
+  cluster's administrative boundary (decision 3), nor on the fleet repository, whose `main`
+  the old cluster's Flux reads and which holds production overlays and the bootstrap
+  Secret files. Nothing it can write is read by a production or platform Application.
+  What it can write is applied to staging at once and is never read by `gate`: the bounds
+  are the `staging` project's namespaces and kinds and the admission policies of slice
+  2.10.
+- **The website and the request app.** Their pins and overlays are in the private fleet
   repository and belong to the session that owns `release-pin.ts`. This plan designs no
-  change to that tool. Whether those apps' staging pins move to the pins repository is that
-  owner's to decide.
-- **Promotion.** A person's pull request copies digests from the staging pins into the
-  production overlay, in the repository that holds it. Before opening it the person checks
-  three things: the pool's record of the build job names that digest and a commit of `main`;
-  the staging Application runs that digest and is Healthy; and it has run there long enough
-  to have been used. After the merge the production Application is OutOfSync, and the owner
-  syncs it (R20). None of the three detects a build that was altered on the CI host; that is
-  R35.
-- **Retired by this.** The WBS dev poller, with the dev stacks (A18).
+  change to that tool. Their staging advances as their dev copy does today, when that
+  owner's tooling moves a pin; whether they take the path above is that owner's to decide
+  and is asked in task 0.4.
+- **Under the owner's waiver.** If A23 cannot be done and the owner waives it in writing,
+  a person renders and commits each staging change by a pull request in the pins
+  repository. Staging then does not follow `main` by itself, and R20 does not hold for
+  WBS until the runner exists.
+- **Promotion.** A person's pull request copies digests from the staging manifests into
+  the production overlay, in the repository that holds it. Before opening it the person
+  checks three things: the pool's record of the build job names that digest and a commit
+  of `main`; the staging Application runs that digest and is Healthy; and it has run there
+  long enough to have been used. After the merge the production Application is OutOfSync,
+  and the owner syncs it (R20). None of the three detects a build that was altered on the
+  CI host; that is R35.
+- **Retired by this.** The WBS dev poller, with the dev stacks. A18's WBS part stops it
+  only when A23's receipt or the owner's waiver exists.
 
 **Credentials on the CI host, and what that host is trusted with (R35).** Three: the runner's
 own credential from its one registration, the App's private key, and the Harbor push robot's
@@ -1042,7 +1137,10 @@ does not claim so: the gate user is in the `docker` group, which the `gate_host`
 calls root-equivalent, so code that a gate runs can read any file on the host and can change
 what a later build produces. The credentials reach staging only: the robot pushes to one
 project, the App writes the staging pins repository, and the runner accepts one workflow at
-`main`. What is not bounded is image integrity. An image built on this host may not be what
+`main`. Within staging the App's key is a wide authority. Whoever holds it can commit any
+manifest the `staging` project and admission allow, with no check in between, and that
+includes the parameter ConfigMap that admits a backend image to the staging solver socket
+(decision 1). What is not bounded beyond staging is image integrity. An image built on this host may not be what
 its commit says; staging runs it at once and production runs it after a promotion. That is
 the accepted blast radius of the CI host while there are no production users. Two things
 would shrink it later: gates that run without root-equivalent Docker, which means rootless
@@ -1054,9 +1152,10 @@ which can be hours.
 
 Needed from other owners: from the gate pool's owner, a catalogue entry for the staging build
 (or the use of `release-build`), its launcher checkout, its entry in `concurrencyEligible`, the
-build user in the gate-host role and how that user submits to the pool; from the release
-bootstrap's owner and the WBS deploy tooling's owner, the build entrypoint and how their
-staging overlay reads its pins; from the Harbor change, the project and the push robot; from
+build user in the gate-host role and how that user submits to the pool; from the WBS deploy
+tooling's owner, the build entrypoint and a staging overlay the job can render at a commit;
+from the release bootstrap's owner, whether the website takes the same path; from the
+Harbor change, the project and the push robot; from
 the owner, the staging pins repository and the App.
 
 **Dev environment (follow-up change, proposed name `add-dev-environment`; R34).** Not
@@ -1100,6 +1199,18 @@ before A28's receipt exists. What ends with a port: for that app, R9's node-loca
 volume, `Recreate`, the hourly SQLite backup, its row in `sqlite-custody`, and guard 3's
 prefix rule.
 
+**OpenClaw on the agents host (follow-up, proposed name `host-openclaw`; R43).** Not designed
+here; its code is in a private repository. It has to decide: the units and their user; how
+the host is reached privately, which is Tailscale today; which credentials the sessions hold
+and where they live; whether OpenClaw's state moves from h1claw or starts fresh; and what,
+if anything, the host may reach on the private network or read from the store. It does not
+bring back the backup pull or the alert relay.
+
+**The workstation's setup (R44).** The owner's: agent tooling, logged-in accounts and
+`herdr`, a terminal workspace manager for coding agents with an SSH remote mode (read from
+its help output at version 0.9.5; nothing else of it was verified). A follow-up at most,
+proposed name `set-up-operator-workstation`, if he wants any of it in the repository.
+
 **Client databases and a replica (follow-up, proposed name `add-client-databases`).** A
 cluster `clients-db` for small client apps, a cluster of its own for a large or sensitive
 client, one database per client so that a handover is a dump and an offboarding is a drop;
@@ -1115,7 +1226,8 @@ namespace or Service; the staging parameter ConfigMap of decision 1; the selecto
 decision 1; a backup prefix
 per decision 7; ExternalSecrets where the overlays expect SOPS Secrets; images from Harbor
 (R28); for staging, the hostnames and the issuer its overlay names today, which is the ACME
-staging issuer. The cutover plan lists the deploy repository and its read key as a
+staging issuer; a staging overlay that renders without a cluster, since the build renders
+it on the CI host. The cutover plan lists the deploy repository and its read key as a
 prerequisite; if it does not exist when A2 runs, the WBS Applications read
 `deploy/k8s/wbs` in this repository and no key is made. The `delivery` check reads the
 overlays in this repository. What the deploy repository renders from them is checked there, by
@@ -1163,7 +1275,7 @@ left before A1:
 | A place to build the controller image             | see below                                                                       |
 | An owner for the fleet repository's new directory | A2 writes encrypted files there; R11 names the session, which has to agree      |
 
-The operator workstation cannot host the rehearsal today: its disk is full and the labs need
+The operator's laptop cannot host the rehearsal today: its disk is full and the labs need
 about 60 GiB. The alternative is to run it on the first new server before that server becomes
 the platform node: the k3d part on a server created as in A1, and the staged build as a
 throwaway pass on that server and one temporary server. The throwaway pass uses secrets made
@@ -1174,15 +1286,19 @@ deleted server reaches `main`. Whether the provider's servers offer `/dev/kvm` w
 so the QEMU lab is not assumed there.
 
 The controller image is built from `infra/controller/Containerfile`, which slice 2.5 extends.
-The workstation of R17 cannot build it while its disk is full. Until it can, the image is built
+The laptop cannot build it while its disk is full. Until it can, the image is built
 and the controller run on h2puni, where the controller runs today.
 
 Pull request #935 does not block A1 to A6. It blocks A7. Nothing of decision 11 blocks any
 stage before the sixth.
 
-The rest can wait: open question 1 until A14 at the earliest and A21 at the latest; open
-questions 2 and 3 until the owner takes up stage 6; the staging pins repository and its App
-until A23.
+A workstation (R44) created first would lift both: it can host the rehearsal and build the
+image. That is the owner's choice (decision 1).
+
+The rest can wait. The staging pins repository, its rulesets and its App are due before
+A23, and A23 before A18's WBS part: without them the tracker's poller is not retired, so
+they are on the path of stage 4, not of stage 1. No open question blocks a stage: the
+first two wait until the owner takes up stage 6, the others until he creates those hosts.
 
 ### 11. PostgreSQL hosting
 
@@ -1199,13 +1315,18 @@ that app keeps its SQLite store and everything this plan says about it.
 **Operator and plugin.** Two platform units, synced on command, on the platform node with the
 selector and toleration of decision 1:
 
-- `cnpg-operator`: the `cloudnative-pg` chart 0.29.2, which carries operator v1.30.2, as a
-  wrapper chart around the locked archive. Its CRDs are chart templates (`crds.create`), not a
-  `crds/` directory, so rule 2.4(j) has nothing to add; they are large, so the unit uses
-  `ServerSideApply=true`. The chart's own PodMonitor and Grafana dashboard are off: the
-  dashboard is a subchart behind a condition, and the Prometheus stack here runs without
-  Grafana. The operator watches every namespace; rule (o) of the `delivery` check refuses a
-  `Cluster` outside the two database units.
+- `cnpg-operator`: the `cloudnative-pg` chart 0.29.2, which carries operator v1.30.2. Its
+  CRDs are chart templates (`crds.create`), not a `crds/` directory, so rule 2.4(j) has
+  nothing to add; but they need a patch, so the unit is a kustomize unit that inflates the
+  locked archive, as Velero's does. The patch gives every CRD the annotation
+  `Prune=false,Delete=false`. Without it, reducing the unit to its marker would prune the
+  CRDs, and deleting a CRD deletes every `Cluster` and with it the claims. Argo CD treats
+  Helm's own keep policy as `Delete=false` only (its Helm guide at the tag), so the
+  options are set explicitly and rule (o) refuses a CloudNativePG CRD without them. The
+  CRDs are large, so the unit uses `ServerSideApply=true`. The chart's own PodMonitor and
+  Grafana dashboard are off: the dashboard is a subchart behind a condition, and the
+  Prometheus stack here runs without Grafana. The operator watches every namespace; rule
+  (o) refuses a `Cluster` outside the two database units.
 - `barman-plugin`: the `plugin-barman-cloud` chart 0.9.0, plugin v0.16.0, in the operator's
   namespace, as its installation page requires. It needs operator 1.30 or newer and
   cert-manager, both present. It is the supported way to back up to object storage: the
@@ -1216,14 +1337,14 @@ selector and toleration of decision 1:
 `ObjectStore`, a `ScheduledBackup`, a PodMonitor, and the `Database` and `DatabaseRole`
 objects of its apps.
 
-|                                     | `platform-db`                                                   | `nonproduction-db`                                  |
-| ----------------------------------- | --------------------------------------------------------------- | --------------------------------------------------- |
-| Node                                | the database node: selector `database`, toleration of its taint | the non-production node: selector `nonproduction`   |
-| Namespace and its environment label | `postgres`, `platform`                                          | `postgres-nonproduction`, `staging`                 |
-| Instances                           | 1                                                               | 1                                                   |
-| Storage                             | `puni-retain`, 30 GiB data and 8 GiB WAL                        | `puni-retain`, 10 GiB data and 4 GiB WAL            |
-| Backups                             | its own bucket and key                                          | the non-production bucket and key                   |
-| Serves                              | production databases                                            | staging databases; dev's, once the follow-up exists |
+|                                     | `platform-db`                                                   | `nonproduction-db`                                            |
+| ----------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------- |
+| Node                                | the database node: selector `database`, toleration of its taint | the non-production node: selector `nonproduction`             |
+| Namespace and its environment label | `postgres`, `platform`                                          | `postgres-nonproduction`, `staging`                           |
+| Instances                           | 1                                                               | 1                                                             |
+| Storage                             | `puni-retain`, one claim of 30 GiB                              | `puni-retain`, one claim of 10 GiB                            |
+| Backups                             | its own bucket and key                                          | its own bucket and key, which cannot read a production bucket |
+| Serves                              | production databases                                            | staging databases; dev's, once the follow-up exists           |
 
 - **Why staging has a cluster of its own** (R40). Staging follows `main`, so a merged
   migration or a runaway query lands there first, and point-in-time recovery restores a whole
@@ -1246,17 +1367,23 @@ objects of its apps.
   the node, and the two sync options keep delivery from deleting the object, but a `Cluster`
   deleted by hand is outside what delivery can protect; the backups are what remain.
 
-**Placement and containment.** The instances are pods the operator makes, so no pod template
-of theirs is in the tree. Rule (o) of the `delivery` check reads each `Cluster` instead: its
-`affinity.nodeSelector` names the capability of its row above, `platform-db` alone tolerates
-the database taint, and no other object in the tree does. The three node agents tolerate every
-taint and run there as on every node (decision 1). The admission policy of slice 2.10 already
-denies a pod in `postgres-nonproduction` that does not select `nonproduction`; slice 4.3 adds
-the matching clause for `postgres`, which must select `database`. Each database namespace has
-the `policy` unit's default-deny; what it allows is the operator, the scrape, and port 5432
-from the namespaces of the apps that have a database there, production to `postgres` and
-staging to `postgres-nonproduction`. Rule 2.4(k) already refuses a staging object that names a
-production namespace or Service, which now includes the production database's.
+**Placement and containment.** The operator makes the pods of a cluster, its instances and
+the jobs that initialise or recover one, so no pod template of theirs is in the tree. Rule
+(o) of the `delivery` check reads each `Cluster` instead: its `affinity.nodeSelector` names
+the capability of its row above. Only objects of the `platform-db` unit tolerate the database
+taint: the `Cluster`, from which its instances, its jobs and a drill's throwaway instance
+take theirs, and the dump and drill CronJobs. The three node agents tolerate every taint and
+run there as on every node (decision 1). The scheduling page says the `affinity` section
+applies to all the pods of a `Cluster`; that this covers its jobs is seen in slice 4.3's k3d
+test, which starts a cluster under the placement policy. The admission policy of slice 2.10
+already denies a pod in `postgres-nonproduction` that does not select `nonproduction`; slice
+4.3 adds the matching clause for `postgres`, which must select `database`. Each database
+namespace has the `policy` unit's default-deny. What its own unit allows: the operator, the
+scrape, port 5432 from the namespaces of the apps that have a database there (production to
+`postgres`, staging to `postgres-nonproduction`), and egress to the API server, DNS and the
+object storage endpoint, which an instance and its sidecar need. Rule 2.4(k) already refuses
+a staging object that names a production namespace or Service, which now includes the
+production database's.
 
 **Secrets.** No superuser access is enabled, so no superuser Secret exists to guard. An owner
 role's password is generated in OpenBao at a path of its app and environment. Two
@@ -1275,24 +1402,44 @@ by a restart of that app, and the port's change says how.
   the plugin's retention enforces. PostgreSQL switches a WAL file at least every five
   minutes by the operator's default (from memory; slice 4.3 sets it explicitly), which is the
   loss bound of R41.
-- _Logical._ A nightly CronJob dumps each database on its own, so that one app's data can be
+- _Logical._ In each cluster a nightly CronJob dumps each database on its own, connecting
+  as that database's owner role, since no superuser exists; one app's data can then be
   handed over or put back without the rest. Dumps are kept 90 days by the planner of slice
   3.1, under a prefix of their own.
-- _Credentials._ Each cluster has its own object storage key. `nonproduction-db` uses a key
-  that cannot read a production bucket, as staging's SQLite backups do (decision 5); A26's
-  receipt repeats that refusal. Barman does not encrypt on the client as today's SQLite
-  archive is encrypted: these backups rely on the bucket. Whether the provider encrypts at
-  rest was not read, and it is listed under Risks.
+- _Credentials._ Each cluster has its own bucket and object storage key.
+  `nonproduction-db`'s is separate from staging's SQLite backup key as well, and cannot
+  read a production bucket (decision 5); A26's receipt repeats that refusal. Barman does
+  not encrypt on the client as today's SQLite archive is encrypted: these backups rely on
+  the bucket. Whether the provider encrypts at rest was not read, and it is listed under
+  Risks.
+- _Disk._ A claim does not bound PostgreSQL here: local-path enforces no size, and a
+  node's claims are directories of one filesystem (decision 2). What bounds disk use on
+  the database node: WAL is recycled once archived, and the alert on WAL not archived for
+  10 minutes is the early signal; alerts at 80% and 90% of the node's filesystem; and the
+  drill's volume, which is reclaimed (below). Past those the kubelet evicts at 10% free,
+  and what it evicts is the only instance. A bounded filesystem per claim, as the Harbor
+  change builds for its store, was weighed and not taken: it is a host role of its own,
+  and this node has one tenant whose growth the alerts watch. It is the first thing to add
+  when a second tenant comes.
 - _Recovery is never in place._ The operator restores by bootstrapping a new cluster from the
   object store, to the end of the archive or to a point in time. So rolling one app back
   means restoring the whole cluster beside the live one and copying that one database
   across. Slice 4.5 writes that as a runbook and A28 runs it once.
 - _The drill._ A weekly CronJob restores `platform-db` into a throwaway cluster on the
-  database node, runs sanity queries, records the duration, deletes the cluster and exports
-  the result as a metric; a failed or missing drill is an alert.
+  database node, runs sanity queries and deletes the cluster. The throwaway cluster's
+  claim is on `local-path`, the class k3s packages, whose reclaim policy is `Delete`, so
+  deleting the cluster removes the volume and its directory. On `puni-retain` every drill
+  would leave a copy of production data on the node's disk. The job ends by checking that
+  no volume of the throwaway cluster is left, Released or as a directory, and fails
+  otherwise. Its result is read from the kube-state-metrics series of its CronJob, as the
+  SQLite rule reads a backup job's, and its duration from the Job's start and completion
+  times; a failed or missing drill is an alert.
+- _The non-production cluster's restore_ is proven once, in A26, by the same job run by
+  hand against `nonproduction-db`, before the tracker's port puts data there.
 - _Velero stays out._ A file copy of a running PostgreSQL is not consistent. Velero's one
-  schedule here names the registry namespace and takes no volume by default; rule (o)
-  refuses a schedule that includes a database namespace.
+  schedule here names the registry namespace and copies its volumes by file
+  (`defaultVolumesToFsBackup: true`); rule (o) refuses a schedule that includes a database
+  namespace.
 - _Offsite._ A copy at a second provider is recommended and not planned (decision 9).
 
 **Observability.**
@@ -1302,8 +1449,8 @@ by a restart of that app, and the port's change says how.
   the Prometheus stack's selectors are open, so nothing else is needed. The plugin adds the
   backup timestamps under the prefix `barman_cloud_cloudnative_pg_io`.
 - Alerts, as PrometheusRules that land with each cluster unit, since a rule lands with its
-  subject (decision 3): data or WAL volume above 80% and above 90%; WAL not archived for 10
-  minutes; no base backup for 26 hours; instance not ready; connections above 80% of the
+  subject (decision 3): the instance's volume and its node's filesystem above 80% and above
+  90%; WAL not archived for 10 minutes; no base backup for 26 hours; instance not ready; connections above 80% of the
   limit; a transaction open for more than 5 minutes; the restore drill failed or absent. The
   replica-lag rule lands with the replica. The exact series are read from the operator's
   default monitoring ConfigMap at the pinned version in slice 4.4, not written from memory.
@@ -1333,8 +1480,10 @@ so the three texts stay here. Task 0.2 files them.
 > would have sat next to the internet-facing ingress. On 2026-11-21 the owner decided that each
 > host is reserved for one kind of work (platform services, continuous integration,
 > observability, or production apps) and that the cluster is recreated on new servers. Later
-> that day he added a fifth kind, non-production, for staging and dev as two environments, and
-> a sixth, database, with the decision to host PostgreSQL.
+> that day he added a fifth kind, non-production, for staging and dev as two environments, a
+> sixth, database, with the decision to host PostgreSQL, and a seventh, a host for OpenClaw's
+> agents. On 2026-11-22 he added an eighth, a remote workstation for his own agent sessions.
+> The last two are outside the cluster, as the CI host is.
 >
 > ## Considered options
 >
@@ -1384,7 +1533,9 @@ so the three texts stay here. Task 0.2 files them.
 > enters the cluster. Argo CD adds an API and an interface with cluster-wide reach; it is kept
 > off the public edge, and its one account can sync production apps and nothing else. Staging
 > follows `main`, production and the platform change on command, and the rules that guard
-> `main` are the administrative boundary of the cluster.
+> `main` are the administrative boundary of the cluster. Staging follows `main` through a
+> build that commits rendered manifests to a repository of its own; until that build runs,
+> staging follows nothing by itself, and the poller that does it today is kept.
 
 > # PostgreSQL is hosted on the platform cluster, and the apps move to it
 >
@@ -1434,6 +1585,10 @@ so the three texts stay here. Task 0.2 files them.
 - **OpenBao is on the path of everything after it.** A sealed or lost store stops every later
   first sync and every Secret change, and its design is not merged. The store, Harbor and the
   control plane share one node.
+- **The agents host is contained, OpenClaw is not designed** (R43). What the sessions do
+  with their own credentials is outside this plan.
+- **The workstation holds operator credentials on a rented server** (R44). Its guards are
+  SSH by key, no public service and no login from automation.
 - **Shared vCPUs for CI**, and one CI host: its loss stops gating until it is rebuilt.
 - **A merge deploys to staging.** The pull request, its required checks and the `delivery`
   rules inside `gate` are the guards. Staging holds the agents' tracker, so a bad merge to a
@@ -1457,11 +1612,14 @@ so the three texts stay here. Task 0.2 files them.
   production later runs by promotion is what is accepted. Rootless Docker for gates or a
   build host of its own would shrink it.
 - **A staging build queues behind a gate** until the pool owner lets it run beside one.
-- **On staging, a merged pin admits a backend to the solver socket**, and the supervisor
-  there checks the caller's name, not its image (decision 1).
-- **How a staging overlay reads its pins is not settled** (decision 9). Until it is, a
-  person moves each staging pin.
-- **Staging follows manifests, not yet code** (slice 3.7).
+- **On staging, a commit in the pins repository admits a backend to the solver socket**,
+  and the supervisor there checks the caller's name, not its image (decision 1).
+- **Staging follows `main` only once the build path exists** (slice 3.7, A23). The tracker's
+  poller is not retired before that without the owner's written waiver, under which a
+  person renders and commits each staging change.
+- **The pins repository is unchecked.** What the build's App commits there reaches staging
+  at once, and `gate` never reads it. The `staging` project and admission bound it; its
+  key is readable by code in a gate (R35).
 - **Two delivery tools.** See the second decision record.
 - **Two clusters with one identity** during the build. Separate credentials, a separate
   snapshot bucket, a separate SQLite prefix and distinct kubeconfig context names are the
@@ -1484,8 +1642,12 @@ so the three texts stay here. Task 0.2 files them.
   owner chose when to create its server for that reason (R37).
 - **One PostgreSQL instance on one node.** Its loss, and every reboot of its node, stops
   every app that has moved to it; a lost node is a restore of up to two hours (R41).
-- **The database node's peak budget is tight** on 8 GiB, and every figure in it is assumed
-  (decision 2).
+- **The database node's budget is assumed.** No app has run on PostgreSQL here; A27
+  measures (decision 2).
+- **Nothing bounds a database's disk use at its claim** (decision 11). Alerts and the
+  kubelet's eviction threshold are the guards, and eviction stops the only instance.
+- **A restore drill copies production data onto the node every week.** Its volume is
+  reclaimed with the throwaway cluster, and a drill that leaves one fails loudly.
 - **Database backups are not encrypted by the client.** They rely on the bucket and on a
   key of their own; what the provider does at rest was not read.
 - **Two stores per app for a while.** Between an app's arrival on SQLite and its port, the
@@ -1494,22 +1656,22 @@ so the three texts stay here. Task 0.2 files them.
 
 ## Open questions for the owner
 
-1. The incoming-webhook address of `#puni-alerts-dev`. The channel is decided and the owner
-   said the address comes later; it is a secret he writes into OpenBao. Stage 1 does not wait
-   for it. A14 proves delivery only once it exists, and A21 and A22 wait for that proof. The
-   Harbor change waits on the same answer. The old path, a message relayed from h1claw, ends
-   with that host. The planning session recommends a second channel for production alerts
-   once production has users.
-2. When to create the database server, and whether its assumed shape stands (R37). He said
-   he will evaluate the options. Stage 6's second half waits for it and nothing else does;
-   the first half, with `nonproduction-db`, needs no server.
-3. Whether Harbor keeps its bundled database (R42, the planning session's recommendation) or
+1. When to create the database server (R37). He said he will evaluate the options; its
+   shape is decided. `platform-db` waits for it and nothing else does.
+2. Whether Harbor keeps its bundled database (R42, the planning session's recommendation) or
    uses `platform-db`, which the words "everybody" could cover. Decision 9 lists what the
    Harbor change would need.
+3. The agents host (R43): its region, the cluster's or the one h1claw is in today. The
+   cluster's region is closer to the apps' API and keeps a private name possible later;
+   why h1claw is where it is, the planning session does not know. And whether OpenClaw's
+   state moves from h1claw or starts fresh, which has to be settled before h1claw is
+   deleted if the state is wanted.
+4. The workstation (R44): its region and its size (decision 2).
 
 Not questions, but his to overrule by id: R34, that dev is delivered by a follow-up change;
 R35, that the CI host is one trust zone while there are no production users; and R38 to R41,
-the shape of the PostgreSQL service and its recovery targets.
+the shape of the PostgreSQL service and its recovery targets. The planning session also
+recommends a second Slack channel for production alerts once production has users.
 
 ## Not verified
 
@@ -1533,9 +1695,17 @@ the shape of the PostgreSQL service and its recovery targets.
   to pull it.
 - How a second Unix user submits a job to the host pool, which today is configured for the
   gate user.
-- How a kustomize overlay takes its image digests from a second repository. Only the Helm
-  value-file reference was read in the multiple-sources guide; the submodule route was not
-  tried.
+- That a ruleset which names a GitHub App as its only bypass actor lets that App push to
+  `main` while a second ruleset without bypass still refuses a forced or deleting push
+  (from memory; read back in A23).
+- That cert-manager gives its HTTP-01 solver pod the issuer's `podTemplate` selector at run
+  time. The field was read in the locked chart's CRD; nothing was run.
+- That the operator gives the job pods of a `Cluster` its node selector and tolerations,
+  and that `Prune=false` on a CRD keeps it when its unit is reduced to a marker. Both are
+  documented; neither was run.
+- That the packaged `local-path` class exists on the new cluster with the reclaim policy
+  `Delete` (read on the live cluster only), and that its helper pod can create and remove a
+  volume on a node with the database taint.
 - What the MCP server keeps in `wbs-mcp`, and so what is lost by not carrying it.
 - That an Application with no automated sync, tracked by an automated root, is left unsynced by
   the root, and that the root reverts an edit to its sync policy.
@@ -1566,7 +1736,7 @@ the shape of the PostgreSQL service and its recovery targets.
 - Pull request #935 beyond its design file at its branch on 2026-11-21.
 - How the connect privilege of `public` is revoked declaratively on a database.
 - Nothing of CloudNativePG was run. Read and not run: that a `Cluster` on a node-local
-  `Retain` class with a separate WAL claim starts on one tainted agent; that the plugin
+  `Retain` class starts on one tainted agent; that the plugin
   archives WAL to this provider's object storage; that `enableSuperuserAccess` is off by
   default at this version (from memory); that a `DatabaseRole` follows a changed password
   Secret without a restart of PostgreSQL.

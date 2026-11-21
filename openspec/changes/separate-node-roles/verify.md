@@ -309,6 +309,7 @@ Read on 2026-11-21 from the documentation at the `stable` ref and from source at
 
 | Relied on                                                                                                                                                                   | Where it was read                                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `Prune=false` and `Delete=false` are per-resource sync options; Helm's `helm.sh/resource-policy: keep` is treated as `Delete=false` only                                    | `docs/user-guide/sync-options.md`, `docs/user-guide/helm.md` at tag `v3.6.2`             |
 | Charts are rendered with `helm template`; Argo CD owns the lifecycle                                                                                                        | `docs/user-guide/helm.md`                                                                |
 | Helm hooks map to sync hooks; test hooks are skipped; delete policies differ                                                                                                | `docs/user-guide/helm.md`, "Helm Hooks"                                                  |
 | A chart that generates random data renders differently each time                                                                                                            | `docs/user-guide/helm.md`, "Random Data"                                                 |
@@ -389,32 +390,96 @@ read it.
   `enablePodMonitor` field, deprecated at the pinned version; `platform-db` as the home of
   staging data; the port of WBS as part of this work; prices.
 
+## Eighth review (at `44ad4a908`) and what became of its findings
+
+The review, the first to read the PostgreSQL part, returned "not ready" with no finding of
+the first rank and three of the second. This revision, the ninth draft, answers it and
+records two owner inputs of 2026-11-21: the database server has 16 GiB, and the Slack
+webhook exists. Two more arrived while it was written and are in it: a host for OpenClaw
+(R43) and, on 2026-11-22, a remote workstation for the owner's agent sessions (R44).
+
+What moved:
+
+- **Assumptions.** Reworded: R2, R20, R31, R32, R35, R37 (decided at 8 vCPUs and 16 GiB),
+  R39, R40. New: R43 and R44. Nothing was renumbered: R1 to R44.
+- **Roles.** Eight: `agents` and `workstation` are hosts outside the cluster and the gate
+  pool. New slice 1.6 and steps A29 and A30, outside the stages. Follow-ups named:
+  `host-openclaw` and, at most, `set-up-operator-workstation`.
+- **Staging path.** The build renders the staging manifests and commits them to the pins
+  repository, and a staging Application's source is that directory. The two candidates of
+  the eighth draft for reading pins from a second repository are gone.
+- **Order.** No row moved. The four app units and the two database units now need `policy`.
+- **Steps.** A23 keeps its number and moves before A18's WBS part, which waits for its
+  receipt or the owner's waiver; so does A22. A26 follows A17. 30 steps with A29 and A30.
+- **Slices.** 3.7 gained the render-and-commit step and is due before A23. 2.10 gained the
+  host list's place, the solver pod and the host-less route. 4.2 makes `cnpg-operator` a
+  kustomize unit. 4.5 dumps both clusters and reclaims the drill's volume. 29 slices with 1.6.
+- **Storage.** No separate WAL claim; the throwaway cluster of a drill uses the packaged
+  `local-path` class.
+- **Questions.** The webhook question is closed. Four remain: when to create the database
+  server; Harbor's database; the agents host's region and OpenClaw's state; the
+  workstation's region and size.
+- **Cut.** The "how an overlay reads its pins" paragraph and its two risks; the 8 GiB
+  budget, its 512 MiB trigger and the tight-margin risk; the WAL claims and their disk
+  arithmetic; the "delivery unproven" branch of A14.
+
+| Finding                                                                        | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 staging does not follow `main` for code, and the plan can finish that way | Fixed with the review's design: the staging build commits rendered manifests to the pins repository and the staging Application reads that directory (design decisions 3 and 9, slice 3.7). The App pushes to `main` there as the only bypass actor of the pull-request ruleset; a second ruleset without bypass refuses forced and deleting pushes. A23's receipt, or the owner's dated waiver, is a precondition of A18's WBS part and of A22. The gap and its closure are in the proposal, the second decision record, decision 10 and Risks. The website keeps its present path until its owner chooses, which is not a regression: its dev copy does not follow `main` today |
+| S2-2 the placement policy denies cert-manager's HTTP-01 solver pods            | Fixed: every ACME issuer carries one solver per environment whose pod template selects that environment's capability, in the `issuers` unit and required of the fleet repository's issuers; an allow from Traefik to solver pods; a k3d case and a rehearsal item; rule 2.4(f) reads the issuers. Nothing is exempt from the policy. Other controllers were checked: CloudNativePG places a cluster's pods by its `affinity`; hook Jobs are in the tree; the External Secrets Operator, ECK and Velero make no pod in an app namespace                                                                                                                                            |
+| S2-3 the restore drill leaks production data onto the node's disk              | Fixed: a throwaway cluster uses the packaged `local-path` class, whose policy is `Delete`; the drill fails if a Released volume or a directory is left; rule (o) refuses a throwaway cluster on a retaining class; A28 stops when the disk does not return. What local-path does not isolate is stated, the separate WAL claim is dropped, and what bounds disk use is in decision 11. A bounded filesystem was weighed and not taken, with the reason                                                                                                                                                                                                                            |
+| S3 database taint wording                                                      | Fixed: pods of the `platform-db` unit and the three node agents, in design, spec and rule (o)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| S3 A26 order                                                                   | Fixed: after A17 and slice 2.10                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3 slice 2.10's mechanism and gaps                                             | Fixed: `ValidatingAdmissionPolicy` is named; the host lists are one ConfigMap in a platform namespace; a route with no host, a wildcard or a pattern is denied; the app units need `policy`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| S3 the pin credential admits a backend to the solver socket                    | Stated in decision 1, in R35 and in the credentials paragraph of decision 9                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| S3 how the App lands a pin                                                     | Stated: decision 9 and task 0.6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3 CloudNativePG CRDs could be pruned                                          | Fixed: the operator unit patches every CRD with `Prune=false,Delete=false`; rule (o) and a scenario hold it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| S3 memory margin under the plan's own trigger                                  | Gone: the owner set the server at 16 GiB. A `delivery` negative now holds the three schedules apart                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| S3 `nonproduction-db`                                                          | Fixed: its own bucket and key, a nightly dump as its owner roles, one restore in A26 before the tracker's port, egress allowances in its unit, and a fault for the WAL alert that can fail (the unit's egress policy removed by hand)                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| S3 stale items                                                                 | Fixed: three decision records in task 0.2; R38 to R41 in both files; `database` in the capabilities requirement; the webhook wording; the Velero schedule, which does copy volumes by file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+Nothing was disputed in this round.
+
+## cert-manager behaviour
+
+Read on 2026-11-21 in the `ClusterIssuer` CRD of the locked chart archive
+`infra/platform/charts/cert-manager-v1.21.2.tgz`. Nothing was run.
+
+| Relied on                                                                                            | Where it was read                                                             |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| An HTTP-01 ingress solver takes `podTemplate.spec` with `nodeSelector`, `tolerations` and `affinity` | the CRD's schema for `spec.acme.solvers[].http01.ingress`                     |
+| A solver is chosen by `selector.dnsNames`, `dnsZones` or `matchLabels`                               | the same schema; the staging issuer in the tree already selects by `dnsNames` |
+
+Not established: that the solver pod is created in the Certificate's namespace for a
+`ClusterIssuer` (believed), and the label its pods carry, which the Traefik allow of slice
+2.10 names; both are read on k3d there.
+
 ## CloudNativePG behaviour
 
 Read on 2026-11-21 in the operator's documentation at tag `v1.30.2` (released 2026-11-17, the
 current release), the Barman Cloud plugin's at `v0.16.0`, and the charts repository at
 `cloudnative-pg-v0.29.2` and `plugin-barman-cloud-v0.9.0`. Nothing was run.
 
-| Relied on                                                                                                              | Where it was read                                                             |
-| ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Backup to object storage is supported through the Barman Cloud plugin; the in-tree integration is deprecated from 1.26 | `backup.md`, `wal_archiving.md`                                               |
-| 1.31 is the last minor release with the in-tree integration                                                            | `backup.md`. The 1.30 release notes word the removal as "in 1.31.0"           |
-| WAL archiving is a plugin with `isWALArchiver: true`; one at a time; the Barman plugin is the only supported one       | `wal_archiving.md`; the plugin's `usage.md`                                   |
-| The plugin is installed in the operator's namespace, needs operator 1.30 or newer and cert-manager                     | the plugin's `installation.mdx`                                               |
-| An `ObjectStore` resource holds the endpoint, credentials and a recovery-window `retentionPolicy`                      | the plugin's `usage.md`, `retention.md`                                       |
-| A backup names `method: plugin`                                                                                        | `backup.md`; the plugin's `usage.md`                                          |
-| Recovery is never in place: it bootstraps a new cluster, to the end of the archive or to a `targetTime`                | `recovery.md`                                                                 |
-| Metrics are served on port 9187, named `metrics`                                                                       | `monitoring.md`                                                               |
-| `.spec.monitoring.enablePodMonitor` is deprecated; a PodMonitor is to be created by hand                               | `monitoring.md`                                                               |
-| The plugin's backup metrics carry the prefix `barman_cloud_cloudnative_pg_io`; the in-core ones are deprecated         | the plugin's `observability.md`; `monitoring.md`                              |
-| A `Cluster` takes `affinity.nodeSelector` and `tolerations`                                                            | `scheduling.md`                                                               |
-| Local storage is supported; a separate WAL volume cannot be removed once added                                         | `storage.md`                                                                  |
-| A `Database` resource declares a database and its owner; a `DatabaseRole` resource declares a role, new in 1.30        | `declarative_database_management.md`, `declarative_role_management.md`, notes |
-| A role's `passwordSecret` lives in the cluster's namespace, and the operator tracks a change of it                     | `declarative_role_management.md`                                              |
-| PostgreSQL logs go to standard output as JSON; `logging_collector` and `log_destination` are fixed by the operator     | `logging.md`, `postgresql_conf.md`                                            |
-| `shared_preload_libraries` is managed for common extensions such as `pg_stat_statements`                               | `postgresql_conf.md`                                                          |
-| The operator chart renders its CRDs as templates under `crds.create`; it has no `crds/` directory                      | the chart's file list and `values.yaml` at the tag                            |
-| The operator chart has a subchart behind `monitoring.grafanaDashboard.create`                                          | the chart's `Chart.yaml` at the tag                                           |
+| Relied on                                                                                                                  | Where it was read                                                             |
+| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Backup to object storage is supported through the Barman Cloud plugin; the in-tree integration is deprecated from 1.26     | `backup.md`, `wal_archiving.md`                                               |
+| 1.31 is the last minor release with the in-tree integration                                                                | `backup.md`. The 1.30 release notes word the removal as "in 1.31.0"           |
+| WAL archiving is a plugin with `isWALArchiver: true`; one at a time; the Barman plugin is the only supported one           | `wal_archiving.md`; the plugin's `usage.md`                                   |
+| The plugin is installed in the operator's namespace, needs operator 1.30 or newer and cert-manager                         | the plugin's `installation.mdx`                                               |
+| An `ObjectStore` resource holds the endpoint, credentials and a recovery-window `retentionPolicy`                          | the plugin's `usage.md`, `retention.md`                                       |
+| A backup names `method: plugin`                                                                                            | `backup.md`; the plugin's `usage.md`                                          |
+| Recovery is never in place: it bootstraps a new cluster, to the end of the archive or to a `targetTime`                    | `recovery.md`                                                                 |
+| Metrics are served on port 9187, named `metrics`                                                                           | `monitoring.md`                                                               |
+| `.spec.monitoring.enablePodMonitor` is deprecated; a PodMonitor is to be created by hand                                   | `monitoring.md`                                                               |
+| The plugin's backup metrics carry the prefix `barman_cloud_cloudnative_pg_io`; the in-core ones are deprecated             | the plugin's `observability.md`; `monitoring.md`                              |
+| A `Cluster` takes `affinity.nodeSelector` and `tolerations`, "for all the pods of a Cluster"; job pods are not named there | `scheduling.md`                                                               |
+| Local storage is supported; a separate WAL volume can be added later and cannot be removed once added                      | `storage.md`                                                                  |
+| A `Database` resource declares a database and its owner; a `DatabaseRole` resource declares a role, new in 1.30            | `declarative_database_management.md`, `declarative_role_management.md`, notes |
+| A role's `passwordSecret` lives in the cluster's namespace, and the operator tracks a change of it                         | `declarative_role_management.md`                                              |
+| PostgreSQL logs go to standard output as JSON; `logging_collector` and `log_destination` are fixed by the operator         | `logging.md`, `postgresql_conf.md`                                            |
+| `shared_preload_libraries` is managed for common extensions such as `pg_stat_statements`                                   | `postgresql_conf.md`                                                          |
+| The operator chart renders its CRDs as templates under `crds.create`; it has no `crds/` directory                          | the chart's file list and `values.yaml` at the tag                            |
+| The operator chart has a subchart behind `monitoring.grafanaDashboard.create`                                              | the chart's `Chart.yaml` at the tag                                           |
 
 Not read or not established: the default of `enableSuperuserAccess` (from memory: off); the
 five-minute `archive_timeout` default (from memory); the exact metric names for connections,
@@ -488,13 +553,32 @@ After the seventh review, still on 2026-11-21:
   he had said "I want to use SQLite for as long as possible".
 - On the database server: "just plan for it for now, i'll evaluate the options" (R37).
 
+After the eighth review, still on 2026-11-21:
+
+- "let's do db node at 16GiB" (R37, R2), after he was told the 8 GiB budget left about 240
+  MiB at its peak.
+- The Slack webhook of `#puni-alerts-dev` exists and he holds it outside this repository.
+  It is written into OpenBao in A14. No address, path or file name is recorded here.
+- "let's also add a host for openclaw to this mix" (R43). Measured on h1claw that day,
+  read-only: 4 vCPUs; 7.75 GiB of memory, 3.2 GiB available; the OpenClaw gateway at about
+  2 GiB resident; a 75 GB disk at 91%, about 21 GiB of it OpenClaw's state; user-level
+  systemd units outside any cluster; Tailscale for private access; agent sessions with
+  credentials of their own; a provider region other than the cluster's.
+
+On 2026-11-22:
+
+- "and a sep host for logged in agent's accounts that i'll access through herdr" (R44).
+  Measured on the operator's laptop that day: 29 agent processes at 3.3 GiB resident; 21
+  of 30 GiB of memory in use; a 460 GB disk full; 24 cores. `herdr` was read from its
+  help output only, at version 0.9.5: an SSH remote mode and saved SSH machines.
+
 Not the owner's: R34, that dev is delivered by a follow-up change, is the planning session's
 scoping after the seventh review, and R35 is its statement of what the CI host is trusted
 with. He has seen neither yet. R38 to R42 are the planning session's too: the operator, the
 layout, where staging's databases run, the recovery targets, and that Harbor keeps its own
 database. He was told of the last and did not object.
 
-Overrules of R1 to R42 beyond these: none yet (task 0.1).
+Overrules of R1 to R44 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -513,7 +597,7 @@ Overrules of R1 to R42 beyond these: none yet (task 0.1).
 | `nproc`, `free -m`, `df -h /` on h2puni           | 8 CPUs, 15,603 MiB, 127 of 150 GiB used (88%)                                                                                                                        |
 | User timers on h1claw                             | hourly SQLite pull from h2puni, daily MLflow pull, daily remote prune, weekly restore drill, freshness alert; last run healthy                                       |
 | The fleet repository's file list                  | its website overlay holds encrypted Secret files; its cluster directory holds Flux units. No content is quoted                                                       |
-| `/dev/kvm` on the operator workstation            | present; the workstation's disk was full, so no lab ran                                                                                                              |
+| `/dev/kvm` on the operator's laptop               | present; the laptop's disk was full, so no lab ran                                                                                                                   |
 | Tolerations of the packaged components            | CoreDNS, `local-path-provisioner`, `metrics-server`: `CriticalAddonsOnly` (Exists) and the control-plane taint, nothing else                                         |
 | DaemonSets on the live cluster                    | Traefik only, selecting `capability-ingress`                                                                                                                         |
 | Rules on this repository's `main`                 | one active ruleset: `pull_request` with zero required approvals; `required_status_checks` `gate` and `pixels`, not strict; no rule against forced or deleting pushes |
@@ -547,7 +631,7 @@ Read for the sixth draft, in source at the same commit:
 
 Dependencies were not installed in the worktree: the laptop's disk was full. The binaries of the
 main checkout were used through a temporary `node_modules` link, removed afterwards. The rows
-below were run again on this revision, on 2026-11-21.
+below were run again on this revision, on 2026-11-22.
 
 | Command                                                                                                     | Result                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -558,7 +642,7 @@ below were run again on this revision, on 2026-11-21.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 397                                                                       |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 400                                                                       |
 
 ## Checks not run
 
@@ -568,12 +652,15 @@ below were run again on this revision, on 2026-11-21.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The seven reviews recorded above read earlier commits,
-  and none read the PostgreSQL part.
+- This revision has not been reviewed. The eight reviews recorded above read earlier commits.
 - No CloudNativePG operator, cluster, backup or restore was run.
 
 ## Primary sources read
 
+- For the ninth draft: the `ClusterIssuer` CRD in the locked cert-manager archive;
+  `registry/production/issuers.yaml` again; the Argo CD sync-options and Helm guides and the
+  CloudNativePG scheduling and storage pages at their tags; the Velero schedule's volume
+  setting; the storage classes.
 - For the eighth draft: the CloudNativePG and Barman Cloud plugin pages listed under
   "CloudNativePG behaviour"; the `k3s_agent` configuration template; the storage classes;
   the Velero schedules; the Prometheus stack's selectors and its Grafana setting.

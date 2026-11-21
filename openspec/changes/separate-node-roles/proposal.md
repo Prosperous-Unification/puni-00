@@ -2,45 +2,47 @@
 
 One host, h4claw, is the k3s server, the public edge, the product node, the registry host and a
 gate host. A gate holds the whole host, so Harbor does not fit, and the secret store would sit
-next to the public ingress. On 2026-11-21 the owner decided that each host
-gets one node role, that the cluster is recreated from scratch and delivered by Argo CD, and
-that the switch may be unsafe while there are no users. Later that day he added: OpenBao
-comes first, `main` deploys to staging, production deploys on command, dev and staging are
-separate environments on a node of their own, and PostgreSQL is hosted for every app.
+next to the public ingress. On 2026-11-21 the owner decided that each host gets one node
+role, that the cluster is recreated and delivered by Argo CD, and that the switch may be
+unsafe while there are no users. He then added: OpenBao first, `main` deploys to staging,
+production on command, dev and staging as separate environments on their own node,
+PostgreSQL for every app, and hosts for agents.
 
 ## What Changes
 
-- A new cluster is built on new servers, one node role per host.
-- The platform node is the tainted k3s server: Argo CD, then OpenBao and the External
-  Secrets Operator, then Harbor.
+- A new cluster is built on new servers, one role each.
+- The platform node is the k3s server: Argo CD, OpenBao, Harbor.
 - The production apps node hosts Traefik, `puni-website`, `puni-request-app` and
   `puni-user-platform` (the WBS app). A non-production node hosts staging, which replaces
-  today's dev stacks.
+  the dev stacks.
 - The observability node hosts Elasticsearch, Prometheus and MLflow.
 - The CI host runs gates and builds in one host pool.
+- Outside the cluster: a host for OpenClaw and a remote workstation for the owner's agent
+  sessions.
 - CloudNativePG hosts PostgreSQL: a production cluster on a database node and a
   non-production one beside staging, with backups and a proven restore.
-- Argo CD delivers the cluster from its own tree, `infra/argocd`. Staging syncs from `main`;
-  production and platform units change only when a person syncs them. Its private
-  interface syncs production only.
-- Workload Secrets come from OpenBao.
-- Each app is stopped, backed up once, restored and re-pointed; irreplaceable data is
+- Argo CD delivers the cluster from its own tree, `infra/argocd`. A merge to `main`
+  reaches staging through a build that commits rendered manifests to a pins repository;
+  until it runs, today's poller stays. Production and platform units change only when a
+  person syncs them.
+- Each app is stopped, backed up, restored and re-pointed; irreplaceable data is
   verified before its old host is deleted.
 
 ## Non-Goals
 
-No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the apps' build
-and pin tools. No delivery of dev and no port to PostgreSQL: follow-up changes. Workers
-clusters and labs stay on Flux. No SQLite replication, high availability or single sign-on.
-h1claw is outside the plan. No host or cluster changes.
+No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the apps'
+build tools. No delivery of dev and no port to PostgreSQL: follow-up changes. Workers
+clusters and labs stay on Flux. No SQLite replication or high availability. No install of
+OpenClaw or of the workstation's tooling. h1claw is outside the plan. No host or cluster
+changes.
 
 ## Constraints
 
 The repository is public: no prices, provider ids or public addresses. Until its port, an
-app's SQLite stays one writer on a node-local `Retain` volume. The fleet model allows one
-server per cluster. No path that the old cluster, a workers cluster or a lab reconciles is
-edited. Website registry routing, the fleet's website pins and `release-pin.ts` are
-untouched. Gates never stop. Staging never receives production data.
+app's SQLite stays one writer on a node-local `Retain` volume. No path that the old cluster,
+a workers cluster or a lab reconciles is edited. Website registry routing, the fleet's
+website pins and `release-pin.ts` are untouched. Gates never stop. Staging never receives
+production data.
 
 ## Capabilities
 
@@ -68,7 +70,7 @@ next number. Three records, node roles, delivery by Argo CD and PostgreSQL hosti
 
 `infra/fleet/desired.yaml`, a new production inventory, a new tree `infra/argocd`, a new
 bootstrap playbook and a sync playbook, `infra/versions/toolchain.json`, the `k3s_server` template,
-`tools/tool-fleet` (contracts, a `delivery` check, health, recovery, the observability source,
+two inventory groups and a base-host play for hosts outside the cluster, `tools/tool-fleet` (contracts, a `delivery` check, health, recovery, the observability source,
 a lab profile), the controller image, the solver supervisor's caller list, rule decoder and
-role, admission policies for placement and names, the runner's job-started hook, the SQLite backup tooling, the `k3s_agent` template, units and checks for PostgreSQL, and the infrastructure runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
+role, admission policies for placement and names, the ACME issuers' solvers, the runner's job-started hook and a render step for staging builds, the SQLite backup tooling, the `k3s_agent` template, units and checks for PostgreSQL, and the infrastructure runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
 pool, the WBS overlays and the release tooling are listed, not made.

@@ -3,10 +3,10 @@
 ### Requirement: One node role per host
 
 Every fleet host SHALL hold exactly one node role: platform services, continuous integration,
-observability, production apps, non-production, or database. A host's capabilities MUST be those of its
-role, and no node SHALL carry both `product` and `nonproduction`. The
-continuous integration role covers gates and image builds only; no app and no database SHALL
-run on a continuous integration host.
+observability, production apps, non-production, database, agents, or workstation. A host's
+capabilities MUST be those of its role, and no node SHALL carry both `product` and
+`nonproduction`. The continuous integration role covers gates and image builds only; no app
+and no database SHALL run on a continuous integration host.
 
 #### Scenario: Declared fleet
 
@@ -27,19 +27,43 @@ run on a continuous integration host.
 - **WHEN** an inventory lists one host under `gate_hosts` and under a k3s group
 - **THEN** the placement check fails and names the host
 
-### Requirement: Platform services and non-production capabilities
+### Requirement: The agents host and the workstation stand outside the cluster
 
-The fleet model SHALL define the capabilities `platform-services` and `nonproduction` for platform
-clusters only.
+An agents host and a workstation SHALL be outside the cluster and the gate pool, each on a
+server of its own. An agents host MUST NOT hold a cluster credential or a key of the
+cluster's backups, and MUST NOT be on the cluster's private network. A workstation MAY hold
+the operator's credentials and MUST NOT accept a login from any automation.
+
+#### Scenario: Agents host or workstation listed elsewhere
+
+- **WHEN** an inventory lists an agents host or a workstation under a k3s group, under
+  `gate_hosts` or in the other's group, or the desired state names one as a node
+- **THEN** the placement check fails and names the host
+
+#### Scenario: Agents host on the private network
+
+- **WHEN** an agents host's address is among the enrolled private addresses
+- **THEN** the placement check fails
+
+#### Scenario: Automation key on the workstation
+
+- **WHEN** the workstation's authorized keys include a key of a gate caller, the build user
+  or the agents host
+- **THEN** the placement check fails and names the key's owner
+
+### Requirement: Platform services, non-production and database capabilities
+
+The fleet model SHALL define the capabilities `platform-services`, `nonproduction` and
+`database` for platform clusters only.
 
 #### Scenario: Workers node carries one
 
-- **WHEN** a workers-cluster node declares `platform-services` or `nonproduction`
+- **WHEN** a workers-cluster node declares `platform-services`, `nonproduction` or `database`
 - **THEN** the fleet decoder refuses the fleet
 
 #### Scenario: Floor not met
 
-- **WHEN** a platform cluster requires one of the two and no present node carries it
+- **WHEN** a platform cluster requires one of the three and no present node carries it
 - **THEN** the fleet decoder refuses the fleet
 
 ### Requirement: The control plane runs on a tainted platform node
@@ -256,15 +280,30 @@ Staging Applications SHALL retry a failed sync with backoff.
 
 ### Requirement: Staging follows main; production and the platform change on command
 
-A staging Application SHALL sync automatically from `main` with pruning, self-healing and
-retry. Production and platform Applications SHALL have automated sync off and change only
-when a person syncs them. The root SHALL manage only Application and AppProject objects and
-never prune. The delivery check SHALL run inside a check that `main` requires.
+A merge to `main` that touches an app SHALL reach staging with no command, through a build
+that commits its rendered manifests to the pins repository. Production and platform
+Applications SHALL change only when a person syncs them. The root SHALL manage only
+Application and AppProject objects and never prune. The delivery check SHALL run inside a
+required check. The tracker's poller MUST NOT be retired before the build path has its
+receipt or the owner's waiver.
 
-#### Scenario: Merge to a staging overlay
+#### Scenario: Merge to an app
 
-- **WHEN** a change to a staging overlay is merged to `main`
-- **THEN** Argo CD applies it without operator action
+- **WHEN** a change to an app or to its staging overlay is merged to `main`
+- **THEN** the build commits the rendered manifests to the pins repository and Argo CD
+  applies them without operator action
+
+#### Scenario: Poller retired with nothing in its place
+
+- **WHEN** the dev poller is to be stopped and neither the build runner's receipt nor the
+  owner's dated waiver exists
+- **THEN** the staging step does not stop it
+
+#### Scenario: Render reaches beyond staging
+
+- **WHEN** a rendered staging directory holds a cluster-scoped object, a kind outside the
+  staging project's list or a namespace that is not the app's staging one
+- **THEN** the build refuses to commit it
 
 #### Scenario: Merge to a production overlay
 
@@ -377,10 +416,10 @@ an app namespace.
 ### Requirement: Environments are contained at admission
 
 Every namespace SHALL carry an environment label that only the `namespaces` unit may set.
-Whatever applies it, the cluster SHALL deny a pod whose node selector is not its
-environment's, and an Ingress, Traefik route or Certificate whose host is not listed for its
-namespace. Every non-production namespace SHALL have a quota and a default-deny network policy
-owned by the `policy` unit, and its project SHALL admit only listed namespaced kinds.
+The cluster SHALL deny a pod whose node selector is not its environment's, and a route or
+Certificate whose host is absent, a wildcard or not on its namespace's list, which is kept
+outside it. Every non-production namespace SHALL have a quota and a default-deny policy
+from the `policy` unit, and its project SHALL admit only listed kinds.
 
 #### Scenario: Staging pod selects the production node
 
@@ -397,6 +436,29 @@ owned by the `policy` unit, and its project SHALL admit only listed namespaced k
 - **WHEN** an `IngressRoute` in a staging namespace names a host on a production namespace's
   list
 - **THEN** admission denies it
+
+#### Scenario: Route without a host
+
+- **WHEN** an Ingress or a Traefik route in an app namespace names no host, a wildcard or a
+  host pattern
+- **THEN** admission denies it
+
+#### Scenario: Host list in the app's own namespace
+
+- **WHEN** a ConfigMap shaped like the host list is created in an app namespace
+- **THEN** the admission policy does not read it
+
+#### Scenario: Certificate solver pod
+
+- **WHEN** cert-manager creates an HTTP-01 solver pod in an app namespace
+- **THEN** the pod carries that environment's selector and is admitted, and a solver pod
+  without it is denied
+
+#### Scenario: Issuer without a placed solver
+
+- **WHEN** an ACME issuer has a solver whose pod template does not select the capability of
+  the environment whose hosts it serves
+- **THEN** the delivery check fails and names the issuer
 
 #### Scenario: Certificate for an unlisted host
 
@@ -639,12 +701,12 @@ be admitted to the supervisor's host directory.
 
 ### Requirement: One executor on the CI host, and no build from a pull request
 
-Every job on the CI host SHALL be a catalogue job admitted by the host pool, whatever triggered
-it. A workflow on the build runner SHALL be triggered only by a push to `main` or a manual run
-at `main`, SHALL start its build through the pool's launcher, and MUST NOT pass a GitHub secret
-to the build or write to this repository. The runner SHALL refuse any other workflow reference.
-The identity that writes staging pins SHALL be able to write the staging pins repository and
-no other.
+Every job on the CI host SHALL be a catalogue job admitted by the host pool. A workflow on
+the build runner SHALL be triggered only by a push to `main` or a manual run at `main`, SHALL
+build through the pool's launcher, and MUST NOT pass a GitHub secret to the build or write to
+this repository. The runner SHALL refuse any other workflow reference. The identity that
+writes staging manifests SHALL write the pins repository only and MUST NOT rewrite its
+history.
 
 #### Scenario: Trigger outside the allow-list
 
@@ -654,9 +716,20 @@ no other.
 
 #### Scenario: Pin writer installed elsewhere
 
-- **WHEN** the repository list of the identity that writes staging pins names any repository
-  other than the staging pins repository
+- **WHEN** the repository list of the identity that writes staging manifests names any
+  repository other than the staging pins repository
 - **THEN** the runner step stops and the identity is removed
+
+#### Scenario: History of the pins repository
+
+- **WHEN** the rule against forced and deleting pushes on the pins repository's `main` has a
+  bypass actor
+- **THEN** the runner step stops
+
+#### Scenario: Build of a commit that is not on main
+
+- **WHEN** the commit a build was started for is not on `main` of its source repository
+- **THEN** the build commits nothing to the pins repository
 
 #### Scenario: Build outside the pool
 
@@ -679,7 +752,7 @@ no other.
 
 The production PostgreSQL cluster SHALL run on a node that carries only the capability
 `database` and is registered with the taint `puni.dev/role=database:NoSchedule`, which only
-its instances and the named node agents MAY tolerate. A non-production cluster MUST run on the
+pods of that cluster's unit and the named node agents MAY tolerate. A non-production cluster MUST run on the
 non-production node, and the operator and its backup plugin on the platform node. Hosting
 PostgreSQL SHALL NOT move any app's data.
 
@@ -702,8 +775,8 @@ PostgreSQL SHALL NOT move any app's data.
 
 #### Scenario: Another workload tolerates the database taint
 
-- **WHEN** an object of the tree other than the production cluster and the three node agents
-  tolerates the database taint
+- **WHEN** an object of the tree outside the production cluster's unit, other than the three
+  node agents, tolerates the database taint
 - **THEN** the delivery check fails and names the object
 
 #### Scenario: Pod in the production database namespace selects another node
@@ -711,6 +784,12 @@ PostgreSQL SHALL NOT move any app's data.
 - **WHEN** a pod without the `database` selector is created in the production database
   namespace
 - **THEN** admission denies it
+
+#### Scenario: Operator CRD could be pruned
+
+- **WHEN** a CloudNativePG CRD in the operator unit's render lacks `Prune=false` or
+  `Delete=false`
+- **THEN** the delivery check fails and names the CRD
 
 #### Scenario: App environment defines a cluster
 
@@ -780,15 +859,27 @@ used, and Velero MUST NOT back up a database namespace.
 
 ### Requirement: A restore is proven before production data arrives
 
-The production cluster SHALL be dumped per database every night and restored into a throwaway
-cluster every week, with the result exported as a metric. A restore drill MUST NOT archive
-WAL. No production data SHALL be written to the production cluster before one restore and one
-single-database rollback have a receipt.
+Every cluster SHALL be dumped per database every night. The production cluster SHALL be
+restored every week into a throwaway cluster whose storage is reclaimed with it, watched by
+an alert. A drill MUST NOT archive WAL or leave a copy of the data on the node. No production
+data SHALL be written before one restore and one single-database rollback have a receipt,
+and no staging data before one restore of the non-production cluster has.
 
 #### Scenario: Restore drill fails or is absent
 
 - **WHEN** the weekly restore fails its sanity queries, or no drill result exists
 - **THEN** an alert fires, and the throwaway cluster is deleted
+
+#### Scenario: Drill leaves a volume
+
+- **WHEN** a drill ends and a volume of its throwaway cluster remains, Released or as a
+  directory on the node
+- **THEN** the drill reports failure
+
+#### Scenario: Throwaway cluster on retained storage
+
+- **WHEN** a throwaway cluster's claim names a storage class that retains
+- **THEN** the delivery check fails
 
 #### Scenario: Drill would write into the live archive
 
