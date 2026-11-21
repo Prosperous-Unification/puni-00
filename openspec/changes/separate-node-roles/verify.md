@@ -4,7 +4,7 @@
 
 Plan only. No source outside this change and one glossary term, no manifest, host, cluster or
 provider resource was changed. No task in tasks.md is done. This record holds only what was
-read or run while writing the plan, on 2026-11-21, in a worktree at
+read or run while writing the plan, on 2026-11-21 and 2026-11-22, in a worktree at
 `origin/main` `b17861f83`.
 
 ## Replaced drafts
@@ -440,6 +440,51 @@ What moved:
 
 Nothing was disputed in this round.
 
+## Ninth review (at `5c54a1707`), what became of its findings, and the split
+
+The review returned "not ready" with no finding of the first rank and five of the second,
+each a small text fix, and recommended splitting the change. This revision, the tenth draft,
+answers it and splits the plan in three.
+
+**The split** is the planning session's scoping, made on 2026-11-22 on the reviewer's
+recommendation; the owner asked for one plan and may overrule it. This change keeps the
+cluster rebuild, stages 0 to 5. Two changes are stacked on it and are, with it, the new setup
+plan:
+
+| Change            | Holds                                                                                        | Ids of the ninth draft, and what they became there                                                      |
+| ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `host-postgres`   | decision 11, the database role and node, the operator, both clusters, backups, drill, alerts | R36 to R42 became PG1 to PG7; slices 4.1 to 4.5 became PG-S1 to PG-S5; A24 to A28 became PG-A1 to PG-A5 |
+| `add-agent-hosts` | the agents host and the workstation                                                          | R43 and R44 became AH1 and AH2; slice 1.6 became AH-S1; A29 and A30 became AH-A1 and AH-A2              |
+
+Here: assumptions are R1 to R35, with R14 and R18 withdrawn as before; slices are 1.1 to 1.5,
+2.1 to 2.10 and 3.1 to 3.8, 23 in all; attended steps are A1 to A23; the `delivery` rules run
+(a) to (n), rule (o) having gone with `host-postgres`; the order table ends at order 17; the
+attended steps are section 4 of tasks.md; decisions are 1 to 10; two decision records remain.
+The roles table still names the three roles the other changes define. Text was moved, not
+rewritten, except where the split needed a sentence to change. Where an older section of
+this record names R36 to R44, slices 4.1 to 4.5 or 1.6, A24 to A30, decision 11 or rule (o),
+it means the ninth draft's ids in the table above.
+
+| Finding                                                             | What became of it                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 Argo CD has no read credential for the private pins repository | Fixed here: a read-only deploy key in decision 5's table, applied by a rerun of `argocd.yml` in A23, whose receipt reads it back and shows the repository connected                                                                                                                                                                           |
+| S2-2 A18 starts WBS on an empty claim                               | Fixed here: the staging Application file is merged only after the pins directory's head, or for the website the fleet overlay, is the zero-replica render; A18 stops otherwise; a scenario holds it. The website and the request app were checked: their overlay and their Application file are two merges in two repositories, in that order |
+| S2-3 A26's drill does not exist yet                                 | Fixed in `host-postgres`: a suspended drill CronJob in the non-production cluster's unit                                                                                                                                                                                                                                                      |
+| S2-4 The App key's stated bound omits pod security                  | Fixed here: every staging and dev namespace enforces `restricted`, a solver namespace excepted, with a rule and negatives in slice 2.10; the sentence on where staging NetworkPolicies come from is corrected, and the residual, peers unbounded from pins, is stated with what bounds it                                                     |
+| S2-5 The workstation's key check cannot be built as specified       | Fixed in `add-agent-hosts`                                                                                                                                                                                                                                                                                                                    |
+| S3 Controller on h2puni                                             | Stated: decision 10 and Risks say that the new age identity and the admin key are then where gate code is root-equivalent, and that a workstation as the controller removes it                                                                                                                                                                |
+| S3 "The one thing" before h1claw's deletion                         | Fixed: decision 10 names the second, OpenClaw's state, and whose question it is                                                                                                                                                                                                                                                               |
+| S3 Render step                                                      | Fixed: the locked `kustomize`; a Secret object, an empty render and a failed one are refused, each with a negative; `allowEmpty` is refused by rule 2.4(b)                                                                                                                                                                                    |
+| S3 Promotion re-renders production at `main`                        | A check, not a copy: `tool-fleet promotion-check` compares the commit staging ran with `main`. Copying the rendered form was not taken, because a staging render carries staging's namespaces, hosts and store paths                                                                                                                          |
+| S3 Database: alert response, drill against the 80% alert, rule (o)  | In `host-postgres`                                                                                                                                                                                                                                                                                                                            |
+| S3 R43's date                                                       | In `add-agent-hosts`: both host decisions are dated 2026-11-22                                                                                                                                                                                                                                                                                |
+| S3 Decision 10 omits task 0.1                                       | Fixed                                                                                                                                                                                                                                                                                                                                         |
+| S3 Slices without a requirement                                     | 2.6 has a requirement now. For 1.4, 1.5, 2.9, 3.3 and 3.4 decision 4 says why none is needed                                                                                                                                                                                                                                                  |
+| Open point: Traefik on the host network and the solver allow        | The allow is an `ipBlock`, as `otlp-ingress.yaml` uses. Which source address a pod sees was not established; slice 2.10's k3d case reads it, and it is listed under "Not verified"                                                                                                                                                            |
+
+Nothing was disputed in this round. The split changed nothing in substance here beyond what
+this table lists.
+
 ## cert-manager behaviour
 
 Read on 2026-11-21 in the `ClusterIssuer` CRD of the locked chart archive
@@ -454,39 +499,6 @@ Not established: that the solver pod is created in the Certificate's namespace f
 `ClusterIssuer` (believed), and the label its pods carry, which the Traefik allow of slice
 2.10 names; both are read on k3d there.
 
-## CloudNativePG behaviour
-
-Read on 2026-11-21 in the operator's documentation at tag `v1.30.2` (released 2026-11-17, the
-current release), the Barman Cloud plugin's at `v0.16.0`, and the charts repository at
-`cloudnative-pg-v0.29.2` and `plugin-barman-cloud-v0.9.0`. Nothing was run.
-
-| Relied on                                                                                                                  | Where it was read                                                             |
-| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Backup to object storage is supported through the Barman Cloud plugin; the in-tree integration is deprecated from 1.26     | `backup.md`, `wal_archiving.md`                                               |
-| 1.31 is the last minor release with the in-tree integration                                                                | `backup.md`. The 1.30 release notes word the removal as "in 1.31.0"           |
-| WAL archiving is a plugin with `isWALArchiver: true`; one at a time; the Barman plugin is the only supported one           | `wal_archiving.md`; the plugin's `usage.md`                                   |
-| The plugin is installed in the operator's namespace, needs operator 1.30 or newer and cert-manager                         | the plugin's `installation.mdx`                                               |
-| An `ObjectStore` resource holds the endpoint, credentials and a recovery-window `retentionPolicy`                          | the plugin's `usage.md`, `retention.md`                                       |
-| A backup names `method: plugin`                                                                                            | `backup.md`; the plugin's `usage.md`                                          |
-| Recovery is never in place: it bootstraps a new cluster, to the end of the archive or to a `targetTime`                    | `recovery.md`                                                                 |
-| Metrics are served on port 9187, named `metrics`                                                                           | `monitoring.md`                                                               |
-| `.spec.monitoring.enablePodMonitor` is deprecated; a PodMonitor is to be created by hand                                   | `monitoring.md`                                                               |
-| The plugin's backup metrics carry the prefix `barman_cloud_cloudnative_pg_io`; the in-core ones are deprecated             | the plugin's `observability.md`; `monitoring.md`                              |
-| A `Cluster` takes `affinity.nodeSelector` and `tolerations`, "for all the pods of a Cluster"; job pods are not named there | `scheduling.md`                                                               |
-| Local storage is supported; a separate WAL volume can be added later and cannot be removed once added                      | `storage.md`                                                                  |
-| A `Database` resource declares a database and its owner; a `DatabaseRole` resource declares a role, new in 1.30            | `declarative_database_management.md`, `declarative_role_management.md`, notes |
-| A role's `passwordSecret` lives in the cluster's namespace, and the operator tracks a change of it                         | `declarative_role_management.md`                                              |
-| PostgreSQL logs go to standard output as JSON; `logging_collector` and `log_destination` are fixed by the operator         | `logging.md`, `postgresql_conf.md`                                            |
-| `shared_preload_libraries` is managed for common extensions such as `pg_stat_statements`                                   | `postgresql_conf.md`                                                          |
-| The operator chart renders its CRDs as templates under `crds.create`; it has no `crds/` directory                          | the chart's file list and `values.yaml` at the tag                            |
-| The operator chart has a subchart behind `monitoring.grafanaDashboard.create`                                              | the chart's `Chart.yaml` at the tag                                           |
-
-Not read or not established: the default of `enableSuperuserAccess` (from memory: off); the
-five-minute `archive_timeout` default (from memory); the exact metric names for connections,
-open transactions and archiving age; what the plugin's sidecar and the operator use in memory;
-whether the provider's object storage accepts Barman's requests or encrypts at rest; the
-PostgreSQL major version to pin, which slice 4.2 decides from the operator's supported list.
-
 ## Failure proofs
 
 No check exists yet, so there is nothing to break. Each slice that adds a check names the fault
@@ -497,6 +509,9 @@ it must inject. This table is filled as slices land.
 | none yet        |                                   |                |
 
 ## Owner decisions
+
+This record keeps the ninth draft's ids: R36 to R44 are now PG1 to PG7 of `host-postgres` and
+AH1 and AH2 of `add-agent-hosts`, which repeat the quotes that concern them.
 
 The first decisions of 2026-11-21 are recorded above under "Replaced drafts". Later the same
 day, in his words where they carry the decision:
@@ -578,7 +593,7 @@ with. He has seen neither yet. R38 to R42 are the planning session's too: the op
 layout, where staging's databases run, the recovery targets, and that Harbor keeps its own
 database. He was told of the last and did not object.
 
-Overrules of R1 to R44 beyond these: none yet (task 0.1).
+Overrules of R1 to R35 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -642,7 +657,7 @@ below were run again on this revision, on 2026-11-22.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 400                                                                       |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 382                                                                       |
 
 ## Checks not run
 
@@ -652,8 +667,7 @@ below were run again on this revision, on 2026-11-22.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The eight reviews recorded above read earlier commits.
-- No CloudNativePG operator, cluster, backup or restore was run.
+- This revision has not been reviewed. The nine reviews recorded above read earlier commits.
 
 ## Primary sources read
 

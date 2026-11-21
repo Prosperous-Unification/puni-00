@@ -1,5 +1,5 @@
-Agent slices (phases 1 to 4) change source and run tests; none touches a host. Attended steps
-(A1 to A30) each name who runs them, the command, the receipt, the stop condition and the
+Agent slices (phases 1 to 3) change source and run tests; none touches a host. Attended steps
+(A1 to A23) each name who runs them, the command, the receipt, the stop condition and the
 rollback. Assumption and decision numbers refer to [design.md](design.md). Every slice that
 adds a safety check lands it with a production-path negative, watched failing with the check
 removed, and an adjacent `Proof:` comment. Nothing here has been done yet.
@@ -14,14 +14,13 @@ input directory. "Sync" of a platform unit means
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R44 and the four open questions in design.md and
-      overrules by id. He may overrule R34 (dev is delivered by a follow-up change), R35
-      (the CI host is one trust zone) and R38 to R41 (the shape of the PostgreSQL service
-      and its recovery targets); R42, Harbor's database, is open question 2. Rows marked
-      decided record his answers of 2026-11-21. Receipt: the overrules, dated and quoted,
-      in verify.md. Until then only slices 1.1, 1.2 and 2.1 to 2.5 may start; the
-      rehearsal 2.7 needs 2.1 to 2.5 and follows them.
-- [ ] 0.2 File the three decision records from design.md as ADRs under the next free numbers
+- [ ] 0.1 Owner reads assumptions R1 to R35 in design.md and overrules by id; this change
+      has no open question. He may overrule R34 (dev is delivered by a follow-up change)
+      and R35 (the CI host is one trust zone). Rows marked decided record his answers of
+      2026-11-21. Receipt: the overrules, dated and quoted, in verify.md. Until then only
+      slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and
+      follows them.
+- [ ] 0.2 File the two decision records from design.md as ADRs under the next free numbers
       once pull requests #935 and #948 and the Harbor record have settled theirs, link them
       from proposal.md, and delete the quoted copies. Test:
       `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`.
@@ -29,12 +28,12 @@ input directory. "Sync" of a platform unit means
       `proposal.md` and `tasks.md` and makes the amendments of design decision 9. Test:
       `./node_modules/.bin/openspec validate --all --json`.
 - [ ] 0.4 After 0.1: tell the owners of pull request #935, of `dash-host-jobs`, of the release
-      bootstrap and of the WBS deploy tooling what decisions 9 and 11 ask of each: slice
-      3.7's list, the build's place beside a gate, the four port changes, the solver per
-      environment in every ACME issuer (design decision 3), and, for the release
-      bootstrap's owner, whether the website takes the staging build path. Tell them too
-      that this change edits no path the old cluster reconciles, so its pin needs no
-      freeze. Receipt: the four messages, dated, in verify.md.
+      bootstrap and of the WBS deploy tooling what design decision 9 asks of each: slice
+      3.7's list, the build's place beside a gate, the solver per environment in every
+      ACME issuer (design decision 3), and, for the release bootstrap's owner, whether the
+      website takes the staging build path. Tell them too that this change edits no path
+      the old cluster reconciles, so its pin needs no freeze. Receipt: the four messages,
+      dated, in verify.md.
 - [ ] 0.5 Escrow what the new cluster needs (guard 2), before stage 1 and before h1claw is
       deleted (R30). Who: owner. Copy into escrow, from the host that holds each: the backup
       archive key, which lives on h1claw; the registry CA key pair; the object storage
@@ -125,22 +124,6 @@ input directory. "Sync" of a platform unit means
       the new pair. Negative: a peer absent from the named cluster's inventory is refused for
       each cluster. Fault to inject: restore one literal and watch the new cluster's negative
       pass wrongly.
-- [ ] 1.6 Hosts outside the cluster (R43, R44), before A29 and A30. Two inventory groups,
-      `agents_hosts` and `workstation_hosts`, and a play `playbooks/base-host.yml` that
-      applies the `base` role to them and nothing else. In the production placement
-      check: a host in either group is in no k3s group, not in `gate_hosts` and not in the
-      other group; neither group's hosts appear in `desired.yaml` or in
-      `puni_enrolled_private_addresses`. For the workstation: the authorized keys the
-      inventory gives it are operator keys only, compared against the keys the gate-host
-      and build inputs name. Each host's inventory revision follows its creation, as
-      slice 1.3's do. Test: `infra/ansible/tests` and `placement.test.ts`. Negatives,
-      each with its own fault: an agents host under `k3s_agents` is refused (fault: skip
-      the group comparison); a workstation under `gate_hosts` is refused (fault: compare
-      against k3s groups only); one host in both groups is refused; an agents host's
-      address among the enrolled private addresses is refused (fault: read
-      `desired.yaml` only); a workstation whose authorized keys include a gate caller's
-      or the build user's key is refused (fault: drop the key comparison); the play run
-      against a k3s node is refused (fault: remove the group guard).
 
 ## 2. Argo CD delivery (agent slices)
 
@@ -220,7 +203,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       the fifth draft did); and a platform unit other than those three that renders into a
       staging namespace (fault: exempt the whole `platform` project). (b) Automation in the
       wrong place: a `staging`
-      Application without automated `prune`, `selfHeal` and a retry policy; a `production`
+      Application without automated `prune`, `selfHeal` and a retry policy, or with
+      `allowEmpty`; a `production`
       or `platform` Application with automated sync; a root without automated self-heal, or with
       prune; any Application with the resources finalizer. (c) A `puni.dev/sync-order`,
       `puni.dev/needs` or project that is missing or differs from the table of design
@@ -392,26 +376,37 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `docs/infra/README.md`. Test: the `tool-devsync` document tests and `check-indexes`.
 - [ ] 2.10 Containment at admission, before A17 (design decision 3, R34). In the `policy`
       and `namespaces` units of the new tree only: the label `puni.dev/environment` on
-      every namespace, reserved by the namespace-label policy; an admission policy, in the
-      form the trusted-workload policies use (`ValidatingAdmissionPolicy`), that denies a
-      pod in a `staging` or `dev` namespace without the `nonproduction` selector and one
-      in a `production` namespace without `product`, with no exemption; an admission
-      policy that denies an Ingress, a Traefik `IngressRoute` or `IngressRouteTCP`, or a
+      every namespace, reserved by the namespace-label policy; the labels
+      `pod-security.kubernetes.io/enforce: restricted` and `enforce-version: latest` on
+      every staging and dev namespace, except an environment's solver namespace while it
+      has a solver, which carries `warn` and `audit` as `wbs-solver` does today and is held
+      by slice 3.8's trusted-hostpath policy; an admission policy, in the form the
+      trusted-workload policies use (`ValidatingAdmissionPolicy`), that denies a pod in a
+      `staging` or `dev` namespace without the `nonproduction` selector and one in a
+      `production` namespace without `product`, with no exemption; an admission policy
+      that denies an Ingress, a Traefik `IngressRoute` or `IngressRouteTCP`, or a
       Certificate whose host is not in its namespace's list, or that names no host, a
       wildcard or a host pattern; the lists as one ConfigMap in a platform namespace,
       which the policy's binding names as its parameter; a ResourceQuota and a
       default-deny NetworkPolicy in every non-production namespace, the three dev ones
-      included; in every app namespace an allow from Traefik's namespace to pods that
-      carry cert-manager's HTTP-01 solver label; the `namespaceResourceWhitelist` of the
+      included; in every app namespace an allow, by `ipBlock`, for Traefik, which runs on
+      the host network, to reach pods that carry cert-manager's HTTP-01 solver label, with
+      the addresses the k3d case below shows; the `namespaceResourceWhitelist` of the
       `staging` project. Test: the policy suite on disposable k3d and the `delivery`
-      check; on k3d also a solver-shaped pod and, with slice 4.3, a CloudNativePG cluster
-      started under the policy, its job pods included. Negatives, each with its own
-      fault and `Proof:` comment: a pod in a staging namespace that selects `product` is
-      denied (fault: match the namespace's name, not its label); a pod in a dev namespace
-      with no selector is denied (fault: bind the policy to `staging` alone); a
+      check; on k3d also a solver-shaped pod under the default-deny, reached from a
+      host-network pod on its own node and from one on another node, with the source
+      address each shows recorded in verify.md. Negatives, each with its own fault and
+      `Proof:` comment: a pod in a staging namespace that selects `product` is denied
+      (fault: match the namespace's name, not its label); a pod in a dev namespace with no
+      selector is denied (fault: bind the policy to `staging` alone); a privileged pod,
+      and one with a `hostPath`, applied to a staging namespace is refused by Pod Security
+      (fault: label the namespace `warn` only); a staging or dev namespace without the
+      enforce label, other than a solver namespace that slice 3.8 admits, fails the
+      `delivery` check (fault: exempt every namespace whose name begins with `wbs`); a
       solver-shaped pod with no selector is denied and one with its environment's is
-      admitted (fault: exempt pods that carry the solver label); an IngressRoute in a
-      staging namespace that names a production host is denied (fault: validate Ingress
+      admitted (fault: exempt pods that carry the solver label); a pod on the pod network
+      is refused the solver port (fault: allow the whole pod network); an IngressRoute in
+      a staging namespace that names a production host is denied (fault: validate Ingress
       alone); a route with no host, and one with a wildcard host, is denied (fault: skip
       a rule that has no host); a Certificate for a host on no list is denied (fault:
       allow an empty list); a host list placed in the app namespace is not read (fault:
@@ -421,7 +416,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       check (fault: exempt the dev namespaces); a staging project whose whitelist is a
       wildcard fails rule 2.4(a). Stop: the host rule cannot be written for Traefik's
       custom resources in that form. Then it is reported, rule 2.4(m) stays the only
-      check for those kinds, and the dev follow-up may not admit them.
+      check for those kinds, and the dev follow-up may not admit them. Stop also: Traefik's
+      traffic cannot be told from the pod network's by address. Then it is reported, and
+      the allow names the solver port for the node addresses the case showed.
 
 ## 3. Custody, probes and what other owners provide (agent slices)
 
@@ -497,10 +494,15 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       label, starts a catalogue job through `run_heavy_job` and reports its exit;
       `infra/ci/deploy-runner/job-started.sh` generalised to an allow-list of workflow
       files at `refs/heads/main` read from the runner's own `.env`, with the existing
-      deploy runner keeping its one entry; and the catalogue job's last step, which
-      renders the app's staging overlay at the built commit with the new digests and
+      deploy runner keeping its one entry; the catalogue job's last step, which renders
+      the app's staging overlay at the built commit with the new digests, using the
+      `kustomize` binary locked in `infra/versions/toolchain.json` and no cluster, and
       commits it to the app's directory in the pins repository as the App, replacing
-      the directory whole and naming the source commit and the digests in the message.
+      the directory whole and naming the source commit and the digests in the message;
+      and a command, `tool-fleet promotion-check`, which reads the source commit that
+      the head of an app's pins directory names and refuses a promotion when the app's
+      base or its production overlay differs between that commit and `main` in
+      anything but image digests (design decision 9).
       Nothing in the workflow writes to this repository. Test: the hook's existing
       proof, for one entry and for two; the workflow lint in `gate`; the render step
       against a fixture overlay and a local bare repository. Negatives, each with its
@@ -520,7 +522,14 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       other than the app's staging ones (fault: commit whatever renders); a manifest
       removed from the overlay is absent from the next commit (fault: copy without
       clearing the directory); an image without a digest in the render is refused
-      (fault: accept a tag).
+      (fault: accept a tag); a render that holds a Secret object is refused (fault: add
+      Secret to the project's kind list and rely on that list alone); an empty render,
+      and one whose command exits nonzero, is refused and leaves the directory as it was
+      (fault: commit the output directory whatever the exit code); a render made with a
+      `kustomize` other than the locked one is refused (fault: take the binary from the
+      path); the promotion check refuses a base manifest changed since the commit
+      staging ran (fault: compare the overlay directory only) and passes a difference
+      of digests alone.
 - [ ] 3.8 Before A17's solver step and A18's WBS part (R32, R29). The solver bound per
       environment, with one pod caller on a node each. In `tools/tool-remote-scripts`: the
       supervisor's closed caller list gains `k8s_wbs-solver-staging_backend`; in
@@ -556,116 +565,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
 The sixth draft's slice 3.9, the dev environment, is not in this change: it is the follow-up
 `add-dev-environment` (R34, design decision 9).
 
-## 4. PostgreSQL hosting (agent slices)
-
-All five are due before stage 6 and block nothing earlier (design decision 11, R36 to R42).
-
-- [ ] 4.1 The database role. Add the capability `database` to `CapabilitySchema`,
-      `fleetCapabilities`, `purposeCapabilities.platform` and `RequiredCapabilitiesSchema`. In
-      the production placement check: a node that carries `database` carries nothing else. In
-      the `k3s_agent` template: a node with `database` also writes the taint
-      `puni.dev/role=database:NoSchedule` (R37). The inventory revision for `h10db` follows
-      A24, as slice 1.3 does for every server, with the reservations of design decision 2 and
-      the floor `database: 1`. Test: `contracts.test.ts`; the template renders both taints.
-      Negatives, each with its own fault: a workers node carrying `database` is refused
-      (fault: add it to `purposeCapabilities.workers`); a node with `database` and `product`,
-      or `database` and `ingress`, is refused (fault: compare against `product` only); a
-      `database` agent whose rendered config lacks the taint fails the role test (fault:
-      remove the template branch); an agent without `database` renders no such taint (fault:
-      write it for every agent).
-- [ ] 4.2 Locks and the two operator units. Lock the `cloudnative-pg` chart 0.29.2 and the
-      `plugin-barman-cloud` chart 0.9.0 by digest in `infra/versions/toolchain.json`, with
-      their images and the PostgreSQL operand image by digest, and a schema variant that
-      keeps retained locks readable. Units `cnpg-operator` and `barman-plugin` under
-      `infra/argocd/units` in one namespace, selecting `platform-services` with the
-      toleration of R25, with limits of 256 MiB each and `ServerSideApply=true`, and
-      their Application files at orders 18 and 19. `barman-plugin` is a wrapper chart.
-      `cnpg-operator` is a kustomize unit that inflates its chart, as Velero's does, with
-      the chart's PodMonitor and dashboard off and a patch that gives every CRD it
-      renders `Prune=false,Delete=false` (design decision 11). Test: each unit renders
-      with the network disabled and renders the same bytes twice; the operator unit's
-      render equals the chart's own apart from that annotation. Negatives, each with
-      its own fault: an archive whose SHA-256 differs from the lock is refused (fault:
-      skip the comparison); a rendered image without a digest is refused (fault: leave
-      the operand image as a tag); a CloudNativePG CRD without both options fails rule
-      (o) (fault: drop the patch); a plugin unit outside the operator's namespace fails
-      the `delivery` check (fault: drop that comparison); an operator unit ordered at or
-      below `policy`, or a plugin ordered at or below `cert-manager`, fails rule (c).
-- [ ] 4.3 The cluster units and rule (o). Units `nonproduction-db` and `platform-db` as
-      kustomize directories in the `platform` project, each with a `Cluster` (one instance,
-      `puni-retain`, the one claim of design decision 2 and no separate WAL claim, the
-      selector of its node, superuser access off, the plugin as its WAL archiver), an `ObjectStore` with a 30-day recovery
-      window, a nightly `ScheduledBackup` with the method `plugin`, a PodMonitor, the
-      databases `canary-a` and `canary-b` with one `DatabaseRole` each, and ExternalSecrets
-      for the object storage key and the two role passwords; the namespaces `postgres`
-      (environment `platform`) and `postgres-nonproduction` (environment `staging`) in the
-      `namespaces` unit; a SecretStore for each in `secret-sync`; a clause in slice 2.10's
-      placement policy that a pod in `postgres` selects `database`; NetworkPolicies in each
-      unit that allow the operator, the scrape, port 5432 from the namespaces that have a
-      database there, and egress to the API server, DNS and the object storage endpoint.
-      The `delivery` family gains rule (o), which refuses: a `Cluster` whose
-      `affinity.nodeSelector` is not the capability design decision 11 names for it; a
-      toleration of the database taint on any object outside the `platform-db` unit and
-      the three node agents; a `Cluster` without `Prune=false` and `Delete=false`, on a
-      storage class that does not retain, with superuser access on, with `enablePodMonitor`, with the in-tree
-      `barmanObjectStore`, or without a WAL-archiving plugin, a `ScheduledBackup` and a
-      PodMonitor of its own unit; an `ObjectStore` of one cluster that reads the credential
-      of the other; a `Database` whose owner role owns another database; a `Cluster`, a
-      `Database` or a `DatabaseRole` in a `staging` or `production` Application; a Velero
-      schedule that includes a database namespace. Rule 2.4(n)'s exemption table gains the
-      claims the operator makes for a `Cluster`, with their backup named. Test: both units
-      render and pass the `delivery` check; on disposable k3d with the operator, an object
-      store fixture and slice 2.10's policies, a cluster starts with its job pods admitted,
-      archives WAL and completes a backup. Negatives:
-      one per refusal above, each with its own row in `check-faults.ts` whose fault is that
-      clause removed; on k3d, the role of `canary-a` is refused a connection to `canary-b`
-      (fault: leave `public` its connect privilege); a pod applied to `postgres` with the
-      `product` selector is denied (fault: bind the clause to `staging` namespaces only).
-- [ ] 4.4 Alerts, logs and query statistics. A PrometheusRule in each cluster unit: the
-      instance's volume and its node's filesystem above 80% and above 90%; WAL not archived for 10 minutes; no base backup for
-      26 hours; instance not ready; connections above 80% of the limit; a transaction open
-      for more than 5 minutes; and, for `platform-db`, the restore drill failed or absent.
-      The series names are read first from the operator's default monitoring ConfigMap and
-      the plugin's metrics page at the locked versions and recorded in verify.md. The
-      `Cluster` parameters: `log_min_duration_statement` 500 ms, `log_lock_waits` on,
-      `log_temp_files` 0, `pg_stat_statements` with a custom metrics query for the heaviest
-      statements. No replica-lag rule: it lands with the replica. Test: every rule under
-      `promtool` with a series fixture. Negatives, each with its own fault: each rule fires
-      on its fixture and stays quiet below its threshold; the WAL rule fires when its series
-      is absent (fault: drop the `absent()` branch); the backup rule fires at 27 hours and
-      not at 25 (fault: compare against 48 hours); the drill rule fires when no drill result
-      exists (fault: treat absence as success); a logged statement that carries a connection
-      string is redacted by the collector's rules (fault: remove the pattern). Stop: the
-      collector's redaction cannot cover it. Then statement logging stays off and the owner
-      is told.
-- [ ] 4.5 Dumps, the restore drill and the one-database rollback. In each cluster's unit: a
-      nightly CronJob that dumps each database to its own object under a prefix of its
-      own, connecting as that database's owner role, kept 90 days by the planner of slice
-      3.1. In `platform-db`'s unit: a weekly CronJob that restores the cluster from the
-      object store into a throwaway `Cluster` on the database node, on the packaged
-      `local-path` class, whose policy is `Delete`; runs sanity queries against it;
-      deletes it; and fails unless no volume of it is left, Released or as a directory
-      (design decision 11). The drill takes the cluster to restore as an input, so A26
-      can run it by hand against `nonproduction-db`. Its alert reads the kube-state-metrics
-      series of its CronJob. The dump, the drill and the base backup are scheduled at
-      different hours. A runbook, `docs/infra/postgres-recovery.md`, linked from
-      `docs/infra/README.md`: a full restore; a point-in-time restore beside the live
-      cluster; copying one database back; what a lost database node needs. Test: the
-      dump planner over a fixture listing; on k3d, the drill job restores a fixture
-      cluster and reports; the document tests. Negatives, each with its own fault: a
-      dump listing error deletes nothing (fault: treat a partial listing as complete);
-      the newest dump of a database is never planned for deletion (fault: drop that
-      guard); a drill whose sanity query fails reports failure and still deletes the
-      throwaway cluster (fault: exit before the report); a drill that leaves a Released
-      volume or a directory fails (fault: give the throwaway cluster `puni-retain`); a
-      throwaway cluster on a class that retains fails rule (o) (fault: drop that
-      clause); a drill pointed at the live cluster's own name is refused (fault: drop
-      the name comparison); a throwaway cluster that carries a WAL archiver is refused,
-      so a drill can never write into the live archive (fault: copy the live cluster's
-      plugin stanza); two of the three schedules at one hour fail the `delivery` check
-      (fault: compare the drill with the dump only).
-
-## 5. Attended steps
+## 4. Attended steps
 
 ### Stage 1: platform
 
@@ -835,8 +735,10 @@ All five are due before stage 6 and block nothing earlier (design decision 11, R
       Compose dev stack and the dev poller on h2puni); take the final backup of the dev store
       as design decision 7 states and record its file name, stamp and SHA-256; merge the
       staging overlay with the workload at zero replicas and its backup CronJob
-      suspended, and its Application file; for WBS the build renders and commits that
-      overlay, and the Application syncs by itself; check the file against the recorded value with
+      suspended; for WBS wait for the build to commit that render, and read the head of
+      the app's pins directory, which must show zero replicas and the suspended job;
+      only then merge the app's staging Application file, which the root applies at
+      once and which syncs by itself; check the file against the recorded value with
       `sha256sum --check` and restore it into the new claim only if it matches (guard 6);
       merge one replica and the CronJob resumed; point the names the staging overlay declares
       at h9stg; wait for the certificates from the issuer each overlay names; run the new
@@ -851,7 +753,9 @@ All five are due before stage 6 and block nothing earlier (design decision 11, R
       under the staging prefix, taken after the restore and holding a restored record; a
       later merge applied with no command; for WBS, a merge to `main` of the app deployed as
       a second backend digest with no command, no pin moved by hand and no run of
-      `solver.yml`, or, under the waiver, the person's commit that deployed it. Stop: the SHA-256 differs;
+      `solver.yml`, or, under the waiver, the person's commit that deployed it. Stop: the Application file would be merged while the
+      pins directory's head, or for the website the fleet overlay on `main`, is not the
+      zero-replica render; the SHA-256 differs;
       the staging credential can list a production prefix; the restore differs from the
       backup; a backup under the new prefix predates the restore or is empty; or a
       certificate is not Ready after 15 minutes. Rollback, while the old hosts exist: point
@@ -887,12 +791,16 @@ All five are due before stage 6 and block nothing earlier (design decision 11, R
       and its allow-list in the runner's `.env`; create the GitHub App with write access
       to contents only, install it on the staging pins repository alone and name it as
       the pull-request ruleset's only bypass actor; place its key and, from the Harbor
-      change's reconciler, the push robot's Docker config. Receipt: the runner group's
+      change's reconciler, the push robot's Docker config; make a read-only deploy key
+      for the pins repository, add its public half there and its encrypted file to the
+      fleet repository's directory, and run `playbooks/argocd.yml` again with the longer
+      secret file list (design decision 5). Receipt: the runner group's
       repositories and selected workflows read back; the approval setting for outside
       contributors read back; the App's repository list, which names the staging pins
       repository and nothing else, and its permissions; both rulesets read back, the one
       against forced and deleting pushes with no bypass actor; the three credential
-      files with their owner and mode; a pull request from a branch of this repository
+      files with their owner and mode; the pins repository's deploy key read back as
+      read-only, and the repository listed by Argo CD as connected; a pull request from a branch of this repository
       that adds a workflow naming the build label, left without a runner; a manual run
       of the build workflow on a branch other than `main`, left without a runner; the
       hook run by hand on the host with a workflow reference at another ref, exiting
@@ -901,7 +809,8 @@ All five are due before stage 6 and block nothing earlier (design decision 11, R
       and names the source commit and the digests. That staging then runs it with no
       command is A18's receipt. Stop: the organisation cannot limit the group to
       selected workflows, the rulesets do not combine as design decision 9 assumes, a
-      negative reaches a step, or the App is installed on another repository. Then the
+      negative reaches a step, the App is installed on another repository, or Argo CD
+      cannot read the pins repository. Then the
       runner and the App are removed and the owner is asked for the waiver of design
       decision 9: without it A18's WBS part does not start. Rollback: remove the runner
       and the App.
@@ -928,93 +837,3 @@ All five are due before stage 6 and block nothing earlier (design decision 11, R
       the controller no longer runs there (design decision 10). Command: delete the server in the console. Receipt: the provider's server
       list. Stop: the staging tracker or WBS production has no verified backup under the new
       cluster's prefixes. Rollback: none; that is why the preconditions are receipts.
-
-### Stage 6: database
-
-Not on the path of stages 1 to 5. A26 needs no database server, only the non-production node
-(A17); A24, A25, A27 and A28 start when the owner creates the server (R37).
-
-- [ ] A24 Create the database server. Who: owner, when he chooses (open question 1), as A1,
-      with 8 vCPUs, 16 GiB and a root disk of at least 115 GiB (R37). Receipt:
-      as A1. Stop: `df -h /` shows less, or as A1. Rollback: delete the server.
-- [ ] A25 Join it, after its 1.3 revision and slice 4.1. Who: operator. Commands: as A13 for
-      `h10db`, with `playbooks/firewall.yml` limited to the nodes already joined first.
-      Receipt: `h10db` Ready with `puni.dev/capability-database=true` and no other
-      capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
-      only pods on it are the three node agents. Stop: validation fails, or another pod is
-      scheduled there. Rollback: as A13.
-- [ ] A26 The operator, the plugin and the non-production cluster, after A17, stage 3's
-      receipt, slices 2.10 and 4.2 to 4.5, and the store paths design decision 11 asks of
-      pull request #935. Who: operator; owner for the values. Commands: the owner writes
-      into OpenBao the key of the non-production database bucket, one that cannot read a
-      production bucket and is not staging's SQLite backup key, and generates the two
-      canary role passwords there; merge the Application files of orders 18 to 20 for
-      these three units; sync `namespaces`, `policy`, `secret-sync`, `cnpg-operator`,
-      `barman-plugin` and `nonproduction-db`; create one on-demand `Backup`; run the dump
-      job once; run the restore drill by hand against `nonproduction-db`; delete the
-      unit's egress NetworkPolicy by hand for long enough to see the WAL rule fire, then
-      sync the unit, which restores it. After 24 hours read each container's working set
-      and `memory.stat`. Receipt: the three units Synced and Healthy; the operator and
-      plugin pods on h5plat; the instance on h9stg with its claim bound on `puni-retain`,
-      and its job pods admitted there; both canary databases present and the role of one
-      refused on the other; a first recoverability point and a completed base backup read
-      from the plugin's metrics; one dump object per database; the drill's sanity result,
-      and no Released volume or directory of its throwaway cluster left; a listing of a
-      production bucket refused with this key; the WAL alert seen firing in Alertmanager
-      and cleared; the per-container memory table and the limits kept or changed by a
-      commit. Stop: a unit is not Healthy after 20 minutes, a pod of the cluster is
-      denied by the placement policy, WAL is not archived, the restore fails or leaves a
-      volume, or the key can list a production bucket. Rollback: nothing reads the
-      cluster yet. Reduce `nonproduction-db` and `barman-plugin` to their markers and
-      sync, then remove their Application files; the `Cluster` and its claim carry
-      `Prune=false` and are removed by hand, the canary data being disposable. The
-      operator's CRDs stay until no object of their kinds is left (design decision 3).
-- [ ] A27 The production cluster, after A25 and A26's receipt and slice 4.5. Who: operator;
-      owner for the values. Commands: the owner writes the production database bucket's key
-      and the canary passwords; merge the `platform-db` Application; sync `secret-sync` and
-      `platform-db`; create one on-demand `Backup`; run the dump job once; apply by hand a
-      pod in `postgres` with the `product` selector. After 24 hours read memory as in A26
-      and `kubectl top node h10db`. Receipt: the unit Synced and Healthy; the instance and
-      its sidecar on `h10db` and nothing else there but the node agents; a first
-      recoverability point, a completed base backup and one dump object per database; the
-      hand-applied pod denied; every PostgreSQL rule loaded and none firing; the memory
-      table against design decision 2 and the owner's decision on the server's size. Stop:
-      the instance is killed for memory, the node's available memory falls under 1,024 MiB, or
-      WAL is not archived. Rollback: as A26; no app has data there.
-- [ ] A28 Prove the restore, after A27. Who: operator. Commands: write a first marker row
-      into `canary-a` and note the time; write a second; run the drill job once by hand;
-      then follow `docs/infra/postgres-recovery.md`: restore `platform-db` beside the live
-      cluster, on the reclaiming class, to the noted time, copy `canary-a` back, and delete the side cluster. Receipt:
-      the drill's duration and its sanity result; in the live `canary-a` after the copy, the
-      first marker present and the second absent, and `canary-b` unchanged; the time from
-      the start of the restore to the copy's end, which replaces R41's two hours in
-      design.md by a commit; the drill's series present and its alert quiet; no throwaway
-      cluster, claim, Released volume or directory left, and the disk back to its reading
-      before. Stop: a restore fails, the copy changes `canary-b`, or the disk does not
-      return. Then no port may write production data to
-      `platform-db`, and the owners of the port changes are told. Rollback: delete the
-      throwaway clusters; the live cluster is not touched by a restore.
-
-### Outside the stages: agents host and workstation
-
-Neither is on the path of any stage, and neither waits for h1claw's deletion or holds it up
-(R30, R43, R44).
-
-- [ ] A29 The agents host (R43), after slice 1.6. Who: owner creates, when he chooses, in
-      the region of open question 3, with 4 vCPUs and 8 GiB, the admin key and no private
-      network attached; operator applies. Commands:
-      `fleet_ansible --limit h11claw playbooks/base-host.yml` twice. Receipt: as A1,
-      without a private address; the second run prints `changed=0`; no k3s unit, no
-      kubeconfig, no k3s token, no object storage key and no file of task 0.5's escrow
-      list on the host; no interface on the cluster's private network; only SSH answers
-      from outside. Stop: the host has a private interface, or any of those files. Rollback:
-      delete the server. Installing OpenClaw is the follow-up `host-openclaw`.
-- [ ] A30 The workstation (R44), after slice 1.6. Who: owner creates, when he chooses, with
-      the region and size of open question 4, 16 vCPUs and 32 GiB unless he changes R44;
-      operator applies the base role as in A29 for `h12work`. Receipt: as A1; the second
-      run prints `changed=0`; its authorized keys, which are operator keys only; password
-      login refused; only SSH answers from outside; no gate launcher, no runner and no
-      OpenClaw unit on it. Stop: a key of the CI host, the agents host or a cluster
-      workload is authorized there. Rollback: delete the server. Tooling, accounts and
-      `herdr` are the owner's. If he moves the controller there (R17), that is recorded
-      in verify.md with the date.

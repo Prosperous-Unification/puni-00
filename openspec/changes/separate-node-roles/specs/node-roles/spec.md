@@ -3,19 +3,18 @@
 ### Requirement: One node role per host
 
 Every fleet host SHALL hold exactly one node role: platform services, continuous integration,
-observability, production apps, non-production, database, agents, or workstation. A host's
-capabilities MUST be those of its role, and no node SHALL carry both `product` and
-`nonproduction`. The continuous integration role covers gates and image builds only; no app
-and no database SHALL run on a continuous integration host.
+observability, production apps or non-production. The roles database, agents and workstation
+are defined by the changes `host-postgres` and `add-agent-hosts`. A host's capabilities MUST
+be those of its role, and no node SHALL carry both `product` and `nonproduction`. No app and
+no database SHALL run on a continuous integration host.
 
 #### Scenario: Declared fleet
 
 - **WHEN** the desired state of the rebuilt production cluster is decoded
 - **THEN** the platform node carries `control-plane` and `platform-services`, the observability
   node carries `observability`, the production apps node carries `product` and `ingress`, the
-  non-production node carries `nonproduction` and `ingress`, a database node, once declared,
-  carries `database` alone, and no node carries the capabilities of two roles other than
-  `ingress`
+  non-production node carries `nonproduction` and `ingress`, and no node carries the
+  capabilities of two roles other than `ingress`
 
 #### Scenario: Production and staging on one node
 
@@ -27,43 +26,19 @@ and no database SHALL run on a continuous integration host.
 - **WHEN** an inventory lists one host under `gate_hosts` and under a k3s group
 - **THEN** the placement check fails and names the host
 
-### Requirement: The agents host and the workstation stand outside the cluster
+### Requirement: Platform services and non-production capabilities
 
-An agents host and a workstation SHALL be outside the cluster and the gate pool, each on a
-server of its own. An agents host MUST NOT hold a cluster credential or a key of the
-cluster's backups, and MUST NOT be on the cluster's private network. A workstation MAY hold
-the operator's credentials and MUST NOT accept a login from any automation.
-
-#### Scenario: Agents host or workstation listed elsewhere
-
-- **WHEN** an inventory lists an agents host or a workstation under a k3s group, under
-  `gate_hosts` or in the other's group, or the desired state names one as a node
-- **THEN** the placement check fails and names the host
-
-#### Scenario: Agents host on the private network
-
-- **WHEN** an agents host's address is among the enrolled private addresses
-- **THEN** the placement check fails
-
-#### Scenario: Automation key on the workstation
-
-- **WHEN** the workstation's authorized keys include a key of a gate caller, the build user
-  or the agents host
-- **THEN** the placement check fails and names the key's owner
-
-### Requirement: Platform services, non-production and database capabilities
-
-The fleet model SHALL define the capabilities `platform-services`, `nonproduction` and
-`database` for platform clusters only.
+The fleet model SHALL define the capabilities `platform-services` and `nonproduction` for
+platform clusters only.
 
 #### Scenario: Workers node carries one
 
-- **WHEN** a workers-cluster node declares `platform-services`, `nonproduction` or `database`
+- **WHEN** a workers-cluster node declares `platform-services` or `nonproduction`
 - **THEN** the fleet decoder refuses the fleet
 
 #### Scenario: Floor not met
 
-- **WHEN** a platform cluster requires one of the three and no present node carries it
+- **WHEN** a platform cluster requires one of the two and no present node carries it
 - **THEN** the fleet decoder refuses the fleet
 
 ### Requirement: The control plane runs on a tainted platform node
@@ -305,6 +280,24 @@ receipt or the owner's waiver.
   staging project's list or a namespace that is not the app's staging one
 - **THEN** the build refuses to commit it
 
+#### Scenario: Render is empty, failed or holds a Secret
+
+- **WHEN** the staging build's render is empty, its command fails, or it holds a Secret
+  object
+- **THEN** nothing is committed and the app's pins directory stays as it was
+
+#### Scenario: First render of a stateful app
+
+- **WHEN** a staging Application file of an app with a store is merged while the head of
+  its source directory is not the zero-replica render
+- **THEN** the step stops before any pod of the app starts on an empty claim
+
+#### Scenario: Promotion of a base staging has not run
+
+- **WHEN** an app's base or its production overlay differs between the commit staging runs
+  and `main` in more than image digests
+- **THEN** the promotion check refuses the promotion
+
 #### Scenario: Merge to a production overlay
 
 - **WHEN** a change to a production overlay or a platform unit is merged to `main`
@@ -417,14 +410,26 @@ an app namespace.
 
 Every namespace SHALL carry an environment label that only the `namespaces` unit may set.
 The cluster SHALL deny a pod whose node selector is not its environment's, and a route or
-Certificate whose host is absent, a wildcard or not on its namespace's list, which is kept
-outside it. Every non-production namespace SHALL have a quota and a default-deny policy
-from the `policy` unit, and its project SHALL admit only listed kinds.
+Certificate whose host is not on its namespace's list. Every non-production namespace SHALL
+have a quota and a default-deny policy, and SHALL enforce the `restricted` Pod Security
+level unless it is an admitted solver namespace.
 
 #### Scenario: Staging pod selects the production node
 
 - **WHEN** a pod is created in a staging namespace with the `product` selector
 - **THEN** admission denies it
+
+#### Scenario: Privileged or host-path pod in a non-production namespace
+
+- **WHEN** a privileged pod, or one with a `hostPath` volume, is created in a staging or dev
+  namespace other than a solver namespace
+- **THEN** Pod Security refuses it
+
+#### Scenario: Non-production namespace without enforcement
+
+- **WHEN** a staging or dev namespace of the tree, other than an admitted solver namespace,
+  lacks the enforce label
+- **THEN** the delivery check fails and names the namespace
 
 #### Scenario: Dev pod without a selector
 
@@ -748,152 +753,30 @@ history.
   to this repository
 - **THEN** the workflow check fails and names the workflow
 
-### Requirement: PostgreSQL runs on nodes reserved for it
+### Requirement: Health and recovery read a cluster delivered by Argo CD
 
-The production PostgreSQL cluster SHALL run on a node that carries only the capability
-`database` and is registered with the taint `puni.dev/role=database:NoSchedule`, which only
-pods of that cluster's unit and the named node agents MAY tolerate. A non-production cluster MUST run on the
-non-production node, and the operator and its backup plugin on the platform node. Hosting
-PostgreSQL SHALL NOT move any app's data.
+The fleet health check SHALL read Applications on a cluster whose delivery is Argo CD and
+MUST NOT report the absence of Flux objects there as a failure. It SHALL fail on a Degraded
+Application, on a staging Application that is OutOfSync and on an Application that has no
+file, and SHALL list a production or platform Application that is OutOfSync with its age
+without failing. The cold-restore verification SHALL accept such a cluster.
 
-#### Scenario: Database node carries a second capability
+#### Scenario: Degraded Application
 
-- **WHEN** the desired state gives a node `database` together with another capability
-- **THEN** the placement check fails and names the node
+- **WHEN** an Application of the cluster is Degraded
+- **THEN** the health check fails and names it
 
-#### Scenario: Database node without the taint
+#### Scenario: No Application at all
 
-- **WHEN** the agent configuration of a node that carries `database` is rendered without the
-  taint
-- **THEN** the role test fails
+- **WHEN** a cluster delivered by Argo CD returns no Application
+- **THEN** the health check fails
 
-#### Scenario: Cluster on the wrong node
+#### Scenario: Production unit waiting for a sync
 
-- **WHEN** the production cluster's node selector is not `database`, or the non-production
-  cluster's is not `nonproduction`
-- **THEN** the delivery check fails and names the cluster
+- **WHEN** a production or platform Application is OutOfSync
+- **THEN** the health check lists it with how long it has been so and does not fail
 
-#### Scenario: Another workload tolerates the database taint
+#### Scenario: Restore drill on an Argo CD cluster
 
-- **WHEN** an object of the tree outside the production cluster's unit, other than the three
-  node agents, tolerates the database taint
-- **THEN** the delivery check fails and names the object
-
-#### Scenario: Pod in the production database namespace selects another node
-
-- **WHEN** a pod without the `database` selector is created in the production database
-  namespace
-- **THEN** admission denies it
-
-#### Scenario: Operator CRD could be pruned
-
-- **WHEN** a CloudNativePG CRD in the operator unit's render lacks `Prune=false` or
-  `Delete=false`
-- **THEN** the delivery check fails and names the CRD
-
-#### Scenario: App environment defines a cluster
-
-- **WHEN** a staging or production Application renders a PostgreSQL cluster, database or
-  role
-- **THEN** the delivery check fails and names the Application
-
-### Requirement: Each app has a database and a role of its own
-
-A PostgreSQL cluster SHALL give each app one database owned by one role, and a role MUST NOT
-be able to connect to another app's database. Superuser access SHALL stay disabled. A role's
-password SHALL come from OpenBao, at a path of its app and environment.
-
-#### Scenario: Role reaches another database
-
-- **WHEN** the owner role of one database connects to another database of the same cluster
-- **THEN** PostgreSQL refuses the connection
-
-#### Scenario: One role owns two databases
-
-- **WHEN** two databases of the tree name the same owner role
-- **THEN** the delivery check fails and names both
-
-#### Scenario: Superuser access enabled
-
-- **WHEN** a cluster in the tree enables superuser access
-- **THEN** the delivery check fails and names the cluster
-
-### Requirement: A PostgreSQL cluster is backed up and watched
-
-Every PostgreSQL cluster SHALL archive its WAL continuously and take a scheduled base backup
-through the Barman Cloud plugin, to an object store whose credential no other cluster reads,
-and SHALL be scraped by a PodMonitor of its own. The in-tree Barman integration MUST NOT be
-used, and Velero MUST NOT back up a database namespace.
-
-#### Scenario: Cluster without WAL archiving or a schedule
-
-- **WHEN** a cluster in the tree has no WAL-archiving plugin, no scheduled backup or no
-  PodMonitor, or names the in-tree Barman integration
-- **THEN** the delivery check fails and names the cluster
-
-#### Scenario: WAL archiving stops
-
-- **WHEN** a cluster has archived no WAL for ten minutes, or its archiving series is absent
-- **THEN** an alert fires
-
-#### Scenario: Base backup missing
-
-- **WHEN** a cluster's last base backup is older than 26 hours
-- **THEN** an alert fires
-
-#### Scenario: Shared backup credential
-
-- **WHEN** the object store of the non-production cluster reads the credential of the
-  production one, or the reverse
-- **THEN** the delivery check fails and names the object store
-
-#### Scenario: Non-production key against a production bucket
-
-- **WHEN** a production bucket is listed with the non-production database key
-- **THEN** the object store refuses, and the step does not complete otherwise
-
-#### Scenario: Velero schedule includes a database namespace
-
-- **WHEN** a Velero schedule in the tree includes a database namespace
-- **THEN** the delivery check fails and names the schedule
-
-### Requirement: A restore is proven before production data arrives
-
-Every cluster SHALL be dumped per database every night. The production cluster SHALL be
-restored every week into a throwaway cluster whose storage is reclaimed with it, watched by
-an alert. A drill MUST NOT archive WAL or leave a copy of the data on the node. No production
-data SHALL be written before one restore and one single-database rollback have a receipt,
-and no staging data before one restore of the non-production cluster has.
-
-#### Scenario: Restore drill fails or is absent
-
-- **WHEN** the weekly restore fails its sanity queries, or no drill result exists
-- **THEN** an alert fires, and the throwaway cluster is deleted
-
-#### Scenario: Drill leaves a volume
-
-- **WHEN** a drill ends and a volume of its throwaway cluster remains, Released or as a
-  directory on the node
-- **THEN** the drill reports failure
-
-#### Scenario: Throwaway cluster on retained storage
-
-- **WHEN** a throwaway cluster's claim names a storage class that retains
-- **THEN** the delivery check fails
-
-#### Scenario: Drill would write into the live archive
-
-- **WHEN** a throwaway cluster carries a WAL archiver or the live cluster's name
-- **THEN** the drill refuses to start
-
-#### Scenario: One database rolled back
-
-- **WHEN** the production cluster is restored beside the live one to an earlier time and one
-  database is copied back
-- **THEN** that database holds its earlier state and every other database is unchanged
-
-#### Scenario: Production data before a proven restore
-
-- **WHEN** an app's port would write production data and no receipt of a restore and a
-  single-database rollback exists
-- **THEN** the port does not proceed
+- **WHEN** the cold-restore verification runs against a restored cluster delivered by Argo CD
+- **THEN** it reads the root Application and passes when that is present
