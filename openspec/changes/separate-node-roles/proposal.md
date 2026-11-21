@@ -8,8 +8,8 @@ unsafe while there are no users. He then added: OpenBao first, `main` deploys to
 production on command, and dev and staging as separate environments on their own node.
 
 This change is the first of three that together are the new setup plan. The other two are
-stacked on it: `host-postgres` (PostgreSQL hosting) and `add-agent-hosts` (a host for
-OpenClaw and a remote workstation).
+stacked on it: [`host-postgres`](https://github.com/Prosperous-Unification/puni-00/pull/973) (PostgreSQL hosting) and
+[`add-agent-hosts`](https://github.com/Prosperous-Unification/puni-00/pull/974) (a host for OpenClaw and a remote workstation).
 
 ## What Changes
 
