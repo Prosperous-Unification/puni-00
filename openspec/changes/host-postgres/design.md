@@ -1,8 +1,8 @@
 ## Context
 
-This change is the second of three that together are the new setup plan, in one pull
+This change is the second of four that together are the new setup plan, in one pull
 request with [`separate-node-roles`](../separate-node-roles/design.md), which rebuilds the
-cluster, and `add-agent-hosts`. It was decision 11 of that change's ninth draft and was moved out
+cluster, `add-agent-hosts` and `run-ci-on-argo-workflows`. It was decision 11 of that change's ninth draft and was moved out
 on 2026-11-22, after a ninth review recommended the split; text was moved, not rewritten,
 except where the review or the split required it ([verify.md](verify.md#where-this-came-from)).
 

@@ -5,9 +5,10 @@ h1claw, which is retired. His own interactive sessions run on his laptop, whose
 memory and disk they fill. On 2026-11-22 he asked for a host for OpenClaw and for a separate
 host for his logged-in agent accounts, reached with `herdr`.
 
-This change is the third of three that together are the new setup plan, beside
-[`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster, and
-[`host-postgres`](../host-postgres/proposal.md). In the minimal profile that is built
+This change is the third of four that together are the new setup plan, beside
+[`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster,
+[`host-postgres`](../host-postgres/proposal.md) and
+[`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md). In the minimal profile that is built
 first one server holds both roles; two servers are what it grows into. h1claw's retirement
 is a step here.
 

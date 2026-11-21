@@ -4,9 +4,10 @@ Every app keeps its data in SQLite: one writer on a volume bound to one node, so
 stops the backend and nothing fails over. On 2026-11-21 the owner asked for PostgreSQL hosting
 in the new setup plan and said that every app uses it once it is in place.
 
-This change is the second of three that together are the new setup plan, beside
+This change is the second of four that together are the new setup plan, beside
 [`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster and
-delivers it by Argo CD, and [`add-agent-hosts`](../add-agent-hosts/proposal.md). On
+delivers it by Argo CD, [`add-agent-hosts`](../add-agent-hosts/proposal.md) and
+[`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md). On
 2026-11-22 he asked for the minimal setup that can grow.
 
 ## What Changes

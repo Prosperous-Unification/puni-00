@@ -7,9 +7,10 @@ delivered by Argo CD, with OpenBao first, `main` deploying to staging, productio
 command, and a switch that may be unsafe while there are no users. On 2026-11-22 he asked
 for the smallest setup that can grow, with every old server retired.
 
-This change is the first of three that together are the new setup plan. The
-others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting) and
-[`add-agent-hosts`](../add-agent-hosts/proposal.md) (a host for OpenClaw and a workstation).
+This change is the first of four that together are the new setup plan. The
+others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting),
+[`add-agent-hosts`](../add-agent-hosts/proposal.md) (agent hosts)
+and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
 
 ## What Changes
 
@@ -21,7 +22,7 @@ others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting) 
   `puni-user-platform` (the WBS app).
 - The observability node hosts Elasticsearch, Prometheus and MLflow, and at first
   staging, which replaces the dev stacks.
-- The CI host runs gates and builds in one host pool.
+- The CI server carries its own cluster for gates and builds.
 - Argo CD delivers the cluster from its own tree, `infra/argocd`. A merge to `main`
   reaches staging through a build that commits rendered manifests to a pins repository;
   until it runs, today's poller stays. Production and platform units change only when a
@@ -32,8 +33,8 @@ others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting) 
 ## Non-Goals
 
 No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the apps'
-build tools. No delivery of dev: a follow-up. No PostgreSQL, no host for agents: the other
-two changes. Workers clusters and labs stay on Flux. No SQLite replication, no high
+build tools. No delivery of dev: a follow-up. No PostgreSQL, agents host or CI orchestration: the other
+three changes. Workers clusters and labs stay on Flux. No SQLite replication, no high
 availability. No host or cluster changes.
 
 ## Constraints
@@ -71,5 +72,5 @@ next number. Two records, node roles and delivery by Argo CD, stay in
 `infra/fleet/desired.yaml`, a new production inventory, a new tree `infra/argocd`, a new
 bootstrap playbook and a sync playbook, `infra/versions/toolchain.json`, the `k3s_server` template, `tools/tool-fleet` (contracts, a `delivery` check, a promotion check, health, recovery, the observability source,
 a lab profile), the controller image, the solver supervisor's caller list, rule decoder and
-role, admission policies for placement and names, Pod Security labels, the ACME issuers' solvers, the runner's job-started hook and a render step for staging builds, the SQLite backup tooling, and the infrastructure runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
+role, admission policies for placement and names, Pod Security labels, the ACME issuers' solvers, a render step for staging builds, the SQLite backup tooling, and the infrastructure runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
 pool, the WBS overlays and the release tooling are listed, not made.

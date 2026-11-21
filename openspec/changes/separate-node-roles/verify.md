@@ -575,6 +575,33 @@ requests merged into this branch; nothing of them is on `main`. The
 sentences that called them stacked were removed or reworded; older sections of this record
 that say "stacked" describe the tenth draft.
 
+## CI orchestration moved to a fourth change (twelfth draft)
+
+On 2026-11-22, after the eleventh draft, the owner chose an orchestrator for CI: first
+Woodpecker CI with Dagger and without the host pool underneath, then, with multitenancy in
+mind, Argo Workflows and Argo Events. The planning session wrote that as a fourth change,
+`run-ci-on-argo-workflows`, in this pull request. Its verify.md records his words and what
+was read. This draft is the twelfth. It has not been reviewed.
+
+What changed here because of it:
+
+| Eleventh draft                                                                       | Twelfth draft                                                                                              |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| R12, R31, R35: one executor, the host pool, on a CI host outside any cluster         | restated: a CI cluster on the CI server, the scheduler as admission, the cluster as one trust zone         |
+| Decision 9: a self-hosted GitHub Actions runner, runner group, hook and lint         | removed; the trigger, the executor and the credentials' place are the CI change's                          |
+| Slice 3.7: workflow, hook, lint, render step, promotion check                        | the render step and the promotion check stay; the rest is the CI change's slices CI-S4 and CI-S7           |
+| Slice 3.3: rewrite the gate documents after A10                                      | the rewrite is CI-S8; removing the old hosts from them stays                                               |
+| A9: create the CI host and apply the gate-host role                                  | create the CI server; no gate-host role                                                                    |
+| A10: enroll and calibrate, by the pool's owner                                       | replaced by CI-A1 to CI-A4; the id is kept and its receipt means CI-A4's                                   |
+| A23: runner, group, hook, App, read key                                              | two parts: the pins repository, App and read key; then CI-A5's first automatic build                       |
+| Stage 2's receipt: a gate exits 0 and its calibration is recorded                    | a full gate exits 0 through a Workflow on the CI cluster, on a commit that also passed on an old gate host |
+| Guard 5 and the requirement "Gates do not stop": the new CI host is calibrated       | a full gate has passed on the CI cluster                                                                   |
+| Open question 1: an orchestrator in front of the host pool                           | answered; the CI server's size is the CI change's open question 1                                          |
+| The spec requirement "One executor on the CI host, and no build from a pull request" | "The staging build writes the pins repository only"; the trigger's rules are in `ci-orchestration`         |
+
+A finding for the owner from that change: on its figures one gate does not fit a 16 GiB CI
+server beside the cluster's own pods, so it asks for 12 vCPUs and 24 GiB.
+
 ## cert-manager behaviour
 
 Read on 2026-11-21 in the `ClusterIssuer` CRD of the locked chart archive
@@ -712,6 +739,11 @@ with. He has seen neither yet. R38 to R42 are the planning session's too: the op
 layout, where staging's databases run, the recovery targets, and that Harbor keeps its own
 database. He was told of the last and did not object.
 
+On 2026-11-22, after the eleventh draft: an orchestrator for CI that he does not have to
+build, Argo Workflows and Argo Events with Dagger, without the host pool underneath, and
+multitenant; his words are in the verify.md of `run-ci-on-argo-workflows`. R31 is restated
+on them; R12 and R35 are the planning session's restatements.
+
 Overrules of R1 to R35, R45 and R46 beyond these: none yet (task 0.1).
 
 ## Read-only readings
@@ -769,14 +801,14 @@ below were run again on this revision, on 2026-11-22.
 
 | Command                                                                                                     | Result                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `openspec validate separate-node-roles --strict`                                                            | `Change 'separate-node-roles' is valid`, exit 0                           |
-| `openspec validate --all --json`                                                                            | 349 items, 349 passed, 0 failed                                           |
-| `prettier --check` on the five plan files and `CONTEXT.md`                                                  | `All matched files use Prettier code style!`                              |
+| `openspec validate <change> --strict`, for each of the four changes                                         | each `Change '<change>' is valid`, exit 0                                 |
+| `openspec validate --all --json`                                                                            | 352 items, 352 passed, 0 failed                                           |
+| `prettier --check` on the changed plan files of the four changes                                            | `All matched files use Prettier code style!`                              |
 | `env -u CLAUDECODE bun test` on `adr-index`, `repo-namespacing-handoff`, `current-documents` (tool-devsync) | 34 pass, 0 fail, 109 assertions, 3 files. Changed files were staged first |
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 394 words; 401 tokens when the seven list markers are counted             |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 395 words here; 361, 339 and 334 in the other three                       |
 
 ## Checks not run
 
@@ -786,7 +818,7 @@ below were run again on this revision, on 2026-11-22.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The nine reviews recorded above read earlier commits.
+- This revision has not been reviewed. The ten reviews recorded above read earlier commits.
 
 ## Primary sources read
 

@@ -1,8 +1,8 @@
 ## Context
 
-This change is the third of three that together are the new setup plan, in one pull
+This change is the third of four that together are the new setup plan, in one pull
 request with [`separate-node-roles`](../separate-node-roles/design.md), which rebuilds the
-cluster, and the change `host-postgres`. On 2026-11-22 the owner asked for the minimal
+cluster, and the changes `host-postgres` and `run-ci-on-argo-workflows`. On 2026-11-22 the owner asked for the minimal
 setup that can grow (core R45). Offered one host for both roles he first answered "two
 hosts", and later that day chose one for the minimal profile: because of power cuts where
 he works he needs a remote workstation, and "can have just one for openclaw + workers"

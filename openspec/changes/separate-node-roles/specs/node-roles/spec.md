@@ -363,7 +363,7 @@ receipt or the owner's waiver.
 
 #### Scenario: Poller retired with nothing in its place
 
-- **WHEN** the dev poller is to be stopped and neither the build runner's receipt nor the
+- **WHEN** the dev poller is to be stopped and neither the staging build path's receipt nor the
   owner's dated waiver exists
 - **THEN** the staging step does not stop it
 
@@ -744,11 +744,11 @@ job suspended.
 
 ### Requirement: Gates do not stop
 
-A gate host SHALL NOT be deleted before the new CI host is calibrated.
+A gate host SHALL NOT be deleted before a full gate has passed on the CI cluster.
 
-#### Scenario: Successor not calibrated
+#### Scenario: No gate has passed there
 
-- **WHEN** the new CI host has no recorded calibration
+- **WHEN** the CI cluster has no recorded full gate that exited 0
 - **THEN** neither old gate host is deleted
 
 ### Requirement: The solver is bound per environment
@@ -797,54 +797,29 @@ be admitted to the supervisor's host directory.
 - **WHEN** the solver play targets a node that carries both `product` and `nonproduction`
 - **THEN** the role's assertion fails before anything is installed
 
-### Requirement: One executor on the CI host, and no build from a pull request
+### Requirement: The staging build writes the pins repository only
 
-Every job on the CI host SHALL be a catalogue job admitted by the host pool. A workflow on
-the build runner SHALL be triggered only by a push to `main` or a manual run at `main`, SHALL
-build through the pool's launcher, and MUST NOT pass a GitHub secret to the build or write to
-this repository. The runner SHALL refuse any other workflow reference. The identity that
-writes staging manifests SHALL write the pins repository only and MUST NOT rewrite its
-history.
-
-#### Scenario: Trigger outside the allow-list
-
-- **WHEN** a workflow that names the build runner's label has any trigger other than a push to
-  `main` and a manual dispatch
-- **THEN** the workflow check fails and names the workflow
+Jobs run on the CI cluster that the capability `ci-orchestration` defines, and no pull
+request starts a build there. The identity that writes staging manifests SHALL write the
+pins repository only and MUST NOT rewrite its history. A build SHALL commit nothing for a
+commit that is not on `main` of its source repository.
 
 #### Scenario: Pin writer installed elsewhere
 
 - **WHEN** the repository list of the identity that writes staging manifests names any
   repository other than the staging pins repository
-- **THEN** the runner step stops and the identity is removed
+- **THEN** the step stops and the identity is removed
 
 #### Scenario: History of the pins repository
 
 - **WHEN** the rule against forced and deleting pushes on the pins repository's `main` has a
   bypass actor
-- **THEN** the runner step stops
+- **THEN** the step stops
 
 #### Scenario: Build of a commit that is not on main
 
 - **WHEN** the commit a build was started for is not on `main` of its source repository
 - **THEN** the build commits nothing to the pins repository
-
-#### Scenario: Build outside the pool
-
-- **WHEN** a job on the build runner's label does not start through the host pool's launcher
-- **THEN** the workflow check fails
-
-#### Scenario: Workflow from a branch
-
-- **WHEN** a job reaches the build runner from a pull request, from a workflow file on a branch
-  other than `main`, or from a manual run on another ref
-- **THEN** the runner's job-started hook fails the job before any step
-
-#### Scenario: Workflow writes to this repository
-
-- **WHEN** a workflow that names the build runner's label grants `contents: write` or pushes
-  to this repository
-- **THEN** the workflow check fails and names the workflow
 
 ### Requirement: Health and recovery read a cluster delivered by Argo CD
 

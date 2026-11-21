@@ -7,17 +7,18 @@ removed, and an adjacent `Proof:` comment. Nothing here has been done yet.
 `fleet_ansible` is the controller wrapper of
 [enroll h4claw and h3mon](../../../docs/infra/enroll-h4claw-h3mon.md#1-prepare-the-controller-on-h2puni),
 extended by slice 2.5 and run against the new inventory of slice 1.3, always with `--limit`:
-an unlimited play also targets the CI host, which is not a k3s node. `$OPS` is its owner-only
+an unlimited play also targets the CI server, which is a cluster of its own (change
+`run-ci-on-argo-workflows`). `$OPS` is its owner-only
 input directory. "Sync" of a platform unit means
 `fleet_ansible --limit h5plat --extra-vars puni_sync_units=<units> playbooks/argocd-sync.yml`
 (design decision 3).
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R35, R45 and R46 in design.md and overrules by id,
-      and answers the one open question, whether an orchestrator stands in front of the
-      host pool, which blocks nothing. He may overrule R34 (dev is delivered by a follow-up
-      change) and R35 (the CI host is one trust zone). Rows marked decided record his
+- [ ] 0.1 Owner reads assumptions R1 to R35, R45 and R46 in design.md and overrules by id.
+      This change has no open question; the CI server's size is the CI change's. He may
+      overrule R34 (dev is delivered by a follow-up change) and R35 (the CI cluster is one
+      trust zone). Rows marked decided record his
       answers of 2026-11-21 and 2026-11-22. Receipt: the overrules, dated and quoted, in verify.md. Until then only
       slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and
       follows them.
@@ -30,7 +31,7 @@ input directory. "Sync" of a platform unit means
       `./node_modules/.bin/openspec validate --all --json`.
 - [ ] 0.4 After 0.1: tell the owners of pull request #935, of `dash-host-jobs`, of the release
       bootstrap and of the WBS deploy tooling what design decision 9 asks of each: slice
-      3.7's list, the build's place beside a gate, the solver per environment in every
+      3.7's list, the withdrawal of the old gate hosts, the solver per environment in every
       ACME issuer (design decision 3), and, for the release bootstrap's owner, whether the
       website takes the staging build path. Tell them too that this change edits no path
       the old cluster reconciles, so its pin needs no freeze. Receipt: the four messages,
@@ -520,9 +521,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Test: the rules render. Negative: a node in `desired.yaml`, or a host in `gate_hosts`, with no probe on
       another node fails the `delivery` check. Fault to inject: read `desired.yaml` only and
       watch the gate-host negative pass wrongly.
-- [ ] 3.3 After A10: rewrite the gate sections of `AGENTS.md` and `docs/infra/gate-hosts.md`
-      for the new host. After A22: remove h4claw and h2puni from them. Test:
-      `infra/ansible/tests` and the document tests.
+- [ ] 3.3 The rewrite of the gate sections of `AGENTS.md` and `docs/infra/gate-hosts.md` is
+      slice CI-S8 of the change `run-ci-on-argo-workflows`. Here, after A22: remove h4claw
+      and h2puni from them. Test: `infra/ansible/tests` and the document tests.
 - [ ] 3.4 After A21 and A22: remove the cluster `platform` and its nodes from `desired.yaml`,
       delete `production-existing-hosts.yml`, reduce `placement.test.ts` and slice 1.5's
       inputs to the new pair, and rewrite `docs/infra/enroll-h4claw-h3mon.md` as a historical
@@ -556,51 +557,36 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
 - [ ] 3.7 Before A23, which A18's WBS part waits for (R20, R31, R35, design decision 9).
       Owners: the WBS deploy tooling's owner for the build entrypoint and a staging
       overlay that renders at a commit; the release bootstrap's owner for whether the
-      website takes this path; the gate pool's owner for the catalogue entry, its
-      launcher checkout, `concurrencyEligible`, the build user and how it submits to the
-      pool; the owner for the staging pins repository, its two rulesets and the App; this
-      change for the trigger's shape, the hook, the lint and the render-and-commit step.
-      In this repository: a workflow on `push` to `main`, filtered by the app's paths,
-      and on manual dispatch, with no other trigger, whose one job runs on the build
-      label, starts a catalogue job through `run_heavy_job` and reports its exit;
-      `infra/ci/deploy-runner/job-started.sh` generalised to an allow-list of workflow
-      files at `refs/heads/main` read from the runner's own `.env`, with the existing
-      deploy runner keeping its one entry; the catalogue job's last step, which renders
-      the app's staging overlay at the built commit with the new digests, using the
-      `kustomize` binary locked in `infra/versions/toolchain.json` and no cluster, and
-      commits it to the app's directory in the pins repository as the App, replacing
-      the directory whole and naming the source commit and the digests in the message;
-      and a command, `tool-fleet promotion-check`, which reads the source commit that
-      the head of an app's pins directory names and refuses a promotion when the app's
-      base or its production overlay differs between that commit and `main` in
-      anything but image digests (design decision 9).
-      Nothing in the workflow writes to this repository. Test: the hook's existing
-      proof, for one entry and for two; the workflow lint in `gate`; the render step
-      against a fixture overlay and a local bare repository. Negatives, each with its
-      own fault: the hook fails a job whose workflow reference is a pull-request ref, a
-      branch other than `main`, or a workflow not on the list (fault: compare the file
-      name without the ref); a workflow that names the build label and has any trigger
-      other than `push` to `main` and `workflow_dispatch` is refused, `pull_request`,
-      `pull_request_target`, `issue_comment` and `workflow_run` among them (fault:
-      refuse a list of named triggers, as the sixth draft did, and watch `workflow_run`
-      pass); one that passes a GitHub secret to a build or push step is refused (fault:
-      drop the secret rule); one whose job on the build label does not go through
-      `run_heavy_job` is refused (fault: drop the launcher rule); one that grants
-      `contents: write` or pushes to this repository is refused (fault: drop the
-      permission rule); the render step refuses a commit that is not on `main` of the
-      source repository (fault: skip the ancestry check); it refuses a render that holds
-      a cluster-scoped object, a kind outside the staging project's list or a namespace
-      other than the app's staging ones (fault: commit whatever renders); a manifest
-      removed from the overlay is absent from the next commit (fault: copy without
-      clearing the directory); an image without a digest in the render is refused
-      (fault: accept a tag); a render that holds a Secret object is refused (fault: add
-      Secret to the project's kind list and rely on that list alone); an empty render,
-      and one whose command exits nonzero, is refused and leaves the directory as it was
-      (fault: commit the output directory whatever the exit code); a render made with a
-      `kustomize` other than the locked one is refused (fault: take the binary from the
-      path); the promotion check refuses a base manifest changed since the commit
-      staging ran (fault: compare the overlay directory only) and passes a difference
-      of digests alone.
+      website takes this path; the owner for the staging pins repository, its two rulesets
+      and the App; the change `run-ci-on-argo-workflows` for the trigger, the template and
+      the Dagger module that calls this slice's step (its slice CI-S7); this change for the
+      render-and-commit step and the promotion check. The eleventh draft's workflow, hook
+      and lint for a self-hosted runner are not built (R31).
+      In this repository: the render step, which renders the app's staging overlay at
+      the built commit with the new digests, using the `kustomize` binary locked in
+      `infra/versions/toolchain.json` and no cluster, and commits it to the app's
+      directory in the pins repository as the App, replacing the directory whole and
+      naming the source commit and the digests in the message; and a command,
+      `tool-fleet promotion-check`, which reads the source commit that the head of an
+      app's pins directory names and refuses a promotion when the app's base or its
+      production overlay differs between that commit and `main` in anything but image
+      digests (design decision 9).
+      Nothing in the step writes to this repository. Test: the render step against a
+      fixture overlay and a local bare repository. Negatives, each with its own fault:
+      the render step refuses a commit that is not on `main` of the source repository
+      (fault: skip the ancestry check); it refuses a render that holds a cluster-scoped
+      object, a kind outside the staging project's list or a namespace other than the
+      app's staging ones (fault: commit whatever renders); a manifest removed from the
+      overlay is absent from the next commit (fault: copy without clearing the
+      directory); an image without a digest in the render is refused (fault: accept a
+      tag); a render that holds a Secret object is refused (fault: add Secret to the
+      project's kind list and rely on that list alone); an empty render, and one whose
+      command exits nonzero, is refused and leaves the directory as it was (fault: commit
+      the output directory whatever the exit code); a render made with a `kustomize`
+      other than the locked one is refused (fault: take the binary from the path); the
+      promotion check refuses a base manifest changed since the commit staging ran
+      (fault: compare the overlay directory only) and passes a difference of digests
+      alone.
 - [ ] 3.8 Before A17's solver step and A18's WBS part (R32, R29). The solver bound per
       environment, with one pod caller on a node each. In `tools/tool-remote-scripts`: the
       supervisor's closed caller list gains `k8s_wbs-solver-staging_backend`; in
@@ -719,25 +705,22 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
 
 ### Stage 2: continuous integration
 
-- [ ] A9 Create the CI host and apply the gate-host role, after its 1.3 revision. Who: owner
-      creates as in A1 with 8 vCPUs and 16 GiB (R2); operator applies. Commands:
-      `$OPS/gate.json` with the callers' keys and `puni_gate_host_pool_enroll: false`;
-      `fleet_ansible --limit h8ci --extra-vars @"$OPS/gate.json" playbooks/gate-host.yml`
-      twice; a second-session login as `puni1` with each key after the first run;
-      `docker buildx version` as `puni1`. Receipt: the second run prints `changed=0`; every
-      caller logs in. Stop: a caller cannot log in. Rollback: delete the server.
-- [ ] A10 Enroll and calibrate. Who: the owner of `dash-host-jobs`, by
-      [enroll a host in the host pool](../../../docs/infra/gate-hosts.md#enroll-a-host-in-the-host-pool).
-      Receipt: the pool lists the host in observe mode with its budget and headroom;
-      `bin/h2puni-gate.sh <sha>` from its launcher exits 0 and prints the SHA; three
-      calibration durations; the pool's budget and headroom on this size, at which one
-      gate runs at a time. Stop: a gate fails for a reason the old hosts do not show on the same SHA.
-      Rollback: keep gating on the old hosts; they are untouched until stage 5.
-- [ ] A11 Release builds on the CI host. Who: the session that owns the release bootstrap,
-      by its own procedure. Receipt: one release record that names h8ci. Stop: a build fails
-      for a reason the old host does not show on the same commit. Rollback: keep building
-      release images where they are built today. The staging build runner is A23, in stage
-      4, where its inputs exist.
+- [ ] A9 Create the CI server, after its 1.3 revision. Who: owner creates as in A1, at the
+      size he answers to open question 1 of the change `run-ci-on-argo-workflows`; that
+      change's design decision 5 shows that one gate does not fit 16 GiB on paper. Receipt:
+      the server's memory and its disk, at or above 150 GiB. Stop: a smaller disk.
+      Rollback: delete the server. The gate-host role is not applied: the server is not
+      enrolled in the host pool (R31).
+- [ ] A10 Replaced by steps CI-A1 to CI-A4 of the change `run-ci-on-argo-workflows`: the CI
+      cluster's bootstrap, its units, its tenant and a full gate through a Workflow. Where
+      another step names A10's receipt, it means CI-A4's. The id is kept so that the other
+      steps keep theirs.
+- [ ] A11 Release builds on the CI cluster. Who: the session that owns the release
+      bootstrap, by its own procedure and with a template it writes (the CI change's
+      design decision 6). Receipt: one release record that names the CI cluster. Stop: a
+      build fails for a reason the old host does not show on the same commit. Rollback:
+      keep building release images where they are built today. The staging build path is
+      A23 and CI-A5, in stage 4, where its inputs exist.
 
 ### Stage 3: observability
 
@@ -879,46 +862,34 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       first start needs that this simple move skips. Rollback, while h2puni exists: point the
       name back and start production there.
 
-- [ ] A23 The staging build runner (R20, R31, R35), after A17, slices 3.5, 3.7 and 3.8,
-      Harbor's project and push robot, and the staging pins repository with its two
-      rulesets (task 0.6); before A18's WBS part, which waits for this receipt. Numbered
-      last so that the other steps keep their ids. Who: owner and operator. Commands:
-      create the build user and its 0700 directories through the gate-host role; create
-      the runner group, limited to the building repositories and to selected workflows,
-      the build workflow file at `refs/heads/main`; register one persistent runner into
-      that group; install the root-owned hook and set `ACTIONS_RUNNER_HOOK_JOB_STARTED`
-      and its allow-list in the runner's `.env`; create the GitHub App with write access
-      to contents only, install it on the staging pins repository alone and name it as
-      the pull-request ruleset's only bypass actor; place its key and, from the Harbor
-      change's reconciler, the push robot's Docker config; make a read-only deploy key
-      for the pins repository, add its public half there and its encrypted file to the
-      fleet repository's directory, and run `playbooks/argocd.yml` again with the longer
-      secret file list (design decision 5). Receipt: the runner group's
-      repositories and selected workflows read back; the approval setting for outside
-      contributors read back; the App's repository list, which names the staging pins
-      repository and nothing else, and its permissions; both rulesets read back, the one
-      against forced and deleting pushes with no bypass actor; the three credential
-      files with their owner and mode; the pins repository's deploy key read back as
-      read-only, and the repository listed by Argo CD as connected; a pull request from a branch of this repository
-      that adds a workflow naming the build label, left without a runner; a manual run
-      of the build workflow on a branch other than `main`, left without a runner; the
-      hook run by hand on the host with a workflow reference at another ref, exiting
-      nonzero, and with the allowed reference, exiting zero; a push to `main` building,
-      and one commit in the pins repository that holds the rendered staging manifests
-      and names the source commit and the digests. That staging then runs it with no
-      command is A18's receipt. Stop: the organisation cannot limit the group to
-      selected workflows, the rulesets do not combine as design decision 9 assumes, a
-      negative reaches a step, the App is installed on another repository, or Argo CD
-      cannot read the pins repository. Then the
-      runner and the App are removed and the owner is asked for the waiver of design
-      decision 9: without it A18's WBS part does not start. Rollback: remove the runner
-      and the App.
+- [ ] A23 The staging build path (R20, R31, R35), in two parts. Numbered last so that
+      the other steps keep their ids. **First part**, after A17, slices 3.5, 3.7 and 3.8,
+      Harbor's project and push robot, and task 0.6; before the CI change's CI-A3. Who:
+      owner and operator. Commands: create the staging pins repository with its two
+      rulesets; create the GitHub App with write access to contents only, install it on
+      that repository alone and name it as the pull-request ruleset's only bypass actor;
+      write its key and the push robot's configuration to the tenant's path in the
+      store; make a read-only deploy key for the pins repository, add its public half
+      there and its encrypted file to the fleet repository's directory, and run
+      `playbooks/argocd.yml` again with the longer secret file list (design decision 5).
+      Receipt: the App's repository list, which names the staging pins repository and
+      nothing else, and its permissions; both rulesets read back, the one against forced
+      and deleting pushes with no bypass actor; the pins repository's deploy key read
+      back as read-only, and the repository listed by Argo CD as connected. **Second
+      part**: the receipt of CI-A5, a push to `main` building with no command and one
+      commit in the pins repository that holds the rendered staging manifests and names
+      the source commit and the digests. Where another step names A23's receipt, it means
+      both parts. That staging then runs it with no command is A18's receipt. Stop: the
+      rulesets do not combine as design decision 9 assumes, the App is installed on
+      another repository, or Argo CD cannot read the pins repository. Then the App is
+      removed and the owner is asked for the waiver of design decision 9: without it
+      A18's WBS part does not start. Rollback: remove the App.
 
 ### Stage 5: retirement
 
 - [ ] A21 Delete h4claw and h3mon. Who: owner. Preconditions: A18's and A19's receipts for
       the website and request app; A15's receipt; A10's receipt, no caller launching gates on
-      h4claw (slice 3.3), and the pool owner's withdrawal of h4claw or written confirmation
+      h4claw (slice CI-S8), and the pool owner's withdrawal of h4claw or written confirmation
       that none is needed; a test alert delivered in `#puni-alerts-dev`; the
       word of the session that owns `release-pin.ts` that the old fleet directory may go.
       Commands: delete both servers in the console; remove the old cluster's directory from
