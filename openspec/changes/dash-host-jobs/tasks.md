@@ -494,7 +494,7 @@
       `bin/h2puni-gate.test.sh` case 48; negatives: the pin block deleted, the refusal branch
       deleted (verify.md, 2026-11-20). The host proof is the next gate on a launcher carrying
       this change (S26-A3).
-- [x] 6.27 the host gate prunes the solver smoke's BuildKit cache (A-GATE-SMOKE-CACHE-1; PR #PRNUM):
+- [x] 6.27 the host gate prunes the solver smoke's BuildKit cache (A-GATE-SMOKE-CACHE-1; PR #965):
       each gate's smoke left 3.72 GB of build cache on h2puni, whose calibration admission needs
       23.62 GB free, so a three-run calibration series refused its second run without an
       operator prune. `bin/h2puni-gate-steps.sh` keeps the smoke's status, runs
