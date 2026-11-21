@@ -270,3 +270,9 @@ A-CI-LEAF-MEMORYMAX-1 runs the workspace and heavy Nx phases under a 12 GiB `Mem
 no swap. It changes no budget. A suite that would have thrashed now fails when the kernel kills it
 inside the scope, so its job ends early with a log instead of running into the phase limit or
 losing the runner.
+
+The cap's first hosted run (#964, job 136732392386) failed `gate workspace` after 23m31s
+(`elapsedSeconds=1411`). Three lints (`twilight-dash`, `wbs-be-01` and `wbs-fe-01`) ran out of
+Node heap. Inside the 12 GiB scope Node defaults to a 2240 MB heap. The steps therefore pin
+`--max-old-space-size=4096`, as the gate hosts have done since #956 (A-NODE-HEAP-1). That is the
+uncapped runner's default figure, so lint durations should match the earlier uncapped runs.
