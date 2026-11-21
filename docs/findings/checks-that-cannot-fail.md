@@ -550,6 +550,103 @@ gate-hosts note on A-NODE-HEAP-1 names the three tests and the fix
 The proof is one green hosted run. The three lints must pass, and the start record must show an
 inside-scope `heapSizeLimit` of at least 4294967296.
 
+### Amendment, 2026-11-21: lost inside the cap, so tasks and CPU are capped too
+
+Main `b7ad74ab4` (run 44917747487, push) was the first full-mode run with #964's cap and heap pin.
+`gate workspace` passed in 20m41s and the leaves `wbs-core`, `wbs-store-sqlite` and `tool-devsync`
+passed inside their 12G scopes. `gate workspace-heavy (tool-fleet)` (job 136887016810) was lost
+again. The job started at 15:10:50Z and its heavy-leaf step at 15:11:55Z, and GitHub failed it at
+16:17:53Z, 66 minutes into the step and 67 minutes into the job. The uncapped loss (03:05:42 to
+04:12:45Z) took as long. The annotation is the same, the step is still `in_progress` with no
+conclusion, and no artifact was uploaded. This is the sixteenth identified loss.
+
+**Memory is ruled out.** The leaf ran under `MemoryMax=12G MemorySwapMax=0 OOMPolicy=continue`.
+A tree that outgrew the cap would have been OOM-killed inside the scope, with `exit=1`, a log and
+the kernel's OOM lines. The earlier amendment's rollback criterion applies: lost with the cap in
+place means the cause is not memory.
+
+Three classes remain:
+
+- **Process or thread exhaustion** in a fork storm.
+- **CPU starvation of the runner agent.** The runner has 4 vCPUs, and nothing kept one free.
+- **Network breakage, or a signal to a process group the test does not own.**
+
+Reading the suite narrows none of them to a test:
+
+- The native registry tests compile one 44-line pthread fixture with a single
+  `cc -Wall -Wextra -Werror -pthread` run, with no `make -j`.
+- They run their sandboxes in `bwrap` with `--unshare-net` and `--unshare-pid`. The in-namespace
+  Docker proof sets `bridge: none` and `iptables: false`.
+- Every `os.killpg` site in `lab-guest-*.py` and the registry installers signals a group it
+  created with `start_new_session=True`.
+- `tool-fleet:test` is one `bun test` process at Nx `--parallel=1`.
+
+**The lever (A-CI-LEAF-MEMORYMAX-2).** Both capped steps add three things to the scope:
+
+- **`-p TasksMax=4096`.** A fork or thread storm now fails inside the scope with `EAGAIN`, so the
+  runner's own process table is not exhausted. The pids controller counts threads. The surviving
+  shards of this run peaked at 11 `node` and `bun` processes, so 4096 leaves room for hundreds of
+  threads each.
+- **`-p AllowedCPUs=0-2`.** The scope is pinned to three of the four vCPUs, so CPU 3 always stays
+  free for the runner agent, the sampler and the OS. Inside the scope `nproc` reports 3.
+- **`--slice=system.slice`.** This makes the scope's cgroup path a contract the sampler can read.
+
+`AllowedCPUs` was chosen over the alternatives:
+
+- **`CPUQuota=300%`** bounds only the average over each 100 ms period. A saturating suite can
+  still occupy all four cores until it is throttled, and the agent then waits behind it on every
+  core.
+- **`CPUWeight`** acts only under contention between sibling cgroups, and guarantees no core.
+
+Pinning trades a quarter of the scope's compute for a guaranteed core. The arithmetic for the
+phase budgets: a fully CPU-bound phase runs at most 4/3 slower. The `tool-fleet` estimate of 42.9
+minutes then becomes 57.2, inside its 75-minute phase. The workspace's 20m41s becomes 27.6, inside 105. `tool-fleet:test` at parallelism one mostly runs one process, so its real cost should be
+lower.
+
+The probe now also reads the scope's `pids.max` and `cpuset.cpus.effective`. The step refuses
+unless the probe reports `pidsMax=4096 cpus=0-2` along with the memory figures and the heap limit.
+An absent `cpuset.cpus.effective` means the cpuset controller is not enabled for the scope, and it
+is refused like a wrong value.
+
+The evidence trail grows in two places:
+
+- **Each sample.** Every `runtime headroom sample` line ends with
+  `scopePids=… scopeMemKiB=… scopePeakKiB=… scopeCpuUsec=…`. The values are read from outside the
+  scope, from `/sys/fs/cgroup/system.slice/ci-gate-PARTITION-PID.scope/`: `pids.current`,
+  `memory.current`, `memory.peak` and `cpu.stat`'s `usage_usec`. All four read `unavailable`
+  before the scope starts, after it ends, or when a file is missing, unreadable or not a count.
+  A CPU-bound series rises by about 90000000 µs between 30-second samples.
+- **The end record.** systemd removes the scope's cgroup when its last process exits. A bash
+  wrapper inside the scope therefore runs the gate command, copies `pids.events` `max` and
+  `memory.events` `oom_kill` to a file, and exits with the gate's status. The end record prints
+  `runtime headroom scope events pidsEventsMax=N memoryEventsOomKill=N`, or `unavailable`.
+
+**Proof plan.** The next full-mode main run should end in one of these ways:
+
+- **The `tool-fleet` leaf passes.** One of the new caps held.
+- **It fails with a log.** The end record shows `pidsEventsMax` above zero (a fork storm, refused
+  by TasksMax), or the samples show a CPU-bound `scopeCpuUsec` series before the failure.
+- **It is lost again.** Neither memory, tasks nor the agent's core explains a loss, which points
+  at network breakage or a signal to a foreign group. The next lever is then to run tool-fleet's
+  native tests only on the gate hosts, as tool-remote-scripts runs under A-GATE-REMOTE-1, or to
+  give them their own leaf.
+
+`pr-merge-base.test.ts` covers the change, and each of these faults failed a test:
+
+- Dropping `-p TasksMax`, `-p AllowedCPUs`, `--slice=system.slice` or the events wrapper failed
+  the scope ledger.
+- With `pids.max` and `cpuset.cpus.effective` removed from the probe and its report check,
+  `pids.max=max`, an absent `pids.max`, `cpus=0-3` and an absent cpuset file all reached the
+  runtime.
+- Deleting the scope fields from the sample, their count check or the `system.slice` path failed
+  the sampler test. That test runs the production functions against a scratch cgroup.
+- Accepting any events copy failed the telemetry test.
+
+`AllowedCPUs` in a system-manager scope is not proved on a hosted runner yet. On this laptop's
+user manager the cpuset controller is not delegated, so `cpuset.cpus.effective` was absent there.
+The laptop's `system.slice` does list cpuset in `cgroup.subtree_control`. If a hosted runner does not, the probe refuses in seconds
+with a named message.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved
