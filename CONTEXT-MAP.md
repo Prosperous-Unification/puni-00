@@ -15,6 +15,8 @@
   scoping, and proposal requests for Prosperous Unification's services.
 - [Registry storage operations](docs/infra/CONTEXT.md): bounded image storage,
   pressure observations and required operational notifications.
+- [Platform secrets](docs/infra/secrets/CONTEXT.md): the secret store, synced
+  Secrets and the bootstrap set that never depends on the store.
 - [Design system](libs/shared/adapters/ui-core-01/CONTEXT.md): one token vocabulary
   and the numbered kits that give each product surface its look.
 
