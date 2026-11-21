@@ -79,10 +79,15 @@ Five rules govern this repo:
 
 ## Gate
 
-- Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>` from `~/puni-00-gate-launcher`.
-  The Dash host pool admits it, checks the SHA out in the gate tree it hands over, installs the
-  locked dependencies frozen, then runs CI format, test, lint, typecheck and build. Do not run
-  raw full Nx gates there or check out the SHA first.
+- A product release requires Nx validation of the released projects and their transitive
+  workspace and task dependencies, plus the product's deployment checks. A full monorepo gate
+  is not a release prerequisite. Bind the scope to exact source/artifact identities; report
+  selected projects, commands, outcomes and any remaining checks. See
+  [release validation](docs/runbook-release-validation.md).
+- For repository-wide validation or an explicitly requested full gate, run
+  `bin/h2puni-gate.sh <sha>` from `~/puni-00-gate-launcher`. The Dash host pool admits it,
+  checks the SHA out in its gate tree, installs frozen dependencies, then runs CI format,
+  test, lint, typecheck and build. Do not run raw full Nx gates there or check out the SHA first.
 - The pool chooses the gate tree; never run the gate from `/home/puni1/wbs-dev/src`, whose
   poller resets it independently of the heavy lock. See
   [dev gate workspace safety](docs/runbook-dev-deploy.md#gate-workspace-safety).

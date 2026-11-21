@@ -35,6 +35,8 @@ bunx nx run <project>:lint:fast                 # editing only, ~4s; `lint` is u
 `bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh <sha>` and do NOT check that sha
 out first: the pool hands out the gate tree, and a checkout outside the lock is how one lane's gate came to report about another's head (TASK-328). Raw full Nx gates bypass the lock; `build` needs `shellcheck`. Second gate host, own lock: [gate hosts](docs/infra/gate-hosts.md).
 
+Product releases use [Nx product scope and deployment checks](docs/runbook-release-validation.md); a full repository gate is not a release prerequisite.
+
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
 `.github/workflows/ci.yml` runs the gate above plus the secrets scan, migration lint and
