@@ -383,8 +383,9 @@ Observed while mapping; verify each before acting. Numbered so they can be addre
     and `wbs-organization-limits` (L1–L16) are merged with their "Dany confirms or amends" task
     still unticked (`wbs-shared-occupancy` S1–S12 was confirmed 2026-11-01; its S1 ADR is owed).
     One sign-off pass would close or reopen them together.
-19. **Navigator's README says exports v7–v10 and refuses v11**, while `plan-reference.ts`
-    accepts 7–11 and `docs/wbs/measures-and-budgets.md` says Navigator reads version 11.
+19. **Navigator's README version support was stale.**
+    _resolved:_ the README now documents exports v7–v11, schema 2 for v8–v11 and refusal of
+    connected v12, matching `plan-reference.ts` and `docs/wbs/measures-and-budgets.md`.
 20. **ADR statuses lag the code:** ADR 0056 (UI kits) is still proposed with the kits on `main`;
     ADR 0064 says "implementation deferred" while all three Twilight CLIs run on Optique
     (`twilight-cli-optique` 14/15).
