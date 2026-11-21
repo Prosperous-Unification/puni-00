@@ -2477,7 +2477,9 @@ The explicit preparation order in docs/runbook-controller-reader-prerequisites.m
 - **AND** a missing-lock negative preserves absence, while an earlier unrelated refusal cannot pass a later-boundary assertion
 - **AND** fixture preparation grants no production bypass or held campaign execution.
 
-## ADDED Requirements — original-context initial handoff (proposal)
+## ADDED Requirements
+
+Original-context initial handoff (proposal).
 
 ### Requirement: Original closing authority
 
