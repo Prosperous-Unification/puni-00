@@ -485,6 +485,55 @@ it means the ninth draft's ids in the table above.
 Nothing was disputed in this round. The split changed nothing in substance here beyond what
 this table lists.
 
+## Minimal placement profile (eleventh draft) and one pull request
+
+Added on 2026-11-22 at the owner's request (R45, R46). No review has read this draft.
+
+**How it is expressed.** One design and two placement profiles, in design decision 11.
+Workloads select capabilities; a profile is the mapping from capability to server in the
+fleet's desired state and inventory. The minimal profile is the default of every step,
+budget and receipt. The full profile is a column of decision 1's table and the growth steps
+of decision 11. No slice or step is duplicated.
+
+**Ids.** New here: R45 and R46 (R36 to R44 stay with the ninth draft's meaning), slice 1.7
+and decision 11 (a new decision; the ninth draft's decision 11 is `host-postgres`). Slices
+are now 24 and attended steps stay A1 to A23. A16 creates one server instead of two; A17
+joins it and gives h7obs two capabilities; A12, A14 and A18 changed as their text states.
+R2, R3, R29 and R30 were reworded; nothing was withdrawn.
+
+**Rules that changed.**
+
+| Rule as the tenth draft had it                                                  | Now                                                                                                                                                                  |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One node role per host                                                          | One trust class per host; two co-locations allowed in this change's scope (`nonproduction` and `ingress` with `observability`; `database` with the server); rule 1.2 |
+| The server carries none of `product`, `nonproduction`, `ingress`                | The same, and none of `observability`                                                                                                                                |
+| Only `platform-services` workloads and three agents tolerate the platform taint | Workloads that select `database` may too (change `host-postgres`)                                                                                                    |
+| A node's capabilities are fixed when it joins                                   | A joined node's capability labels follow the inventory (slice 1.7), which A17 and every growth step use                                                              |
+
+**Read in source for it.**
+
+- `solver-supervisor-command.ts` and `solver-supervisor-lifecycle.ts`: the start-up sweep
+  lists Docker containers with the label filter `wbs-managed-solver=true` and kills only
+  those; pods under the k3s runtime are not in that list.
+- `infra/ansible/roles/solver/tasks/main.yml`: the role installs the pinned `docker.io`
+  package and asserts `product`; slice 3.8 already changes the assertion.
+- `infra/ansible/roles/k3s_agent/templates/config.yaml.j2` and the server's: capability
+  labels are `node-label` entries of the k3s configuration, and no playbook sets a label
+  on a registered node (`grep` over `infra/ansible`).
+- The k3s agent CLI page describes `--node-label` as "Registering and starting kubelet
+  with set of labels". That a label added to the configuration later is not applied is
+  believed and is slice 1.7's stop condition, not a reading.
+
+**What the figures say against one co-location.** On the declared figures staging does not
+fit beside the observability stack on 16 GiB (design decision 2): 972 MiB are left before
+the staging database and any solve. The owner chose that placement; the plan keeps it and
+makes A14's measurement its condition, with two priced exits. It is the open question.
+
+**One pull request.** The branches of `host-postgres` and `add-agent-hosts` were merged
+into this change's branch, and their pull requests closed, on the owner's request. The
+sentences that called them stacked were removed or reworded; older sections of this record
+that say "stacked" describe the tenth draft.
+
 ## cert-manager behaviour
 
 Read on 2026-11-21 in the `ClusterIssuer` CRD of the locked chart archive
@@ -587,13 +636,23 @@ On 2026-11-22:
   of 30 GiB of memory in use; a 460 GB disk full; 24 cores. `herdr` was read from its
   help output only, at version 0.9.5: an SSH remote mode and saved SSH machines.
 
+- "let's work on the alt version where we ONLY segregate the nodes that will be hard to
+  horizontally scale in the future and we're more conservative with resources spend; i want
+  to see what is the minimal setup i can do that will scale later" (R45). Offered three
+  choices, he answered: OpenClaw and the workstation "two hosts"; "CI let's start at" the
+  8 vCPU and 16 GiB class; staging and dev "ok to keep on the obs node".
+- "i want all new infra, all old nodes can be retired" (R46), after the planning session
+  had offered to keep h1claw and h2puni.
+- "can you merge all plans into one PR?": the three changes are in one pull request and
+  stay three change directories.
+
 Not the owner's: R34, that dev is delivered by a follow-up change, is the planning session's
 scoping after the seventh review, and R35 is its statement of what the CI host is trusted
 with. He has seen neither yet. R38 to R42 are the planning session's too: the operator, the
 layout, where staging's databases run, the recovery targets, and that Harbor keeps its own
 database. He was told of the last and did not object.
 
-Overrules of R1 to R35 beyond these: none yet (task 0.1).
+Overrules of R1 to R35, R45 and R46 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -657,7 +716,7 @@ below were run again on this revision, on 2026-11-22.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 382                                                                       |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 394 words; 401 tokens when the seven list markers are counted             |
 
 ## Checks not run
 

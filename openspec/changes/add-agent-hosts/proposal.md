@@ -1,14 +1,14 @@
 ## Why
 
 Agent sessions run today where they should not stay. OpenClaw's unattended sessions run on
-h1claw, which the owner will delete. His own interactive sessions run on his laptop, whose
+h1claw, which is retired. His own interactive sessions run on his laptop, whose
 memory and disk they fill. On 2026-11-22 he asked for a host for OpenClaw and for a separate
 host for his logged-in agent accounts, reached with `herdr`.
 
-This change is the third of three that together are the new setup plan. It is stacked on
-[`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster; the
-second is [`host-postgres`](https://github.com/Prosperous-Unification/puni-00/pull/973), on a branch of its own. It was part of the first until
-a review recommended the split.
+This change is the third of three that together are the new setup plan, beside
+[`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster, and
+[`host-postgres`](../host-postgres/proposal.md). Both hosts are in the minimal profile that
+is built first, and h1claw's retirement is a step here.
 
 ## What Changes
 

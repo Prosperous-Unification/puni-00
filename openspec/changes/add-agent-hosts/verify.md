@@ -88,4 +88,13 @@ revision.
 `infra/ansible/roles/base/tasks/main.yml` and its kernel-settings template;
 `infra/ansible/playbooks/gate-host.yml`; the gate-host and enrollment runbooks on the `$OPS`
 inputs; the lab profiles in `docs/infra/local.md`; and the core change's design, tasks and
-spec at the commit this branch is stacked on.
+spec in the same pull request.
+
+## Minimal placement profile and h1claw (added 2026-11-22)
+
+Unreviewed. The owner asked for the minimal setup that can grow (core R45) and, offered one
+host for OpenClaw and his own sessions, answered "two hosts"; both hosts are therefore in
+the minimal profile as they were, at the sizes already decided. He then said "i want all new
+infra, all old nodes can be retired" (core R46): AH3 and AH-A3 are new and retire h1claw
+here. His earlier words, that he may delete it at any time and accepts the backup windows,
+stand. Nothing was renumbered.

@@ -2173,8 +2173,9 @@ _Avoid_: platform cluster (for activity execution)
 **Node role**:
 The one kind of work a fleet host is reserved for: production apps, non-production apps,
 platform services, observability, databases, continuous integration, unattended agents, or
-the operator's remote workstation. A host holds one node role; its capabilities follow from
-it.
+the operator's remote workstation. A role's workloads select its capabilities, and a
+placement profile maps those to hosts: one role per host in the full profile, and in the
+minimal profile two roles of one trust class on a host.
 _Avoid_: server type, tier, node pool
 
 **Granularity policy**:

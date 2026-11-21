@@ -14,10 +14,11 @@ input directory. "Sync" of a platform unit means
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R35 in design.md and overrules by id; this change
-      has no open question. He may overrule R34 (dev is delivered by a follow-up change)
-      and R35 (the CI host is one trust zone). Rows marked decided record his answers of
-      2026-11-21. Receipt: the overrules, dated and quoted, in verify.md. Until then only
+- [ ] 0.1 Owner reads assumptions R1 to R35, R45 and R46 in design.md and overrules by id,
+      and answers the one open question, the observability server's starting size, which
+      blocks nothing before A12. He may overrule R34 (dev is delivered by a follow-up
+      change) and R35 (the CI host is one trust zone). Rows marked decided record his
+      answers of 2026-11-21 and 2026-11-22. Receipt: the overrules, dated and quoted, in verify.md. Until then only
       slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and
       follows them.
 - [ ] 0.2 File the two decision records from design.md as ADRs under the next free numbers
@@ -76,10 +77,12 @@ input directory. "Sync" of a platform unit means
       refused; a platform cluster whose floor names it with no such node is refused. Fault to
       inject: add each to `purposeCapabilities.workers` and watch its workers negative pass
       wrongly.
-- [ ] 1.2 Role rules and the platform taint. In the production placement check: the
+- [ ] 1.2 Trust-class rules and the platform taint. In the production placement check: the
       `control-plane` node of a platform cluster that requires `platform-services` carries it
-      and none of `product`, `nonproduction` and `ingress`; no node carries both `product`
-      and `nonproduction` (design decision 1); no host in `gate_hosts` is in a k3s group of the same
+      and none of `product`, `nonproduction`, `ingress` and `observability`; no node carries
+      both `product` and `nonproduction`; a node may carry `nonproduction` and `ingress`
+      beside `observability`, which is the minimal profile's one co-location in this change
+      (design decisions 1 and 11); no host in `gate_hosts` is in a k3s group of the same
       inventory. In the `k3s_server` template: a server with `platform-services` writes
       the taint `CriticalAddonsOnly=true:NoSchedule` (R25). In `validate-enrollment.yml`: the
       CoreDNS step appends the enrollment toleration when it is absent (a JSON patch that adds
@@ -89,7 +92,10 @@ input directory. "Sync" of a platform unit means
       registered with both taints brings CoreDNS to Ready, `validate-enrollment.yml` passes,
       and CoreDNS, the metrics server and the volume provisioner are Ready afterwards.
       Negatives, each with its own fault: a server with `product` is refused (fault: drop the
-      capability comparison); a node with `product` and `nonproduction` is refused (fault: check
+      capability comparison); a server with `observability` is refused (fault: compare
+      against the earlier three-name list); a node with `observability`, `nonproduction` and
+      `ingress` is accepted (fault: refuse any node with two roles' capabilities and watch
+      the minimal fleet fail); a node with `product` and `nonproduction` is refused (fault: check
       the server only); a gate host under `k3s_agents` is refused (fault: skip the gate-host
       comparison); a `platform-services` server whose rendered config lacks the
       taint fails the role test (fault: remove the template branch); a play whose CoreDNS
@@ -98,7 +104,8 @@ input directory. "Sync" of a platform unit means
       cannot pass on one node with both taints. Then the cause is reported and the owner
       decides; R25's alternative (selectors and rule 2.4(f) alone) is not applied silently.
 - [ ] 1.3 Repeats once per server, after A1, A9, A12 and A16 and before the step that enrolls
-      the host. The first revision follows the A1 that creates the server that stays: a
+      the host, and once more before A17, to give h7obs the capabilities `nonproduction` and
+      `ingress` and raise those two floors (minimal profile, after A14's placement decision). The first revision follows the A1 that creates the server that stays: a
       server used for the rehearsal of 2.7 is never recorded. Each revision records the
       node's machine id and private address where the fleet model already records them for
       the two existing nodes (`desired.yaml`, the inventory) (R5); a public address or a
@@ -114,7 +121,9 @@ input directory. "Sync" of a platform unit means
       compare node names only and watch the machine-id negative pass wrongly.
 - [ ] 1.4 Reservations and coexistence record for a node without Docker services or a
       migration overlap: a record for `h7obs` under `infra/argocd/units/observability`, the
-      reservations in the new inventory, and MLflow's limit (R15). Test: the observability
+      reservations in the new inventory, MLflow's limit (R15), and, as application
+      requests, the non-production rows of design decision 2 that the minimal profile puts
+      on that node, the solver's cap included. Test: the observability
       budget test reads the new record. Negative: a reservation in the inventory that differs
       from the record fails. Fault to inject: read the old record for the new node and watch
       the negative pass wrongly.
@@ -124,6 +133,23 @@ input directory. "Sync" of a platform unit means
       the new pair. Negative: a peer absent from the named cluster's inventory is refused for
       each cluster. Fault to inject: restore one literal and watch the new cluster's negative
       pass wrongly.
+
+- [ ] 1.7 A registered node's capability labels follow the inventory (design decisions 1
+      and 11). k3s applies a node's configured labels when it registers, so a capability
+      added or taken later is not applied by `join.yml`. Add a play,
+      `playbooks/capabilities.yml`, limited to one node: it reads the node's
+      `puni.dev/capability-*` labels from the server, adds the ones the inventory names and
+      removes the ones it does not, and touches no other label. It refuses to remove a
+      capability while a pod that selects it is scheduled on the node, and it refuses a
+      result the placement check of 1.2 would refuse. Test: the play's contract test; in
+      the rehearsal of 2.7 a joined agent gains `nonproduction` and `ingress` and a pod
+      that selects `nonproduction` is then scheduled there. Negatives, each with its own
+      fault: removing a capability with a selecting pod still on the node is refused
+      (fault: drop the pod query); a label outside `puni.dev/capability-` set by hand is
+      left alone (fault: reconcile every label); a server that would gain `product` is
+      refused (fault: skip the placement check). Stop: k3s reverts a label the play set
+      when the agent restarts. Then the agent's configuration is rewritten in the same play
+      and the restart is part of the test.
 
 ## 2. Argo CD delivery (agent slices)
 
@@ -328,7 +354,10 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       disabled; a Certificate that cannot be issued keeping its unit from Healthy; the
       `otlp-ingress` NetworkPolicy selecting the collector's pods; the rest of the
       `ignoreDifferences` list.
-      **2.7/A18**, before A17's sync of slice 2.10 and A18: Traefik's CRDs present; with
+      **2.7/A18**, before A17's sync of slice 2.10 and A18: with slice 1.7, a joined agent
+      given `nonproduction` and `ingress` by the capability play, a pod that selects
+      `nonproduction` scheduled there afterwards, and the labels still present after the
+      agent restarts; Traefik's CRDs present; with
       slice 2.10 and fixtures, a pod in a staging namespace that selects `product` denied,
       an IngressRoute there that names a production host denied, and an object of a kind
       outside the staging project's whitelist refused at sync; with the real staging
@@ -389,7 +418,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       wildcard or a host pattern; the lists as one ConfigMap in a platform namespace,
       which the policy's binding names as its parameter; a ResourceQuota and a
       default-deny NetworkPolicy in every non-production namespace, the three dev ones
-      included; in every app namespace an allow, by `ipBlock`, for Traefik, which runs on
+      included, the quotas summing to no more than the non-production rows of design
+      decision 2; a PriorityClass for the observability units that is above the default
+      the non-production namespaces get, because in the minimal profile they share a node; in every app namespace an allow, by `ipBlock`, for Traefik, which runs on
       the host network, to reach pods that carry cert-manager's HTTP-01 solver label, with
       the addresses the k3d case below shows; the `namespaceResourceWhitelist` of the
       `staging` project. Test: the policy suite on disposable k3d and the `delivery`
@@ -647,7 +678,7 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
 ### Stage 2: continuous integration
 
 - [ ] A9 Create the CI host and apply the gate-host role, after its 1.3 revision. Who: owner
-      creates as in A1 with 16 vCPUs and 32 GiB (R2); operator applies. Commands:
+      creates as in A1 with 8 vCPUs and 16 GiB (R2); operator applies. Commands:
       `$OPS/gate.json` with the callers' keys and `puni_gate_host_pool_enroll: false`;
       `fleet_ansible --limit h8ci --extra-vars @"$OPS/gate.json" playbooks/gate-host.yml`
       twice; a second-session login as `puni1` with each key after the first run;
@@ -657,8 +688,8 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       [enroll a host in the host pool](../../../docs/infra/gate-hosts.md#enroll-a-host-in-the-host-pool).
       Receipt: the pool lists the host in observe mode with its budget and headroom;
       `bin/h2puni-gate.sh <sha>` from its launcher exits 0 and prints the SHA; three
-      calibration durations; the pool owner's decision on two gates at once or more tasks
-      per gate. Stop: a gate fails for a reason the old hosts do not show on the same SHA.
+      calibration durations; the pool's budget and headroom on this size, at which one
+      gate runs at a time. Stop: a gate fails for a reason the old hosts do not show on the same SHA.
       Rollback: keep gating on the old hosts; they are untouched until stage 5.
 - [ ] A11 Release builds on the CI host. Who: the session that owns the release bootstrap,
       by its own procedure. Receipt: one release record that names h8ci. Stop: a build fails
@@ -668,8 +699,11 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
 
 ### Stage 3: observability
 
-- [ ] A12 Create the observability server. Who: owner, as A1, with a root disk of at least
-      180 GiB (R2). Receipt: as A1. Stop: `df -h /` shows less. Rollback: delete the server.
+- [ ] A12 Create the observability server. Who: owner, as A1, at the size he answered in
+      task 0.1, with a root disk of at least 225 GiB and a public IPv4 address for ports 80
+      and 443, because it carries the non-production environments in the minimal profile
+      (R2). Receipt: as A1. Stop: `df -h /` shows less, or the host has no public IPv4
+      address. Rollback: delete the server.
 - [ ] A13 Join it, after its 1.3 revision, 1.4, 1.5, 2.8 and the receipt 2.7/A14. Who: operator. Commands:
       `fleet_ansible --limit h5plat playbooks/firewall.yml`, so the server admits the new
       address; preflight limited to h7obs; `fleet_ansible --limit h7obs playbooks/join.yml`
@@ -687,7 +721,10 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       orders 8 to 12 Healthy, `mlflow` and `sqlite-custody` excepted, which A15 and A18
       sync; no alert firing other than the test alert; the per-pod memory
       table; disk used and its growth per day; the test alert seen in Alertmanager and in
-      `#puni-alerts-dev`; the owner's decision on the node's size. Stop: a pod is killed for memory, the node's
+      `#puni-alerts-dev`; the placement sum of design decision 2 written out with the measured
+      `O` and the node's allocatable; the owner's decision on the node's size and on where
+      non-production goes: this node as it is, this node rescaled, or a server of its own
+      (design decision 11). Stop: a pod is killed for memory, the node's
       available memory falls under 1,024 MiB, or the disk would fill within 60 days.
       Rollback: nothing depends on the stack yet. Reduce the units to their markers and sync,
       then remove their Application files (design decision 3). Claims stay.
@@ -704,24 +741,31 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
 
 ### Stage 4: apps
 
-- [ ] A16 Create the production apps server and the non-production server (R29). Who:
-      owner, as A1 for each. Receipt: as A1, for each. Stop: as A1, or a host has no public
-      IPv4 address for ports 80 and 443. Rollback: delete the server.
-- [ ] A17 Join both, after the 1.3 revision of each, slice 2.10 and the receipt 2.7/A18. Who:
-      operator. Commands: `playbooks/firewall.yml` limited to the nodes already joined; then
-      as A13 for h9stg and for h6apps; sync `namespaces` and `policy`, which now carry slice
-      2.10; then `playbooks/solver.yml` limited to each, once slice 3.8 has landed and each
+- [ ] A16 Create the production apps server (minimal profile, R45). Who: owner, as A1,
+      with a root disk of at least 105 GiB (the change `host-postgres` runs a restore drill
+      there). Receipt: as A1. Stop: as A1, or the host has no public IPv4 address for ports
+      80 and 443. Rollback: delete the server. If A14's decision was a non-production server
+      of its own, it is created here too, as the first growth step of design decision 11.
+- [ ] A17 Join h6apps and give h7obs the non-production capabilities, after the 1.3
+      revisions for both, slices 1.7 and 2.10, the receipt 2.7/A18, and A14's placement
+      decision for this node. Who: operator. Commands: `playbooks/firewall.yml` limited to
+      the nodes already joined; then as A13 for h6apps;
+      `fleet_ansible --limit h7obs playbooks/capabilities.yml`, which adds `nonproduction`
+      and `ingress` there; sync `namespaces` and `policy`, which now carry slice 2.10; then `playbooks/solver.yml` limited to each, once slice 3.8 has landed and each
       host's Docker can pull the solver image its inventory names (design decision 9: for a
       Harbor reference, Harbor's CA and a pull robot first);
       then merge the revision that adds the `traefik` Application and sync it. Receipt: h6apps
-      Ready with `product` and `ingress`, h9stg Ready with `nonproduction` and `ingress`, neither
-      with the other's capability; a Traefik pod Ready on each and answering on ports 80 and
+      Ready with `product` and `ingress`, h7obs Ready with `observability`, `nonproduction`
+      and `ingress`, neither with `product` and `nonproduction` together; the observability
+      pods on h7obs untouched by the capability play and by the solver role's Docker
+      install, read as their restart counts before and after; a Traefik pod Ready on each and answering on ports 80 and
       443; one supervisor on each node with one pod caller's rule, the non-production one's
       naming no caller image; a pod applied by hand to a staging namespace with the
-      `product` selector, denied. Stop: Traefik cannot bind 80 or 443, or that pod is
-      admitted. Rollback: reduce
+      `product` selector, denied. Stop: Traefik cannot bind 80 or 443, that pod is
+      admitted, an observability pod restarted, or A14's sum did not hold and the owner has
+      not chosen an exit. Rollback: reduce
       `traefik` to its marker and sync, remove its Application file, then as A13.
-- [ ] A18 Staging, on h9stg (R29, R26), after 3.1, the receipt 2.7/A18 and the fleet
+- [ ] A18 Staging, on the node that carries `nonproduction`, h7obs in the minimal profile (R29, R45, R26), after 3.1, the receipt 2.7/A18 and the fleet
       repository's directory of design decision 9; its WBS part also after 3.5, 3.8, Harbor,
       and A23's receipt or the owner's dated waiver of it: the dev poller is not stopped
       without one of the two, because nothing else would make the tracker follow `main`.
@@ -741,7 +785,7 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       once and which syncs by itself; check the file against the recorded value with
       `sha256sum --check` and restore it into the new claim only if it matches (guard 6);
       merge one replica and the CronJob resumed; point the names the staging overlay declares
-      at h9stg; wait for the certificates from the issuer each overlay names; run the new
+      at that node; wait for the certificates from the issuer each overlay names; run the new
       backup job once. Receipt, per app: the stamp and SHA-256, and the check's "OK"; a
       listing of a production prefix refused with the staging credential; no pod of the app
       and no backup run on the new side before the restore finished; the restored store's
@@ -749,7 +793,8 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       its API, and the WBS owner's word on what `wbs-mcp` held; the pages read back on their
       names with a Ready certificate, which for WBS staging comes from the ACME staging
       issuer its overlay names and is not trusted by a browser; the solver pod of one
-      issuance seen on h9stg; one backup and one verify
+      issuance seen on that node; the node's available memory after the first solve, which
+      must stay above 1,024 MiB; one backup and one verify
       under the staging prefix, taken after the restore and holding a restored record; a
       later merge applied with no command; for WBS, a merge to `main` of the app deployed as
       a second backend digest with no command, no pin moved by hand and no run of

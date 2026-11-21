@@ -1,20 +1,25 @@
 ## ADDED Requirements
 
-### Requirement: One node role per host
+### Requirement: One trust class per host
 
-Every fleet host SHALL hold exactly one node role: platform services, continuous integration,
-observability, production apps or non-production. The roles database, agents and workstation
-are defined by the changes `host-postgres` and `add-agent-hosts`. A host's capabilities MUST
-be those of its role, and no node SHALL carry both `product` and `nonproduction`. No app and
-no database SHALL run on a continuous integration host.
+Every fleet host SHALL hold exactly one trust class, and a node's capabilities MUST be ones
+that class allows. A node MAY carry `nonproduction` and `ingress` beside `observability`.
+No node SHALL carry both `product` and `nonproduction`. No app and no database SHALL run on
+a continuous integration host. The classes of the database, the agents host and the
+workstation are defined by the changes `host-postgres` and `add-agent-hosts`.
 
-#### Scenario: Declared fleet
+#### Scenario: Declared fleet, minimal profile
 
-- **WHEN** the desired state of the rebuilt production cluster is decoded
-- **THEN** the platform node carries `control-plane` and `platform-services`, the observability
-  node carries `observability`, the production apps node carries `product` and `ingress`, the
-  non-production node carries `nonproduction` and `ingress`, and no node carries the
-  capabilities of two roles other than `ingress`
+- **WHEN** the desired state of the rebuilt production cluster is decoded as it is first built
+- **THEN** the platform node carries `control-plane` and `platform-services`, the production
+  apps node carries `product` and `ingress`, the observability node carries `observability`,
+  `nonproduction` and `ingress`, and the placement check passes
+
+#### Scenario: Declared fleet, full profile
+
+- **WHEN** the desired state gives `nonproduction` and `ingress` to a node of their own and
+  the observability node carries `observability` alone
+- **THEN** the placement check passes with no change to any workload
 
 #### Scenario: Production and staging on one node
 
@@ -25,6 +30,35 @@ no database SHALL run on a continuous integration host.
 
 - **WHEN** an inventory lists one host under `gate_hosts` and under a k3s group
 - **THEN** the placement check fails and names the host
+
+### Requirement: Workloads are placed by capability under two profiles
+
+A workload SHALL select a capability and MUST NOT name a server. The mapping from capability
+to server SHALL live in the fleet's desired state and inventory alone, so that moving a
+capability to another node changes no file under `infra/argocd`. The capability labels of a
+node that has already joined SHALL follow its inventory through a play that touches no other
+label and refuses to remove a capability while a pod that selects it runs on the node.
+
+#### Scenario: Workload names a server
+
+- **WHEN** a pod template in the rebuilt cluster's tree selects a node by host name
+- **THEN** the delivery check fails and names the workload
+
+#### Scenario: Capability added to a joined node
+
+- **WHEN** the inventory gives a joined node a capability and the capability play runs
+- **THEN** the node carries the label, and it still does after the agent restarts
+
+#### Scenario: Capability removed under a running pod
+
+- **WHEN** the play would remove a capability while a pod that selects it is on the node
+- **THEN** the play fails, names the pod and removes nothing
+
+#### Scenario: Other labels
+
+- **WHEN** a node carries a label outside `puni.dev/capability-` that the inventory does not
+  name
+- **THEN** the play leaves it
 
 ### Requirement: Platform services and non-production capabilities
 
@@ -44,13 +78,14 @@ platform clusters only.
 ### Requirement: The control plane runs on a tainted platform node
 
 In a platform cluster that requires `platform-services`, the control-plane node SHALL carry
-`platform-services`, MUST NOT carry `product`, `nonproduction` or `ingress`, and SHALL be registered
+`platform-services`, MUST NOT carry `product`, `nonproduction`, `ingress` or `observability`, and SHALL be registered
 with the taint `CriticalAddonsOnly=true:NoSchedule`, which the components k3s packages
 tolerate.
 
 #### Scenario: Server on the production apps node
 
-- **WHEN** the desired state gives the control-plane node the capability `product` or `ingress`
+- **WHEN** the desired state gives the control-plane node the capability `product`,
+  `ingress` or `observability`
 - **THEN** the placement check fails and names the node
 
 #### Scenario: Server without the taint
@@ -72,11 +107,11 @@ tolerate.
 
 ### Requirement: Workloads are pinned to their role and environment
 
-Every pod template that the rebuilt cluster's tree renders SHALL select a node capability,
-except three node agents that run on every node: the node exporter, the OTel collector and the
-Velero node agent. Only workloads that select `platform-services`, and those three agents, MAY
-tolerate the platform taint. A staging workload SHALL select `nonproduction` and a production
-app workload SHALL select `product`, so that the two run on different nodes.
+Every pod template of the rebuilt cluster's tree SHALL select a node capability, except
+three node agents that run on every node. Only workloads that select `platform-services` or,
+as the change `host-postgres` defines it, `database`, and those agents, MAY tolerate the
+platform taint. A staging workload SHALL select `nonproduction` and a production app
+workload `product`, so that the two run on different nodes.
 
 #### Scenario: Workload without a role selector
 
@@ -85,8 +120,8 @@ app workload SHALL select `product`, so that the two run on different nodes.
 
 #### Scenario: Toleration without the selector
 
-- **WHEN** a pod template tolerates `CriticalAddonsOnly` or every taint, does not select
-  `platform-services`, and is not one of the three named node agents
+- **WHEN** a pod template tolerates `CriticalAddonsOnly` or every taint, selects neither
+  `platform-services` nor `database`, and is not one of the three named node agents
 - **THEN** the check fails and names the workload
 
 #### Scenario: Node agent
@@ -103,11 +138,13 @@ app workload SHALL select `product`, so that the two run on different nodes.
 
 #### Scenario: Running placement
 
-- **WHEN** the rebuilt cluster is observed with all four nodes joined
+- **WHEN** the rebuilt cluster is observed with its three nodes joined, in the minimal
+  profile
 - **THEN** every Argo CD, OpenBao and cert-manager pod runs on the platform node, a Traefik pod
-  runs on the production apps node and on the non-production node, every production app pod
-  runs on the production apps node, every staging pod runs on the non-production node, and
-  no app pod runs on the platform or observability node
+  runs on the production apps node and on the node that carries `nonproduction`, every
+  production app pod runs on the production apps node, every staging pod runs on the node
+  that carries `nonproduction`, no app pod runs on the platform node, and no production app
+  pod runs on the observability node
 
 ### Requirement: Inventory and desired state agree for every production cluster
 

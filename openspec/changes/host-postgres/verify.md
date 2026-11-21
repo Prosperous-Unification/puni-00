@@ -40,6 +40,30 @@ except for the ninth review's findings below and for ids:
 The eighth review's findings on this part were fixed in the ninth draft and came across with
 the text: the CRDs protected from prune, the drill on a reclaiming class, the 16 GiB server.
 
+## Minimal placement profile (added 2026-11-22)
+
+At the owner's request for the minimal setup that can grow (core R45), and unreviewed.
+
+| What changed                           | From                          | To                                                                                          |
+| -------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Where `platform-db` runs first         | a database server, `h10db`    | the platform node, which carries `database` (PG8); the server is a growth step (decision 4) |
+| The database taint                     | on every node with `database` | on a node with `database` that is not the server; the pods tolerate both taints             |
+| "A database node carries nothing else" | a rule                        | the server may carry `database`; a database node carries `database` and `restore-drill`     |
+| Where a restore drill runs             | the database node             | the node that carries the new capability `restore-drill`: the production apps node first    |
+| The production claim                   | `puni-retain`, unbounded      | on the server, a bounded filesystem and a static volume (new slice PG-S6)                   |
+| The production instance's limit        | 4,096 MiB                     | 2,048 MiB on the server; 4,096 after the move                                               |
+| PG-A1 and PG-A2                        | steps of the database stage   | growth-step steps; PG-A4 runs on the platform node                                          |
+
+New ids: PG8 and PG-S6. Nothing was renumbered.
+
+Read for it: `infra/ansible/roles/registry_storage` (a preallocated loop filesystem and a
+static `local` PersistentVolume for the registry, which PG-S6 reuses). Not read: whether
+CloudNativePG lets a replica use another storage class than its primary, on which the
+growth step's replica-and-switchover path depends; whether the operator accepts a statically
+provisioned volume for an instance (PG-S6's stop condition); how the kubelet ranks a local
+volume's use for eviction beyond what the Kubernetes documentation says of `emptyDir`,
+logs and writable layers (believed).
+
 ## Not carried over from the brief
 
 Delivery by Flux; the interim scrape into Victoria; the Grafana dashboard, since the
@@ -125,4 +149,5 @@ revision.
 The CloudNativePG and Barman Cloud plugin pages listed above; the `k3s_agent` configuration
 template; the storage classes; the Velero schedules; the Prometheus stack's selectors and
 its Grafana setting; the Argo CD sync-options and Helm guides at tag `v3.6.2`; and the core
-change's design, tasks and spec at the commit this branch is stacked on.
+change's design, tasks and spec in the same pull request; and, for the minimal profile,
+the `registry_storage` role's files and README.

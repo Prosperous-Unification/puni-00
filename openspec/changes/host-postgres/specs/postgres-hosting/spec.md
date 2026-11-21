@@ -1,14 +1,15 @@
 ## ADDED Requirements
 
-### Requirement: Database is a node role of its own
+### Requirement: Database capabilities are placed under the two profiles
 
-The fleet model SHALL define the capability `database` for platform clusters only, and a
-node that carries it SHALL carry no other capability. This is the sixth node role, which
-the `node-roles` capability names.
+The fleet model SHALL define the capabilities `database` and `restore-drill` for platform
+clusters only. A node that carries `database` SHALL be the control-plane node or SHALL carry
+nothing else but `restore-drill`. A node that carries `restore-drill` SHALL carry `product`
+or `database` and no capability of another trust class.
 
-#### Scenario: Workers node carries the capability
+#### Scenario: Workers node carries a capability
 
-- **WHEN** a workers-cluster node declares `database`
+- **WHEN** a workers-cluster node declares `database` or `restore-drill`
 - **THEN** the fleet decoder refuses the fleet
 
 #### Scenario: Floor not met
@@ -16,29 +17,59 @@ the `node-roles` capability names.
 - **WHEN** a platform cluster requires `database` and no present node carries it
 - **THEN** the fleet decoder refuses the fleet
 
-#### Scenario: Declared fleet
+#### Scenario: Declared fleet, minimal profile
 
-- **WHEN** the desired state of the rebuilt production cluster declares a database node
-- **THEN** that node carries `database` alone
+- **WHEN** the desired state gives the control-plane node `database` and the production apps
+  node `restore-drill`
+- **THEN** the placement check passes
 
-### Requirement: PostgreSQL runs on nodes reserved for it
+#### Scenario: Declared fleet, full profile
 
-The production PostgreSQL cluster SHALL run on a node that carries only the capability
-`database` and is registered with the taint `puni.dev/role=database:NoSchedule`, which only
-pods of that cluster's unit and the named node agents MAY tolerate. A non-production cluster MUST run on the
-non-production node, and the operator and its backup plugin on the platform node. Hosting
-PostgreSQL SHALL NOT move any app's data.
+- **WHEN** the desired state declares a database node
+- **THEN** that node carries `database` and `restore-drill` and nothing else
 
-#### Scenario: Database node carries a second capability
+#### Scenario: Database beside apps or monitoring
 
-- **WHEN** the desired state gives a node `database` together with another capability
+- **WHEN** the desired state gives a node `database` together with `product`,
+  `nonproduction`, `ingress` or `observability`
 - **THEN** the placement check fails and names the node
 
-#### Scenario: Database node without the taint
+#### Scenario: Drill beside non-production
+
+- **WHEN** the desired state gives a node `restore-drill` together with `nonproduction`
+- **THEN** the placement check fails and names the node
+
+### Requirement: PostgreSQL runs where its capability is
+
+The production cluster SHALL select `database` and its drill's throwaway cluster
+`restore-drill`. A `database` node that is not the control-plane node SHALL carry the taint
+`puni.dev/role=database:NoSchedule`, which only that cluster's unit and the node agents MAY
+tolerate. On the control-plane node the production claim MUST be on a bounded filesystem.
+A non-production cluster MUST select `nonproduction`. Hosting SHALL NOT move any app's
+data.
+
+#### Scenario: Database agent without the taint
 
 - **WHEN** the agent configuration of a node that carries `database` is rendered without the
   taint
 - **THEN** the role test fails
+
+#### Scenario: Unbounded claim on the server
+
+- **WHEN** the inventory gives the control-plane node `database` and the production cluster's
+  claim names a class other than the bounded one
+- **THEN** the delivery check fails and names the cluster
+
+#### Scenario: Bounded claim fills
+
+- **WHEN** a write to the bounded claim passes its size
+- **THEN** the write fails and the host's free space is unchanged
+
+#### Scenario: Drill beside the control plane
+
+- **WHEN** a drill's throwaway cluster selects `database` while the control-plane node
+  carries it
+- **THEN** the delivery check fails and names the drill
 
 #### Scenario: Cluster on the wrong node
 

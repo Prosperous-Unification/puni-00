@@ -1,5 +1,5 @@
 One agent slice (AH-S1) changes source and runs tests; it touches no host. Attended steps
-(AH-A1 and AH-A2) each name who runs them, the command, the receipt, the stop condition and
+(AH-A1 to AH-A3) each name who runs them, the command, the receipt, the stop condition and
 the rollback. Ids with the prefix AH are this change's and refer to [design.md](design.md);
 every other id is the core change's, [`separate-node-roles`](../separate-node-roles/tasks.md).
 `fleet_ansible` and `$OPS` mean what that change's tasks.md says. Every safety check lands
@@ -8,7 +8,7 @@ with a production-path negative, watched failing with the check removed, and an 
 
 ## 0. Decisions
 
-- [ ] AH-0.1 Owner reads assumptions AH1 and AH2 and the two open questions in design.md and
+- [ ] AH-0.1 Owner reads assumptions AH1 to AH3 and the two open questions in design.md and
       overrules by id. Receipt: the overrules and the answers, dated and quoted, in
       verify.md.
 - [ ] AH-0.2 File the decision record from design.md as an ADR under the next free number,
@@ -49,8 +49,7 @@ with a production-path negative, watched failing with the check removed, and an 
 
 ## 2. Attended steps
 
-Neither is on the path of any stage of the core change, and neither waits for h1claw's
-deletion or holds it up (R30, AH1, AH2), except for OpenClaw's state (open question 1).
+Neither host is on the path of any stage of the core change. AH-A3 retires h1claw (AH3).
 
 - [ ] AH-A1 The agents host (AH1), after slice AH-S1. Who: owner creates, when he chooses, in
       the region of open question 1, with 4 vCPUs and 8 GiB, the admin key and no private
@@ -72,3 +71,12 @@ deletion or holds it up (R30, AH1, AH2), except for OpenClaw's state (open quest
       is authorized there. Rollback: delete the server. Tooling, accounts and `herdr` are
       the owner's. If he moves the controller there (R17), that is recorded in verify.md
       with the date.
+- [ ] AH-A3 Delete h1claw (AH3, core R46). Who: owner. Preconditions: the receipt of the
+      core change's task 0.5, which is recorded; and either the follow-up `host-openclaw`
+      has its receipt that OpenClaw runs on the agents host with the state it needs, or the
+      owner's dated word that the state is not wanted. Command: delete the server in the
+      console. Receipt: the provider's server list without it; which of the two
+      preconditions held, dated. Stop: a store on an old host still has h1claw's pull as
+      its only off-host backup and the owner has not accepted that window; he has, on
+      2026-11-21 (R30), so this stop applies only if he withdraws it. Rollback: none; that
+      is why the preconditions are receipts. He may delete it before this step (R30).

@@ -1,4 +1,4 @@
-Agent slices (PG-S1 to PG-S5) change source and run tests; none touches a host. Attended steps
+Agent slices (PG-S1 to PG-S6) change source and run tests; none touches a host. Attended steps
 (PG-A1 to PG-A5) each name who runs them, the command, the receipt, the stop condition and the
 rollback. Ids with the prefix PG are this change's and refer to [design.md](design.md); every
 other id is the core change's, [`separate-node-roles`](../separate-node-roles/tasks.md), and
@@ -9,9 +9,10 @@ comment. Nothing here has been done yet.
 
 ## 0. Decisions
 
-- [ ] PG-0.1 Owner reads assumptions PG1 to PG7 and the two open questions in design.md and
+- [ ] PG-0.1 Owner reads assumptions PG1 to PG8 and the two open questions in design.md and
       overrules by id. He may overrule PG3 to PG6 (the shape of the PostgreSQL service and
-      its recovery targets); PG7, Harbor's database, is open question 2. Receipt: the
+      its recovery targets) and the working-out of PG8; PG7, Harbor's database, is open
+      question 2. Receipt: the
       overrules, dated and quoted, in verify.md. No slice starts before the core change's
       task 0.1 has its receipt.
 - [ ] PG-0.2 File the decision record from design.md as an ADR under the next free number,
@@ -24,20 +25,29 @@ comment. Nothing here has been done yet.
 
 ## 1. PostgreSQL hosting (agent slices)
 
-All five are due before the database stage and block nothing in the core change (design
-decision 4, PG1 to PG7). They follow the core change's slices 1.1, 2.1 to 2.5, 2.10 and 3.1,
+All six are due before the database stage and block nothing in the core change (design
+decision 4, PG1 to PG8). They follow the core change's slices 1.1, 1.7, 2.1 to 2.5, 2.10 and 3.1,
 which they extend.
 
-- [ ] PG-S1 The database role. Add the capability `database` to `CapabilitySchema`,
-      `fleetCapabilities`, `purposeCapabilities.platform` and `RequiredCapabilitiesSchema`. In
-      the production placement check: a node that carries `database` carries nothing else. In
-      the `k3s_agent` template: a node with `database` also writes the taint
-      `puni.dev/role=database:NoSchedule` (PG2). The inventory revision for `h10db` follows
-      PG-A1, as slice 1.3 does for every server, with the reservations of design decision 2 and
-      the floor `database: 1`. Test: `contracts.test.ts`; the template renders both taints.
+- [ ] PG-S1 The database capabilities. Add `database` and `restore-drill` to
+      `CapabilitySchema`, `fleetCapabilities`, `purposeCapabilities.platform` and
+      `RequiredCapabilitiesSchema`. In the production placement check: a node that carries
+      `database` is the control-plane node, or carries nothing else but `restore-drill`;
+      a node that carries `restore-drill` carries `product` (with `ingress`) or `database`
+      and nothing else (design decision 1). In the `k3s_agent` template: an agent with
+      `database` also writes the taint `puni.dev/role=database:NoSchedule` (PG2); the server
+      template writes no second taint. The inventory revision that gives h5plat `database`
+      and h6apps `restore-drill` precedes PG-A4 and is applied by the core's capability
+      play (slice 1.7); the one for `h10db` follows PG-A1, as slice 1.3 does for every
+      server, with the reservations of design decision 2. Each raises its floor. Test:
+      `contracts.test.ts`; the agent template renders both taints; the minimal fleet and
+      the full fleet both pass the placement check.
       Negatives, each with its own fault: a workers node carrying `database` is refused
       (fault: add it to `purposeCapabilities.workers`); a node with `database` and `product`,
-      or `database` and `ingress`, is refused (fault: compare against `product` only); a
+      or `database` and `ingress`, or `database` and `observability`, is refused (fault:
+      compare against `product` only); a node with `restore-drill` and `nonproduction` is
+      refused (fault: allow the capability on any agent); a server with `database` and
+      `platform-services` is accepted (fault: keep the earlier "nothing else" rule); a
       `database` agent whose rendered config lacks the taint fails the role test (fault:
       remove the template branch); an agent without `database` renders no such taint (fault:
       write it for every agent).
@@ -144,21 +154,40 @@ which they extend.
       CronJob, or with it not suspended, fails rule (o) (fault: require the drill of
       `platform-db` only).
 
+- [ ] PG-S6 A bounded claim for a database on the server (design decision 2, PG8). Extend
+      the `registry_storage` role, or add a role beside it that shares its code, so that a
+      node that carries both `control-plane` and `database` gets one preallocated
+      filesystem of 30 GiB, mounted under the role's directory, and a static `local`
+      PersistentVolume on it with a class of its own that no provisioner serves. The
+      `platform-db` unit names that class when the inventory says the server carries
+      `database`, and `puni-retain` otherwise; which one is a value of the unit's overlay,
+      checked by rule (o) against the inventory. Test: the role's contract test; on the
+      disposable lab a claim of that class binds to the volume and a write past its size
+      fails with no change in the host's free space. Negatives, each with its own fault:
+      a `platform-db` on `puni-retain` while the server carries `database` fails the
+      `delivery` check (fault: read the unit without the inventory); the volume's path
+      outside the bounded mount fails the role's verification (fault: skip the mount
+      comparison). Stop: the provisioner or the operator cannot use a static volume for an
+      instance. Then `platform-db` does not start on the server and the database server
+      is created first.
+
 ## 2. Attended steps
 
 ### The database stage
 
-Not on the path of the core change's stages 1 to 5. PG-A3 needs no database server, only the
-non-production node (A17); PG-A1, PG-A2, PG-A4 and PG-A5 start when the owner creates the
-server (PG2).
+Not on the path of the core change's stages 1 to 5. In the minimal profile no server is
+created for it: PG-A3 needs a node that carries `nonproduction` (A17), and PG-A4 and PG-A5
+start when the owner says so (PG8). PG-A1 and PG-A2 are the growth step to a database
+server (design decision 4) and are not run before its trigger.
 
-- [ ] PG-A1 Create the database server. Who: owner, when he chooses (open question 1), as A1,
+- [ ] PG-A1 Growth step only. Create the database server. Who: owner, at the trigger of design decision 4, as A1,
       with 8 vCPUs, 16 GiB and a root disk of at least 140 GiB (PG2). Receipt:
       as A1. Stop: `df -h /` shows less, or as A1. Rollback: delete the server.
-- [ ] PG-A2 Join it, after its 1.3 revision and slice PG-S1. Who: operator. Commands: as A13 for
+- [ ] PG-A2 Growth step only. Join it, after its 1.3 revision and slice PG-S1, then move
+      the instance as design decision 4 states. Who: operator. Commands: as A13 for
       `h10db`, with `playbooks/firewall.yml` limited to the nodes already joined first.
-      Receipt: `h10db` Ready with `puni.dev/capability-database=true` and no other
-      capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
+      Receipt: `h10db` Ready with `puni.dev/capability-database=true` and
+      `puni.dev/capability-restore-drill=true` and no other capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
       only pods on it are the three node agents. Stop: validation fails, or another pod is
       scheduled there. Rollback: as A13.
 - [ ] PG-A3 The operator, the plugin and the non-production cluster, after A17, stage 3's
@@ -174,7 +203,8 @@ server (PG2).
       hand for long enough to see the WAL rule fire, follow the runbook's response to
       that alert, then sync the unit, which restores the policy. After 24 hours read each container's working set
       and `memory.stat`. Receipt: the three units Synced and Healthy; the operator and
-      plugin pods on h5plat; the instance on h9stg with its claim bound on `puni-retain`,
+      plugin pods on h5plat; the instance on the node that carries `nonproduction`, h7obs in
+      the minimal profile, with its claim bound on `puni-retain`,
       and its job pods admitted there; both canary databases present and the role of one
       refused on the other; a first recoverability point and a completed base backup read
       from the plugin's metrics; one dump object per database; the drill's sanity result,
@@ -188,18 +218,24 @@ server (PG2).
       sync, then remove their Application files; the `Cluster` and its claim carry
       `Prune=false` and are removed by hand, the canary data being disposable. The
       operator's CRDs stay until no object of their kinds is left (core decision 3).
-- [ ] PG-A4 The production cluster, after PG-A2 and PG-A3's receipt and slice PG-S5. Who: operator;
-      owner for the values. Commands: the owner writes the production database bucket's key
+- [ ] PG-A4 The production cluster, on the platform node in the minimal profile (PG8),
+      when the owner says so, after A17, PG-A3's receipt and slices PG-S5 and PG-S6. Who:
+      operator; owner for the values. Commands: merge the inventory revision of PG-S1 and
+      run `playbooks/capabilities.yml` limited to h5plat and to h6apps; apply the storage
+      role of PG-S6 limited to h5plat; the owner writes the production database bucket's key
       and the canary passwords; merge the `platform-db` Application; sync `secret-sync` and
       `platform-db`; create one on-demand `Backup`; run the dump job once; apply by hand a
       pod in `postgres` with the `product` selector. After 24 hours read memory as in PG-A3
-      and `kubectl top node h10db`. Receipt: the unit Synced and Healthy; the instance and
-      its sidecar on `h10db` and nothing else there but the node agents; a first
+      and `kubectl top node h5plat`. Receipt: h5plat carries `database` and h6apps
+      `restore-drill`; the bounded filesystem mounted and the instance's claim bound to
+      its volume; the unit Synced and Healthy; the instance and its sidecar on h5plat; the
+      platform pods there with unchanged restart counts; a first
       recoverability point, a completed base backup and one dump object per database; the
       hand-applied pod denied; every PostgreSQL rule loaded and none firing; the memory
-      table against design decision 2 and the owner's decision on the server's size. Stop:
-      the instance is killed for memory, the node's available memory falls under 1,024 MiB, or
-      WAL is not archived. Rollback: as PG-A3; no app has data there.
+      table against design decision 2. Stop: the instance is killed for memory, the node's
+      available memory falls under 1,024 MiB, a platform pod restarts, the claim is not on
+      the bounded filesystem, or WAL is not archived. A memory stop is the trigger of the
+      growth step, not a reason to raise the limit on this node. Rollback: as PG-A3; no app has data there.
 - [ ] PG-A5 Prove the restore, after PG-A4. Who: operator. Commands: write a first marker row
       into `canary-a` and note the time; write a second; run the drill job once by hand;
       then follow `docs/infra/postgres-recovery.md`: restore `platform-db` beside the live
@@ -207,8 +243,10 @@ server (PG2).
       the drill's duration and its sanity result; in the live `canary-a` after the copy, the
       first marker present and the second absent, and `canary-b` unchanged; the time from
       the start of the restore to the copy's end, which replaces PG6's two hours in
-      design.md by a commit; the drill's series present and its alert quiet; no throwaway
-      cluster, claim, Released volume or directory left, the disk back to its reading
+      design.md by a commit; the drill's series present and its alert quiet; the drill's
+      throwaway instance seen on the node that carries `restore-drill`, h6apps in the
+      minimal profile, and no pod of it on h5plat; no throwaway
+      cluster, claim, Released volume or directory left, that node's disk back to its reading
       before, and its highest reading during the drill, which stayed under 80%. Stop: a restore fails, the copy changes `canary-b`, the disk does not
       return, or the 80% alert fired during the drill. Then no port may write production data to
       `platform-db`, and the owners of the port changes are told. Rollback: delete the

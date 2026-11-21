@@ -1,8 +1,11 @@
 ## Context
 
-This change is the third of three that together are the new setup plan. It is stacked on
-[`separate-node-roles`](../separate-node-roles/design.md), which rebuilds the cluster, and
-beside the change `host-postgres`. Its content was in that change's ninth draft and was
+This change is the third of three that together are the new setup plan, in one pull
+request with [`separate-node-roles`](../separate-node-roles/design.md), which rebuilds the
+cluster, and the change `host-postgres`. Both hosts are in the minimal placement profile
+and in the full one unchanged (core R45): the owner, offered one host for both on
+2026-11-22, answered "two hosts", and then that every server is new and every old one is
+retired (core R46), which makes h1claw's retirement a step of this change (AH3). Its content was in that change's ninth draft and was
 moved out on 2026-11-22, after a ninth review recommended the split; text was moved, not
 rewritten, except where the review, the split or a later decision of the owner required it
 ([verify.md](verify.md#where-this-came-from)).
@@ -10,7 +13,7 @@ rewritten, except where the review, the split or a later decision of the owner r
 Read at `origin/main` `b17861f83` on 2026-11-21 and 2026-11-22. What exists today:
 
 - h1claw runs OpenClaw's gateway and its agent sessions as user-level systemd units,
-  outside any cluster, with Tailscale for private access. The owner will delete it (R30).
+  outside any cluster, with Tailscale for private access. It is retired (R46, AH3).
 - The owner's interactive agent sessions run on his laptop.
 - The only hosts outside the cluster that the repository knows are gate hosts:
   `playbooks/gate-host.yml` applies the `gate_host` role to the group `gate_hosts`.
@@ -20,10 +23,10 @@ Read at `origin/main` `b17861f83` on 2026-11-21 and 2026-11-22. What exists toda
   the node's capabilities. Its key list, and the gate role's, are operator inputs in `$OPS`,
   not inventory.
 
-**Ids.** This change's own carry the prefix AH: assumptions AH1 and AH2, slice AH-S1,
-attended steps AH-A1 and AH-A2, and decisions 1 to 4 of this file. Every other id is the
-core change's, [`separate-node-roles`](../separate-node-roles/design.md): R1 to R35, A1 to
-A23, its slices and guards, and what is written "core decision n".
+**Ids.** This change's own carry the prefix AH: assumptions AH1 to AH3, slice AH-S1,
+attended steps AH-A1 to AH-A3, and decisions 1 to 4 of this file. Every other id is the
+core change's, [`separate-node-roles`](../separate-node-roles/design.md): R1 to R35, R45,
+R46, A1 to A23, its slices and guards, and what is written "core decision n".
 
 ## Goals / Non-Goals
 
@@ -38,7 +41,7 @@ A23, its slices and guards, and what is written "core decision n".
 
 - Installing or migrating OpenClaw, and setting up the workstation's tooling and accounts
   (decision 4).
-- Any duty of h1claw (R30).
+- Any duty of h1claw (R30): its backup pull and alert relay end with it.
 - Anything of the cluster rebuild. Neither host is on the path of a stage.
 
 ## Assumptions
@@ -50,6 +53,7 @@ overruled by id.
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | AH1 | **Decided.** The owner on 2026-11-22: "let's also add a host for openclaw to this mix". A seventh node role, `agents`: one server, proposed name `h11claw`, outside the k3s cluster and outside the gate pool, prepared by the play of slice AH-S1. Assumed: 4 vCPUs and 8 GiB with the disk its type includes, and no interface on the cluster's private network (decisions 1 and 2). This change provisions and contains the host. Installing OpenClaw and moving its state is a follow-up, proposed name `host-openclaw`: its code and units live in a private repository and are not designed here. The host does not take over h1claw's backup pull or its alert relay; those duties end with h1claw, because backups run in the cluster (R13) and alerts go to Slack | OpenClaw on the CI host. Cost: unattended agent sessions with credentials of their own beside builds whose images production later runs. 16 GiB from the start. Cost: paid before more sessions than today's are measured |
 | AH2 | **Decided.** The owner on 2026-11-22: "and a sep host for logged in agent's accounts that i'll access through herdr". An eighth node role, `workstation`: one server, proposed name `h12work`, outside the k3s cluster and outside the gate pool, prepared by the play of slice AH-S1. It is a remote operator workstation: interactive coding-agent sessions logged in to the owner's own accounts run there, and he reaches it from his laptop with `herdr` over SSH. **Decided** the same day: he chose the small size, 4 vCPUs and 8 GiB with the disk its type includes (decision 2). Installing the agent tooling, logging accounts in and setting `herdr` up are the owner's and are not designed here                                                              | The sessions on the agents host of AH1. Cost: the owner's logged-in accounts and keys beside unattended agents                                                                                                            |
+| AH3 | **Decided.** The owner on 2026-11-22: "i want all new infra, all old nodes can be retired" (core R46). h1claw is retired by this change, in AH-A3, when OpenClaw's state has moved or he has said it is not wanted. He may still delete it earlier (R30)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Keep h1claw as the OpenClaw host, which the planning session had offered. Cost: none in work; he chose new servers                                                                                                        |
 
 ## Decisions
 
@@ -127,8 +131,14 @@ Slice AH-S1 adds one play, `playbooks/base-host.yml`, for two new inventory grou
   in `desired.yaml` or among the enrolled private addresses.
 
 Neither host is in a stage. The owner creates each when he wants (AH-A1, AH-A2); nothing in
-the core change waits for either, and h1claw may be deleted before or after (R30), with one
-exception that is his to settle first: OpenClaw's state (open question 1).
+the core change waits for either.
+
+**Retiring h1claw** (AH3, AH-A3). The plan retires every old server (R46). h1claw is deleted
+by AH-A3 once OpenClaw's follow-up has moved its state to the agents host, or the owner has
+said the state is not wanted. Two earlier words of his stand beside that and are not
+withdrawn: he may delete h1claw at any time before that step, and the backup windows that
+follow are accepted (R30, core decision 7). The escrow that had to precede its deletion was
+taken and checked on 2026-11-21 (the core change's verify.md).
 
 ### 4. Follow-ups
 
