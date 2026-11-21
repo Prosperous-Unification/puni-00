@@ -45,7 +45,7 @@ const policy = {
 type Child = Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
 
 async function withExchange(
-  script: string,
+  script: string | undefined,
   use: (source: RegistryPressureSource, spawned: Promise<Child>) => Promise<void>,
   decorate: (child: Child) => void = () => undefined,
   mode = 0o400,
@@ -155,6 +155,7 @@ async function withExchange(
       'registry-pressure-status-v1',
     ]);
     expect(options).toEqual(policy);
+    if (script === undefined) throw new Error('unexpected fixture spawn');
     const child = launch([process.execPath, '-e', script], policy);
     children.push({ child, exited: child.exited });
     decorate(child);
@@ -164,7 +165,7 @@ async function withExchange(
   try {
     const source = await openRegistryPressureSource(enrollment, directory);
     await use(source, launched.promise);
-    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledTimes(script === undefined ? 0 : 1);
   } finally {
     spawn.mockRestore();
     for (const { child, exited } of children) {
@@ -928,3 +929,58 @@ test('preserves primary timeout when the caller aborts during pipe cancellation'
     },
   );
 });
+
+for (const handoff of ['pre-spawn', 'delivery'] as const) {
+  const orders = ['abort-first', 'deadline-first', 'no-abort'];
+  if (handoff === 'delivery') orders.push('abort-in-reserve');
+  for (const order of orders) {
+    test(handoff + ' preserves ' + order + ' across a stalled handoff', () =>
+      withExchange(
+        handoff === 'pre-spawn' ? undefined : "await Bun.write(Bun.stdout, 'complete fixture');",
+        async (source, spawned) => {
+          const caller = new AbortController();
+          const deadline = performance.now() + 1350;
+          const boundary = handoff === 'pre-spawn' ? deadline - 1000 : deadline;
+          const remove = caller.signal.removeEventListener.bind(caller.signal);
+          let disposals = 0;
+          let entered = false;
+          const spy = spyOn(caller.signal, 'removeEventListener').mockImplementation(
+            (...args: Parameters<typeof remove>) => {
+              remove(...args);
+              if (++disposals !== (handoff === 'pre-spawn' ? 1 : 2)) return;
+              entered = performance.now() < deadline - 1000;
+              if (order === 'abort-in-reserve')
+                Bun.sleepSync(Math.ceil(deadline - 1000 - performance.now()) + 20);
+              if (order === 'abort-first' || order === 'abort-in-reserve')
+                caller.abort('private handoff reason');
+              Bun.sleepSync(Math.max(0, Math.ceil(boundary - performance.now()) + 20));
+              if (order === 'deadline-first') caller.abort('private handoff reason');
+            },
+          );
+          try {
+            const reply = await source
+              .read(caller.signal, deadline)
+              .catch((cause: unknown) => cause);
+            expect(entered).toBe(true);
+            expect(performance.now()).toBeGreaterThanOrEqual(boundary);
+            if (handoff === 'pre-spawn') {
+              expect(performance.now()).toBeLessThan(deadline);
+            } else {
+              expect(await (await spawned).exited).toBe(0);
+            }
+            if (order === 'abort-first' || order === 'abort-in-reserve') {
+              expect(reply).toBeInstanceOf(DOMException);
+              expect(reply).toHaveProperty('name', 'AbortError');
+              expect(reply).toHaveProperty('message', 'registry status read cancelled');
+            } else {
+              expect(reply).toEqual(timeout);
+            }
+          } finally {
+            spy.mockRestore();
+            await source.close();
+          }
+        },
+      ),
+    );
+  }
+}

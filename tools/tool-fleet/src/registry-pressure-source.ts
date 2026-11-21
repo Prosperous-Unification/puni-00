@@ -341,14 +341,26 @@ export async function openRegistryPressureSource(
 
       phase = 'busy';
       try {
-        await preflight(signal, deadline);
-        const exchange = await readRegistryStatusProcess(argv, signal, deadline);
+        let abortedAt = Infinity;
+        let exchange: Awaited<ReturnType<typeof readRegistryStatusProcess>>;
+        {
+          // Proof: Suppressing the read-wide timestamp lost the abort during preflight disposal.
+          using _readSubscription = addAbortListener(AbortSignal.any([signal]), () => {
+            abortedAt = performance.now();
+          });
+          await preflight(signal, deadline);
+          exchange = await readRegistryStatusProcess(argv, signal, deadline, () => abortedAt);
+        }
         if (exchange.state === 'cleanup-failed') {
           latchFault(exchange.settled);
           throw new RegistrySourceCleanupError(exchange.outcome);
         }
         // Proof: Dropping this check broke the modeled pause between cleanup and public receipt.
-        if (exchange.state === 'received' && performance.now() >= deadline) return statusTimeout;
+        if (exchange.state === 'received' && performance.now() >= deadline) {
+          // Proof: Ignoring the timestamp lost early abort. Accepting late abort or using acquisition cutoff broke the reverse order or reserve case.
+          if (abortedAt < deadline) throw registryStatusCancelled();
+          return statusTimeout;
+        }
         // Proof: Dropping any natural case bypassed cancellation at delivery. Checking every outcome replaced primary caps and timeout with cancellation.
         if (
           exchange.state === 'received' ||

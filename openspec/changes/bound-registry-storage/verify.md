@@ -10727,3 +10727,81 @@ for the verifier and
 for its admission tests. The earlier unfiltered suite receipt continues
 to apply only to its stated commit. Final clean owning tests and whole-client
 cancellation correction remain pending. Task5.1c remains open.
+
+### Final whole-client review correction
+
+The public reader now records caller cancellation across listener handoffs. At
+pre-spawn it compares cancellation with the acquisition cutoff. For a settled
+exit-zero candidate delivered after the deadline it compares cancellation with
+the original receipt deadline. The earlier abort returns the controlled
+AbortError, including during the cleanup reserve after natural completion.
+A primary cap, an acquisition timeout and a cleanup error retain their
+existing precedence.
+
+Native fixture setup selects its exact random pathname before exclusive mkdir.
+A two-second setup timeout keeps ownership of the outstanding acknowledgement
+for a bounded 500 ms wait. Late confirmed creation goes through identity
+verification and empty-only removal. A still-unconfirmed allocation reports
+its exact pathname for reconciliation. A definitive collision preserves the
+existing path. The verifier reports an expired rmdir observation as unconfirmed
+even when the parent is already empty. These are pre-credential fixture checks.
+
+```sh
+export PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false
+bun test tools/tool-fleet/src/registry-pressure-source{,-process,-native}.test.ts -t 'across a stalled handoff|owns a late fixture allocation|reports unconfirmed removal|otherwise exact output|shorter than its admitted length|allocation collision'
+bun test tools/tool-fleet/src/registry-pressure-source{,-contract,-process,-native}.test.ts
+bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+bunx nx run tool-fleet:lint --skip-nx-cache
+bunx nx run tool-fleet:typecheck --skip-nx-cache
+bunx nx run tool-fleet:build --skip-nx-cache
+bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+bun node_modules/.bin/openspec validate --all --json
+```
+
+The baseline at `302a2a604ec8dfcaeb9837a4bd9b2d5a10de6a6e` passed seven
+selected tests and failed five. The failures exposed both abort-first handoffs,
+the physically retained late allocation, the false retained-path diagnostic and
+the missing exact-path collision control. Final covering tests passed 297 with
+860 Bun assertions, zero failures and no skips across four files.
+
+| Production fault                                                                                                              | Observed negative                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Discard the read-wide abort time or skip the pre-spawn comparison                                                             | Abort before cutoff became deadline during stalled preflight disposal, with zero spawns. Accepting every abort misclassified the reverse order.                                            |
+| Ignore early abort, accept late abort, apply acquisition cutoff to a completed candidate, or drop the final receipt deadline  | The matching public test lost cancellation, replaced timeout, lost reserve cancellation, or published late bytes.                                                                          |
+| Remove version probe success, empty stdout or bounded-read length equality independently                                      | Each corresponding isolated native admission test failed on its missing rejection. Other version fields stayed exact. The modeled descriptor advertised one extra byte.                    |
+| Allow recursive creation or reclassify immediate EEXIST                                                                       | The collision test accepted a preexisting empty path or lost its original error.                                                                                                           |
+| Remove the setup limit, skip its second acknowledgement, or wait forever                                                      | Late creation was misclassified as late identity. Skipping acknowledgement removed a physically present unconfirmed directory. Unbounded waiting failed the test watchdog at five seconds. |
+| Omit the exact unconfirmed path or label a definitive late rejection unconfirmed                                              | The outer rehearsal's error disagreed with the observed directory and allocation state.                                                                                                    |
+| Extend initial identity time, deny cleanup time after late acknowledgement, or admit a private path despite its setup timeout | The slow-identity test admitted an overdue fixture, the late allocation was retained, or the harness attempted key generation after timeout.                                               |
+| Report all failed removals as retained                                                                                        | A real empty-only removal followed by delayed acknowledgement left an empty parent with a false diagnostic.                                                                                |
+
+All 21 selected mutants failed separately. The same 21 tests passed after
+byte-exact restoration. Restored pre-comment SHA-256 values were actor
+`a34f288dbfa6178253320b41ec704f9f361d7f43c137111509ef9ee59e306219`,
+process `7e3a66c2c9c921a738c145e9347232bcf113fb0159744628e80c04b5343ddc82`
+and verifier `3c039c5ca1b6fb25f436a8df6875f49e9172012b3c13d80da497fa86a2fc1b25`.
+The final two version-probe controls passed again after independent mutation
+and restoration following a test-only lint correction.
+
+The pinned OpenSSH binary matched SHA-256
+`95b291d957f87dd200796c4986c97b6f4d970e26ad620ec9174e69c13ec5c137` and
+version `OpenSSH_9.6p1 Ubuntu-3ubuntu13.20, OpenSSL 3.0.13 30 Jan 2024`.
+The uncached generated-key target qualified all 12 cases on UID 1000 and port 37655. The nonzero prefix and cap witnesses measured 37, 65,538 and 4,097 bytes.
+The 2,500 ms timeout case returned at 1,503 ms. Its dispatcher exited 124 and
+server work settled at 5,220 ms. Three pending reads had independent in-flight
+client observations. The server exited zero, its parent was reaped, and the
+fixture was removed. Owning lint, typecheck and build passed.
+
+Task 3 steps 1–4 have supporting evidence. Its step 5 and Task 5.1c await the
+single scoped re-review and clean unfiltered final owning suite. The earlier
+9,573-pass, 56-skip baseline belongs to `5a9b7658`. Source CI and exact-revision
+host adoption remain separate gates. Task 5.1b and full installation, storage,
+activation and delivery requirements remain open, including the dedicated
+account, run-as bridge, installed permissions, server-wide bounds, forced-kill
+fallback, authenticated checkpoint, scheduling, exporter and destination.
+
+Strict validation of the owning change reported no issues. Across all 347
+OpenSpec artifacts, 326 changes and 21 specs passed. Scoped Prettier and the
+plaintext secrets check passed on the seven changed paths. Migration lint
+received the same paths and found no applicable migration. Nx lint emitted
+the existing Node color-environment notice and exited zero.

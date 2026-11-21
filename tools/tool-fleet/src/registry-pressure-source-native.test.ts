@@ -9,6 +9,7 @@ import { expect, spyOn, test } from 'bun:test';
 
 import {
   createNativeFixture,
+  rehearseRegistryPressureSource,
   removeNativeFixture,
   validateRegistrySourceNative,
 } from './registry-pressure-source-native';
@@ -56,6 +57,7 @@ async function withTool(
     profile: string,
     home: string,
   ) => Promise<void>,
+  inspectExecutable?: (file: fs.FileHandle) => void,
 ): Promise<void> {
   const home = await fs.mkdtemp('/tmp/puni-registry-native-admission-');
   const executable = home + '/sshd';
@@ -78,9 +80,11 @@ async function withTool(
     const profilePath = fileURLToPath(
       new URL('./registry-pressure-source-tools.json', import.meta.url),
     );
-    const fixtureOpen = spyOn(fs, 'open').mockImplementation((path, flags, mode) =>
-      open(path === profilePath ? profile : path, flags, mode),
-    );
+    const fixtureOpen = spyOn(fs, 'open').mockImplementation(async (path, flags, mode) => {
+      const file = await open(path === profilePath ? profile : path, flags, mode);
+      if (path === executable) inspectExecutable?.(file);
+      return file;
+    });
     try {
       await use(
         () => validateRegistrySourceNative({ ...inputs, sshd: executable }),
@@ -249,12 +253,14 @@ test.each([
 ] as const)('refuses an unsafe generated fixture directory %s', async (_field, mode, offset) => {
   const home = await fs.mkdtemp('/tmp/puni-generated-native-directory-');
   const uid = os.userInfo().uid;
-  const mkdtemp = fs.mkdtemp;
-  const generated = spyOn(fs, 'mkdtemp').mockImplementation((async (prefix: string) => {
-    const path = await mkdtemp(prefix);
+  const mkdir = fs.mkdir;
+  const generated = spyOn(fs, 'mkdir').mockImplementation((async (
+    path: string,
+    options: Parameters<typeof fs.mkdir>[1],
+  ) => {
+    await mkdir(path, options);
     await fs.chmod(path, mode);
-    return path;
-  }) as typeof fs.mkdtemp);
+  }) as typeof fs.mkdir);
   try {
     await rejects(
       createNativeFixture(home, uid + offset),
@@ -326,15 +332,17 @@ test.each(['nonempty', 'replaced', 'unreadable'] as const)(
   async (fault) => {
     const home = await fs.mkdtemp('/tmp/puni-native-admission-retention-');
     const uid = os.userInfo().uid;
-    const mkdtemp = fs.mkdtemp;
+    const mkdir = fs.mkdir;
     let generatedPath: string | undefined;
-    const generated = spyOn(fs, 'mkdtemp').mockImplementation((async (prefix: string) => {
-      const path = await mkdtemp(prefix);
+    const generated = spyOn(fs, 'mkdir').mockImplementation((async (
+      path: string,
+      options: Parameters<typeof fs.mkdir>[1],
+    ) => {
+      await mkdir(path, options);
       generatedPath = path;
       await fs.chmod(path, 0o755);
       if (fault === 'nonempty') await fs.writeFile(path + '/marker', 'owned content');
-      return path;
-    }) as typeof fs.mkdtemp);
+    }) as typeof fs.mkdir);
     const lstat = fs.lstat;
     let inspected = false;
     const stats = spyOn(fs, 'lstat').mockImplementation((async (
@@ -379,3 +387,205 @@ test.each(['nonempty', 'replaced', 'unreadable'] as const)(
     }
   },
 );
+
+test.each([
+  ['nonzero exit', 'exit 23'],
+  ['unexpected stdout', 'printf x'],
+])('refuses version probe %s with otherwise exact output', async (_name, change) => {
+  await withTool(async (run, executable, profile) => {
+    const original = await Bun.file(executable).text();
+    const command = original + change + '\n';
+    await fs.writeFile(executable, command);
+    const pin = await Bun.file(profile).text();
+    const digest = (script: string) => createHash('sha256').update(script).digest('hex');
+    await fs.writeFile(profile, pin.replace(digest(original), digest(command)));
+    await rejects(run(), { message: 'native sshd version differs' });
+    expect(await Bun.file(executable + '.executed').text()).toBe('ran');
+  });
+});
+
+test('refuses a native executable read shorter than its admitted length', async () => {
+  await withTool(
+    async (run, executable) => {
+      await rejects(run(), { message: 'native sshd changed during admission' });
+      await rejects(fs.lstat(executable + '.executed'), { code: 'ENOENT' });
+    },
+    (file) => {
+      const stat = file.stat.bind(file);
+      file.stat = (async () => {
+        const advertised = await stat();
+        advertised.size += 1;
+        return advertised;
+      }) as typeof file.stat;
+    },
+  );
+});
+
+test.each(['late', 'unconfirmed', 'late rejection'] as const)(
+  'rehearsal owns a %s fixture allocation at its setup timeout',
+  async (acknowledgement) => {
+    await withTool(async (_run, executable, _profile, parent) => {
+      const home = parent + '/home';
+      await fs.mkdir(home, { mode: 0o700 });
+      const account = spyOn(os, 'userInfo').mockReturnValue({ ...os.userInfo(), homedir: home });
+      const ancestry = modelHomeStats(() => undefined);
+      const iface: os.NetworkInterfaceInfo = {
+        family: 'IPv4',
+        internal: false,
+        address: inputs.listen,
+        mac: '00:00:00:00:00:00',
+        cidr: inputs.listen + '/32',
+        netmask: '255.255.255.255',
+      };
+      const interfaces = spyOn(os, 'networkInterfaces').mockReturnValue({
+        fixture: [iface, { ...iface, address: inputs.source }],
+      });
+      const mkdir = fs.mkdir;
+      let allocatedPath = '';
+      const allocated = spyOn(fs, 'mkdir').mockImplementation((async (
+        directory: string,
+        options: Parameters<typeof fs.mkdir>[1],
+      ) => {
+        allocatedPath = directory;
+        await mkdir(directory, options);
+        if (acknowledgement === 'unconfirmed') return new Promise<never>(() => undefined);
+        await Bun.sleep(2200);
+        if (acknowledgement === 'late rejection') await mkdir(directory, { mode: 0o700 });
+      }) as typeof fs.mkdir);
+      const spawn = spyOn(Bun, 'spawn').mockImplementation(() => {
+        throw new Error('unexpected fixture server');
+      });
+      const launch = Bun.spawnSync;
+      const probe = spyOn(Bun, 'spawnSync').mockImplementation(((
+        argv: string[],
+        options: object,
+      ) => {
+        if (argv[0] !== executable) throw new Error('unexpected fixture key generation');
+        return launch(argv, options);
+      }) as typeof Bun.spawnSync);
+      try {
+        const failure = await rehearseRegistryPressureSource({ ...inputs, sshd: executable }).catch(
+          (cause: unknown) => cause,
+        );
+        expect(failure).toBeInstanceOf(Error);
+        if (!(failure instanceof Error)) throw new Error('expected setup timeout');
+        expect(failure.message).toContain(
+          'native fixture creation did not settle within its bound',
+        );
+        expect(allocatedPath.startsWith(home + '/.puni-registry-native-')).toBe(true);
+        if (acknowledgement === 'late') {
+          expect(failure.message).toBe('native fixture creation did not settle within its bound');
+          expect(await fs.readdir(home)).toEqual([]);
+        } else {
+          expect(await fs.readdir(home)).toEqual([allocatedPath.slice(home.length + 1)]);
+          expect(await fs.readdir(allocatedPath)).toEqual([]);
+          if (acknowledgement === 'unconfirmed') {
+            expect(failure.message).toEndWith(
+              'native fixture allocation unconfirmed at ' + allocatedPath,
+            );
+          } else {
+            expect(failure.message).toContain('EEXIST');
+            expect(failure.message).not.toContain('unconfirmed');
+          }
+        }
+        expect(probe).toHaveBeenCalledTimes(1);
+        expect(spawn).not.toHaveBeenCalled();
+      } finally {
+        allocated.mockRestore();
+        probe.mockRestore();
+        spawn.mockRestore();
+        interfaces.mockRestore();
+        ancestry.mockRestore();
+        account.mockRestore();
+      }
+    });
+  },
+);
+
+test('reports unconfirmed removal when the rejected fixture was already removed', async () => {
+  const home = await fs.mkdtemp('/tmp/puni-native-late-removal-');
+  const mkdir = fs.mkdir;
+  const generated = spyOn(fs, 'mkdir').mockImplementation((async (
+    directory: string,
+    options: Parameters<typeof fs.mkdir>[1],
+  ) => {
+    await mkdir(directory, options);
+    await fs.chmod(directory, 0o755);
+  }) as typeof fs.mkdir);
+  const rmdir = fs.rmdir;
+  const removal = spyOn(fs, 'rmdir').mockImplementation(async (directory) => {
+    await rmdir(directory);
+    await Bun.sleep(600);
+  });
+  try {
+    await rejects(
+      createNativeFixture(home, os.userInfo().uid),
+      /native fixture directory is not private and owned.*native fixture removal unconfirmed at/,
+    );
+    expect(await fs.readdir(home)).toEqual([]);
+  } finally {
+    removal.mockRestore();
+    generated.mockRestore();
+    await fs.rm(home, { recursive: true });
+  }
+});
+
+test('exclusive fixture allocation collision preserves the existing path', async () => {
+  const home = await fs.mkdtemp('/tmp/puni-native-collision-');
+  const mkdir = fs.mkdir;
+  let existing = '';
+  const collision = spyOn(fs, 'mkdir').mockImplementation((async (
+    path: string,
+    options: Parameters<typeof fs.mkdir>[1],
+  ) => {
+    existing = path;
+    await mkdir(path, { mode: 0o700 });
+    return mkdir(path, options);
+  }) as typeof fs.mkdir);
+  try {
+    await rejects(createNativeFixture(home, os.userInfo().uid), { code: 'EEXIST' });
+    expect(await fs.readdir(home)).toEqual([existing.slice(home.length + 1)]);
+    expect(await fs.readdir(existing)).toEqual([]);
+  } finally {
+    collision.mockRestore();
+    await fs.rm(home, { recursive: true });
+  }
+});
+
+test('bounds initial fixture identity by the original setup deadline', async () => {
+  const home = await fs.mkdtemp('/tmp/puni-native-slow-identity-');
+  const mkdir = fs.mkdir;
+  const allocated = spyOn(fs, 'mkdir').mockImplementation((async (
+    directory: string,
+    options: Parameters<typeof fs.mkdir>[1],
+  ) => {
+    await mkdir(directory, options);
+    await Bun.sleep(1800);
+  }) as typeof fs.mkdir);
+  const lstat = fs.lstat;
+  const identity = spyOn(fs, 'lstat').mockImplementation((async (path: string) => {
+    const stamp = await lstat(path);
+    await Bun.sleep(400);
+    return stamp;
+  }) as typeof fs.lstat);
+  try {
+    const failure = await createNativeFixture(home, os.userInfo().uid).catch(
+      (cause: unknown) => cause,
+    );
+    const names = await fs.readdir(home);
+    expect(names).toHaveLength(1);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).toHaveProperty(
+      'message',
+      'native fixture admission identity did not settle within its bound | native fixture retained at ' +
+        home +
+        '/' +
+        names[0],
+    );
+    expect(await fs.readdir(home + '/' + names[0])).toEqual([]);
+  } finally {
+    identity.mockRestore();
+    allocated.mockRestore();
+    await fs.rm(home, { recursive: true });
+  }
+});

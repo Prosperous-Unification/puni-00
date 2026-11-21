@@ -1,5 +1,5 @@
 import { deepStrictEqual, ok, rejects } from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants, writeSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { isIPv4 } from 'node:net';
@@ -116,6 +116,7 @@ async function readBounded(path: string, limit: number, label: string): Promise<
       if (bytesRead === 0) break;
       offset += bytesRead;
     }
+    // Proof: Dropping length equality admitted the synthetic executable with an inflated advertised size.
     if (offset !== stat.size) throw new Error(`${label} changed during admission`);
     return bytes.subarray(0, offset);
   } finally {
@@ -186,7 +187,7 @@ async function verifyTool(sshd: string): Promise<void> {
     timeout: 2000,
     maxBuffer: 1024,
   });
-  // Proof: Removing the comparison broke the exact-version test. A changed profile pin refused the real tool.
+  // Proof: Dropping success, empty stdout or exact stderr broke the nonzero, unexpected-output or different-version probe.
   if (
     !version.success ||
     version.stdout.length !== 0 ||
@@ -371,13 +372,15 @@ function checkAddresses(args: NativeArguments): void {
   }
 }
 
+class ObservationTimeout extends Error {}
+
 /** Keeps the verifier's own waits finite even when the reader or a probe never settles. */
 async function before<Value>(
   work: Promise<Value>,
   deadline: number,
   label: string,
 ): Promise<Value> {
-  const expired = new Error(label + ' did not settle within its bound');
+  const expired = new ObservationTimeout(label + ' did not settle within its bound');
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const watchdog = new Promise<never>((_resolve, reject) => {
@@ -442,15 +445,43 @@ interface NativeFixture {
 }
 
 /**
- * Admits the freshly generated fixture before credentials are written.
- * A rejected fixture is released only when its unchanged ownership and emptiness can be established.
+ * Names an exclusive allocation before starting it, so an unacknowledged mkdir has an exact recovery path.
+ * Setup and settlement have separate finite budgets. A rejected allocation releases only the same empty inode.
  */
 export async function createNativeFixture(homedir: string, uid: number): Promise<NativeFixture> {
-  const directory = await fs.mkdtemp(homedir + '/.puni-registry-native-');
-  const retained = 'native fixture retained at ' + directory;
+  const directory = homedir + '/.puni-registry-native-' + randomUUID();
+  const deadline = performance.now() + 2000;
+  // Proof: Recursive mkdir accepted the existing directory in the exclusive-collision test.
+  const allocation = fs.mkdir(directory, { mode: 0o700 });
   const failures: string[] = [];
+  try {
+    // Proof: Waiting without the setup cutoff misclassified the late mkdir as an identity timeout and retained its directory.
+    await before(allocation, deadline, 'native fixture creation');
+  } catch (cause) {
+    // Proof: Sending immediate EEXIST into settlement lost the original collision error.
+    if (!(cause instanceof ObservationTimeout)) throw cause;
+    failures.push(cause.message);
+    try {
+      // Proof: Unbounded acknowledgement hung the pending-allocation test. Skipping acknowledgement removed its unconfirmed directory.
+      await before(allocation, performance.now() + 500, 'native allocation acknowledgement');
+    } catch (settlement) {
+      failures.push(describeFailure(settlement));
+      // Proof: Omitting the exact path broke the pending-allocation diagnostic. Including it after definitive EEXIST broke the late-rejection test.
+      if (settlement instanceof ObservationTimeout) {
+        failures.push('native fixture allocation unconfirmed at ' + directory);
+      }
+      throw new FixtureFailure(failures);
+    }
+  }
+  const retained = 'native fixture retained at ' + directory;
+  const identityDeadline = performance.now() + 500;
   const identity = await attempt(failures, () =>
-    before(fs.lstat(directory), performance.now() + 500, 'native fixture admission identity'),
+    before(
+      fs.lstat(directory),
+      // Proof: A fresh budget admitted late initial identity. Reusing expired setup time stranded the acknowledged late allocation.
+      failures.length === 0 ? Math.min(deadline, identityDeadline) : identityDeadline,
+      'native fixture admission identity',
+    ),
   );
   // Proof: Omitting the retained path broke the injected unreadable-identity test.
   if (identity === undefined) throw new FixtureFailure([...failures, retained]);
@@ -458,22 +489,35 @@ export async function createNativeFixture(homedir: string, uid: number): Promise
   const owned = identity.isDirectory() && identity.uid === uid;
   const fixture = { directory, uid, dev: identity.dev, ino: identity.ino };
   // Proof: Removing mode or owner admission broke its actual generated-directory test.
-  if (owned && (identity.mode & 0o7777) === 0o700) return fixture;
-
-  const refusal = 'native fixture directory is not private and owned';
+  if (!owned || (identity.mode & 0o7777) !== 0o700)
+    failures.push('native fixture directory is not private and owned');
+  // Proof: Admitting a private directory after its setup timeout reached fixture key generation.
+  if (failures.length === 0) return fixture;
   // Proof: Omitting retention reporting broke the generated-owner refusal test.
-  if (!owned) throw new FixtureFailure([refusal, retained]);
-  const removed = await attempt(failures, async () => {
-    const deadline = performance.now() + 500;
+  if (!owned) throw new FixtureFailure([...failures, retained]);
+  const removalDeadline = performance.now() + 500;
+  try {
     // Proof: Without this recheck an empty replacement was treated as the rejected directory.
-    await before(requireFixtureIdentity(fixture), deadline, 'rejected native fixture identity');
+    await before(
+      requireFixtureIdentity(fixture),
+      removalDeadline,
+      'rejected native fixture identity',
+    );
+  } catch (cause) {
+    throw new FixtureFailure([...failures, describeFailure(cause), retained]);
+  }
+  try {
     // Proof: Omitting rmdir leaked mode 000. Recursive removal broke the nonempty refusal.
-    await before(fs.rmdir(directory), deadline, 'rejected native fixture removal');
-    return true;
-  });
-  if (removed === true) throw new Error(refusal);
-  // Proof: Omitting the initiating error broke the nonempty fixture diagnostic test.
-  throw new FixtureFailure([refusal, ...failures, retained]);
+    await before(fs.rmdir(directory), removalDeadline, 'rejected native fixture removal');
+  } catch (cause) {
+    // Proof: Calling an expired rmdir retained broke the late-removal diagnostic with a physically empty parent.
+    const location =
+      cause instanceof ObservationTimeout
+        ? 'native fixture removal unconfirmed at ' + directory
+        : retained;
+    throw new FixtureFailure([...failures, describeFailure(cause), location]);
+  }
+  throw new FixtureFailure(failures);
 }
 
 async function requireFixtureIdentity(fixture: NativeFixture): Promise<void> {
@@ -966,11 +1010,7 @@ export async function rehearseRegistryPressureSource(input: unknown) {
     /^[a-z_][a-z0-9_-]{0,31}$/.test(username) && username !== 'root',
     'native account is not an admitted principal',
   );
-  const fixture = await before(
-    createNativeFixture(homedir, uid),
-    performance.now() + 2000,
-    'native fixture creation',
-  );
+  const fixture = await createNativeFixture(homedir, uid);
   const { directory } = fixture;
   let server: OwnedServer | undefined;
   let serverExit: number | undefined;

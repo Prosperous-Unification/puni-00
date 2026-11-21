@@ -297,7 +297,7 @@ reads until process supervision accounts for it. Never expose raw stderr.
 
 **Interfaces:** The executable harness takes `--sshd=<absolute extracted binary> --listen=<owned RFC1918 IPv4> --source=<permitted actual RFC1918 source IPv4>`. Its main function executes only under `import.meta.main`. It calls Task2's production `openRegistryPressureSource` without process interception or configurable command/executable. Ordinary test import performs no server startup.
 
-- [ ] **Step 1: Write failing harness admission tests.** Cover missing/unknown arguments, wrong executable hash/version, nonprivate/invalid listen/source addresses and unsafe fixture ancestry. The production native entrypoint's validators must actually be invoked by these tests. For the success/negative integration add case definitions in the harness that assert complete production reader replies and error categories, not just SSH exit codes.
+- [x] **Step 1: Write failing harness admission tests.** Cover missing/unknown arguments, wrong executable hash/version, nonprivate/invalid listen/source addresses and unsafe fixture ancestry. The production native entrypoint's validators must actually be invoked by these tests. For the success/negative integration add case definitions in the harness that assert complete production reader replies and error categories, not just SSH exit codes.
 
 ```ts
 it('refuses missing required native tool rather than skipping qualification', async () => {
@@ -316,8 +316,8 @@ harness arguments, pinned executable and safe home ancestry; running qualificati
 is a separate `rehearseRegistryPressureSource(input:unknown)` function that calls
 it and then creates the owned fixture.
 
-- [ ] **Step 2: Run RED.** Focused native refusal tests fail before implementation.
-- [ ] **Step 3: Implement tool admission and real fixture.** Use this already observed extracted-only package profile; do not install the server or alter a system account/service:
+- [x] **Step 2: Run RED.** Focused native refusal tests fail before implementation.
+- [x] **Step 3: Implement tool admission and real fixture.** Use this already observed extracted-only package profile; do not install the server or alter a system account/service:
 
 ```json
 {
@@ -364,7 +364,7 @@ Add the explicit cache:false Nx target `rehearse-registry-pressure-source` invok
 this harness. Arguments must be passed explicitly by the operator/CI; missing
 tool/address fails, and ordinary fleet test never silently starts the native daemon.
 
-- [ ] **Step 4: Run GREEN and native negatives.** Run focused test files and then
+- [x] **Step 4: Run GREEN and native negatives.** Run focused test files and then
       `bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=<verified-path> --listen=<owned-address> --source=<actual-source-address>`.
       Use exact current paths/addresses from independent observations, not placeholders
       in the evidence. Record all cases, child settlement and limitations. Observe

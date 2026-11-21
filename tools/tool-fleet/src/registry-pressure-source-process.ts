@@ -150,6 +150,7 @@ export async function readRegistryStatusProcess(
   argv: readonly string[],
   signal: AbortSignal,
   deadline: number,
+  abortedAt: () => number,
 ): Promise<RegistryStatusReply | CleanupFailure> {
   const cutoff = acquisitionCutoff(deadline);
   const stop = Promise.withResolvers<Cutoff>();
@@ -165,9 +166,9 @@ export async function readRegistryStatusProcess(
   };
   // Proof: A plain listener let the active fixture finish after shared abort. Omitting disposal leaked a listener.
   using _subscription = addAbortListener(signal, onAbort);
-  // Proof: Dropping either pre-spawn check broke the slow preflight or abort handoff test.
+  // Proof: Ignoring the timestamp lost abort-first at preflight disposal. Accepting any abort lost cutoff-first without spawning.
+  if (abortedAt() < cutoff) throw registryStatusCancelled();
   if (performance.now() >= cutoff) return statusTimeout;
-  if (signal.aborted) throw registryStatusCancelled();
 
   let child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
   try {
