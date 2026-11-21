@@ -1,13 +1,16 @@
 import { deepStrictEqual, ok, rejects } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, writeSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { isIPv4 } from 'node:net';
 import * as os from 'node:os';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { openRegistryPressureSource } from './registry-pressure-source';
+import {
+  openRegistryPressureSource,
+  type RegistryPressureSource,
+} from './registry-pressure-source';
 import type {
   RegistryStatusEnrollment,
   RegistryStatusReply,
@@ -91,7 +94,7 @@ function failureCode(cause: unknown): string | undefined {
 
 /** Reads one regular file without following its final symlink or growing past the declared limit. */
 async function readBounded(path: string, limit: number, label: string): Promise<Buffer> {
-  // Proof: Removing no-follow accepted the native executable symlink through to home admission.
+  // Proof: Removing no-follow admitted the symlink. Removing nonblocking hung on a real FIFO until the test watchdog.
   const file = await fs
     .open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
     .catch((cause: unknown) => {
@@ -312,24 +315,36 @@ const serverBudget = 6500;
 const commandSeconds = 5;
 const killAfterSeconds = 1;
 const fixtureShell = `#!/bin/bash
-set -eu
+set -euo pipefail
 umask 077
 fixture=$1
 verb=$2
 IFS= read -r mode < "$fixture/mode"
+printf '%s\\n' "$PPID" > "$fixture/supervisor"
 printf '%s\\n' "$$" > "$fixture/started"
 trap 'printf "%s\\n" "$?" > "$fixture/ended"' EXIT
 trap 'exit 124' TERM
 expected=registry-pressure-status-v1
 if [ "$mode" = refuse ]; then expected=fixture-wrong-verb; fi
 if [ "$verb" != "$expected" ]; then exit 77; fi
+exec 3>&1 4>&2
+send() {
+  local wire=$1 marker=$2 counter fifo="$fixture/witness"
+  shift 2
+  /usr/bin/mkfifo "$fifo"
+  /usr/bin/wc -c < "$fifo" > "$fixture/$marker" &
+  counter=$!
+  "$@" | /usr/bin/tee "$fifo" >&"$wire"
+  wait "$counter"
+  /usr/bin/rm -- "$fifo"
+}
 case "$mode" in
-  frame) /usr/bin/cat "$fixture/frame" ;;
-  prefix) /usr/bin/cat "$fixture/frame"; exit 1 ;;
-  stdout) /usr/bin/head -c 65538 /dev/zero ;;
-  stderr) /usr/bin/head -c 4097 /dev/zero >&2 ;;
+  frame) send 3 written_stdout /usr/bin/cat "$fixture/frame" ;;
+  prefix) send 3 written_stdout /usr/bin/cat "$fixture/frame"; exit 1 ;;
+  stdout) send 3 written_stdout /usr/bin/head -c 65538 /dev/zero ;;
+  stderr) send 4 written_stderr /usr/bin/head -c 4097 /dev/zero ;;
   hold|expire)
-    printf '{'
+    send 3 written_stdout printf '{'
     printf '%s\\n' "$$" > "$fixture/partial"
     if [ "$mode" = expire ]; then
       # Proof: Without this redirection the remote shell disappeared at timeout without its exit marker.
@@ -345,6 +360,7 @@ esac
 
 function checkAddresses(args: NativeArguments): void {
   const interfaces = Object.values(os.networkInterfaces()).flatMap((addresses) => addresses ?? []);
+  // Proof: Omitting source ownership let an unassigned address reach the real SSH exchange.
   for (const address of [args.listen, args.source]) {
     ok(
       interfaces.some(
@@ -355,17 +371,100 @@ function checkAddresses(args: NativeArguments): void {
   }
 }
 
+/** Keeps the verifier's own waits finite even when the reader or a probe never settles. */
+async function before<Value>(
+  work: Promise<Value>,
+  deadline: number,
+  label: string,
+): Promise<Value> {
+  const expired = new Error(label + ' did not settle within its bound');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const watchdog = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () => {
+          reject(expired);
+        },
+        Math.max(0, deadline - performance.now()),
+      );
+    });
+    const value = await Promise.race([work, watchdog]);
+    if (performance.now() >= deadline) throw expired;
+    return value;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function poll<Value>(
   inspect: () => Value | undefined | Promise<Value | undefined>,
   deadline: number,
   label: string,
 ): Promise<Value> {
   while (performance.now() < deadline) {
-    const observed = await inspect();
-    if (observed !== undefined && performance.now() < deadline) return observed;
+    const observed = await before(Promise.resolve(inspect()), deadline, label);
+    if (observed !== undefined) return observed;
     await Bun.sleep(10);
   }
   throw new Error(label + ' did not settle within its bound');
+}
+
+class FixtureFailure extends Error {
+  constructor(readonly failures: readonly string[]) {
+    super(failures.join(' | '));
+  }
+}
+
+function describeFailure(cause: unknown): string {
+  if (!(cause instanceof Error)) return 'unexpected native fixture failure';
+  return cause.message.split('\n', 1).join('').slice(0, 384);
+}
+
+/** Preserves the first failed stage and every later bounded teardown diagnostic. */
+async function attempt<Value>(
+  failures: string[],
+  work: () => Promise<Value>,
+): Promise<Value | undefined> {
+  try {
+    return await work();
+  } catch (cause) {
+    if (cause instanceof FixtureFailure) failures.push(...cause.failures);
+    else failures.push(describeFailure(cause));
+    return undefined;
+  }
+}
+
+interface NativeFixture {
+  readonly directory: string;
+  readonly uid: number;
+  readonly dev: number;
+  readonly ino: number;
+}
+
+/** Admits the actual freshly generated fixture before any credentials are written. */
+export async function createNativeFixture(homedir: string, uid: number): Promise<NativeFixture> {
+  const directory = await fs.mkdtemp(homedir + '/.puni-registry-native-');
+  const identity = await fs.lstat(directory);
+  // Proof: Removing mode or owner admission broke its actual generated-directory test.
+  ok(
+    identity.isDirectory() && identity.uid === uid && (identity.mode & 0o7777) === 0o700,
+    'native fixture directory is not private and owned',
+  );
+  return { directory, uid, dev: identity.dev, ino: identity.ino };
+}
+
+/** Deletes only the original fixture after its work has been independently settled. */
+export async function removeNativeFixture(fixture: NativeFixture): Promise<void> {
+  const current = await fs.lstat(fixture.directory);
+  // Proof: Removing inode equality let the real replacement be deleted and broke the cleanup test.
+  ok(
+    current.isDirectory() &&
+      current.uid === fixture.uid &&
+      current.dev === fixture.dev &&
+      current.ino === fixture.ino,
+    'native fixture directory identity changed',
+  );
+  await fs.rm(fixture.directory, { recursive: true });
 }
 
 async function readOptional(path: string): Promise<string | undefined> {
@@ -377,10 +476,82 @@ async function readOptional(path: string): Promise<string | undefined> {
   }
 }
 
-/** Linux children observed independently of the production child's exit promise. */
+/** Linux children observed independently of promises from the reader and daemon. */
 async function childPids(pid: number): Promise<number[]> {
-  const children = await fs.readFile(`/proc/${String(pid)}/task/${String(pid)}/children`, 'utf8');
-  return children.trim().split(/\s+/).filter(Boolean).map(Number);
+  const children = await readOptional(`/proc/${String(pid)}/task/${String(pid)}/children`);
+  if (children === undefined) {
+    ok(!(await exists(`/proc/${String(pid)}`)), 'live native process has no observable child list');
+    return [];
+  }
+  const pids = children.trim().split(/\s+/).filter(Boolean).map(Number);
+  ok(
+    pids.every((child) => Number.isSafeInteger(child) && child > 1),
+    'invalid native process child list',
+  );
+  return pids;
+}
+
+interface OwnedWork {
+  readonly processes: Set<number>;
+  readonly groups: Set<number>;
+}
+
+async function trackChildren(pid: number, seen: Set<number>): Promise<void> {
+  for (const child of await childPids(pid)) {
+    seen.add(child);
+    await trackChildren(child, seen);
+  }
+}
+
+async function trackWork(directory: string, server: OwnedServer, owned: OwnedWork): Promise<void> {
+  for (const child of await childPids(process.pid)) {
+    if (child === server.pid) continue;
+    owned.processes.add(child);
+    // The fixed reader launches ssh in a process group whose ID equals its child PID.
+    owned.groups.add(child);
+    await trackChildren(child, owned.processes);
+  }
+  await trackChildren(server.pid, owned.processes);
+  const dispatcher = await readMarker(directory + '/started');
+  const supervisor = await readMarker(directory + '/supervisor');
+  if (dispatcher !== undefined) {
+    ok(
+      dispatcher > 1 && supervisor !== undefined,
+      'native fixture dispatcher has no supervisor witness',
+    );
+    owned.processes.add(dispatcher);
+  }
+  if (supervisor !== undefined) {
+    // The fixture's timeout is a separate group leader. Check for descendants after reparenting.
+    owned.processes.add(supervisor);
+    owned.groups.add(supervisor);
+  }
+}
+
+function groupExists(group: number): boolean {
+  ok(Number.isSafeInteger(group) && group > 1, 'invalid native fixture process group');
+  try {
+    process.kill(-group, 0);
+    return true;
+  } catch (cause) {
+    if (failureCode(cause) !== 'ESRCH') throw cause;
+    return false;
+  }
+}
+
+async function workSettled(
+  directory: string,
+  server: OwnedServer,
+  owned: OwnedWork,
+): Promise<true | undefined> {
+  await trackWork(directory, server, owned);
+  for (const pid of owned.processes) {
+    if (await exists(`/proc/${String(pid)}`)) return undefined;
+  }
+  for (const group of owned.groups) {
+    if (groupExists(group)) return undefined;
+  }
+  return true;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -453,7 +624,11 @@ async function generateKey(directory: string, name: string) {
     },
   );
   ok(keygen.success, 'native fixture key generation failed');
-  const raw = await readBounded(path + '.pub', 512, 'native fixture public key');
+  const raw = await before(
+    readBounded(path + '.pub', 512, 'native fixture public key'),
+    performance.now() + 500,
+    'native key inspection',
+  );
   const parts = raw.toString().trimEnd().split(' ');
   const algorithm = parts.at(0);
   const wire = parts.at(1);
@@ -538,28 +713,40 @@ async function configureServer(
 async function settleDispatcher(
   directory: string,
   server: OwnedServer,
+  owned: OwnedWork,
   deadline: number,
   entered: boolean,
 ) {
-  await poll(
+  return await poll(
     async () => {
-      if ((await childPids(server.pid)).length !== 0) return undefined;
+      if (!(await workSettled(directory, server, owned))) return undefined;
       const pid = await readMarker(directory + '/started');
-      if (pid === undefined) return entered ? undefined : true;
-      const ended = await readMarker(directory + '/ended');
-      if (ended === undefined || (await exists(`/proc/${String(pid)}`))) return undefined;
-      return true;
+      if (pid === undefined && entered) return undefined;
+      const exit = await readMarker(directory + '/ended');
+      if (pid !== undefined && exit === undefined) return undefined;
+      const stdout = await readMarker(directory + '/written_stdout');
+      const stderr = await readMarker(directory + '/written_stderr');
+      return { exit, stdout, stderr };
     },
     deadline,
     'native fixture command and server children',
   );
-  const exit = await readMarker(directory + '/ended');
-  for (const name of ['started', 'ended', 'partial', 'mode']) {
+}
+
+async function clearExchange(directory: string): Promise<void> {
+  for (const name of [
+    'started',
+    'supervisor',
+    'ended',
+    'partial',
+    'mode',
+    'written_stdout',
+    'written_stderr',
+  ]) {
     await fs.unlink(directory + '/' + name).catch((cause: unknown) => {
       if (failureCode(cause) !== 'ENOENT' || name === 'mode') throw cause;
     });
   }
-  return exit;
 }
 
 async function observeReply(work: Promise<RegistryStatusReply>): Promise<ObservedReply> {
@@ -575,137 +762,207 @@ async function observeReply(work: Promise<RegistryStatusReply>): Promise<Observe
 async function qualifyCase(
   directory: string,
   server: OwnedServer,
-  actor: Awaited<ReturnType<typeof openRegistryPressureSource>>,
+  actor: RegistryPressureSource,
   fixtureCase: NativeCase,
+  owned: OwnedWork,
 ) {
-  await fs.writeFile(directory + '/mode', fixtureCase.mode + '\n', { flag: 'wx', mode: 0o600 });
+  await before(
+    fs.writeFile(directory + '/mode', fixtureCase.mode + '\n', { flag: 'wx', mode: 0o600 }),
+    performance.now() + 500,
+    fixtureCase.name + ' native case setup',
+  );
   const controller = new AbortController();
   const started = performance.now();
   const pending = fixtureCase.mode === 'hold' || fixtureCase.mode === 'expire';
   const budget = pending ? 2500 : 5000;
   const deadline = started + budget;
   const work = observeReply(actor.read(controller.signal, deadline));
-  // Observe rejection immediately even while waiting for independently visible fixture state.
-  const exchange = Promise.allSettled([work]);
+  let completed: PromiseSettledResult<ObservedReply> | undefined;
+  // Proof: The stalled real read adapter exercised both the original deadline and independent cleanup watchdog.
+  const exchange = work.then(
+    (value) => {
+      completed = { status: 'fulfilled', value };
+    },
+    (reason: unknown) => {
+      completed = { status: 'rejected', reason };
+    },
+  );
+  const failures: string[] = [];
   let sshPid: number | undefined;
-  let observed: ObservedReply;
-  let elapsed: number;
-  let remoteExit: number | undefined;
-  let verified = false;
-  try {
+  const reply = await attempt(failures, async () => {
     if (pending) {
-      await poll(() => readMarker(directory + '/partial'), started + 1200, 'native partial frame');
-      const children = (await childPids(process.pid)).filter((pid) => pid !== server.pid);
+      await poll(
+        async () => {
+          await trackWork(directory, server, owned);
+          return await readMarker(directory + '/partial');
+        },
+        started + 1200,
+        'native partial frame',
+      );
+      const children = (
+        await before(childPids(process.pid), deadline, 'native client observation')
+      ).filter((pid) => pid !== server.pid);
       deepStrictEqual(children.length, 1, 'expected one real SSH client during the pending read');
       sshPid = children.at(0);
       ok(
         sshPid !== undefined &&
-          (await fs.readlink(`/proc/${String(sshPid)}/exe`)) === '/usr/bin/ssh',
+          (await before(
+            fs.readlink(`/proc/${String(sshPid)}/exe`),
+            deadline,
+            'native client identity',
+          )) === '/usr/bin/ssh',
         'pending reader did not own the expected /usr/bin/ssh child',
       );
     }
     if (fixtureCase.interrupt === 'busy') {
-      // Both overlapping operations see the actor busy while the owned child is still active.
-      await rejects(
-        actor.read(new AbortController().signal, deadline),
-        /registry status source is busy/,
+      await before(
+        rejects(actor.read(controller.signal, deadline), /registry status source is busy/),
+        deadline,
+        'native overlapping read',
       );
-      await rejects(actor.close(), /registry status source is busy/);
+      await before(
+        rejects(actor.close(), /registry status source is busy/),
+        deadline,
+        'native overlapping close',
+      );
     }
     if (fixtureCase.interrupt !== undefined) controller.abort('synthetic unsurfaced cancellation');
-    observed = await work;
-    elapsed = Math.ceil(performance.now() - started);
+    const receipt = await poll(
+      async () => {
+        await trackWork(directory, server, owned);
+        return completed;
+      },
+      deadline,
+      'native reader',
+    );
+    if (receipt.status === 'rejected') throw receipt.reason;
+    const observed = receipt.value;
+    const elapsed = Math.ceil(performance.now() - started);
     ok(elapsed <= budget, 'native reader exceeded its original deadline');
     if (fixtureCase.name === 'absolute-timeout')
       ok(elapsed >= 1450, 'reader timed out before acquisition cutoff');
-    deepStrictEqual(observed, fixtureCase.reply, fixtureCase.name);
+    deepStrictEqual(observed, fixtureCase.reply, 'reply mismatch');
     if (observed.state === 'received')
       deepStrictEqual(observed.bytes.length, fixtureCase.output[0]);
     if (sshPid !== undefined)
       ok(
-        !(await exists(`/proc/${String(sshPid)}`)),
+        !(await before(
+          exists(`/proc/${String(sshPid)}`),
+          deadline,
+          'native client reap observation',
+        )),
         'owned SSH child remained after reader return',
       );
-    deepStrictEqual(await childPids(process.pid), [server.pid], 'reader left a local child');
-    verified = true;
-  } finally {
-    controller.abort();
-    await exchange;
-    remoteExit = await settleDispatcher(
+    deepStrictEqual(
+      await before(childPids(process.pid), deadline, 'native child settlement'),
+      [server.pid],
+      'reader left a local child',
+    );
+    return { observed, elapsed };
+  });
+  controller.abort();
+  if (completed === undefined) {
+    await attempt(failures, () => before(exchange, performance.now() + 250, 'native read cleanup'));
+  }
+  // Proof: A wrong reply and an omitted exit marker produced both case diagnostics.
+  const remote = await attempt(failures, () =>
+    settleDispatcher(
       directory,
       server,
+      owned,
       started + serverBudget,
-      verified && fixtureCase.dispatcherExit !== undefined,
-    );
-  }
-  deepStrictEqual(remoteExit, fixtureCase.dispatcherExit, fixtureCase.name + ' fixture exit');
+      fixtureCase.dispatcherExit !== undefined,
+    ),
+  );
+  if (failures.length > 0)
+    throw new FixtureFailure(failures.map((message) => fixtureCase.name + ': ' + message));
+  ok(reply !== undefined && remote !== undefined, 'native case receipt unavailable');
+  const { observed, elapsed } = reply;
+  deepStrictEqual(remote.exit, fixtureCase.dispatcherExit, fixtureCase.name + ' fixture exit');
+  const stdout = remote.stdout ?? 0;
+  const stderr = remote.stderr ?? 0;
+  // Proof: Omitted and shortened writes still exited 1 but failed the checked count.
+  deepStrictEqual([stdout, stderr], fixtureCase.output, fixtureCase.name + ' fixture write count');
   const serverElapsed = Math.ceil(performance.now() - started);
   if (fixtureCase.mode === 'expire')
     ok(serverElapsed >= commandSeconds * 1000, 'native fixture timeout settled prematurely');
-  const reply = observed.state === 'received' ? { state: 'received' } : observed;
+  await before(clearExchange(directory), performance.now() + 500, 'native exchange marker cleanup');
+  owned.processes.clear();
+  owned.groups.clear();
   return {
     name: fixtureCase.name,
-    reply,
-    fixtureStdoutBytes: fixtureCase.output[0],
-    fixtureStderrBytes: fixtureCase.output[1],
+    reply: observed.state === 'received' ? { state: 'received' } : observed,
+    fixtureStdoutBytes: stdout,
+    fixtureStderrBytes: stderr,
     receivedBytes: observed.state === 'received' ? observed.bytes.length : null,
     elapsedMs: elapsed,
     originalBudgetMs: budget,
     localClientReaped: true,
     observedInFlightClient: sshPid !== undefined,
-    dispatcherExit: remoteExit ?? null,
+    dispatcherExit: remote.exit ?? null,
     serverChildrenSettled: true,
     serverSettlementMs: serverElapsed,
   };
 }
 
+async function useActor(actor: RegistryPressureSource, run: () => Promise<void>): Promise<void> {
+  const failures: string[] = [];
+  await attempt(failures, run);
+  // Proof: Suppressing the actual actor close completion reached this finite failure.
+  await attempt(failures, () =>
+    before(actor.close(), performance.now() + 750, 'native actor close'),
+  );
+  if (failures.length > 0) throw new FixtureFailure(failures);
+}
+
 async function stopServer(server: OwnedServer): Promise<number> {
-  if (server.exitCode === null) server.kill('SIGTERM');
-  let exit: number;
+  if (server.exitCode === null && server.signalCode === null) server.kill('SIGTERM');
   try {
-    exit = await poll(
-      () => server.exitCode ?? undefined,
-      performance.now() + 1500,
-      'native sshd parent',
-    );
+    return await before(server.exited, performance.now() + 1500, 'native sshd parent');
   } catch (cause) {
     if (server.exitCode === null && server.signalCode === null) server.kill('SIGKILL');
-    await server.exited;
-    throw cause;
+    const failures = [describeFailure(cause)];
+    await attempt(failures, () =>
+      before(server.exited, performance.now() + 750, 'native sshd forced reap'),
+    );
+    throw new FixtureFailure(failures);
   }
-  deepStrictEqual(await server.exited, exit, 'native sshd exit and reap differ');
-  ok(!(await exists(`/proc/${String(server.pid)}`)), 'native sshd parent remained after reap');
-  return exit;
 }
 
 /** Qualifies the fixed production actor over one owned temporary sshd and cleans the entire fixture. */
 export async function rehearseRegistryPressureSource(input: unknown) {
   const args = parseArguments(input);
-  await validateRegistrySourceNative(args);
+  await before(validateRegistrySourceNative(args), performance.now() + 5000, 'native admission');
   checkAddresses(args);
   const { homedir, username, uid } = os.userInfo();
   ok(
     /^[a-z_][a-z0-9_-]{0,31}$/.test(username) && username !== 'root',
     'native account is not an admitted principal',
   );
-  const directory = await fs.mkdtemp(homedir + '/.puni-registry-native-');
-  const identity = await fs.lstat(directory);
+  const fixture = await before(
+    createNativeFixture(homedir, uid),
+    performance.now() + 2000,
+    'native fixture creation',
+  );
+  const { directory } = fixture;
   let server: OwnedServer | undefined;
   let serverExit: number | undefined;
   let port: number | undefined;
   const receipts: Awaited<ReturnType<typeof qualifyCase>>[] = [];
-  try {
-    ok(
-      identity.isDirectory() && identity.uid === uid && (identity.mode & 0o7777) === 0o700,
-      'native fixture directory is not private and owned',
-    );
+  const owned: OwnedWork = { processes: new Set(), groups: new Set() };
+  const failures: string[] = [];
+  await attempt(failures, async () => {
     const host = await generateKey(directory, 'host');
     const wrongHost = await generateKey(directory, 'other-host');
     const client = await generateKey(directory, 'client');
     const wrongClient = await generateKey(directory, 'other-client');
     const listenPort = reservePort(args.listen);
     port = listenPort;
-    await configureServer(directory, args, listenPort, username, host.path, client.publicKey);
+    await before(
+      configureServer(directory, args, listenPort, username, host.path, client.publicKey),
+      performance.now() + 1000,
+      'native server configuration',
+    );
     server = startServer(args.sshd, directory);
     const daemon = server;
     await poll(
@@ -722,7 +979,11 @@ export async function rehearseRegistryPressureSource(input: unknown) {
     );
 
     const runtime = directory + '/runtime';
-    await fs.mkdir(runtime, { mode: 0o700 });
+    await before(
+      fs.mkdir(runtime, { mode: 0o700 }),
+      performance.now() + 500,
+      'native runtime directory',
+    );
     const enrollment: RegistryStatusEnrollment = {
       schemaVersion: 1,
       protocol: 'registry-pressure-status/1',
@@ -735,59 +996,111 @@ export async function rehearseRegistryPressureSource(input: unknown) {
       peer: { address: args.listen, port: listenPort, user: username, hostKey: host.publicKey },
       identity: {
         ...client,
-        sha256: sha256(await readBounded(client.path, 4096, 'native fixture identity')),
+        sha256: sha256(
+          await before(
+            readBounded(client.path, 4096, 'native fixture identity'),
+            performance.now() + 500,
+            'native fixture identity verification',
+          ),
+        ),
       },
     };
-    const primary = await openRegistryPressureSource(enrollment, runtime);
-    try {
+    const primary = await before(
+      openRegistryPressureSource(enrollment, runtime),
+      performance.now() + 1000,
+      'native actor open',
+    );
+    await useActor(primary, async () => {
       for (const fixtureCase of cases) {
         if (fixtureCase.host === undefined && fixtureCase.client === undefined) {
-          receipts.push(await qualifyCase(directory, server, primary, fixtureCase));
+          receipts.push(await qualifyCase(directory, daemon, primary, fixtureCase, owned));
         } else {
-          const actor = await openRegistryPressureSource(
-            {
-              ...enrollment,
-              peer:
-                fixtureCase.host === 'wrong'
-                  ? { ...enrollment.peer, hostKey: wrongHost.publicKey }
-                  : enrollment.peer,
-              identity:
-                fixtureCase.client === 'wrong'
-                  ? {
-                      ...wrongClient,
-                      sha256: sha256(
-                        await readBounded(wrongClient.path, 4096, 'native fixture identity'),
-                      ),
-                    }
-                  : enrollment.identity,
-            },
-            await fs.mkdtemp(directory + '/negative-'),
+          const actor = await before(
+            openRegistryPressureSource(
+              {
+                ...enrollment,
+                peer:
+                  fixtureCase.host === 'wrong'
+                    ? { ...enrollment.peer, hostKey: wrongHost.publicKey }
+                    : enrollment.peer,
+                identity:
+                  fixtureCase.client === 'wrong'
+                    ? {
+                        ...wrongClient,
+                        sha256: sha256(
+                          await before(
+                            readBounded(wrongClient.path, 4096, 'native fixture identity'),
+                            performance.now() + 500,
+                            'native fixture identity verification',
+                          ),
+                        ),
+                      }
+                    : enrollment.identity,
+              },
+              await before(
+                fs.mkdtemp(directory + '/negative-'),
+                performance.now() + 500,
+                'native negative actor directory',
+              ),
+            ),
+            performance.now() + 1000,
+            'native actor open',
           );
-          try {
-            receipts.push(await qualifyCase(directory, server, actor, fixtureCase));
-          } finally {
-            await actor.close();
-          }
+          await useActor(actor, async () => {
+            receipts.push(await qualifyCase(directory, daemon, actor, fixtureCase, owned));
+          });
         }
       }
-    } finally {
-      await primary.close();
-    }
-    deepStrictEqual(await fs.readdir(runtime), [], 'primary close did not release its owned pin');
-  } finally {
-    try {
-      if (server !== undefined) serverExit = await stopServer(server);
-    } finally {
-      const current = await fs.lstat(directory);
-      ok(
-        current.isDirectory() && current.dev === identity.dev && current.ino === identity.ino,
-        'native fixture directory identity changed',
-      );
-      await fs.rm(directory, { recursive: true });
-    }
+    });
+    deepStrictEqual(
+      await before(fs.readdir(runtime), performance.now() + 500, 'native pin cleanup'),
+      [],
+      'primary close did not release its owned pin',
+    );
+  });
+  let settled = true;
+  if (server !== undefined) {
+    const daemon = server;
+    // Proof: A real overlong dispatcher remained live beyond master shutdown and forced retention.
+    // Keep the master running until its descendants are observed. Recheck after it exits.
+    const beforeShutdown = await attempt(failures, () =>
+      poll(
+        () => workSettled(directory, daemon, owned),
+        performance.now() + 2500,
+        'native pre-shutdown owned work',
+      ),
+    );
+    serverExit = await attempt(failures, () => stopServer(daemon));
+    const afterShutdown = await attempt(failures, () =>
+      poll(
+        async () => {
+          if (await exists(`/proc/${String(daemon.pid)}`)) return undefined;
+          return await workSettled(directory, daemon, owned);
+        },
+        performance.now() + 1500,
+        'native post-shutdown owned work',
+      ),
+    );
+    settled = beforeShutdown === true && afterShutdown === true;
   }
+  // Proof: Bypassing this gate on a failed ownership observation deleted the protected evidence.
+  if (settled) {
+    await attempt(failures, () =>
+      before(removeNativeFixture(fixture), performance.now() + 1000, 'native fixture removal'),
+    );
+  } else {
+    failures.push('protected native fixture retained at ' + directory);
+  }
+  if (failures.length > 0) throw new FixtureFailure(failures);
   deepStrictEqual(serverExit, 0, 'native sshd did not stop cleanly');
-  ok(!(await exists(directory)), 'native fixture directory remained');
+  ok(
+    !(await before(
+      exists(directory),
+      performance.now() + 500,
+      'native fixture removal observation',
+    )),
+    'native fixture directory remained',
+  );
   return {
     state: 'qualified',
     uid,
@@ -809,6 +1122,7 @@ function parseCli(tokens: readonly string[]): Record<string, string> {
     const match = /^--(sshd|listen|source)=(.*)$/.exec(token);
     const key = match?.[1];
     const value = match?.[2];
+    // Proof: Removing duplicate detection let duplicate options reach tool acquisition.
     if (key === undefined || value === undefined || Object.hasOwn(args, key))
       throw new Error('invalid registry status native arguments');
     args[key] = value;
@@ -821,7 +1135,8 @@ if (import.meta.main) {
     const receipt = await rehearseRegistryPressureSource(parseCli(process.argv.slice(2)));
     console.log(JSON.stringify(receipt));
   } catch (cause) {
-    console.error(cause instanceof Error ? cause.message : 'native SSH qualification failed');
-    process.exitCode = 1;
+    const message = cause instanceof FixtureFailure ? cause.message : describeFailure(cause);
+    writeSync(2, message + '\n');
+    process.exit(1);
   }
 }

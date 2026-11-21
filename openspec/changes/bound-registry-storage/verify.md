@@ -10585,3 +10585,87 @@ environment failures.
 This owning test receipt applies to the specified implementation commit.
 Independent native review raised four harness findings for a follow-up
 qualification round. Task5.1c and whole-client acceptance remain open.
+
+### Native verifier independent review fixes
+
+The native verifier now compares successful pipefail/tee write counts
+before issuing a receipt. The fixture counts bytes through a private FIFO
+while tee writes the same stream to SSH. The dispatcher waits for the count
+and emits its deliberate nonzero exit only after successful writes. The
+initial verifier issued receipts for both a missing prefix and a 36-byte
+prefix. The corrected verifier refused both mutations on the measured count.
+
+Independent deadlines bound reader completion, both overlap probes, read
+settlement and actor close. Teardown tracks the actual SSH client and each
+observed subprocess of the fixture daemon. It also checks the dispatcher PID
+and the fixture timeout supervisor's process group for surviving work after
+reparenting. The daemon's own exit and the descendant disappearance checks
+remain distinct. A failure records the case and bounded diagnostic from
+the first fault together with later settlement errors. If either shutdown
+bookend cannot establish owned settlement, the verifier reports the private
+fixture path and preserves it until independent settlement can be established.
+
+```sh
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts tools/tool-fleet/src/registry-pressure-source-native.test.ts
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:lint --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:typecheck --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:build --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+```
+
+The native command exited0 in13.4s with12 cases, UID1000 and port36501.
+The original public reply categories remained the same as the preceding
+receipt. Counts below are now actual successful fixture write witnesses.
+
+| Case                      | Fixture stdout/stderr bytes | Client ms / original budget ms | Dispatcher exit / settlement ms |
+| ------------------------- | --------------------------- | ------------------------------ | ------------------------------- |
+| Exact frame               | 37 / 0                      | 195 / 5000                     | 0 / 196                         |
+| Wrong client key          | 0 / 0                       | 136 / 5000                     | no dispatch / 136               |
+| Wrong host key            | 0 / 0                       | 74 / 5000                      | no dispatch / 75                |
+| Wrong verb                | 0 / 0                       | 192 / 5000                     | 77 / 193                        |
+| Nonzero after prefix      | 37 / 0                      | 200 / 5000                     | 1 / 200                         |
+| Stdout overflow           | 65538 / 0                   | 196 / 5000                     | 0 / 208                         |
+| Stderr overflow           | 0 / 4097                    | 188 / 5000                     | 0 / 199                         |
+| Absolute timeout          | 1 / 0                       | 1511 / 2500                    | 124 / 5189                      |
+| Mid-read abort            | 1 / 0                       | 199 / 2500                     | 0 / 3195                        |
+| Concurrent read and close | 1 / 0                       | 201 / 2500                     | 0 / 3194                        |
+| Repeated read 1           | 37 / 0                      | 189 / 5000                     | 0 / 189                         |
+| Repeated read 2           | 37 / 0                      | 189 / 5000                     | 0 / 190                         |
+
+All three received replies matched the 37 original bytes. The reader's
+original deadlines were preserved. The pending cases again observed and
+reaped the actual fixed SSH child. The server parent returned0 and was
+reaped, and the per-case and final process checks justified fixture
+removal. No Task 3 fixture directories remained after the runs. The
+forced-kill fallback remained unexercised.
+
+The regression harness ran local copies of the verifier with the same
+profile and imports directed to the original production actor. Each fault
+was applied independently. The tracked files were checked unchanged after
+each runner. Cases launched real SSH where the production path called for it.
+
+| Injected condition                                                 | Observed production-path negative                                                                                                                                                                |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Omit prefix or shorten it to 36 bytes                              | Both exited1 with the case-specific count error and no receipt. The uncorrected verifier issued receipts for each.                                                                               |
+| Hold a completed real read's promise forever                       | Exited1 in5470ms, with both read and read-cleanup watchdog diagnostics and owned fixture removal.                                                                                                |
+| Hold the observed reply to a real in-flight partial read           | Exited1 in3358ms under the unchanged 2500ms reader deadline plus independent teardown. Owned work settled and the fixture was removed.                                                           |
+| Suppress actual actor close completion                             | Exited1 in2004ms with close watchdog diagnostics and owned fixture removal.                                                                                                                      |
+| Change the expected reply and omit the real dispatcher exit marker | Exited1 in6684ms with reply mismatch and settlement failure preserved together. Physical settlement allowed cleanup.                                                                             |
+| Run the dispatcher past both teardown windows                      | Exited1 in10683ms and preserved the owner-only directory while the dispatcher remained live. The fault driver waited for its witnessed PIDs and removed the exact disposable fixture afterwards. |
+| Fail ownership observation and bypass the retention predicate      | The corrected path retained the fixture. Bypassing the predicate erased it and failed the negative expectation.                                                                                  |
+| Remove generated-mode, generated-owner or cleanup-inode equality   | Each selected ordinary test exited1 for its missing rejection and passed after restoring the guard. The replaced directory's original contents were preserved by the corrected path.             |
+
+The focused run passed277 tests with zero failures and760 Bun assertions,
+plus the Node assertions in the admission tests. Owning lint, typecheck and
+build, scoped format and strict change validation passed. The profile,
+production contract, actor and process supervisor did not change. Final
+native verifier SHA-256 is
+`bf7671f7c4a0984bc7c584f45df3524247cbfbeb919e6915cbd4d0a33eed549e`.
+The corresponding admission test SHA-256 is
+`b9c6b55c5229202be01b7cd3a3c0b61c80951e6c8b0d0d87709e50a5e00fe52e`.
+
+The complete owning target above remains verified only on the pre-fix
+implementation commit. A fresh clean unfiltered run remains required
+after the final source wave and the deferred whole-client cancellation
+correction. Task5.1c and adoption gates remain open.

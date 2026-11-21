@@ -5,9 +5,13 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-import { spyOn, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 
-import { validateRegistrySourceNative } from './registry-pressure-source-native';
+import {
+  createNativeFixture,
+  removeNativeFixture,
+  validateRegistrySourceNative,
+} from './registry-pressure-source-native';
 
 const inputs = {
   sshd: '/absent/puni-sshd',
@@ -237,4 +241,43 @@ test('refuses a safe-mode home owned by a different UID', async () => {
       account.mockRestore();
     }
   });
+});
+
+test.each([
+  ['mode', 0o755, 0],
+  ['owner', 0o700, 1],
+] as const)('refuses an unsafe generated fixture directory %s', async (_field, mode, offset) => {
+  const home = await fs.mkdtemp('/tmp/puni-generated-native-directory-');
+  const uid = os.userInfo().uid;
+  const mkdtemp = fs.mkdtemp;
+  const generated = spyOn(fs, 'mkdtemp').mockImplementation((async (prefix: string) => {
+    const path = await mkdtemp(prefix);
+    await fs.chmod(path, mode);
+    return path;
+  }) as typeof fs.mkdtemp);
+  try {
+    await rejects(createNativeFixture(home, uid + offset), {
+      message: 'native fixture directory is not private and owned',
+    });
+  } finally {
+    generated.mockRestore();
+    await fs.rm(home, { recursive: true });
+  }
+});
+
+test('native cleanup refuses a replacement and preserves its contents', async () => {
+  const home = await fs.mkdtemp('/tmp/puni-native-replacement-');
+  try {
+    const fixture = await createNativeFixture(home, os.userInfo().uid);
+    await fs.rename(fixture.directory, fixture.directory + '-original');
+    await fs.mkdir(fixture.directory, { mode: 0o700 });
+    const marker = fixture.directory + '/foreign';
+    await fs.writeFile(marker, 'private replacement');
+    await rejects(removeNativeFixture(fixture), {
+      message: 'native fixture directory identity changed',
+    });
+    expect(await fs.readFile(marker, 'utf8')).toBe('private replacement');
+  } finally {
+    await fs.rm(home, { recursive: true });
+  }
 });
