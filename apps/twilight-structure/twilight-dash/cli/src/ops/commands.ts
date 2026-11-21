@@ -13,17 +13,20 @@ import {
   type HostPoolStatus,
   loadResourceConfiguration,
   OutboxDropRefusal,
+  type PoolEnvelope,
   ResourceRuntime,
   ResourceWbsRefusal,
   ResourceWbsUnavailable,
+  type ScopeCeiling,
 } from '../resources/runtime';
-import { auditDrift } from './audit';
+import { auditDrift, auditFails } from './audit';
 import { renderAuditUnits, writeAuditUnits } from './audit-units';
 import { hostClassOf, readCommittedCatalogue, toolchainOf } from './catalogue';
 import { calibrateHostJob, type JobRunDependencies, runHostJob } from './job-run';
+import { measuresOf } from './measures';
 import { proposeEnvelope } from './propose';
 import { causeText, OpsRefusal } from './refusal';
-import { HostJobRunRecords } from './run-records';
+import { HostJobRunRecords, leftoverNote, type RunRecord } from './run-records';
 import type { ScopeTelemetry } from './scope';
 import { formatHostPoolStatus } from './status';
 import { checkEligibleTypes, switchPoolMode } from './switch-mode';
@@ -125,15 +128,24 @@ function launcherDependencies(deps: OpsDependencies): JobRunDependencies {
 }
 
 /**
- * Every run record of the pool at `config`, read without creating anything.
+ * Every run record of the pool at `config`, read without creating anything, and the largest
+ * envelope that pool admits ({@link ResourceRuntime.largestEnvelope}).
  * @throws OpsRefusal 70 when the pool or its run records are unusable.
  */
-function readRunRecords(config: string, deps: OpsDependencies, command: string) {
+function readRunRecords(
+  config: string,
+  deps: OpsDependencies,
+  command: string,
+): { records: RunRecord[]; allocatable: PoolEnvelope; ceiling: ScopeCeiling } {
   const runtime = openPool(config, deps.clock, command);
   try {
     const records = HostJobRunRecords.openForReading(runtime.configuration.root);
     try {
-      return records.list();
+      return {
+        records: records.list(),
+        allocatable: runtime.largestEnvelope(),
+        ceiling: runtime.scopeCeiling(),
+      };
     } finally {
       records.close();
     }
@@ -171,6 +183,12 @@ function auditInstant(now: string | undefined, clock: WallClock): number {
  * One handler per `ops` command, keyed by its words after `ops`; each returns its exit code.
  * `cli.test.ts` holds this table equal to the parser's `ops` commands.
  */
+/** A status entry's leftover note for `record`, when it has one (task 6.24). */
+function noteOf(record: RunRecord | null): { leftoverNote?: string } {
+  const note = record === null ? null : leftoverNote(record);
+  return note === null ? {} : { leftoverNote: note };
+}
+
 export const opsHandlers: OpsHandlers = {
   'job run': (command, deps) => runHostJob(command, launcherDependencies(deps)),
   'job calibrate': (command, deps) => calibrateHostJob(command, launcherDependencies(deps)),
@@ -184,7 +202,7 @@ export const opsHandlers: OpsHandlers = {
         64,
         `ops job propose: job type ${command.type} is not in ${catalogue.cataloguePath} at ${catalogue.revision}`,
       );
-    const records = readRunRecords(command.config, deps, 'ops job propose');
+    const { records, allocatable } = readRunRecords(command.config, deps, 'ops job propose');
     const proposal = proposeEnvelope(
       command.type,
       catalogue,
@@ -194,6 +212,7 @@ export const opsHandlers: OpsHandlers = {
         hostClass: command.hostClass ?? hostClassOf(deps.host),
         toolchain: command.toolchain ?? toolchainOf(deps.environment),
       },
+      allocatable,
       deps.clock.read(),
     );
     for (const line of proposal.lines) deps.stdout(`${line}\n`);
@@ -206,20 +225,24 @@ export const opsHandlers: OpsHandlers = {
   },
   'job audit': (command, deps) => {
     const now = auditInstant(command.now, deps.clock);
-    const records = readRunRecords(command.config, deps, 'ops job audit');
+    const { records, ceiling } = readRunRecords(command.config, deps, 'ops job audit');
     // Every record is judged against this checkout's catalogue by job id, never by re-reading
     // the checkout it ran from, which may be a deleted scratch worktree (S4-A8, review A2).
     // Proof: reading each record's own checkout made `a run from a vanished checkout is judged
     // against this checkout` (calibrate.test.ts) refuse 64 naming the vanished path (2026-11-02).
     const catalogue = readCommittedCatalogue(deps.cwd, 'ops job audit');
-    const { drifts, notes } = auditDrift(records, catalogue, now);
+    const { drifts, notes } = auditDrift(records, catalogue, now, ceiling);
     for (const note of notes) deps.stdout(`note: ${note}\n`);
     if (drifts.length === 0) {
       deps.stdout('no drift\n');
       return 0;
     }
     for (const drift of drifts) deps.stdout(`${drift.line}\n`);
-    return 1;
+    // Proof: returning 1 for every drift made `the audit exits 0 when its only drift is an
+    // expected overrun of a clamped envelope` (calibrate.test.ts) exit 1 (2026-11-20, S25-A6).
+    if (auditFails(drifts)) return 1;
+    deps.stdout('only expected drift: overruns of envelopes clamped to the pool\n');
+    return 0;
   },
   'job render-audit-units': (command, deps) => {
     const written = writeAuditUnits(
@@ -272,7 +295,19 @@ export const opsHandlers: OpsHandlers = {
       }
       try {
         const peaks = new Map(
-          status.jobs.map((job) => [job.id, records.inspect(job.id)?.peakMemoryBytes ?? null]),
+          status.jobs.map((job) => {
+            const record = records.inspect(job.id);
+            return [
+              job.id,
+              {
+                memoryBytes: record?.peakMemoryBytes ?? null,
+                // Proof: passing 0 here failed `a throttled job says so beside its peak`
+                // (status.test.ts) on the running line (2026-11-12).
+                memoryHighEvents: record === null ? 0 : measuresOf(record).memoryHighEvents,
+                ...noteOf(record),
+              },
+            ];
+          }),
         );
         const legacy = legacyQueueOf(status, deps, 'ops job status');
         for (const line of formatHostPoolStatus(

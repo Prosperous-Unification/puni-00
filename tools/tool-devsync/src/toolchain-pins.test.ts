@@ -227,6 +227,7 @@ interface CiWorkflow {
     gate_remote?: CiJob;
     gate_remote_model?: CiJob;
     gate_frontend?: CiJob;
+    gate_heavy?: CiJob;
     gate_checks?: CiJob;
     gate_twilight?: CiJob;
     'fleet-check'?: CiJob;
@@ -386,7 +387,13 @@ describe('the CI gate scope', () => {
 
   it('runs the h2puni gate with the same Twilight split as CI', async () => {
     // The host gate mirrors the two CI shards in one script: the workspace without the Twilight
-    // suite, then both Twilight projects' targets and their uncached lint.
+    // suite, then both Twilight projects' targets and their uncached lint. A third, remote-only
+    // line runs tool-remote-scripts' lint, typecheck and build, whose test is CI-only (6.18).
+    // Every line runs at --parallel=1 (A-GATE-PARALLEL-1, task 6.19): at --parallel=2 the peak
+    // exceeded h4claw's 15 GiB.
+    // Proof (2026-11-18): against the --parallel=2 script this failed on `Expected: 1 · Received:
+    // 0`; with only the remote-scripts or only the Twilight line back at --parallel=2, on
+    // `Expected to contain` below.
     // Proof (2026-10-12): with `,twilight-dash` dropped from bin/h2puni-gate-steps.sh's
     // exclusion this failed on `Expected: 1 · Received: 0`.
     const steps = oneLine(commandsOf(await read('bin/h2puni-gate-steps.sh')));
@@ -394,12 +401,21 @@ describe('the CI gate scope', () => {
     expect(
       occurrences(
         steps,
-        'bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \\ ' +
-          '--exclude=twilight-burokrat,twilight-dash',
+        'bunx nx run-many -t test lint typecheck build --parallel=1 --skip-nx-cache \\ ' +
+          '--exclude=twilight-burokrat,twilight-dash,tool-remote-scripts',
       ),
     ).toBe(1);
+    // The host gate does not run tool-remote-scripts' test target (A-GATE-REMOTE-1, task 6.18);
+    // its other targets still run there, without rebuilding their task dependencies.
+    // Proof (2026-11-18): against the script before 6.18 this failed on `Expected: 1 · Received: 0`;
+    // with only the remote-scripts line deleted, or only its `--excludeTaskDependencies` dropped,
+    // it failed on `Expected to contain` below.
     expect(steps).toContain(
-      'bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2',
+      'bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=1 --skip-nx-cache \\ ' +
+        '--excludeTaskDependencies',
+    );
+    expect(steps).toContain(
+      'bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=1',
     );
     expect(steps).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
     expect(steps).toContain('bunx nx run twilight-dash:lint --skip-nx-cache');
@@ -488,9 +504,9 @@ describe('the CI gate scope', () => {
   const registrySourceJobs = [
     [
       '.github/workflows/ci.yml',
-      'gate_workspace',
+      'gate_heavy',
       "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'tool-fleet') }}",
-      'Gate — test, lint, typecheck, build',
+      'Heavy — test, lint, typecheck, build',
     ],
     [
       '.github/workflows/infra-check.yml',
@@ -553,7 +569,14 @@ describe('the CI gate scope', () => {
       expect(commandsOf(await read('bin/registry-source-test-prerequisites.sh'))).not.toMatch(
         /sysctl|sudo unshare|continue-on-error|\|\| true/,
       );
-      for (const unrelated of ['gate_mode', 'gate_docs', 'gate_twilight'] as const)
+      // Proof: keeping the step in gate_workspace after tool-fleet's tests moved to gate_heavy
+      // failed here (A-CI-WORKSPACE-MEMORY-2, 2026-11-20).
+      for (const unrelated of [
+        'gate_mode',
+        'gate_docs',
+        'gate_twilight',
+        'gate_workspace',
+      ] as const)
         expect(
           workflow.jobs?.[unrelated]?.steps?.some(
             (candidate) => candidate.name === 'Provision registry source fixtures',
@@ -627,6 +650,7 @@ describe('the CI gate scope', () => {
       'gate_remote',
       'gate_remote_model',
       'gate_frontend',
+      'gate_heavy',
       'gate_checks',
       'gate_twilight',
     ] as const) {

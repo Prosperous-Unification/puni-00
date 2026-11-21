@@ -2,13 +2,16 @@ import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import {
+  accessSync,
   chmodSync,
+  constants,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -16,7 +19,7 @@ import { arch, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
-import { afterAll, afterEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, spyOn, test } from 'bun:test';
 
 import { monotonicClock, wallClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
@@ -24,13 +27,16 @@ import { scriptedTools } from '../mcp/testing/scripted-tools';
 import { ampleHost, fixtureGit, hostPoolFixture } from '../resources/host-pool.test.fixture';
 import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
+import { parseCatalogueJobs, scopeMemoryBound } from './catalogue';
 import { type OpsDependencies, opsHandlers, runOps } from './commands';
 import { type JobRunDependencies, type JobRunRequest, killSession, runHostJob } from './job-run';
+import { dimensionStandings, incompleteness } from './measures';
 import {
   catalogueCheckout,
   catalogueOf,
   CONTAINER_IMAGE,
   fakeScopeTelemetry,
+  fakeSystemctl,
   type FakeSystemdRun,
   fakeSystemdRun,
   type FixtureJobType,
@@ -64,6 +70,16 @@ if (insideOpsNamespace(import.meta.path)) {
   });
   const clock = wallClock();
   const monotonic = monotonicClock();
+  const clampedProvenance = {
+    kind: 'calibrated',
+    hostClass: 'linux-x64-4c-4g',
+    calibratedAt: '2026-11-20T04:05:14.759Z',
+    recordCount: 3,
+    p95: { cpuCores: 0.5, memoryGib: 2.4, tmpDiskGib: 0 },
+    recordIds: ['c1', 'c2', 'c3'],
+    clampedToAllocatable: ['memoryGib'],
+    heuristic: { memoryGib: 3 },
+  };
   const types: FixtureJobType[] = [
     { id: 'test-queued', cpuCores: 1, memoryGib: 1, tmpDiskGib: 1 },
     { id: 'gate', cpuCores: 2, memoryGib: 1, tmpDiskGib: 1, exclusive: ['gate_tree'] },
@@ -71,17 +87,30 @@ if (insideOpsNamespace(import.meta.path)) {
     { id: 'boxed', cpuCores: 1, memoryGib: 1, containers: { memoryGib: 1, cpuCores: 1 } },
     { id: 'huge', cpuCores: 1, memoryGib: 99 },
     { id: 'pinned', cpuCores: 1, memoryGib: 1, argumentProfile: '<sha>' },
+    { id: 'bounded', cpuCores: 1, memoryGib: 1, maxRuntimeMinutes: 1 },
+    // Clamped from a heuristic of 3 GiB to 2 (task 6.25, S25-A6); the pool allocates 3.
+    { id: 'clamped', cpuCores: 1, memoryGib: 2, provenance: clampedProvenance },
+    {
+      id: 'clamped-cap',
+      cpuCores: 1,
+      memoryGib: 2,
+      enforcement: 'cap',
+      provenance: clampedProvenance,
+    },
   ];
 
   /** A pool of 4 cores and 4 GiB (headroom 1 GiB), one gate tree, initialized by `ops pool init`. */
-  function pool() {
-    const fixture = hostPoolFixture({
-      cpuCores: 4,
-      memoryGib: 4,
-      headroom: { cpuCores: 0, memoryGib: 1 },
-      gateTrees: 1,
-      credential: fakeCredential(),
-    });
+  function pool(overrides: Record<string, unknown> = {}) {
+    const fixture = hostPoolFixture(
+      {
+        cpuCores: 4,
+        memoryGib: 4,
+        headroom: { cpuCores: 0, memoryGib: 1 },
+        gateTrees: 1,
+        credential: fakeCredential(),
+      },
+      overrides,
+    );
     cleanups.push(fixture.remove);
     const checkout = catalogueCheckout(join(fixture.base, 'checkout'), types);
     const out: string[] = [];
@@ -579,6 +608,59 @@ if (insideOpsNamespace(import.meta.path)) {
         ]);
       });
 
+      // Task 6.24: the gate's frontend tests leave `node serve.cjs` in the scope after a payload
+      // that exits 0; its hold on TMPDIR kept the tmp directory charged after every calibration.
+      measured('a leftover in the scope is ended before tmp settlement (task 6.24)', async () => {
+        const { config, checkout, base, root } = pool();
+        const leftover = join(base, 'leftover');
+        const payload = payloadScript(
+          join(base, 'leaves-a-server.sh'),
+          [
+            'cd "$TMPDIR"',
+            `setsid sh -c 'echo $$ > ${leftover}; exec sleep 300' &`,
+            `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+            'exit 0',
+          ].join('\n'),
+        );
+        cleanups.push(() => {
+          if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+        });
+        const report: string[] = [];
+        expect(await run(config, checkout, 'test-queued', [payload], report)).toBe(0);
+        const job = onlyJob(config);
+        const scope = `dash-job-${job.id}.scope`;
+        const record = runRecord(root, job.id);
+        // Proof: dropping the graceful `endLeftovers` call in `runAdmitted` made this see
+        // `tmp blocked: tmp directory unverified: live file hold remains charged` and the
+        // scope's members still `[<sleep pid>]` (2026-11-19, task 6.24).
+        // Outside a PID namespace (the real seam run from a login session) settlement also names
+        // the session's non-dumpable processes (`keepassxc`, `ssh-agent`, `(sd-pam)`) as outside
+        // the scope; that suffix is J19's evidence text, not a hold.
+        const tmpLine = report.find((line) => line.startsWith(`ops job: ${job.id} tmp `)) ?? '';
+        expect({
+          tmp: tmpLine.replace(/; uninspectable_outside_scope: .*$/, ''),
+          members: seam.telemetry.members(record.cgroup),
+        }).toEqual({
+          tmp: `ops job: ${job.id} tmp released: tmp directory removed and holds verified`,
+          members: [],
+        });
+        expect(job.state).toBe('released');
+        expect(record.leftoverProcesses).toEqual({
+          count: 1,
+          examples: [
+            {
+              pid: Number(readFileSync(leftover, 'utf8').trim()),
+              comm: 'sleep',
+              cmdline: 'sleep 300',
+            },
+          ],
+          endedWith: 'SIGTERM',
+        });
+        expect(report).toContain(
+          `ops job: ${job.id} 1 leftover processes in ${scope} after its session ended; SIGTERM`,
+        );
+      });
+
       measured('a one-second job is still measured', async () => {
         const { config, checkout, root } = pool();
         expect(await run(config, checkout, 'test-queued', ['true'])).toBe(0);
@@ -591,6 +673,53 @@ if (insideOpsNamespace(import.meta.path)) {
         ]);
         expect(record.telemetryFailure).toBeNull();
       });
+
+      measured(
+        'a mode-0 test fixture under TMPDIR is a listed tmp lower bound, not a telemetry failure (task 6.23)',
+        async () => {
+          const { config, checkout, base, root } = pool();
+          // What `shared-people-host-restore-process.db.test.ts` does under the gate: a
+          // directory closed to its own user inside a mkdtemp fixture, reopened later.
+          const payload = payloadScript(
+            join(base, 'fixture.sh'),
+            [
+              'fixture="$TMPDIR/wbs-shared-process-XYrBbJ"',
+              'mkdir -p "$fixture/inaccessible/mount"',
+              'head -c 1048576 /dev/zero > "$TMPDIR/scratch"',
+              'chmod 0 "$fixture/inaccessible"',
+              'sleep 1',
+              'chmod 700 "$fixture/inaccessible"',
+            ].join('\n'),
+          );
+          const report: string[] = [];
+          const code = await run(config, checkout, 'test-queued', [payload], report, {
+            sampleIntervalMs: 100,
+          });
+          expect(code).toBe(0);
+          const record = runRecord(root, onlyJob(config).id);
+          // Proof: rethrowing EACCES below the tmp directory in `directoryUsage` made this
+          // test record `telemetryFailure` `interval: tmp directory … unreadable: EACCES:
+          // permission denied, scandir '…/inaccessible'`, as e15a97eb did (2026-11-19).
+          expect(record.telemetryFailure).toBeNull();
+          expect(incompleteness(record)).toBeNull();
+          const partial = record.samples.filter((sample) => sample.tmpUnreadable.length > 0);
+          expect(partial.length).toBeGreaterThan(0);
+          for (const sample of partial) {
+            expect(sample).toMatchObject({
+              kind: 'interval',
+              tmpUnreadable: ['wbs-shared-process-XYrBbJ/inaccessible'],
+              tmpUnreadableOmitted: 0,
+              failure: null,
+            });
+            expect(sample.tmpBytes).toBeGreaterThanOrEqual(1048576);
+          }
+          expect(dimensionStandings(record).tmpDiskGib).toEqual({
+            kind: 'lower-bound',
+            reason: `tmp lower bound only: ${String(partial.length)} samples saw unreadable subtrees (wbs-shared-process-XYrBbJ/inaccessible)`,
+          });
+          expect(report.some((line) => line.includes('telemetry failure'))).toBe(false);
+        },
+      );
 
       measured("a job's failure passes through", async () => {
         const { config, checkout, base, root } = pool();
@@ -632,6 +761,7 @@ if (insideOpsNamespace(import.meta.path)) {
           // The scope's own counter file is made unreadable before the production read.
           const breaking: ScopeTelemetry = {
             cgroupOf: (pid) => seam.telemetry.cgroupOf(pid),
+            children: (cgroup) => seam.telemetry.children(cgroup),
             members: (cgroup) => seam.telemetry.members(cgroup),
             read: (cgroup) => {
               chmodSync(seam.telemetry.counterPath(cgroup, 'memory.peak'), 0o000);
@@ -662,6 +792,7 @@ if (insideOpsNamespace(import.meta.path)) {
           // asks for members), every process left in the scope is killed and the scope empties.
           const tearing: ScopeTelemetry = {
             cgroupOf: (pid) => seam.telemetry.cgroupOf(pid),
+            children: (cgroup) => seam.telemetry.children(cgroup),
             read: (cgroup) => seam.telemetry.read(cgroup),
             members: (cgroup) => {
               for (const member of seam.telemetry.members(cgroup)) process.kill(member, 'SIGKILL');
@@ -867,6 +998,7 @@ if (insideOpsNamespace(import.meta.path)) {
       });
       const holding: ScopeTelemetry = {
         cgroupOf: (pid) => fake.telemetry.cgroupOf(pid),
+        children: (cgroup) => fake.telemetry.children(cgroup),
         members: (cgroup) => fake.telemetry.members(cgroup),
         read: (cgroup) => {
           if (!blocker.inTransaction) blocker.run('BEGIN EXCLUSIVE');
@@ -893,6 +1025,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const payload = payloadScript(join(base, 'payload.sh'), `touch ${marker}`);
       const moving: ScopeTelemetry = {
         cgroupOf: (pid) => fake.telemetry.cgroupOf(pid),
+        children: (cgroup) => fake.telemetry.children(cgroup),
         members: (cgroup) => fake.telemetry.members(cgroup),
         read: (cgroup) => {
           fixtureGit(checkout, 'commit', '--quiet', '--allow-empty', '-m', 'moved on');
@@ -960,6 +1093,7 @@ if (insideOpsNamespace(import.meta.path)) {
       // The reviewer's probe: the signal lands inside the synchronous stretch before the gate.
       const interrupting: ScopeTelemetry = {
         cgroupOf: (pid) => fake.telemetry.cgroupOf(pid),
+        children: (cgroup) => fake.telemetry.children(cgroup),
         members: (cgroup) => fake.telemetry.members(cgroup),
         read: (cgroup) => {
           process.kill(process.pid, 'SIGINT');
@@ -1016,6 +1150,725 @@ if (insideOpsNamespace(import.meta.path)) {
         killSession(gone.pid ?? 0, 'SIGKILL');
       }).not.toThrow();
     });
+  });
+
+  describe('leftover scope processes over the fake seam (task 6.24, A-SCOPE-LEFTOVER-1)', () => {
+    /** A payload that leaves `leftover`'s process holding `TMPDIR`, `prefix` run before it. */
+    function leavingPayload(base: string, prefix: string, life = 300): string {
+      const leftover = join(base, 'leftover');
+      cleanups.push(() => {
+        if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+      });
+      return payloadScript(
+        join(base, 'leaves-a-server.sh'),
+        [
+          'cd "$TMPDIR"',
+          `setsid sh -c '${prefix}echo $$ > ${leftover}; exec sleep ${String(life)}' &`,
+          `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+          'exit 0',
+        ].join('\n'),
+      );
+    }
+
+    /** A report that remembers when each line arrived, on the wall clock the ledger reads. */
+    function timedReport(): { lines: string[]; at: number[]; report: (line: string) => void } {
+      const lines: string[] = [];
+      const at: number[] = [];
+      return {
+        lines,
+        at,
+        report: (line) => {
+          lines.push(line);
+          at.push(clock.read());
+        },
+      };
+    }
+
+    test("a leftover's grace is not the job's wall time (review of #954 S2-1)", async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, 'trap "" TERM; ');
+      const bin = fakeBin('exec');
+      const timed = timedReport();
+      const code = await runHostJob(request(config, 'test-queued', [payload]), {
+        ...runDependencies(checkout, [], {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 2000, killWaitMs: 5000 },
+        }),
+        report: timed.report,
+      });
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const record = runRecord(root, job.id);
+      expect(record.leftoverProcesses).toMatchObject({ count: 1, endedWith: 'SIGKILL' });
+      // Proof: reading the clock for `endedAt` after the leftover ending made `wallMs` 2092 against
+      // the 2 s grace; recording the ledger's exit after it put the exit 2034 ms after the
+      // leftover line (2026-11-19, review of #954 S2-1).
+      expect(record.wallMs ?? Infinity).toBeLessThan(2000);
+      const leftoverLine = timed.lines.findIndex((line) => line.includes('leftover processes in'));
+      expect(leftoverLine).toBeGreaterThan(-1);
+      expect(job.endedAt).toBeLessThanOrEqual(timed.at[leftoverLine] ?? -Infinity);
+    }, 60000);
+
+    test('a failed SIGTERM is recorded as signal-failed, nothing waited for (review of #954 S3-1)', async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, '');
+      const bin = fakeBin('exec');
+      fakeSystemctl(bin, 'fails');
+      const timed = timedReport();
+      expect(
+        await runHostJob(request(config, 'test-queued', [payload]), {
+          ...runDependencies(checkout, [], {
+            environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+            leftoverBudget: { termGraceMs: 2000, killWaitMs: 5000 },
+            settleBudgetMs: 1000,
+          }),
+          report: timed.report,
+        }),
+      ).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      const failure =
+        'SIGTERM: systemctl kill --signal=SIGTERM ' +
+        scope +
+        ': Failed to connect to bus: No medium found';
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 1,
+        endedWith: 'signal-failed',
+        failure,
+      });
+      const started = timed.lines.findIndex((line) =>
+        line.endsWith('after its session ended; SIGTERM'),
+      );
+      const unsignalled = timed.lines.indexOf(
+        `ops job: ${job.id} 1 leftover processes in ${scope} were not signalled: ${failure}; its tmp directory stays charged`,
+      );
+      expect(unsignalled).toBeGreaterThan(started);
+      expect((timed.at[unsignalled] ?? Infinity) - (timed.at[started] ?? 0)).toBeLessThan(1000);
+      expect(job.tmpDisk.state).toBe('blocked');
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user kill --signal=SIGTERM ${scope}\n`,
+      );
+    }, 60000);
+
+    test('a leftover that exits on its own after a failed SIGTERM is not labelled SIGTERM', async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, '', 1);
+      const bin = fakeBin('exec');
+      fakeSystemctl(bin, 'fails');
+      expect(
+        await runHostJob(
+          request(config, 'test-queued', [payload]),
+          runDependencies(checkout, [], {
+            environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+            leftoverBudget: { termGraceMs: 3000, killWaitMs: 3000 },
+          }),
+        ),
+      ).toBe(0);
+      expect(runRecord(root, onlyJob(config).id).leftoverProcesses).toMatchObject({
+        endedWith: 'signal-failed',
+      });
+    }, 60000);
+
+    test('members that become unreadable during the wait are unverified, never ended', async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, '');
+      const bin = fakeBin('exec');
+      const log = join(bin, 'systemctl.log');
+      // Unreadable from the scope kill on, as a cgroup.procs mode change would make it.
+      const unreadable: ScopeTelemetry = {
+        ...fake.telemetry,
+        members: (cgroup) => {
+          if (existsSync(log))
+            throw Object.assign(
+              new Error(`EACCES: permission denied, open '${cgroup}/cgroup.procs'`),
+              {
+                code: 'EACCES',
+              },
+            );
+          return fake.telemetry.members(cgroup);
+        },
+      };
+      expect(
+        await runHostJob(
+          request(config, 'test-queued', [payload]),
+          runDependencies(checkout, [], {
+            environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+            telemetry: unreadable,
+            leftoverBudget: { termGraceMs: 2000, killWaitMs: 2000 },
+            settleBudgetMs: 1000,
+          }),
+        ),
+      ).toBe(0);
+      const leftovers = runRecord(root, onlyJob(config).id).leftoverProcesses;
+      expect(leftovers).toMatchObject({ count: 1, endedWith: 'unverified' });
+      expect(leftovers !== undefined && 'failure' in leftovers ? leftovers.failure : '').toContain(
+        'EACCES',
+      );
+    }, 60000);
+
+    test('a leftover that ignores SIGTERM is SIGKILLed after the grace, recorded', async () => {
+      const { config, checkout, base, root } = pool();
+      const leftover = join(base, 'leftover');
+      // An ignored signal stays ignored across `exec`, so `sleep` itself ignores SIGTERM.
+      const payload = payloadScript(
+        join(base, 'leaves-a-stubborn-server.sh'),
+        [
+          'cd "$TMPDIR"',
+          `setsid sh -c 'trap "" TERM; echo $$ > ${leftover}; exec sleep 300' &`,
+          `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+          'exit 0',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+      });
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 500, killWaitMs: 5000 },
+        }),
+      );
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: dropping the SIGKILL after the grace in `endLeftovers` made this record
+      // `endedWith: 'timeout'` against `SIGKILL` (2026-11-19, task 6.24).
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 1,
+        endedWith: 'SIGKILL',
+      });
+      expect(job.state).toBe('released');
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
+      expect(report).toContain(
+        `ops job: ${job.id} leftovers in ${scope} outlived SIGTERM by 500 ms; SIGKILL`,
+      );
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user kill --signal=SIGTERM ${scope}\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
+    }, 60000);
+
+    test('a leftover that survives SIGKILL is a recorded timeout; tmp stays blocked', async () => {
+      const { config, checkout, base, root } = pool();
+      const leftover = join(base, 'leftover');
+      const payload = payloadScript(
+        join(base, 'leaves-a-server.sh'),
+        [
+          'cd "$TMPDIR"',
+          `setsid sh -c 'echo $$ > ${leftover}; exec sleep 300' &`,
+          `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+          'exit 0',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+      });
+      // A user manager whose kill reaches nothing: every call is logged and answers 0.
+      const bin = fakeBin('exec');
+      payloadScript(
+        join(bin, 'systemctl'),
+        `printf '%s\\n' "$*" >> ${join(bin, 'systemctl.log')}\nexit 0`,
+      );
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 200, killWaitMs: 300 },
+          settleBudgetMs: 1000,
+        }),
+      );
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 1,
+        endedWith: 'timeout',
+      });
+      expect(job.tmpDisk.state).toBe('blocked');
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([
+        Number(readFileSync(leftover, 'utf8').trim()),
+      ]);
+      expect(report).toContain(
+        `ops job: ${job.id} ${scope} still has members 300 ms after SIGKILL; its tmp directory stays charged`,
+      );
+    }, 60000);
+
+    test("a member of the payload's own session is never ended as a leftover", async () => {
+      const { config, checkout, base, root } = pool();
+      const survived = join(base, 'survived');
+      // A plain background child stays in the payload's session: it is the job's own work.
+      const payload = payloadScript(
+        join(base, 'background.sh'),
+        `(sleep 1; touch ${survived}) &\nexit 0`,
+      );
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 200, killWaitMs: 300 },
+        }),
+      );
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: skipping the session check in `endLeftovers` ended the background child:
+      // `survived` absent (2026-11-19, task 6.24).
+      expect(existsSync(survived)).toBe(true);
+      expect(existsSync(join(bin, 'systemctl.log'))).toBe(false);
+      expect(runRecord(root, job.id)).not.toHaveProperty('leftoverProcesses');
+      expect(report).toContain(
+        `ops job: ${job.id} leftovers in ${scope} not ended: the payload's session still has members; watch settles it`,
+      );
+      expect(job.state).toBe('released');
+    }, 60000);
+  });
+
+  describe('a clamped entry runs under its bound and holds the whole pool (task 6.25, S25-A6, S25-A7)', () => {
+    /** The fake `systemd-run`'s launch call (the one that is not the `true` probe) for `type`. */
+    async function launchCall(type: string, overrides: Record<string, unknown> = {}) {
+      const { config, checkout, base, root } = pool(overrides);
+      const bin = fakeBin('exec');
+      const payload = payloadScript(join(base, 'quick.sh'), 'exit 0');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, type, [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          sampleIntervalMs: 100,
+        }),
+      );
+      expect(code).toBe(0);
+      const calls = readFileSync(join(bin, 'calls'), 'utf8').trim().split('\n');
+      const call = calls.find((line) => !line.endsWith(' -- true'));
+      if (call === undefined) throw new Error(`no launch call in ${calls.join(' | ')}`);
+      const job = onlyJob(config);
+      return { call, report, root, id: job.id, job };
+    }
+
+    test('a clamped entry sets MemoryHigh to its heuristic; an unclamped one to its envelope', async () => {
+      // A 4 GiB budget leaving 0 to the host: the heuristic 3 is the lower term.
+      const clamped = await launchCall('clamped', { memoryBoundHeadroomGib: 0 });
+      // Proof: the bound answering the envelope (then `memoryBoundOf`) made this find
+      // `MemoryHigh=2G` (2026-11-20, S25-A6).
+      expect(clamped.call).toContain('-p MemoryHigh=3G');
+      expect(clamped.report).toContain(
+        `ops job: ${clamped.id} MemoryHigh 3 GiB (heuristic 3 GiB, within the pool's 4 − 0 GiB; reservation clamped to 2 GiB)`,
+      );
+      expect(runRecord(clamped.root, clamped.id).memoryBoundGib).toBe(3);
+      expect(clamped.job.descriptor.memoryBoundGib).toBe(3);
+      const plain = await launchCall('test-queued');
+      expect(plain.call).toContain('-p MemoryHigh=1G');
+      expect(plain.report).not.toContainEqual(expect.stringContaining('reservation clamped'));
+      expect(runRecord(plain.root, plain.id).memoryBoundGib).toBe(1);
+      expect(plain.job.descriptor).not.toHaveProperty('memoryBoundGib');
+    }, 60000);
+
+    test('the pool caps the bound when its budget less the bound headroom is lower', async () => {
+      // Absent memoryBoundHeadroomGib means 2: 4 − 2 = 2 GiB is below the heuristic 3.
+      const capped = await launchCall('clamped');
+      expect(capped.call).toContain('-p MemoryHigh=2G');
+      expect(capped.report).toContain(
+        `ops job: ${capped.id} MemoryHigh 2 GiB (the pool's 4 − 2 GiB, below heuristic 3 GiB; reservation clamped to 2 GiB; below the calibrated p95 2.4 GiB, so the scope will be throttled at its measured need)`,
+      );
+    }, 60000);
+
+    test('a clamped gate holds the whole pool through ops job run (S25-A7)', async () => {
+      const { job } = await launchCall('clamped', { memoryBoundHeadroomGib: 0 });
+      // The pool allocates 3 GiB; the entry declares 2.
+      expect(job.reserved.memoryGib).toBe(3);
+      expect(job.descriptor.clampedToAllocatable).toEqual(['memoryGib']);
+    }, 60000);
+
+    test('the scope bound is the lower of the heuristic and the pool, never below the reservation', () => {
+      const entry = parseCatalogueJobs(catalogueOf(types)).find((job) => job.id === 'clamped');
+      if (entry === undefined) throw new Error('no clamped fixture type');
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 0 })).toEqual({
+        memoryGib: 3,
+        term: 'heuristic',
+        heuristicGib: 3,
+      });
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 2 })).toEqual({
+        memoryGib: 2,
+        term: 'pool',
+        heuristicGib: 3,
+        belowP95Gib: 2.4,
+      });
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 3 })).toEqual({
+        memoryGib: 2,
+        term: 'reservation',
+        heuristicGib: 3,
+        belowP95Gib: 2.4,
+      });
+      // h4claw and h2puni with the landed gate entry (heuristic 13): 15 − 2 and 14 − 2.
+      const gate = { ...entry, provenance: { ...entry.provenance, heuristic: { memoryGib: 13 } } };
+      expect(scopeMemoryBound(gate, { memoryGib: 15, memoryBoundHeadroomGib: 2 }).memoryGib).toBe(
+        13,
+      );
+      expect(scopeMemoryBound(gate, { memoryGib: 14, memoryBoundHeadroomGib: 2 })).toMatchObject({
+        memoryGib: 12,
+        term: 'pool',
+      });
+      const unclamped = parseCatalogueJobs(catalogueOf(types)).find((job) => job.id === 'gate');
+      if (unclamped === undefined) throw new Error('no gate fixture type');
+      expect(scopeMemoryBound(unclamped, { memoryGib: 4, memoryBoundHeadroomGib: 2 })).toEqual({
+        memoryGib: 1,
+        term: 'envelope',
+      });
+    });
+
+    test('a pool bound below the calibrated p95 says so', () => {
+      const entry = parseCatalogueJobs(catalogueOf(types)).find((job) => job.id === 'clamped');
+      if (entry === undefined) throw new Error('no clamped fixture type');
+      // 4 − 2 = 2 GiB is below the fixture's p95 of 2.4; 4 − 0 lets the heuristic 3 hold it.
+      expect(scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 2 })).toMatchObject({
+        memoryGib: 2,
+        belowP95Gib: 2.4,
+      });
+      expect(
+        scopeMemoryBound(entry, { memoryGib: 4, memoryBoundHeadroomGib: 0 }),
+      ).not.toHaveProperty('belowP95Gib');
+    });
+
+    test('a cap entry with memoryGib clamped to the pool is refused 64 before admission', async () => {
+      const { config, checkout, base } = pool();
+      const payload = payloadScript(join(base, 'quick.sh'), 'exit 0');
+      const refused = await refusal(
+        runHostJob(request(config, 'clamped-cap', [payload]), runDependencies(checkout, [])),
+      );
+      expect(refused.exitCode).toBe(64);
+      expect(refused.message).toContain(
+        'job type clamped-cap enforces cap with memoryGib clamped to the pool: MemoryMax 2G is below its calibrated p95 2.4 GiB and would kill every run',
+      );
+      expect(ledger(config).listHostJobs()).toEqual([]);
+    });
+  });
+
+  describe('the runtime bound over the fake seam (task 6.11)', () => {
+    /** The monotonic clock, two minutes ahead once `marker` exists: the payload has started. */
+    const aheadOnceStarted = (marker: string) => ({
+      now: () => monotonic.now() + (existsSync(marker) ? 120_000 : 0),
+    });
+
+    test('a job past its maxRuntimeMinutes is ended with 124, the reason recorded', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(join(base, 'long.sh'), `touch ${marker}\nsleep 20\nexit 0`);
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+        }),
+      );
+      // Proof: dropping the bound check in `runAdmitted` made this return 0 after the payload's
+      // full 20 s (2026-11-12).
+      expect(code).toBe(124);
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      const job = onlyJob(config);
+      expect(job.exitCode).toBe(124);
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        signal: 'SIGTERM',
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+        telemetryFailure: null,
+      });
+      expect(report).toContain(
+        `ops job: ${job.id} exceeded maxRuntimeMinutes 1: ended by the launcher`,
+      );
+    }, 60000);
+
+    test('a payload that ignores SIGTERM is killed after the settle budget', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(
+        join(base, 'stubborn.sh'),
+        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+      );
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      // Proof: dropping the SIGKILL in `endPayload` made the elapsed check fail at 21.1 s, the
+      // payload's full 20 s (2026-11-12).
+      expect(code).toBe(124);
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      const record = runRecord(root, onlyJob(config).id);
+      expect(record).toMatchObject({
+        exitCode: 124,
+        signal: 'SIGKILL',
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+      });
+      expect(
+        report.some((line) =>
+          line.endsWith(
+            `outlived SIGTERM by 1000 ms; SIGKILL to every process of dash-job-${record.jobId}.scope`,
+          ),
+        ),
+      ).toBe(true);
+    }, 60000);
+
+    test("a setsid'd descendant that ignores SIGTERM ends with the scope at the bound", async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const childPid = join(base, 'child');
+      // The descendant leaves the payload's session and process group, as the nx daemon does.
+      const payload = payloadScript(
+        join(base, 'daemonizing.sh'),
+        [
+          "trap '' TERM",
+          `setsid sh -c 'echo $$ > ${childPid}; exec sleep 30' &`,
+          `while [ ! -s ${childPid} ]; do sleep 0.05; done`,
+          `touch ${marker}`,
+          'sleep 20',
+          'exit 0',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(childPid)) spawn('kill', ['-KILL', readFileSync(childPid, 'utf8').trim()]);
+      });
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: restoring `killSession(pid, 'SIGKILL')` in place of the scope kill in `endPayload`
+      // left the descendant alive: `members` received its one pid against `[]` (2026-11-18).
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
+      expect(code).toBe(124);
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+      });
+      // The lift comes first, so the trap and handlers run unthrottled; the scope kill last.
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user set-property --runtime ${scope} MemoryHigh=infinity\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
+    }, 60000);
+
+    test("a setsid'd descendant outlives a payload that honours SIGTERM, not the bound", async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const childPid = join(base, 'child');
+      // The payload ends on SIGTERM inside the settle budget; only its descendant ignores it.
+      const payload = payloadScript(
+        join(base, 'honouring.sh'),
+        [
+          `setsid sh -c 'trap "" TERM; echo $$ > ${childPid}; exec sleep 30' &`,
+          `while [ ! -s ${childPid} ]; do sleep 0.05; done`,
+          `touch ${marker}`,
+          'sleep 20',
+          'exit 0',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(childPid)) spawn('kill', ['-KILL', readFileSync(childPid, 'utf8').trim()]);
+      });
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 5000,
+        }),
+      );
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: dropping the SIGKILL after the leader's exit (`endLeftovers`, job-run.ts) left the
+      // descendant alive: `members` received `[90]` against `[]` (2026-11-18, review of #942
+      // S2-1; `[1797]` again on 2026-11-19, task 6.24).
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
+      expect(code).toBe(124);
+      expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGTERM' });
+      expect(report).toContain(`ops job: 1 processes left in ${scope} after its leader; SIGKILL`);
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user set-property --runtime ${scope} MemoryHigh=infinity\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
+    }, 60000);
+
+    test('a host without systemctl still ends the job at the bound, reported', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(
+        join(base, 'stubborn.sh'),
+        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+      );
+      const bin = fakeBin('exec');
+      rmSync(join(bin, 'systemctl'));
+      // Every tool on this host's PATH but systemctl, each name linked once from the first PATH
+      // entry that has it, as a lookup would resolve it. A name in two entries (the CI runner's
+      // `now`), a dangling link or a non-executable entry is skipped, never linked twice.
+      const tools = join(base, 'tools-without-systemctl');
+      mkdirSync(tools);
+      const linked = new Set<string>(['systemctl']);
+      for (const directory of (process.env['PATH'] ?? '').split(':')) {
+        if (directory === '' || !existsSync(directory)) continue;
+        for (const name of readdirSync(directory)) {
+          if (linked.has(name)) continue;
+          const path = join(directory, name);
+          try {
+            if (!statSync(path).isFile()) continue;
+            accessSync(path, constants.X_OK);
+          } catch {
+            // A dangling link or a tool this account cannot run is no tool for the payload.
+            continue;
+          }
+          linked.add(name);
+          symlinkSync(path, join(tools, name));
+        }
+      }
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${tools}` },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      // Proof: dropping the `not on PATH` answer in `systemctlFailure` made the lift throw before
+      // the SIGTERM, and the payload ran its full 20 s: 21119 ms against `< 15000`
+      // (2026-11-18, review of #942 S3-1).
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      expect(code).toBe(124);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGKILL' });
+      expect(report).toContain(
+        `ops job: lifting MemoryHigh of ${scope} failed: systemctl is not on PATH; SIGTERM regardless`,
+      );
+      expect(
+        report.some((line) =>
+          line.startsWith(
+            `ops job: SIGKILL to ${scope} failed: systemctl is not on PATH; SIGKILL to session `,
+          ),
+        ),
+      ).toBe(true);
+    }, 60000);
+
+    test('a failed scope kill is reported and the session SIGKILLed instead', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(
+        join(base, 'stubborn.sh'),
+        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+      );
+      const refusing = fakeSystemctl(join(base, 'refusing-bin'), 'fails');
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: {
+            ...fake.environment,
+            PATH: `${refusing}:${fake.environment['PATH'] ?? ''}`,
+          },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      // Proof: dropping the fallback `killSession(pid, 'SIGKILL')` in `endPayload` made the payload
+      // run its full 20 s: the elapsed check failed (2026-11-18).
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      expect(code).toBe(124);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGKILL' });
+      const diagnostic = 'Failed to connect to bus: No medium found';
+      expect(report).toContain(
+        `ops job: lifting MemoryHigh of ${scope} failed: systemctl set-property --runtime ${scope} MemoryHigh=infinity: ${diagnostic}; SIGTERM regardless`,
+      );
+      expect(
+        report.some((line) =>
+          line.startsWith(
+            `ops job: SIGKILL to ${scope} failed: systemctl kill --signal=SIGKILL ${scope}: ${diagnostic}; SIGKILL to session `,
+          ),
+        ),
+      ).toBe(true);
+    }, 60000);
+
+    test('a failed kill at the runtime bound still records 124 and settles', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(join(base, 'unkillable.sh'), `touch ${marker}\nsleep 2`);
+      const kill = process.kill.bind(process);
+      const refusing = spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (pid < 0 && signal === 'SIGTERM')
+          throw Object.assign(new Error('kill EPERM'), { code: 'EPERM' });
+        return kill(pid, signal);
+      });
+      const report: string[] = [];
+      try {
+        expect(
+          await runHostJob(
+            request(config, 'bounded', [payload]),
+            runDependencies(checkout, report, {
+              monotonic: aheadOnceStarted(marker),
+              sampleIntervalMs: 100,
+            }),
+          ),
+        ).toBe(124);
+      } finally {
+        refusing.mockRestore();
+      }
+      const job = onlyJob(config);
+      expect(job.exitCode).toBe(124);
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        signal: null,
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+      });
+      expect(report).toContain(
+        `ops job: ending dash-job-${job.id} at its runtime bound failed: kill EPERM`,
+      );
+    }, 60000);
+
+    test('a type without maxRuntimeMinutes runs as long as its payload', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(join(base, 'short.sh'), `touch ${marker}\nsleep 0.5`);
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, [], {
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+        }),
+      );
+      expect(code).toBe(0);
+      const record = runRecord(root, onlyJob(config).id);
+      expect(record.exitCode).toBe(0);
+      expect(record.endedByLauncher).toBeUndefined();
+    }, 60000);
   });
 
   describe(`real-scope only (task 3.1, J7)${scopeSkip}`, () => {
@@ -1102,9 +1955,33 @@ if (insideOpsNamespace(import.meta.path)) {
         expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded']);
         // Other agents on the host may start unlabelled containers in the same window.
         expect(record.attributionIncomplete).toBe(
-          record.containers.some((verdict) => verdict.verdict !== 'bounded'),
+          record.containers.some(
+            (verdict) => verdict.verdict !== 'bounded' && verdict.verdict !== 'host-service',
+          ),
         );
         expect(job.compute.state).toBe('released');
+      },
+      90000,
+    );
+
+    test.skipIf(!ready)(
+      'a labelled, bounded host-service container beside the job keeps attribution complete (task 6.22)',
+      async () => {
+        const { code, record } = await runBoxed(
+          [
+            `docker run --rm --label puni.job="$DASH_JOB_ID" --memory 256m --cpus 1 ${CONTAINER_IMAGE} sleep 1`,
+            `docker run --rm --label puni.host-service=dash-test-service --memory 64m --cpus 0.5 ${CONTAINER_IMAGE} sleep 1`,
+          ].join('\n'),
+        );
+        expect(code).toBe(0);
+        const mine = record.containers.filter((verdict) => verdict.verdict !== 'unlabelled');
+        expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded', 'host-service']);
+        expect(mine[1]).toMatchObject({
+          hostService: { name: 'dash-test-service', memoryBytes: 64 * 1024 ** 2, cpuCores: 0.5 },
+        });
+        expect(record.attributionIncomplete).toBe(
+          record.containers.some((verdict) => verdict.verdict === 'unlabelled'),
+        );
       },
       90000,
     );

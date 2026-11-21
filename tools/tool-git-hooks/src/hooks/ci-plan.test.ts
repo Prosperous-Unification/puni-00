@@ -39,6 +39,10 @@ function history(path: string, content?: string) {
     'wbs-be-01',
     'tool-remote-scripts',
     'wbs-fe-01',
+    'tool-fleet',
+    'tool-devsync',
+    'wbs-store-sqlite',
+    'wbs-core',
   ]) {
     const targets = Object.fromEntries(
       ['test', 'typecheck', 'build', 'lint', 'lint:source'].map((target) => [
@@ -126,6 +130,16 @@ function invokePlan(candidate: ReturnType<typeof history>) {
   );
 }
 
+const dedicatedInventory = [
+  'wbs-be-01',
+  'tool-remote-scripts',
+  'wbs-fe-01',
+  'tool-fleet',
+  'tool-devsync',
+  'wbs-store-sqlite',
+  'wbs-core',
+];
+
 function invokeRuntime(
   candidate: ReturnType<typeof history>,
   part: string,
@@ -139,6 +153,10 @@ function invokeRuntime(
     'wbs-be-01',
     'tool-remote-scripts',
     'wbs-fe-01',
+    'tool-fleet',
+    'tool-devsync',
+    'wbs-store-sqlite',
+    'wbs-core',
     'new-runtime',
   ],
 ) {
@@ -258,6 +276,9 @@ describe('production CI plan and execution', () => {
     ['wbs-be-01', 'backend'],
     ['tool-remote-scripts', 'remote'],
     ['wbs-fe-01', 'frontend'],
+    ['tool-fleet', 'heavy'],
+    ['wbs-store-sqlite', 'heavy'],
+    ['wbs-core', 'heavy'],
   ])(
     'plans %s only in its dedicated %s partition',
     (project, partition) => {
@@ -360,7 +381,7 @@ describe('production CI plan and execution', () => {
 
   test('full partitions cover every non-Twilight project with canonical targets', () => {
     const candidate = history('modules/core/source.ts');
-    const commands = ['backend', 'remote', 'frontend', 'workspace'].map((part) => {
+    const commands = ['backend', 'remote', 'frontend', 'workspace', 'heavy'].map((part) => {
       const { invocation, calls } = invokeRuntime(candidate, part, '0', 'full');
       expect(invocation.exitCode, `${part}: ${invocation.stderr.toString()}`).toBe(0);
       expect(invocation.stdout.toString()).toContain('elapsedMs');
@@ -376,8 +397,67 @@ describe('production CI plan and execution', () => {
       'run-many -t test lint typecheck build -p wbs-fe-01 --parallel=2',
     );
     expect(commands[3][1]).toContain(
-      'run-many -t test lint typecheck build -p core,website-contracts,new-runtime --parallel=2',
+      'run-many -t test typecheck build -p core,website-contracts,new-runtime --parallel=2',
     );
+    expect(commands[3][2]).toContain(
+      'run-many -t lint -p core,website-contracts,new-runtime --parallel=1',
+    );
+    expect(commands[3]).toHaveLength(3);
+    expect(commands[3].join('\n')).not.toMatch(/tool-fleet|tool-devsync|wbs-store-sqlite|wbs-core/);
+    expect(commands[4].slice(1)).toEqual([
+      'nx run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite,wbs-core --parallel=1 --output-style=stream',
+    ]);
+  }, 20000);
+
+  // A-CI-WORKSPACE-MEMORY-2: the heavy shard owns HEAVY_TEST_PROJECTS and runs them one at a
+  // time; the workspace shard keeps only their affected lint.
+  test('the heavy shard runs its projects one task at a time in affected and full modes', () => {
+    const candidate = history('modules/tool-fleet/source.ts');
+    const planned = invokePlan(candidate);
+    expect(planned.exitCode, planned.stderr.toString()).toBe(0);
+    const plan = JSON.parse(planned.stdout.toString()) as { partitions: Record<string, string[]> };
+    expect(plan.partitions['heavy']).toEqual(['tool-fleet']);
+    expect(plan.partitions['workspace']).toEqual([]);
+    const affected = invokeRuntime(candidate, 'heavy');
+    expect(affected.invocation.exitCode, affected.invocation.stderr.toString()).toBe(0);
+    expect(readFileSync(affected.calls, 'utf8').trim().split('\n')).toEqual([
+      'nx run-many -t test typecheck build -p tool-fleet --parallel=1 --output-style=stream',
+    ]);
+    const workspace = invokeRuntime(candidate, 'workspace');
+    expect(workspace.invocation.exitCode, workspace.invocation.stderr.toString()).toBe(0);
+    const residual = readFileSync(workspace.calls, 'utf8').trim().split('\n');
+    expect(residual).toHaveLength(2);
+    expect(residual[0]).toContain('affected -t lint');
+    expect(residual[1]).toContain('run twilight-burokrat:lint:source');
+    const full = invokeRuntime(candidate, 'heavy', '0', 'full');
+    expect(full.invocation.exitCode, full.invocation.stderr.toString()).toBe(0);
+    expect(readFileSync(full.calls, 'utf8')).toContain(
+      'run-many -t test lint typecheck build -p tool-fleet,tool-devsync,wbs-store-sqlite,wbs-core --parallel=1 --output-style=stream',
+    );
+  }, 20000);
+
+  test('the heavy shard refuses an affected plan that selects none of its projects', () => {
+    const { invocation, calls } = invokeRuntime(history('modules/core/source.ts'), 'heavy');
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stderr.toString()).toContain('Selected runtime partition has no projects');
+    expect(existsSync(calls)).toBe(false);
+  }, 20000);
+
+  // A-CI-WORKSPACE-MEMORY-1: two concurrent type-aware eslints plus test workers can exhaust the
+  // 16 GB hosted runner, which then dies without a log (docs/findings/checks-that-cannot-fail.md,
+  // R5-32). Lint is the phase with the largest single heaps and recovers only minutes in parallel.
+  test('workspace lint runs one task at a time in affected and full modes', () => {
+    const candidate = history('modules/core/source.ts');
+    for (const mode of ['affected', 'full']) {
+      const { invocation, calls } = invokeRuntime(candidate, 'workspace', '0', mode);
+      expect(invocation.exitCode, `${mode}: ${invocation.stderr.toString()}`).toBe(0);
+      const lint = readFileSync(calls, 'utf8')
+        .trim()
+        .split('\n')
+        .filter((line) => / -t (?:\S+ )*lint /.test(line));
+      expect(lint, mode).toHaveLength(1);
+      expect(lint[0], mode).toEndWith(' --parallel=1 --output-style=stream');
+    }
   }, 20000);
 
   test('fixed remote leaves retain one logical owner and explicit static/dependency execution', () => {
@@ -441,7 +521,16 @@ describe('production CI plan and execution', () => {
 
   test('full residual stays explicit when all configured projects are dedicated or Twilight', () => {
     const candidate = history('modules/core/source.ts');
-    const selected = ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', 'twilight-burokrat'];
+    const selected = [
+      'wbs-be-01',
+      'tool-remote-scripts',
+      'wbs-fe-01',
+      'tool-fleet',
+      'tool-devsync',
+      'wbs-store-sqlite',
+      'wbs-core',
+      'twilight-burokrat',
+    ];
     const { invocation, calls } = invokeRuntime(candidate, 'workspace', '0', 'full', selected);
     expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
     expect(readFileSync(calls, 'utf8').trim()).toBe('nx show projects --json');
@@ -456,12 +545,28 @@ describe('production CI plan and execution', () => {
     const missing = invokeRuntime(candidate, 'backend', '0', 'full', ['core']);
     expect(missing.invocation.exitCode).not.toBe(0);
     expect(readFileSync(missing.calls, 'utf8')).not.toContain('run-many');
+    // Proof: dropping HEAVY_TEST_PROJECTS from the inventory guard let a full heavy run with
+    // tool-devsync missing reach run-many (2026-11-20).
+    for (const omitted of ['tool-fleet', 'tool-devsync', 'wbs-store-sqlite', 'wbs-core']) {
+      const heavy = invokeRuntime(
+        candidate,
+        'heavy',
+        '0',
+        'full',
+        dedicatedInventory.filter((name) => name !== omitted),
+      );
+      expect(heavy.invocation.exitCode, omitted).not.toBe(0);
+      expect(heavy.invocation.stderr.toString(), omitted).toContain(
+        `Nx project inventory omits ${omitted}`,
+      );
+      expect(readFileSync(heavy.calls, 'utf8'), omitted).not.toContain('run-many');
+    }
     const fault = invokeRuntime(candidate, 'backend', '23', 'full');
     expect(fault.invocation.exitCode).not.toBe(0);
     expect(readFileSync(fault.calls, 'utf8')).not.toContain('run-many');
     for (const names of [
-      ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', '--skip-nx-cache'],
-      ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', 'wbs-be-01'],
+      [...dedicatedInventory, '--skip-nx-cache'],
+      [...dedicatedInventory, 'wbs-be-01'],
     ]) {
       const malformed = invokeRuntime(candidate, 'backend', '0', 'full', names);
       expect(malformed.invocation.exitCode).not.toBe(0);

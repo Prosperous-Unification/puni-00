@@ -108,7 +108,7 @@ for (const fault of [
         code: fault === 'missing-request' ? 'ENOENT' : 'EACCES',
       }),
       cleanup = new Error('private cleanup failure');
-    const writer = {
+    const writer: Parameters<typeof createRegistryPressureStop>[0] = {
       pid: 42,
       startTicks: '123',
       assertLive: () => {

@@ -60,6 +60,20 @@ const loginReason = inLogin
   ? ''
   : ` (skipped: this test runs in ${ownCgroup}, not a login session)`;
 
+/**
+ * Whether this test process runs in a Dash host job's scope, as it does under the host gate (task
+ * 6.20): a plainly spawned holder would share that scope and count as Dash-owned work, so a holder
+ * meant to be outside it starts in a fresh user scope instead.
+ */
+const inDashJob = /\/dash-job-[0-9a-f-]+\.scope$/.test(ownCgroup);
+const nestedReason =
+  inDashJob && scopes.exitCode !== 0
+    ? ` (skipped: this test runs in ${ownCgroup}, a Dash job scope, and systemd-run --user --scope answered exit ${String(scopes.exitCode)})`
+    : '';
+
+/** The user scope for a holder outside Dash-owned work: none unless this test runs in a job scope. */
+const outsideUnit = () => (inDashJob ? `j19-holder-${randomUUID()}` : undefined);
+
 // A process the hold scan listed can exit before its cgroup, identity or session is read. The
 // race itself cannot be scheduled without a seam, so this hands `outsideScope` the pid of a
 // process that has already exited and been reaped, which is what every read then sees
@@ -266,22 +280,30 @@ describe('uninspectable processes outside Dash-owned work (J19)', () => {
     return runtime.inspect(id);
   }
 
-  test('ops pool init succeeds beside a non-dumpable process that predates it', async () => {
-    const fixture = pool(1);
-    const pid = await nonDumpable(fixture.base);
-    // The production path: the CLI process is the Dash process the holder predates, and this
-    // host's own `(sd-pam)` and `sshd-session` processes predate it too.
-    const init = Bun.spawnSync(
-      [process.execPath, ENTRYPOINT, 'ops', 'pool', 'init', '--config', fixture.config],
-      { stdout: 'pipe', stderr: 'pipe', timeout: 60000 },
-    );
-    // Proof: see `checkHostFacts`; inspecting with no initializer scope made this exit 70,
-    // "host pool unit … is held: cannot inspect process PID" (2026-11-02, J19).
-    expect(init.stderr.toString()).toBe('');
-    expect(init.exitCode).toBe(0);
-    expect(JSON.parse(init.stdout.toString())).toMatchObject({ initialized: true });
-    expect(pid).toBeGreaterThan(0);
-  }, 60000);
+  test.skipIf(nestedReason !== '')(
+    `ops pool init succeeds beside a non-dumpable process that predates it${nestedReason}`,
+    async () => {
+      const fixture = pool(1);
+      // Proof: started plainly inside the host gate's own `dash-job-<uuid>.scope` this holder was
+      // Dash-owned work, and init printed "error: host pool …/config.json not initialized: host pool
+      // unit … is held: cannot inspect process PID …" (h4claw job 0650f314, main 4cace4ed9,
+      // 2026-11-18); reproduced under a fake `dash-job-<uuid>.scope` (verify.md task 6.20).
+      const pid = await nonDumpable(fixture.base, outsideUnit());
+      // The production path: the CLI process is the Dash process the holder predates, and this
+      // host's own `(sd-pam)` and `sshd-session` processes predate it too.
+      const init = Bun.spawnSync(
+        [process.execPath, ENTRYPOINT, 'ops', 'pool', 'init', '--config', fixture.config],
+        { stdout: 'pipe', stderr: 'pipe', timeout: 60000 },
+      );
+      // Proof: see `checkHostFacts`; inspecting with no initializer scope made this exit 70,
+      // "host pool unit … is held: cannot inspect process PID" (2026-11-02, J19).
+      expect(init.stderr.toString()).toBe('');
+      expect(init.exitCode).toBe(0);
+      expect(JSON.parse(init.stdout.toString())).toMatchObject({ initialized: true });
+      expect(pid).toBeGreaterThan(0);
+    },
+    60000,
+  );
 
   test.skipIf(scopes.exitCode !== 0)(
     `pool init refuses beside a non-dumpable process started after it in the user manager${scopeReason}`,
@@ -365,22 +387,29 @@ describe('uninspectable processes outside Dash-owned work (J19)', () => {
     60000,
   );
 
-  test('cleanup releases a resource beside a non-dumpable process that predates its leader', async () => {
-    const fixture = pool(0);
-    const runtime = runtimeOf(fixture.config);
-    const pid = await nonDumpable(fixture.base);
-    const use = await runtime.create(request('temporary_directory'), admitFixture);
-    expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
-    const current = cleanedUp(runtime, use.id);
-    // Proof: inspecting with no use scope left this `blocked` "cannot inspect process PID"
-    // (2026-11-02, J19).
-    expect(current.state).toBe('released');
-    expect(current.reason).toStartWith(
-      'provider absence and file holds verified; uninspectable_outside_scope: ',
-    );
-    expect(current.reason).toContain(`${String(pid)} (python3)`);
-    expect(existsSync(use.locator)).toBe(false);
-  }, 60000);
+  test.skipIf(nestedReason !== '')(
+    `cleanup releases a resource beside a non-dumpable process that predates its leader${nestedReason}`,
+    async () => {
+      const fixture = pool(0);
+      const runtime = runtimeOf(fixture.config);
+      // Proof: started plainly inside the host gate's own `dash-job-<uuid>.scope` this holder was
+      // Dash-owned work: `Expected: "released" Received: "blocked"` (h4claw job 0650f314, main
+      // 4cace4ed9, 2026-11-18); reproduced under a fake `dash-job-<uuid>.scope` (verify.md task 6.20).
+      const pid = await nonDumpable(fixture.base, outsideUnit());
+      const use = await runtime.create(request('temporary_directory'), admitFixture);
+      expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
+      const current = cleanedUp(runtime, use.id);
+      // Proof: inspecting with no use scope left this `blocked` "cannot inspect process PID"
+      // (2026-11-02, J19).
+      expect(current.state).toBe('released');
+      expect(current.reason).toStartWith(
+        'provider absence and file holds verified; uninspectable_outside_scope: ',
+      );
+      expect(current.reason).toContain(`${String(pid)} (python3)`);
+      expect(existsSync(use.locator)).toBe(false);
+    },
+    60000,
+  );
 
   /** A use whose leader runs while `during` starts a holder; resolves the use's cleanup state. */
   async function cleanupBesideLaterHolder(unit?: string) {

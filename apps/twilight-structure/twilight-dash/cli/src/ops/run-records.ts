@@ -8,13 +8,38 @@ import {
   checkRunRecordsVersion,
   runRecordsPathOf,
 } from '../resources/run-record-file';
-import type { ScopeCounters } from './scope';
+import type { LeftoverProcess, ScopeCounters } from './scope';
 
-/** One container the run saw start, and whether it ran labelled and inside the declared bound. */
-export interface ContainerVerdict {
-  id: string;
-  verdict: 'bounded' | 'unlabelled' | 'unbounded' | 'unverified';
-  reason: string;
+/** The service a `puni.host-service` container declared, and the bounds Docker enforces on it. */
+export interface HostServiceBound {
+  name: string;
+  memoryBytes: number;
+  cpuCores: number;
+}
+
+/**
+ * One container the run saw start, and whether it ran labelled and inside the declared bound.
+ * `host-service` is a declared host service's container beside the job, run under its own
+ * bounds (`dash-host-jobs` J16 amendment, A-ATTR-HOSTSVC-1); it is listed, never charged.
+ */
+export type ContainerVerdict =
+  | { id: string; verdict: 'bounded' | 'unlabelled' | 'unbounded' | 'unverified'; reason: string }
+  | { id: string; verdict: 'host-service'; reason: string; hostService: HostServiceBound };
+
+/** Whether `container` is accounted for: the job's own bounded container or a bounded host service. */
+export function isAttributed(container: ContainerVerdict): boolean {
+  // Proof: dropping the host-service term made `a record whose only other container is a bounded
+  // host service is complete (task 6.22)` (propose.test.ts) refuse with two complete records, and
+  // three host-service tests in audit.test.ts fail (2026-11-19).
+  return container.verdict === 'bounded' || container.verdict === 'host-service';
+}
+
+/**
+ * Whether the containers a run saw leave its attribution incomplete (J16): any one neither the
+ * job's bounded container nor a declared, bounded host service.
+ */
+export function isAttributionIncomplete(containers: readonly ContainerVerdict[]): boolean {
+  return containers.some((container) => !isAttributed(container));
 }
 
 /** The labelled containers' advisory usage at one sample (J16), or why it could not be read. */
@@ -30,7 +55,15 @@ export interface RunSample {
   kind: 'gate' | 'interval' | 'exit';
   observedAt: number;
   counters: ScopeCounters | null;
+  /** The tmp directory's readable bytes; a lower bound when `tmpUnreadable` is not empty. */
   tmpBytes: number | null;
+  /**
+   * Paths under the tmp directory the walk could not read (task 6.23), relative, at most 32;
+   * empty on a sample recorded before task 6.23.
+   */
+  tmpUnreadable: string[];
+  /** How many more unreadable paths this sample saw than `tmpUnreadable` lists. */
+  tmpUnreadableOmitted: number;
   containers: ContainerSample | null;
   failure: string | null;
 }
@@ -55,12 +88,44 @@ export interface RunStart {
   toolchain?: string;
   /** Present on a calibration record (`ops job calibrate`, J9); an ordinary run omits it. */
   calibration?: true;
+  /**
+   * The scope's `MemoryHigh` in GiB on an ordinary run (task 6.25): the envelope's `memoryGib`,
+   * or the heuristic of an entry clamped to the pool. Absent on a calibration, which runs
+   * unbounded, and on a record written before task 6.25.
+   */
+  memoryBoundGib?: number;
   unit: string;
   cgroup: string;
   tmpDirectory: string;
   units: { exclusiveId: string; path: string }[];
   startedAt: number;
 }
+
+/**
+ * What the launcher did with the processes left in the job's scope once its session had ended
+ * (task 6.24, A-SCOPE-LEFTOVER-1): how many there were (the scope's subtree), at most
+ * {@link LEFTOVER_EXAMPLE_LIMIT} of the scope's own described, and what ended them: `none` (there
+ * were none), `SIGTERM` within the grace, `SIGKILL` after it, or `timeout` when the scope still
+ * had members after the SIGKILL wait. Two outcomes carry their `failure` (review of #954 S3-1):
+ * `signal-failed` when `systemctl --user kill` failed, so no signal was delivered and nothing was
+ * waited for, and `unverified` when the scope's members became unreadable during the wait. Every
+ * outcome but `none`, `SIGTERM` and `SIGKILL` leaves the tmp directory charged.
+ */
+export type LeftoverProcesses =
+  | {
+      count: number;
+      examples: LeftoverProcess[];
+      endedWith: 'none' | 'SIGTERM' | 'SIGKILL' | 'timeout';
+    }
+  | {
+      count: number;
+      examples: LeftoverProcess[];
+      endedWith: 'signal-failed' | 'unverified';
+      failure: string;
+    };
+
+/** How many leftovers a run record describes; the rest are only counted. */
+export const LEFTOVER_EXAMPLE_LIMIT = 8;
 
 /** What a run record adds after the payload exits. */
 export interface RunOutcome {
@@ -73,6 +138,10 @@ export interface RunOutcome {
   containers: ContainerVerdict[];
   /** Why the singleton guard did not hold for this run (review H5); absent when it did. */
   guardLost?: string;
+  /** Why the launcher ended the payload itself (its type's `maxRuntimeMinutes`); absent otherwise. */
+  endedByLauncher?: string;
+  /** Absent on a record written before task 6.24, or when the ending step could not run. */
+  leftoverProcesses?: LeftoverProcesses;
 }
 
 /** A run record as `ops job status` and the tests read it. */
@@ -86,10 +155,18 @@ export interface RunRecord extends RunStart {
   containers: ContainerVerdict[];
   /** Why the singleton guard did not hold for this run (review H5); absent when it did. */
   guardLost?: string;
+  /** Why the launcher ended the payload itself (its type's `maxRuntimeMinutes`); absent otherwise. */
+  endedByLauncher?: string;
+  /** Absent on a record written before task 6.24, or when the ending step could not run. */
+  leftoverProcesses?: LeftoverProcesses;
   /** The largest `memory.peak` sampled, bytes; null before any counter was read. */
   peakMemoryBytes: number | null;
   /** The largest tmp sample, bytes: a lower bound, disk outside `TMPDIR` not covered (J7). */
   peakTmpBytes: number | null;
+  /**
+   * The payload's own wall time, gate to leader exit; the leftover ending after it (task 6.24)
+   * is excluded. Null before the outcome is recorded.
+   */
   wallMs: number | null;
   samples: RunSample[];
 }
@@ -112,6 +189,8 @@ const SampleShape = type({
   observedAt: 'number',
   counters: Counters.or('null'),
   tmpBytes: 'number | null',
+  'tmpUnreadable?': 'string[]',
+  'tmpUnreadableOmitted?': 'number.integer >= 0',
   containers: type({
     labelled: 'number',
     sampled: 'number',
@@ -135,12 +214,14 @@ const StartShape = type({
   hostClass: 'string',
   'toolchain?': 'string > 0',
   'calibration?': 'true',
+  'memoryBoundGib?': 'number.integer > 0',
   unit: 'string',
   cgroup: 'string',
   tmpDirectory: 'string',
   units: type({ exclusiveId: 'string', path: 'string' }).array(),
   startedAt: 'number',
 });
+const Leftover = type({ pid: 'number.integer > 0', comm: 'string', cmdline: 'string' });
 const OutcomeShape = type({
   endedAt: 'number',
   exitCode: 'number',
@@ -149,11 +230,31 @@ const OutcomeShape = type({
   ledgerFailure: 'string | null',
   attributionIncomplete: 'boolean',
   'guardLost?': 'string > 0',
+  'endedByLauncher?': 'string > 0',
+  'leftoverProcesses?': type({
+    count: 'number.integer >= 0',
+    examples: Leftover.array(),
+    endedWith: "'none'|'SIGTERM'|'SIGKILL'|'timeout'",
+  }).or({
+    count: 'number.integer >= 0',
+    examples: Leftover.array(),
+    endedWith: "'signal-failed'|'unverified'",
+    failure: 'string > 0',
+  }),
   containers: type({
     id: 'string',
     verdict: "'bounded'|'unlabelled'|'unbounded'|'unverified'",
     reason: 'string',
-  }).array(),
+  })
+    // Proof: admitting 'host-service' in the branch above made `a host-service verdict without
+    // its declared bounds is refused` (run-records.test.ts) write the record (2026-11-19).
+    .or({
+      id: 'string',
+      verdict: "'host-service'",
+      reason: 'string',
+      hostService: { name: 'string > 0', memoryBytes: 'number > 0', cpuCores: 'number > 0' },
+    })
+    .array(),
 });
 
 /**
@@ -328,7 +429,19 @@ export class HostJobRunRecords {
         'SELECT sample FROM samples WHERE job_id=? ORDER BY sequence',
       )
       .all(jobId)
-      .map((sample) => SampleShape.assert(JSON.parse(sample.sample)));
+      .map((stored): RunSample => {
+        const { tmpUnreadable, tmpUnreadableOmitted, ...sample } = SampleShape.assert(
+          JSON.parse(stored.sample),
+        );
+        // A sample written before task 6.23 has neither field: its walk listed nothing.
+        // Proof: requiring both fields made `a sample recorded before task 6.23 loads with no
+        // unreadable paths` (run-records.test.ts) throw on the stored row (2026-11-19).
+        return {
+          ...sample,
+          tmpUnreadable: tmpUnreadable ?? [],
+          tmpUnreadableOmitted: tmpUnreadableOmitted ?? 0,
+        };
+      });
     const peaks = samples.flatMap((sample) =>
       sample.counters ? [sample.counters.memoryPeak] : [],
     );
@@ -343,10 +456,58 @@ export class HostJobRunRecords {
       attributionIncomplete: outcome?.attributionIncomplete ?? false,
       containers: outcome?.containers ?? [],
       ...(outcome?.guardLost === undefined ? {} : { guardLost: outcome.guardLost }),
+      ...(outcome?.endedByLauncher === undefined
+        ? {}
+        : { endedByLauncher: outcome.endedByLauncher }),
+      // A record written before task 6.24 has no field: nothing was ended for it.
+      ...(outcome?.leftoverProcesses === undefined
+        ? {}
+        : { leftoverProcesses: outcome.leftoverProcesses }),
       peakMemoryBytes: peaks.length === 0 ? null : Math.max(...peaks),
       peakTmpBytes: tmp.length === 0 ? null : Math.max(...tmp),
       wallMs: outcome === null ? null : outcome.endedAt - start.startedAt,
       samples,
     };
   }
+}
+
+/**
+ * `run <id> ended N leftover processes with SIGKILL (node serve.cjs ×2, …)` for `ops job status`
+ * and `ops job audit` (task 6.24), naming the described command lines by count; null for a run
+ * that left none or whose record predates the ending step.
+ */
+export function leftoverNote(record: RunRecord): string | null {
+  const leftovers = record.leftoverProcesses;
+  if (leftovers === undefined || leftovers.count === 0) return null;
+  const counted = new Map<string, number>();
+  for (const example of leftovers.examples) {
+    const name = example.cmdline === '' ? example.comm : example.cmdline;
+    counted.set(name, (counted.get(name) ?? 0) + 1);
+  }
+  const undescribed = leftovers.count - leftovers.examples.length;
+  const names = [
+    ...[...counted].map(([name, count]) => `${name} ×${String(count)}`),
+    ...(undescribed > 0 ? [`${String(undescribed)} more undescribed`] : []),
+  ].join(', ');
+  const count = String(leftovers.count);
+  const charged = 'so its tmp directory stays charged';
+  let ending: string;
+  switch (leftovers.endedWith) {
+    case 'none':
+      return null;
+    case 'SIGTERM':
+    case 'SIGKILL':
+      ending = `ended ${count} leftover processes with ${leftovers.endedWith}`;
+      break;
+    case 'timeout':
+      ending = `could not end ${count} leftover processes: its scope still had members after SIGKILL, ${charged}`;
+      break;
+    case 'signal-failed':
+      ending = `could not signal ${count} leftover processes, no signal was delivered (${leftovers.failure}), ${charged}`;
+      break;
+    case 'unverified':
+      ending = `could not verify that ${count} leftover processes ended (${leftovers.failure}), ${charged}`;
+      break;
+  }
+  return `run ${record.jobId} ${ending} (${names})`;
 }

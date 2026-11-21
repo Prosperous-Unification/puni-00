@@ -105,16 +105,38 @@ function judgeJob(
     }
   } else {
     for (const dimension of Dimensions) {
+      // A dimension clamped to the pool is below its p95 by design (Dash task 6.25); its
+      // unclamped heuristic, which the contract holds at or above the envelope, must not be.
+      const clamped = provenance.heuristic?.[dimension];
+      // Proof (2026-11-20, task 6.25): judging the envelope whatever the clamp made `accepts an
+      // envelope clamped below its p95, never a heuristic below it` find `envelope memoryGib 9
+      // is below its calibrated p95 10.01`; judging nothing for a clamped dimension made its
+      // second half find no finding for heuristic 10.
+      const [what, figure] =
+        clamped === undefined
+          ? ['envelope', job.envelope[dimension]]
+          : ['clamped heuristic', clamped];
       // Proof (2026-11-01): comparing with `<=` made the at-p95 half of `names an envelope below
       // its own calibrated p95` fail with a finding; replacing it with `false` failed its first half.
-      if (job.envelope[dimension] < provenance.p95[dimension]) {
+      if (figure < provenance.p95[dimension]) {
         observations.push(
           observe(
             job.id,
-            `envelope ${dimension} ${String(job.envelope[dimension])} is below its calibrated p95 ${String(provenance.p95[dimension])}`,
+            `${what} ${dimension} ${String(figure)} is below its calibrated p95 ${String(provenance.p95[dimension])}`,
           ),
         );
       }
+    }
+    // A `cap` bound is the envelope (Dash task 6.25, S25-A6): clamped below the p95 it kills.
+    // Proof (2026-11-20): dropping this check made `refuses cap enforcement on a clamped
+    // memoryGib, naming the p95` (job-catalogue.test.ts) find no finding.
+    if (job.enforcement === 'cap' && provenance.heuristic?.memoryGib !== undefined) {
+      observations.push(
+        observe(
+          job.id,
+          `cap enforcement with memoryGib clamped to the pool: MemoryMax ${String(job.envelope.memoryGib)} is below its calibrated p95 ${String(provenance.p95.memoryGib)} and would kill every run`,
+        ),
+      );
     }
   }
   return observations;

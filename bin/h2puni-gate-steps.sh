@@ -5,6 +5,46 @@ repo=${1:?repository is required}
 : "${2:?committed revision is required}"
 cd "$repo"
 
+# Every Node process the gate starts (Nx itself, `bunx eslint`, `bunx vitest` and its forks, all
+# `#!/usr/bin/env node`) runs with a 4096 MiB old space (assumption A-NODE-HEAP-1, `dash-host-jobs`
+# task 6.26, awaiting Dany). Node sizes its default heap from the cgroup's memory constraint, and
+# libuv's constrained memory honours `memory.high`: on h4claw (Node 24.18.1, 15.2 GiB) the heap
+# limit is 4288 MB in a plain shell and 2240 MB under `systemd-run --user --scope -p
+# MemoryHigh=13G`, with or without `MemoryMax=infinity`; h2puni (15.24 GiB) gives 4288 MB plain
+# and 2240 MB under 12G. V8 doubles its default only at 15360 MiB of constrained or physical
+# memory and above, so a host below 15 GiB would get 2240 MB even unbounded: the pin is a constant
+# so that heap sizing depends on neither host RAM nor the cgroup. MemoryHigh still throttles the
+# scope, so a runaway process stays bounded by the cgroup. The `gate` entry was measured by three
+# calibrations, which run with no MemoryHigh and so with the plain default; the first ordinary
+# gate under its 13 GiB bound (h4claw job f776195f, 2026-11-20, launcher main 1730d911f) lost
+# wbs-core, wbs-be-01, tool-fleet and wbs-fe-01 lint to `JavaScript heap out of memory` at
+# ~2017 MB. Pinning makes bounded and unbounded runs alike. The trade-off: vitest still fans out
+# by nproc and each worker may grow to 4 GiB, exactly as in the calibrations, so the measured
+# envelope still describes this payload. `bun test` and Bun-run scripts ignore NODE_OPTIONS (Bun
+# has its own heap); a Node child they spawn inherits it. Another heap figure already in
+# NODE_OPTIONS would make the gate unlike its calibration, so it is refused rather than overridden.
+# Revert by deleting this block. See docs/infra/gate-hosts.md.
+# Proof (2026-11-20): with this block deleted, h2puni-gate.test.sh case 48 failed `48: every Nx
+# call ran with the pinned heap`; with only the refusal branch deleted, `48: a conflicting heap
+# size refuses the gate steps: want exit 78, got 0`.
+gate_node_heap='--max-old-space-size=4096'
+read -ra node_options <<<"${NODE_OPTIONS:-}"
+heap_pinned=no
+for option in "${node_options[@]}"; do
+  case $option in
+    "$gate_node_heap" | --max_old_space_size=4096) heap_pinned=yes ;;
+    --max-old-space-size* | --max_old_space_size*)
+      printf 'h2puni gate: NODE_OPTIONS already sets %s; the gate pins %s (A-NODE-HEAP-1)\n' \
+        "$option" "$gate_node_heap" >&2
+      exit 78
+      ;;
+  esac
+done
+if [[ $heap_pinned == no ]]; then
+  NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }$gate_node_heap"
+fi
+export NODE_OPTIONS
+
 # The gate tree is a long-lived shared checkout, so its node_modules is whatever an earlier gate
 # left behind; on 2026-09-20 that was 2026-09-18's install and the first batch 2 group gate failed
 # apps/wbs/be-01/src/production-entrypoint.test.ts on `Could not resolve: "di-bag"`. Frozen,
@@ -51,9 +91,35 @@ bunx nx format:check --all
 # The Twilight suite runs as CI's `gate_twilight` does: since 2026-10-12 (WBS a81d93a0)
 # twilight-dash is excluded beside Burokrat and its targets and lint run in the split below;
 # toolchain-pins.test.ts pins the `twilight-dash` half of the exclusion.
-bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \
-  --exclude=twilight-burokrat,twilight-dash
-bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2 \
+# tool-remote-scripts' test target and its test:caddy dependency are skipped here (assumption
+# A-GATE-REMOTE-1, `dash-host-jobs` task 6.18, awaiting Dany): its canonical batch runs the remote model family 2.5-4x over its
+# fixed budgets on the gate hosts. The 2026-11-08 h2puni gate took 575 min 41 s, 521 min 57 s of
+# it in tool-remote-scripts:test, with model cases at 162-178 s against a ~70 s frozen budget and
+# two deadline-bound cases failing at ~264 s; on 2026-11-18 both calibrations sat 3+ h in that
+# batch. CI's remote jobs stay the authority for the family, but run on a PR only when the plan
+# selects the remote partition (always on main), so a green host gate does not cover it. Lint,
+# typecheck and build still run below; --excludeTaskDependencies skips the dependency builds the
+# first run-many already made in this tree. Revert by dropping `,tool-remote-scripts` and the
+# remote-scripts line. See docs/infra/gate-hosts.md.
+# Proof (2026-11-18): toolchain-pins.test.ts `runs the h2puni gate with the same Twilight split
+# as CI` failed on the pre-6.18 script (`Expected: 1 · Received: 0`) and, with only the line
+# below deleted or only its --excludeTaskDependencies dropped, on `Expected to contain: ...`.
+# Every run-many below runs at --parallel=1 (assumption A-GATE-PARALLEL-1, `dash-host-jobs` task
+# 6.19, awaiting Dany): at --parallel=2 the gate's true peak does not fit a 15 GiB gate host. Dash
+# recorded gate peaks of 12.94 GiB (2026-11-17) and 11.79 GiB (2026-11-18) against a 6 GiB
+# envelope; on 2026-11-18 two unbounded h4claw calibrations died 59 min in, the cold one losing
+# tool-fleet:test beside wbs-be-01's test and typecheck, the warm one with puni1's oom_kill counter
+# rising 2 -> 3 and memory.peak at 13.9 GiB. The peak drops to the largest single task's, which
+# is still multi-process: --parallel bounds Nx task concurrency only, and vitest in wbs-fe-01:test
+# still fans out by nproc. The Nx run grows from ~58 min to an expected ~90. Revert by restoring --parallel=2 on the three lines.
+# Proof (2026-11-18): toolchain-pins.test.ts `runs the h2puni gate with the same Twilight split
+# as CI` failed on the --parallel=2 script (`Expected: 1 · Received: 0`) and, with only the
+# remote-scripts or only the Twilight line back at --parallel=2, on `Expected to contain: ...`.
+bunx nx run-many -t test lint typecheck build --parallel=1 --skip-nx-cache \
+  --exclude=twilight-burokrat,twilight-dash,tool-remote-scripts
+bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=1 --skip-nx-cache \
+  --excludeTaskDependencies
+bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=1 \
   --skip-nx-cache
 bunx nx run twilight-burokrat:lint:source --skip-nx-cache
 bunx nx run twilight-dash:lint --skip-nx-cache

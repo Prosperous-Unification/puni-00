@@ -657,49 +657,51 @@ async function observeRootRestoration(journal: unknown, mode: string) {
   return RootObservation.assert(JSON.parse(new TextDecoder().decode(output)));
 }
 
-test('root restoration refuses missing stale or changed reclamation before trusted effects', async () => {
-  const proof = await fixture('none');
-  try {
-    await maintainRegistry({
-      directory: proof.journalPath,
-      operationId: 'root-receipt',
-      owner: 'owner',
-      kind: 'retirement',
-      ports: proof.ports,
-      backup: proof.backup,
-      runtime: {
-        ...proof.runtime,
-        restoreService: async () => {
-          const persisted = parseFixtureJournal(
-            await readFile(join(proof.journalPath, 'journal.json'), 'utf8'),
-          );
-          for (const mode of [
-            'valid',
-            'missing',
-            'incomplete',
-            'stale',
-            'future',
-            'revision',
-            'operation',
-            'store',
-            'path',
-            'capacity',
-            'snapshot',
-            'plan',
-            'bytes',
-            'inodes',
-          ]) {
+// Proof: a 1.5s child-start fault timed out the former shared test at 20s; these cases
+// retain all 42 assertions and pass. A 30s stalled valid child still fails at its 10s limit.
+for (const mode of [
+  'valid',
+  'missing',
+  'incomplete',
+  'stale',
+  'future',
+  'revision',
+  'operation',
+  'store',
+  'path',
+  'capacity',
+  'snapshot',
+  'plan',
+  'bytes',
+  'inodes',
+]) {
+  test(`root restoration verifies reclamation before trusted effects: ${mode}`, async () => {
+    const proof = await fixture('none');
+    try {
+      await maintainRegistry({
+        directory: proof.journalPath,
+        operationId: 'root-receipt',
+        owner: 'owner',
+        kind: 'retirement',
+        ports: proof.ports,
+        backup: proof.backup,
+        runtime: {
+          ...proof.runtime,
+          restoreService: async () => {
+            const persisted = parseFixtureJournal(
+              await readFile(join(proof.journalPath, 'journal.json'), 'utf8'),
+            );
             const observed = await observeRootRestoration(persisted, mode);
             expect({ mode, ...observed }).toMatchObject({ effects: mode === 'valid' ? 1 : 0 });
             expect(observed.message === 'trusted-effect-boundary').toBe(mode === 'valid');
-          }
+          },
         },
-      },
-    });
-  } finally {
-    await proof.server.stop(true);
-  }
-}, 20000);
+      });
+    } finally {
+      await proof.server.stop(true);
+    }
+  }, 20000);
+}
 
 for (const delayedPhase of ['collected', 'verified'] as const) {
   test(

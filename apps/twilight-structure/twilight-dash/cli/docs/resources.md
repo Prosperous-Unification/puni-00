@@ -230,7 +230,9 @@ host-wide free-space change as bytes reclaimed by this cleanup.
 ## Watch, inspect and request cleanup
 
 Run this foreground process as the same current user that launches managed commands. For
-persistence, use your existing user service manager with restart-on-failure enabled:
+persistence, use your existing user service manager set to always restart: `watch` answers
+SIGTERM by cancelling and exiting 0, so restart-on-failure would leave it down. Under systemd,
+`Restart=always` still keeps a unit down after `systemctl stop`. The command the unit runs:
 
 ```sh
 dash resources watch --config "$HOME/.config/dash/resources.json"
@@ -305,8 +307,25 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   is gone and the 60-second launch grace has passed. `watch`'s sweep re-reads that evidence each
   tick for running and `unknown` jobs; a `blocked` job is re-read after one second, doubling to
   a one-minute cap, and records an event only when its evidence changes. `ops job run` settles
-  a job that declared containers with Docker's reading (below); `watch` does not read Docker
-  yet, so such a job whose launcher died stays charged until an operator settles it.
+  a job that declared containers with Docker's reading (below). `watch` and `resources sweep`
+  read Docker too when the CLI is on `PATH` (task 6.15), so such a job whose launcher died
+  settles once its containers are gone; on a host without Docker it stays charged.
+  Before it settles, `ops job run` ends what is left in the job's scope once the leader's
+  session has ended (task 6.24, A-SCOPE-LEFTOVER-1): a server a test started and never stopped
+  (`node serve.cjs` on every gate) would otherwise hold the tmp directory after the job is
+  otherwise released. The run's `endedAt` and the ledger's exit are taken at the leader's
+  exit first, so the step is never the job's wall time. It counts the scope's processes and those
+  of any cgroup below it (what the scope kill reaches), never the parent slice or another job's
+  scope, describes up to eight of the scope's own (comm and command line), sends
+  `systemctl --user kill --signal=SIGTERM` to the scope, SIGKILL after 10 s, and waits up to
+  20 s for it to empty. The run record keeps `leftoverProcesses: { count, examples, endedWith }`,
+  `endedWith` one of `none`, `SIGTERM`, `SIGKILL`, `timeout`, `signal-failed` (a `systemctl`
+  call failed: its diagnostic is kept and nothing is waited for) or `unverified` (the members
+  became unreadable), and `ops job status` and `ops job audit` print
+  `run <id> ended N leftover processes with SIGKILL (node serve.cjs ×N)`, or that no signal was
+  delivered. After `timeout`, `signal-failed` or `unverified` the tmp directory stays `blocked`.
+  While a member
+  of the payload's own session lives, nothing is ended: it is still the job's work.
 - **Unreadable processes.** Hold inspection reads every same-account process's `cwd`,
   descriptors and maps. A process that changed credentials (`(sd-pam)`, `sshd-session`) is not
   dumpable, and its `/proc/<pid>/fd` is access-denied. For a host job, such a process holds
@@ -505,7 +524,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   `docker` CLI whose daemon answers (otherwise 70). Then it waits for admission (`--wait-seconds`,
   default 0; `--poll-seconds` 1 to 30, default 5) and launches the payload:
   - inside `systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`
-    (`MemoryMax` too for `enforcement: cap`), behind a gate: the leader's identity is
+    (`MemoryMax` too for `enforcement: cap`; the envelope's `cpuCores` is admission only, and no
+    mode sets a CPU quota on the scope), behind a gate: the leader's identity is
     persisted, the scope's `memory.peak`, `memory.current`, `cpu.stat`, `pids.current` and
     `memory.events` are read and stored as the gate sample, and only then may the payload
     start. An unreadable counter, a scope that never starts or a run record that cannot be
@@ -516,16 +536,44 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     `DASH_JOB_TYPE`, `DASH_JOB_UNIT_<ID>` per exclusive unit (the id upper-cased) and
     `HEAVY_LOCK_LABEL` set to `--label`. `$TMPDIR` holds `.dash-tmp-identity`, the marker that
     proves the directory is the one prepared; a payload that deletes or rewrites it leaves its
-    tmp entry `blocked` for an operator (fail-closed, task 2.4);
+    tmp entry `blocked` for an operator (fail-closed, task 2.4). Hard links whose every link lies
+    inside the directory are removed with it; a file with a link outside it still blocks (6.16);
   - sampled every ten seconds and at exit: the counters, the tmp directory's allocated bytes
     (no link followed) and, for a containers bound, the labelled containers' `docker stats`.
     The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets
     a gate and an exit sample. Peak tmp is the largest sample, a lower bound; disk outside
-    `TMPDIR` is not covered;
+    `TMPDIR` is not covered. A subtree the walk may not read (EACCES or EPERM, such as the
+    mode-0 `inaccessible` directory the gate's own be-01 test makes under `TMPDIR`) is skipped
+    and listed in the sample's `tmpUnreadable`, relative to the tmp directory, at most 32 paths
+    with `tmpUnreadableOmitted` counting the rest; that sample's tmp figure is then a lower
+    bound of what was readable. An entry that vanishes mid-walk counts as gone (task 6.23);
   - SIGINT, SIGTERM and SIGHUP before the gate opens refuse the job at the gate (129, 130,
-    143); after it opens they are forwarded to the payload's session.
-    The command exits with the payload's own status, 128 + signal when it was signalled. A
-    telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample)
+    143); after it opens they are forwarded to the payload's session. Forwarding neither lifts
+    `MemoryHigh` nor escalates: an operator ending a job by hand takes the three steps below
+    ([gate hosts](../../../../../docs/infra/gate-hosts.md#end-a-host-job-by-hand));
+  - bounded by its type's optional `maxRuntimeMinutes` in the catalogue (task 6.11). At the first
+    sample after the payload has run longer than that, the launcher prints
+    `ops job: <id> exceeded maxRuntimeMinutes <n>: ended by the launcher` and ends it in three
+    steps (task 6.14). It raises the scope's `MemoryHigh` to `infinity`
+    (`systemctl --user set-property --runtime <scope> MemoryHigh=infinity`), so a throttled
+    payload runs its handlers at full speed, then sends SIGTERM to the payload's session. If the
+    payload has not ended within the settle budget (30 s), it sends SIGKILL to every process of
+    the scope (`systemctl --user kill --signal=SIGKILL <scope>`), `setsid`'d descendants
+    included, which a process-group signal misses. A failed `systemctl` call is reported as an
+    `ops job: …` line and the sequence goes on; a failed scope kill falls back to SIGKILL to the
+    session. Once the payload's leader has exited, by SIGTERM within the budget or
+    by the SIGKILL, the launcher SIGKILLs whatever is still in the scope at once, so a descendant
+    that left the payload's session does not outlive the bound; a job that exits on its own gets
+    the leftover ending under settlement above. The
+    command then exits 124, `timeout(1)`'s code, and the ledger
+    records 124 too. The run record keeps the signal the payload ended with and that reason as
+    `endedByLauncher`. The job settles and releases its reservation and shell lock hold as
+    after any exit. A type without the field has no runtime bound. The bound is checked once
+    per sample interval, so a job can run up to ten seconds past it.
+    Apart from that runtime bound, the command exits with the payload's own status, 128 +
+    signal when it was signalled. A
+    telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample,
+    the tmp directory itself absent or unreadable; not an unreadable subtree inside it)
     and a ledger write failure are recorded and reported on stderr apart from that status. It
     then settles the job on its terminal evidence, once a second for up to 30 seconds, and prints one
     `ops job: <id> <entry> <state>: <reason>` line per entry; whatever is still charged is
@@ -536,7 +584,11 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   the label, labelled with a value that names no live job, without a bound or above it, or one
   that vanished before its bound was read makes the run `attributionIncomplete`. So does a
   failed or unreadable `docker events` stream or replay. Each is named on stderr and in the
-  record. The `docker stats`
+  record. A container without `puni.job` that carries `puni.host-service=<name>` and both
+  `--memory` and `--cpus` is a declared host service (a host timer or cron beside the job,
+  task 6.22): it is recorded as verdict `host-service` with its name and bounds and leaves the
+  attribution complete; without either bound it stays unattributed, naming the missing one. A
+  container with both labels is judged as a job container. The `docker stats`
   samples are advisory: Docker omits containers that vanish between samples and excludes file
   cache; the declared bound is what admission trusts. Compute is released only once no running
   container carries the job's label.
@@ -551,6 +603,12 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   running gate gate:0a518a42 pid 4242 age 1m00s envelope 4 cores 6 GiB 0 GiB tmp peak 2.5 GiB units gate_tree=/home/puni1/puni-00-gate-tbf settlement held (compute held, tmp held, gate_tree held)
   waiting website-dev-build build:site pid 4343 age 55s budget 1m05s overtakes 0
   ```
+
+  A job whose run record has sampled `memory.events high` above zero is being throttled at its
+  `MemoryHigh`. Its line reads `peak <n> GiB throttled (memory.events high <count>)` (task
+  6.11). The count is the largest sampled so far. A throttled job is still running, but it may
+  be making almost no progress: the h4claw gate in
+  [gate hosts](../../../../../docs/infra/gate-hosts.md) used about 0.02 cores while it was throttled.
 
 - **`ops job admission --job <id>`** prints one JSON line, `{"job":"<id>","state":…,"running":…}`.
   `running` is true only for a launched (`held`) job with no exit or launch failure recorded
@@ -576,12 +634,17 @@ ten-run waste window and the ten-second CPU window are provisional (`HEURISTICS`
 `src/ops/measures.ts`, labelled in [`infra/jobs/README.md`](../../../../../infra/jobs/README.md)).
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job calibrate --config /path/to/host-pool.json \
-  --type gate -- bin/h2puni-gate.sh <sha>
+cd ~/puni-00-gate-launcher
+bin/h2puni-gate.sh --calibrate <sha>
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job propose --config /path/to/host-pool.json --type gate
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --config /path/to/host-pool.json [--now <instant>]
 ```
 
+- **Gate calibration** starts from the dedicated launcher outside a Dash job. The outer
+  launcher resolves the SHA and prepares any configured external wiki verifier, then Dash
+  admits the fixed gate payload once. Use the same catalogue path, argument profile, host
+  class and Bun revision for comparable records. The ordinary SHA gate has its own terminal
+  qualification after calibration and catalogue review.
 - **`ops job calibrate`** takes the flags of `ops job run` (`--wait-seconds` defaults to 7200,
   `--label` to `calibration`). Its ticket is admitted only once the pool has drained: nothing
   reserved in any dimension, no starting or held host job, free space for the whole disk
@@ -606,7 +669,17 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   nearest-rank p95 per dimension:
   - memory from every uncapped, unthrottled record (`memory.events high` 0);
   - CPU, the peak rate of `usage_usec` over a ten-second window, from calibration records alone;
-  - tmp disk from every complete record;
+  - tmp disk from every complete record. A record whose samples listed unreadable tmp
+    subtrees is complete for memory, CPU and duration, but its tmp figure is a lower bound.
+    With three or more records that measured tmp disk, it is left out of tmp disk, its line
+    reading `excluded … from tmpDiskGib: tmp lower bound only`, then how many samples saw
+    unreadable subtrees and the first path. With fewer, but at least three counting the lower
+    bounds, tmp disk is taken from them all: each such record's line reads
+    `used as a lower bound … in tmpDiskGib`, and it is cited. The tmp line then says
+    `lower bound only` or `lower bound from 2 measured + 1 lower bounds`, and that the
+    proposal never lowers the entry's `tmpDiskGib`. The provenance carries
+    `tmpDiskGibLowerBound: true`, so the catalogue entry itself says its tmp p95 is a lower
+    bound (task 6.23, S23-A4);
   - duration from calibration records alone, reported only, because the catalogue has no
     duration field.
 
@@ -621,23 +694,86 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   not cited. Records are partitioned by `cataloguePath` here, while `audit` below judges each
   record by job id against the current checkout's catalogue (S4-A19). Exit 0.
 
+  The proposal is host-aware (task 6.25, A-ENVELOPE-CLAMP-1). A figure above the largest
+  envelope the `--config` pool admits, its allocatable cores and memory and the whole GiB its
+  disk units hold, would be refused 73 on every run, so it is clamped to that figure. The line
+  then reads `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …)`,
+  and the provenance names the clamped dimensions in `clampedToAllocatable` and their unclamped
+  figures in `heuristic`. A figure equal to allocatable is not clamped. A clamped figure may sit
+  below its p95: the job measured more than the pool holds. On h4claw the gate's three
+  calibrations proposed 13 GiB and 9 cores, clamped to 10 GiB and 7 cores there. The catalogue
+  is shared by both gate hosts, so the landed entry is clamped by hand to the smaller pool,
+  h2puni's 6 cores and 9 GiB, which a `propose` on h2puni reproduces.
+
+  A clamped dimension reserves the pool's whole allocatable in that dimension at admission, as
+  a calibration does (S25-A7). `fits()` then admits nothing beside the job there, and
+  `ops pool inspect`, status and the WBS `host_job` projection show reserved = allocatable;
+  `oversize()` still judges the envelope. A clamped `memoryGib` also sets the scope's own bound
+  (S25-A6): `ops job run` starts the scope with `MemoryHigh` at the lower of
+  `heuristic.memoryGib` and the pool's memory budget less `memoryBoundHeadroomGib`, never below
+  the envelope. It reports which figure won, for example
+  `ops job: <id> MemoryHigh 13 GiB (heuristic 13 GiB, within the pool's 15 − 2 GiB; reservation clamped to 9 GiB)`,
+  and pins `memoryBoundGib` in the job's descriptor and on the run record. `ops job status`
+  prints `(MemoryHigh 13 GiB)` after the envelope's memory, and `ops pool inspect` shows the
+  descriptor's `memoryBoundGib`. `cap` on such an entry is refused 64 before admission, as
+  `JOB-CATALOGUE` refuses it; the refusal also stops `ops job calibrate` of that entry, though a
+  calibration sets no `MemoryMax`. Node heaps follow this bound unless the payload pins them:
+  Node sizes its default old space from the cgroup's memory constraint, `memory.high` included,
+  so under `MemoryHigh=13G` on a 15 GiB host its heap limit is 2240 MB where an unbounded
+  calibration had 4288 MB. A payload that runs Node therefore pins its heap, as the gate's
+  `bin/h2puni-gate-steps.sh` does (`dash-host-jobs` task 6.26, A-NODE-HEAP-1), or its measured
+  envelope describes a different heap than its ordinary runs get. The pin changes only V8's
+  sizing input: `MemoryHigh` still throttles the scope (there is no `MemoryMax`), so a runaway
+  Node process stays bounded by the cgroup.
+
 - **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
   the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads
   the checkout a record ran from, which may be a deleted scratch worktree: the record pins the
   envelope it was admitted under. It prints one line per drift and exits 1, or prints
   `no drift` and exits 0. `--now` (default: the clock) is the instant estimates are judged at;
   one that is malformed or names no real instant (`2026-02-30T00:00:00Z`) is 64.
+  - `throttled` (printed first, the most urgent; the line adds `(MemoryHigh <n> GiB)` when the
+    run's recorded bound differs from its envelope): an ordinary run, not a calibration, whose scope
+    sampled `memory.events high` above zero, whether or not it has ended. The line names the
+    type, the job id, the event count, the envelope `memoryGib` the run ran under and its peak
+    `memoryGib`. It gives the remedy: calibrate the type (`ops job calibrate --type <id>`) and
+    `ops job propose --type <id>`, because the estimated envelope is below the job's real
+    memory. It stays until the HEAD entry's bound (its `memoryGib`, or the heuristic of a
+    clamped one) is above the bound the run was throttled under (tasks 6.11, 6.25).
   - `overrun`: a peak above the envelope the run was admitted under, in memory, CPU or tmp disk.
     It stays visible however many runs follow until the HEAD entry's envelope is at least the
-    peak. A new provenance alone, `calibrated` included, does not clear it.
+    peak. A new provenance alone, `calibrated` included, does not clear it. In a dimension the
+    HEAD entry clamped to the pool (task 6.25), with a peak at most that dimension's heuristic,
+    the line ends `; expected: the HEAD entry is clamped to the pool`; above the heuristic it is a
+    plain overrun. It stays visible, but when such
+    overruns are the only drift the audit prints
+    `only expected drift: overruns of envelopes clamped to the pool` and exits 0, so the weekly
+    unit and the gate_host role's final probe stay green on an honest clamp (S25-A6). Any other
+    drift still exits 1.
   - `waste`: a dimension's p95 below half the HEAD envelope over at least ten complete runs of
-    the HEAD entry.
+    the HEAD entry. Any edit to an entry changes its digest, so the runs before the edit stop
+    counting: adding `maxRuntimeMinutes` to `gate` restarted its count (task 6.11).
   - `estimate_expired`: `estimated` provenance whose `until` day has ended.
   - `attribution_incomplete`: a run during which a container ran unlabelled, unbounded or
-    unverified (J16). It stays until a later run of the type sees containers and every one
-    bounded.
-  - Runs without an outcome, and runs of a type the catalogue does not name, print a
-    `note: not judged` line.
+    unverified (J16). It stays until a later run of the type sees a bounded job container and
+    every other container bounded or a bounded host service.
+  - A run beside which host services started containers prints a
+    `note: host services beside run` line listing each service with its declared bounds and
+    count, for example `goaccess-reports (512 MiB, 1 cpu) ×3`. They are background load the
+    operator declared, not drift, and are not added to the job's envelope.
+  - A run whose samples listed unreadable tmp subtrees prints one
+    `note: tmp lower bound only in run <id>: <n> samples saw unreadable subtrees: <paths>` line.
+    Its tmp peak still proves an `overrun`, but never counts toward `waste` (task 6.23). An
+    entry whose provenance carries `tmpDiskGibLowerBound: true` is never judged for tmp waste,
+    and the audit prints `note:` with the id and
+    `tmp entry is a lower bound; waste cannot fire for tmpDiskGib`.
+  - Each dimension in the HEAD entry's `clampedToAllocatable` prints a note and is never judged
+    for `waste`. When its p95 is above the entry the note reads, for example:
+    `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`.
+    Otherwise it says the entry holds its p95 without the heuristic's headroom.
+  - Runs of a type the catalogue does not name print a `note: not judged` line. Runs without an
+    outcome print a `note: not judged beyond throttling` line, because only `throttled` judges a
+    run still in progress.
 - **`ops job render-audit-units --config <path> --bun <path> --dash <path> --checkout <path>
 --output-directory <dir>`** writes `dash-job-audit.service` (a oneshot running
   `ops job audit` in the checkout, so a drift fails the unit) and `dash-job-audit.timer`
@@ -662,7 +798,10 @@ later) records the mode, the guard, the guard's holder, a `switch-mode` in progr
 corruption and every operator mode record.
 
 **Before the first observe-mode job on a host, `resources watch` must be installed and running
-as its user unit (task 6.7, `Restart=on-failure`, `KillMode=process`).** Without it, a job whose
+as its user unit (task 6.7, `Restart=always`, `KillMode=process`).** `Restart=always`, because
+the watch answers SIGTERM by cancelling and exiting 0, which `on-failure` would leave down;
+`systemctl --user stop` is the one intended way down, and systemd never restarts a unit stopped
+that way. Without it, a job whose
 payload outlives its launcher keeps the shell lock until an operator runs
 `resources sweep --config <path>`. That covers a surviving child past the 30 s settle budget,
 and a launcher killed after launch. Until then every legacy gate and Dash job refuses 75.
@@ -691,7 +830,10 @@ a newer ledger naming both versions (`ops job admission` exits 70); it never rea
   ended and refused 70, naming why. `ops job run` removes the hold file once the job's
   compute entry is released. Three other cases keep it:
   - **Dash dies while the job runs.** The file stays, and `watch` or `resources sweep` removes
-    it once that entry settles, so an orphaned payload never runs beside a legacy caller.
+    it once that entry settles, so an orphaned payload never runs beside a legacy caller. Both
+    read Docker for a type with a containers bound (`docker ps` by the job's label) when the CLI
+    is on `PATH`; without Docker a declared bound stays charged, since no reading exists (before
+    2026-11-17 it stayed charged forever even with Docker: h4claw job 22ce2369, task 6.15).
   - **Dash dies while its holder still queues.** The holder claims in its turn and holds, and
     the never-launched job is released after the launch grace. `watch` or `sweep` then removes
     the file.
@@ -722,9 +864,14 @@ status` shows the mark, and the run records it; `ops job audit` reports the run 
   `watch` adopts it. The 6.7 user unit must therefore use `KillMode=process`, or the holder
   dies with the unit's cgroup (S6B-A8).
 
-The configuration gains two optional fields, neither pinned by the binding:
+The configuration gains three optional fields, none pinned by the binding:
 `launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
-jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). Every
+jobs here), `concurrencyEligible` (job type ids, each named once; absent means none) and
+`memoryBoundHeadroomGib` (whole GiB of the memory budget a clamped entry's `MemoryHigh` leaves to
+the rest of the host, task 6.25; absent means 2). Today the gate_host role cannot deploy it yet: `roles/gate_host/tasks/validate.yml` asserts the exact key list of `host-pool.json`, and `templates/host-pool.json.j2` renders no such key, so a hand-set key fails the validate play. The key is absent on both hosts until the role gains the input, and the default 2 applies. Follow-up: an inventory input (for example `puni_gate_pool_memory_bound_headroom_gib`), a line in the template, and the key in validate.yml's key list. When the budget less this headroom falls below the calibrated
+p95, the launcher's line and the audit's notes add `below the calibrated p95 <n> GiB`. A type whose catalogue entry carries
+`clampedToAllocatable` may not be listed in `concurrencyEligible`: every pool open refuses it 64
+(S25-A7). Every
 `ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `job admission`, `pool inspect`,
 `switch-mode` and the record readers) refuses 64 an eligible id that no listed checkout's
 catalogue names at HEAD. A typo added later therefore stops the next command rather than

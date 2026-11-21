@@ -45,6 +45,8 @@ plan against prod's real state.
 # ON h2puni, once the dagger CLI and a prod checkout (not dev's) exist:
 export REGISTRY=registry.infra.bulletpoints.club REGISTRY_USER=wbs REGISTRY_PASS=$(grep ^REGISTRY_PASS= /home/puni1/wbs/.env | cut -d= -f2-)
 bin/h2puni-gate.sh "$(git rev-parse HEAD)"   # the sha is checked out under the heavy lock
+# The gate skips tool-remote-scripts tests: before `install`, require a green full-mode CI run on
+# main for this SHA, or run each `nx run tool-remote-scripts:test:ci:<leaf>` and test:ci:rest.
 bin/publish-release.sh
 bunx nx run tool-remote-scripts:install --execute   # after any swap.js / smoke.js change
 bunx nx run tool-deploy:deploy -- --all --execute

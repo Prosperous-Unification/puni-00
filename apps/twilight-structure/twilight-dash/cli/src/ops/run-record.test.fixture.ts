@@ -1,12 +1,20 @@
+import type { PoolEnvelope } from '../resources/runtime';
 import { type CommittedCatalogue, descriptorDigestOf, parseCatalogueJobs } from './catalogue';
 import { catalogueOf, type FixtureJobType } from './ops.test.fixture';
-import type { ContainerVerdict, RunRecord, RunSample } from './run-records';
+import {
+  type ContainerVerdict,
+  isAttributionIncomplete,
+  type RunRecord,
+  type RunSample,
+} from './run-records';
 
 const GIB = 1024 ** 3;
 export const CHECKOUT = '/srv/checkout';
 export const CATALOGUE_PATH = `${CHECKOUT}/infra/jobs/catalogue.json`;
 export const HOST_CLASS = 'linux-x64-8c-15g';
 export const TOOLCHAIN = 'bun 1.4.4+38afee6c8';
+/** A pool no fixture envelope reaches, so no proposal is clamped (task 6.25). */
+export const ROOMY_POOL: PoolEnvelope = { cpuCores: 64, memoryGib: 256, tmpDiskGib: 1024 };
 
 /** A catalogue at a fixed revision, as `readCommittedCatalogue` would read it. */
 export function committedCatalogue(
@@ -31,6 +39,8 @@ export interface FixtureRun {
   /** A steady CPU rate over the whole run. */
   cpuCores?: number;
   tmpGib?: number;
+  /** Paths every sample after the gate saw unreadable under the tmp directory (task 6.23). */
+  tmpUnreadable?: string[];
   seconds?: number;
   memoryHighEvents?: number;
   exitCode?: number;
@@ -83,6 +93,8 @@ export function runRecord(catalogue: CommittedCatalogue, run: FixtureRun): RunRe
       memoryHighEvents: index === 0 ? 0 : (run.memoryHighEvents ?? 0),
     },
     tmpBytes: index === 0 ? 0 : tmp,
+    tmpUnreadable: index === 0 ? [] : (run.tmpUnreadable ?? []),
+    tmpUnreadableOmitted: 0,
     containers: null,
     failure: null,
   }));
@@ -115,7 +127,7 @@ export function runRecord(catalogue: CommittedCatalogue, run: FixtureRun): RunRe
     signal: null,
     telemetryFailure: run.telemetryFailure ?? null,
     ledgerFailure: run.ledgerFailure ?? null,
-    attributionIncomplete: containers.some((container) => container.verdict !== 'bounded'),
+    attributionIncomplete: isAttributionIncomplete(containers),
     containers,
     peakMemoryBytes: peak,
     peakTmpBytes: tmp,

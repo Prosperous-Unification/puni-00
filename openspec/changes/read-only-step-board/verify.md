@@ -630,3 +630,9 @@ baseline overlap described above remain distinct unresolved baseline issues.
 The final scoped Prettier check and `git diff --check` passed. Independent review,
 the canonical host gate and exact-head CI remain pending with the coordinator;
 tasks 3.1 and 3.2 remain unchecked.
+
+## 2026-11-13 writable interaction supersession record
+
+The complete six-requirement `read-only-step-board` delta was synced to the isolated Board worktree's main `step-progress-board` spec at SHA-256 `e32ec62062aa1bcbc753e998499f334f0cd2c09e866c02123ae86010fa43e437` before applying `writable-step-progress-board`. The descendant retains these five whole requirements and their scenarios unchanged: `Cards represent every leaf step node`, `Columns state only step progress`, `The board shares the current authorized plan lifetime`, `Loading empty and failed reads remain distinct`, and `Visiting Board preserves unsent Plan edits without submission`. It supersedes `Board interactions are read-only and accessible` with `Board interactions are accessible` and four additional existing-progress requirements. The main capability has ten requirements after that sync.
+
+This is a contract-history mapping, not a retroactive pass of the predecessor's no-write-on-deliberate-drag scenario. Its read-only delta and unchecked historical acceptance tasks remain as recorded above; no predecessor gate, CI, archive or acceptance checkbox is asserted here. The descendant's local receipt at `.superpowers/sdd/platform-wbs-resume-20261109/board-write-design1-20261113/artifacts1/action-invariant-and-browser-prep-slice4/local-acceptance-report.md` and `openspec/changes/writable-step-progress-board/verify.md` identify the reviewed writable evidence and remaining integration work. Do not reapply the obsolete interaction block over the writable main spec.

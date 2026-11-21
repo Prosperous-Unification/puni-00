@@ -1,12 +1,16 @@
 import { type Subprocess } from 'bun';
 
 import { execute, firstLine, spawnClient } from '../compute/execution';
-import type { ContainerEvidence } from '../resources/runtime';
+import {
+  DOCKER_DEADLINE_MS,
+  dockerContainerEvidence,
+  dockerEnvironment,
+  JOB_LABEL,
+} from '../resources/container-evidence';
 import { causeText, OpsRefusal } from './refusal';
 import type { ContainerSample, ContainerVerdict } from './run-records';
 
-/** The label every container a host job starts carries, valued with the job's use id (J16). */
-export const JOB_LABEL = 'puni.job';
+export { dockerContainerEvidence, JOB_LABEL };
 
 /** The bound a type's containers run under, as the catalogue declares it. */
 export interface ContainerBound {
@@ -14,8 +18,14 @@ export interface ContainerBound {
   cpuCores: number;
 }
 
+/**
+ * The label naming a declared host service (a timer or cron unrelated to any job) whose
+ * container may start beside a job: attributed only under `--memory` and `--cpus`, and never
+ * when it also carries {@link JOB_LABEL} (`dash-host-jobs` J16 amendment, A-ATTR-HOSTSVC-1).
+ */
+export const HOST_SERVICE_LABEL = 'puni.host-service';
+
 const GIB = 1024 ** 3;
-const DOCKER_DEADLINE_MS = 30_000;
 /** The longest `docker events` line the watch reads before it distrusts the stream. */
 const MAX_EVENT_BYTES = 1024 * 1024;
 const BYTE_UNITS: ReadonlyMap<string, number> = new Map([
@@ -30,21 +40,6 @@ const BYTE_UNITS: ReadonlyMap<string, number> = new Map([
   ['GiB', 1024 ** 3],
   ['TiB', 1024 ** 4],
 ]);
-
-/**
- * The environment the `docker` CLI gets: what selects its daemon and finds its contexts, so the
- * watch reads the daemon the payload's own `docker` reaches.
- */
-function dockerEnvironment(
-  environment: Readonly<Record<string, string | undefined>>,
-): Record<string, string> {
-  const kept: Record<string, string> = {};
-  for (const key of ['PATH', 'HOME', 'DOCKER_CONFIG', 'DOCKER_HOST', 'DOCKER_CONTEXT']) {
-    const value = environment[key];
-    if (value !== undefined) kept[key] = value;
-  }
-  return kept;
-}
 
 /**
  * The `docker` CLI for a type that declared a containers bound, checked before anything is
@@ -79,37 +74,6 @@ export function checkDockerAvailable(
       `ops job run: job type ${typeId} declares a containers bound, and the docker daemon does not answer (${firstLine(info.stderr.toString('utf8')) || `exit ${String(info.exitCode)}`})`,
     );
   return docker;
-}
-
-/**
- * Settlement's container evidence (J2'): no running container carries the job's label. A
- * failed reading throws, which keeps the compute entry charged.
- */
-export function dockerContainerEvidence(
-  docker: string,
-  environment: Readonly<Record<string, string | undefined>>,
-): ContainerEvidence {
-  return {
-    containersGone: (job) => {
-      if (job.descriptor.containers === 'none') return true;
-      const listed = Bun.spawnSync(
-        [docker, 'ps', '--quiet', '--filter', `label=${JOB_LABEL}=${job.id}`],
-        {
-          env: dockerEnvironment(environment),
-          stdin: 'ignore',
-          stdout: 'pipe',
-          stderr: 'pipe',
-          timeout: DOCKER_DEADLINE_MS,
-          killSignal: 'SIGKILL',
-        },
-      );
-      if (listed.exitCode !== 0)
-        throw new Error(
-          `docker ps answered exit ${String(listed.exitCode)}: ${firstLine(listed.stderr.toString('utf8'))}`,
-        );
-      return listed.stdout.toString('utf8').trim() === '';
-    },
-  };
 }
 
 function parseBytes(text: string): number {
@@ -272,17 +236,16 @@ export class ContainerWatch {
 
   /**
    * A container labelled with this job runs within the bound when `--memory` and `--cpus` were
-   * given at or under the declared figures; one with no label is unattributed; one labelled
-   * with another job is that job's and is not judged here.
+   * given at or under the declared figures; one labelled with another job is that job's and is
+   * not judged here. Without {@link JOB_LABEL}, a container is a host service when it carries a
+   * named {@link HOST_SERVICE_LABEL} and both bounds, and unattributed otherwise.
    */
   private async judge(event: CreateEvent): Promise<ContainerVerdict | null> {
     const owner = event.labels[JOB_LABEL];
-    if (owner === undefined)
-      return {
-        id: event.id,
-        verdict: 'unlabelled',
-        reason: `container from ${event.image} started without the ${JOB_LABEL} label`,
-      };
+    // Proof: checking the host-service label before puni.job made `a container with both labels
+    // is judged as the job container it names` (containers.test.ts) find verdict host-service
+    // (2026-11-19).
+    if (owner === undefined) return this.judgeUnowned(event);
     // Proof: returning null for every other label value made `a container labelled with no live
     // job is unlabelled` (containers.test.ts) record no verdict (2026-11-02, review F8).
     if (owner !== this.jobId) {
@@ -293,6 +256,87 @@ export class ContainerWatch {
         reason: `container from ${event.image} is labelled ${JOB_LABEL}=${owner}, which names no live job`,
       };
     }
+    const limits = await this.readLimits(event);
+    if ('verdict' in limits) return limits;
+    const { memory, nanoCpus } = limits;
+    const limit = this.bound.memoryGib * GIB;
+    // Proof: dropping both the memory and cpu comparisons made `an unbounded container makes the run's
+    // attribution incomplete` (job-run.test.ts) record the unbounded run complete (2026-11-01,
+    // Slice 3).
+    if (!(memory > 0 && memory <= limit))
+      return {
+        id: event.id,
+        verdict: 'unbounded',
+        reason: `container from ${event.image} has memory limit ${memory > 0 ? String(memory) : 'none'}, bound ${String(limit)} bytes`,
+      };
+    if (!(nanoCpus > 0 && nanoCpus <= this.bound.cpuCores * 1e9))
+      return {
+        id: event.id,
+        verdict: 'unbounded',
+        reason: `container from ${event.image} has cpu limit ${nanoCpus > 0 ? String(nanoCpus / 1e9) : 'none'}, bound ${String(this.bound.cpuCores)} cores (--cpus)`,
+      };
+    return {
+      id: event.id,
+      verdict: 'bounded',
+      reason: `labelled, memory ${String(memory)} bytes, ${String(nanoCpus / 1e9)} cores`,
+    };
+  }
+
+  /**
+   * A container without {@link JOB_LABEL}: `host-service` when it names its service and runs
+   * under `--memory` and `--cpus`, whatever their figures (the operator declared them, the job's
+   * envelope does not hold them); `unlabelled` otherwise, naming what is missing.
+   */
+  private async judgeUnowned(event: CreateEvent): Promise<ContainerVerdict> {
+    const service = event.labels[HOST_SERVICE_LABEL];
+    // Proof: judging every container without puni.job unlabelled made `a labelled, bounded
+    // host-service container is attributed as host-service` (containers.test.ts) find verdict
+    // unlabelled (2026-11-19).
+    if (service === undefined)
+      return {
+        id: event.id,
+        verdict: 'unlabelled',
+        reason: `container from ${event.image} started without the ${JOB_LABEL} label`,
+      };
+    // Proof: dropping this check made `a host-service label with no name is unlabelled`
+    // (containers.test.ts) find verdict host-service (2026-11-19).
+    if (service.trim() === '')
+      return {
+        id: event.id,
+        verdict: 'unlabelled',
+        reason: `container from ${event.image} is labelled ${HOST_SERVICE_LABEL} with no name; a host service is attributed only by name`,
+      };
+    const limits = await this.readLimits(event);
+    if ('verdict' in limits) return limits;
+    const missing = [
+      ...(limits.memory > 0 ? [] : ['--memory']),
+      ...(limits.nanoCpus > 0 ? [] : ['--cpus']),
+    ];
+    // Proof: attributing a host-service container whatever its bounds made `a host-service
+    // container without --memory or --cpus stays unlabelled, naming the missing bound`
+    // (containers.test.ts) find verdict host-service for both containers (2026-11-19).
+    if (missing.length > 0)
+      return {
+        id: event.id,
+        verdict: 'unlabelled',
+        reason: `container from ${event.image} is labelled ${HOST_SERVICE_LABEL}=${service} but started without ${missing.join(' and ')}; a host service is attributed only under declared bounds`,
+      };
+    const cpuCores = limits.nanoCpus / 1e9;
+    return {
+      id: event.id,
+      verdict: 'host-service',
+      reason: `host service ${service}, memory ${String(limits.memory)} bytes, ${String(cpuCores)} cores`,
+      hostService: { name: service, memoryBytes: limits.memory, cpuCores },
+    };
+  }
+
+  /**
+   * The container's `--memory` (bytes) and `--cpus` (nano-CPUs) limits, zero when not given, or
+   * an `unverified` verdict when it ended or could not be read first.
+   */
+  private async readLimits(
+    event: CreateEvent,
+  ): Promise<{ memory: number; nanoCpus: number } | ContainerVerdict> {
     const inspected = await execute(
       spawnClient(
         [
@@ -316,29 +360,7 @@ export class ContainerWatch {
         reason: `container ended or was unreadable before its bound was read: ${firstLine(inspected.stderr) || `exit ${String(inspected.exitCode)}`}`,
       };
     const [memoryText, cpuText] = inspected.stdout.trim().split(' ');
-    const memory = Number(memoryText);
-    const nanoCpus = Number(cpuText);
-    const limit = this.bound.memoryGib * GIB;
-    // Proof: dropping both the memory and cpu comparisons made `an unbounded container makes the run's
-    // attribution incomplete` (job-run.test.ts) record the unbounded run complete (2026-11-01,
-    // Slice 3).
-    if (!(memory > 0 && memory <= limit))
-      return {
-        id: event.id,
-        verdict: 'unbounded',
-        reason: `container from ${event.image} has memory limit ${memory > 0 ? String(memory) : 'none'}, bound ${String(limit)} bytes`,
-      };
-    if (!(nanoCpus > 0 && nanoCpus <= this.bound.cpuCores * 1e9))
-      return {
-        id: event.id,
-        verdict: 'unbounded',
-        reason: `container from ${event.image} has cpu limit ${nanoCpus > 0 ? String(nanoCpus / 1e9) : 'none'}, bound ${String(this.bound.cpuCores)} cores (--cpus)`,
-      };
-    return {
-      id: event.id,
-      verdict: 'bounded',
-      reason: `labelled, memory ${String(memory)} bytes, ${String(nanoCpus / 1e9)} cores`,
-    };
+    return { memory: Number(memoryText), nanoCpus: Number(cpuText) };
   }
 
   /** The labelled containers' usage now: `docker ps` by label, then one `docker stats` sample. */

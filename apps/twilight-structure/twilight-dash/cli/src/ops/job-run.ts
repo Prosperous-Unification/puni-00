@@ -18,21 +18,34 @@ import {
   HostPoolModeRefusal,
   loadResourceConfiguration,
   ResourceRuntime,
+  type ScopeCeiling,
 } from '../resources/runtime';
 import {
   type CataloguedJob,
   currentHead,
   hostClassOf,
   readCataloguedJob,
+  type ScopeMemoryBound,
+  scopeMemoryBound,
   toolchainOf,
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
 import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
-import { HostJobRunRecords, type RunSample } from './run-records';
+import {
+  HostJobRunRecords,
+  isAttributed,
+  LEFTOVER_EXAMPLE_LIMIT,
+  type LeftoverProcesses,
+  type RunSample,
+} from './run-records';
 import {
   checkScopeAvailable,
-  directoryBytes,
+  describeLeftover,
+  directoryUsage,
+  leftoverMembers,
+  type LeftoverProcess,
   scopeArguments,
+  scopeSubtreeMembers,
   type ScopeTelemetry,
   scopeUnitOf,
 } from './scope';
@@ -68,6 +81,8 @@ export interface JobRunDependencies {
   readonly user: string;
   /** The shell lock every host job also queues on in observe mode (J12). */
   readonly legacyLock: LegacyLock;
+  /** The leftover ending's waits (task 6.24); {@link LEFTOVER_BUDGET} when absent, as in production. */
+  readonly leftoverBudget?: LeftoverBudget;
 }
 
 /**
@@ -91,6 +106,13 @@ const GATED_PAYLOAD = [
   'read done <&3',
   'exit "$status"',
 ].join('\n');
+
+/**
+ * The exit code of a job the launcher ended at its type's `maxRuntimeMinutes`: `timeout(1)`'s
+ * code for a command that ran out of time, so a caller that reads 124 as "timed out" needs no
+ * new case. The run record keeps the signal the payload ended with beside it.
+ */
+export const RUNTIME_EXCEEDED_EXIT_CODE = 124;
 
 /** Polls between the scope check's readings of `/proc/<pid>/cgroup`. */
 const SCOPE_POLL_MS = 10;
@@ -140,6 +162,31 @@ interface Launched {
   payloadStatus: Promise<number | null>;
   /** Resolves with the leader's own status once it exits. */
   leaderExit: Promise<number>;
+}
+
+/** A catalogued job with the scope bound and the pool figures that capped it (S25-A6). */
+interface BoundJob extends CataloguedJob {
+  readonly memoryBound: ScopeMemoryBound;
+  readonly ceiling: ScopeCeiling;
+}
+
+/** The launcher's report of a clamped entry's `MemoryHigh` and the figure that set it. */
+function boundLine(job: BoundJob): string {
+  const { memoryBound, ceiling } = job;
+  const reservation = job.descriptor.envelope.memoryGib;
+  const pool = `the pool's ${String(ceiling.memoryGib)} − ${String(ceiling.memoryBoundHeadroomGib)} GiB`;
+  const heuristic = `heuristic ${String(memoryBound.heuristicGib ?? reservation)} GiB`;
+  const reason = {
+    envelope: 'the envelope',
+    heuristic: `${heuristic}, within ${pool}`,
+    pool: `${pool}, below ${heuristic}`,
+    reservation: `the reservation, since ${pool} is below it; ${heuristic}`,
+  }[memoryBound.term];
+  const below =
+    memoryBound.belowP95Gib === undefined
+      ? ''
+      : `; below the calibrated p95 ${String(memoryBound.belowP95Gib)} GiB, so the scope will be throttled at its measured need`;
+  return `MemoryHigh ${String(memoryBound.memoryGib)} GiB (${reason}; reservation clamped to ${String(reservation)} GiB${below})`;
 }
 
 function launchGated(
@@ -286,9 +333,16 @@ function readSample(
   } catch (cause) {
     failures.push(causeText(cause));
   }
-  let tmpBytes: number | null = null;
+  // An unreadable subtree makes the figure a lower bound, listed, not a telemetry failure: the
+  // gate's own tests leave a mode-0 directory under TMPDIR (task 6.23). The tmp directory itself
+  // unreadable or absent still is one.
+  let tmp: { bytes: number | null; unreadable: string[]; unreadableOmitted: number } = {
+    bytes: null,
+    unreadable: [],
+    unreadableOmitted: 0,
+  };
   try {
-    tmpBytes = directoryBytes(tmpDirectory);
+    tmp = directoryUsage(tmpDirectory);
   } catch (cause) {
     failures.push(`tmp directory ${tmpDirectory} unreadable: ${causeText(cause)}`);
   }
@@ -296,7 +350,9 @@ function readSample(
     kind,
     observedAt,
     counters,
-    tmpBytes,
+    tmpBytes: tmp.bytes,
+    tmpUnreadable: tmp.unreadable,
+    tmpUnreadableOmitted: tmp.unreadableOmitted,
     containers: null,
     failure: failures.length === 0 ? null : failures.join('; '),
   };
@@ -321,7 +377,11 @@ interface Interruption {
  * persisting the leader's identity and the gate sample before the gate opens; sample every
  * interval and at exit; record the exit, settle on terminal evidence and return the payload's
  * own status. A signal before the gate opens refuses 129/130/143 with the payload never run; one
- * after is forwarded to the payload's session. A failure to read telemetry or to write a record
+ * after is forwarded to the payload's session. A type with `maxRuntimeMinutes` is ended by the
+ * launcher once its payload has run longer, at the first sample past the bound: `MemoryHigh`
+ * lifted, SIGTERM to the payload's session, SIGKILL to the whole scope after the settle budget
+ * (task 6.14), and {@link RUNTIME_EXCEEDED_EXIT_CODE} returned and recorded, the job settling as any exit does. A type without it is unbounded. Once the leader's session has ended,
+ * processes still in the job's scope are ended before settlement and recorded (task 6.24). A failure to read telemetry or to write a record
  * after the gate opened is recorded and reported, never substituted for the payload's status.
  * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 129, 130, 143).
  */
@@ -347,11 +407,11 @@ async function executeHostJob(
   deps: JobRunDependencies,
   isCalibration: boolean,
 ): Promise<number> {
-  const catalogued = readCataloguedJob(deps.cwd, request.type, request.argv);
+  const read = readCataloguedJob(deps.cwd, request.type, request.argv);
   // One total wait (J12): the pool's admission and, in observe mode, the shell lock's queue.
   const arrivedAt = deps.clock.read();
   const toolchain = toolchainOf(deps.environment);
-  const typeId = catalogued.descriptor.id;
+  const typeId = read.descriptor.id;
   let runtime: ResourceRuntime;
   try {
     runtime = ResourceRuntime.open(loadResourceConfiguration(request.config), deps.clock);
@@ -368,6 +428,19 @@ async function executeHostJob(
     runtime.close();
     throw cause;
   }
+  // The scope bound belongs to the pool (review S2-3): it is pinned in the descriptor, so the
+  // ledger, `ops pool inspect`, status and the run record all carry it.
+  const ceiling = runtime.scopeCeiling();
+  const memoryBound = scopeMemoryBound(read.jobType, ceiling);
+  const catalogued: BoundJob = {
+    ...read,
+    descriptor:
+      memoryBound.term === 'envelope' || isCalibration
+        ? read.descriptor
+        : { ...read.descriptor, memoryBoundGib: memoryBound.memoryGib },
+    memoryBound,
+    ceiling,
+  };
   let records: HostJobRunRecords;
   try {
     records = HostJobRunRecords.open(runtime.configuration.root, runtime.listHostJobs().length > 0);
@@ -585,11 +658,294 @@ export function killSession(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
+/** How long one `systemctl --user` call at the runtime bound may take before it is killed. */
+const SYSTEMCTL_DEADLINE_MS = 10_000;
+
+/**
+ * Run `systemctl --user <args>` with `environment`'s `PATH`: null once it exits 0, else why not
+ * (absent from `PATH`, its first diagnostic, or the deadline). Never throws for the call's own
+ * failure: the runtime bound reports it and goes on to its next step.
+ */
+async function systemctlFailure(
+  environment: Readonly<Record<string, string | undefined>>,
+  args: readonly string[],
+): Promise<string | null> {
+  const systemctl = Bun.which('systemctl', { PATH: environment['PATH'] ?? '' });
+  // Proof: without this answer `a host without systemctl still ends the job at the bound,
+  // reported` (job-run.test.ts) saw the lift throw before the SIGTERM and the payload run its
+  // full 20 s, 21.1 s against 15 s (2026-11-18, review of #942 S3-1).
+  if (systemctl === null) return 'systemctl is not on PATH';
+  const call = Bun.spawn([systemctl, '--user', ...args], {
+    env: { ...environment },
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'pipe',
+    timeout: SYSTEMCTL_DEADLINE_MS,
+    killSignal: 'SIGKILL',
+  });
+  const [code, stderr] = await Promise.all([call.exited, new Response(call.stderr).text()]);
+  if (code === 0) return null;
+  if (call.signalCode !== null)
+    return `systemctl ${args.join(' ')} ended by ${call.signalCode} after ${String(SYSTEMCTL_DEADLINE_MS)} ms`;
+  const diagnostic =
+    stderr
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line !== '') ?? `exit ${String(code)}`;
+  return `systemctl ${args.join(' ')}: ${diagnostic}`;
+}
+
+/** The name `systemctl` addresses `unit` by: without a suffix it would read a `.service`. */
+function scopeOf(unit: string): string {
+  return `${unit}.scope`;
+}
+
+/**
+ * End a payload the launcher no longer lets run (task 6.14), in three steps: lift the scope's
+ * `MemoryHigh` to `infinity`, so a throttled payload runs its handlers (and the gated shell its
+ * trap) at full speed instead of at one return to user mode per 2 s; SIGTERM to its session;
+ * then, once the settle budget passes without `ending` resolving, SIGKILL to every process of
+ * the scope through `systemctl --user kill`, which reaches `setsid`'d descendants (an nx daemon,
+ * a stray `git checkout`) that a process-group signal misses. A failed lift is reported and the
+ * SIGTERM sent regardless; a failed scope kill is reported and the session SIGKILLed instead, so
+ * at least the payload ends. The gated shell traps SIGTERM, so it still reports the payload's
+ * status; after SIGKILL it reports none.
+ * @throws Error when the SIGTERM itself fails other than for a session already gone.
+ */
+async function endPayload(
+  pid: number,
+  unit: string,
+  ending: Promise<void>,
+  deps: JobRunDependencies,
+): Promise<void> {
+  const scope = scopeOf(unit);
+  // Proof: dropping the lift made `a setsid'd descendant that ignores SIGTERM ends with the scope
+  // at the bound` (job-run.test.ts) find only the kill line in `systemctl.log` (2026-11-18).
+  const unthrottled = await systemctlFailure(deps.environment, [
+    'set-property',
+    '--runtime',
+    scope,
+    'MemoryHigh=infinity',
+  ]);
+  if (unthrottled !== null)
+    deps.report(
+      `ops job: lifting MemoryHigh of ${scope} failed: ${unthrottled}; SIGTERM regardless`,
+    );
+  killSession(pid, 'SIGTERM');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const ended = await Promise.race([
+    ending.then(() => true),
+    new Promise<boolean>((resolveGrace) => {
+      timer = setTimeout(() => {
+        resolveGrace(false);
+      }, deps.settleBudgetMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  // Proof: dropping the SIGKILL made `a payload that ignores SIGTERM is killed after the settle
+  // budget` (job-run.test.ts) take the payload's full 20 s, 21.1 s against its 15 s (2026-11-12).
+  if (!ended) {
+    deps.report(
+      `ops job: session ${String(pid)} outlived SIGTERM by ${String(deps.settleBudgetMs)} ms; SIGKILL to every process of ${scope}`,
+    );
+    // Proof: restoring `killSession(pid, 'SIGKILL')` here made `a setsid'd descendant that
+    // ignores SIGTERM ends with the scope at the bound` (job-run.test.ts) find the descendant
+    // alive, `members` `[93]` against `[]` (2026-11-18).
+    const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
+    // Proof: dropping the session SIGKILL below made `a failed scope kill is reported and the
+    // session SIGKILLed instead` (job-run.test.ts) take the payload's full 20 s, 21.2 s against
+    // its 15 s (2026-11-18).
+    if (unkilled !== null) {
+      deps.report(
+        `ops job: SIGKILL to ${scope} failed: ${unkilled}; SIGKILL to session ${String(pid)} instead`,
+      );
+      killSession(pid, 'SIGKILL');
+    }
+  }
+  await ending;
+}
+
+/**
+ * How long a job's leftovers (task 6.24, S24-A2) get after the SIGTERM before the SIGKILL, and
+ * after the SIGKILL before the run records `timeout`.
+ */
+export interface LeftoverBudget {
+  readonly termGraceMs: number;
+  readonly killWaitMs: number;
+}
+
+/**
+ * Ten seconds of grace, `docker stop`'s default, then twenty for the kernel to
+ * empty the scope: a SIGKILLed process leaves it as soon as it is scheduled, so twenty seconds
+ * only run out for a process stuck in uninterruptible sleep (S24-A2).
+ */
+export const LEFTOVER_BUDGET: LeftoverBudget = { termGraceMs: 10_000, killWaitMs: 20_000 };
+
+/** How often the leftover ending re-reads the scope's members. */
+const LEFTOVER_POLL_MS = 100;
+
+/** What a bounded wait for the job's scope to empty saw. */
+type ScopeWait = { kind: 'empty' } | { kind: 'members' } | { kind: 'unreadable'; failure: string };
+
+/**
+ * Wait up to `budgetMs` for the job's scope and every cgroup nested below it
+ * ({@link scopeSubtreeMembers}, what the scope kill reaches) to have no member. A reading that
+ * fails ends the wait as `unreadable`: an unread scope is never shown empty.
+ */
+async function awaitEmptyScope(
+  cgroup: string,
+  jobId: string,
+  budgetMs: number,
+  deps: JobRunDependencies,
+): Promise<ScopeWait> {
+  const deadline = deps.monotonic.now() + budgetMs;
+  for (;;) {
+    try {
+      // Proof: answering `empty` for an unreadable scope made `members that become unreadable
+      // during the wait are unverified, never ended` (job-run.test.ts) record `endedWith:
+      // SIGTERM` (2026-11-19, review of #954 S3-5).
+      if (scopeSubtreeMembers(deps.telemetry, cgroup, jobId).length === 0) return { kind: 'empty' };
+    } catch (cause) {
+      return {
+        kind: 'unreadable',
+        failure: `members of ${cgroup} unreadable: ${causeText(cause)}`,
+      };
+    }
+    if (deps.monotonic.now() >= deadline) return { kind: 'members' };
+    await Bun.sleep(LEFTOVER_POLL_MS);
+  }
+}
+
+/**
+ * End what is left in the job's scope once its leader has exited (task 6.24, A-SCOPE-LEFTOVER-1):
+ * a server a test started and never stopped (`node serve.cjs` on every gate calibration) holds
+ * the tmp directory, which then stays charged after the job is otherwise released. Only after
+ * the leader's session ended ({@link ResourceRuntime.hostJobSessionEnded}): a member of the
+ * session is the payload's own work, left to settlement. The scope's subtree is counted
+ * ({@link scopeSubtreeMembers}) and up to {@link LEFTOVER_EXAMPLE_LIMIT} of its own members
+ * ({@link leftoverMembers}) described; then `systemctl --user kill --signal=SIGTERM` reaches
+ * every process of the scope, a SIGKILL follows after `termGraceMs`, and the subtree must empty
+ * within `killWaitMs`. A `systemctl` call that fails ends the step at once as `signal-failed`
+ * with its diagnostic, nothing waited for; a reading that fails during a wait ends it as
+ * `unverified`. `immediate` is the runtime bound's ending (task 6.14): nothing of the job may
+ * outlive it, so the session is not consulted and the SIGKILL comes at once. Undefined when the
+ * step did not run: the session still had members, or the members or session were unreadable
+ * (reported, nothing signalled unless `immediate`).
+ */
+async function endLeftovers(
+  runtime: Pick<ResourceRuntime, 'hostJobSessionEnded'>,
+  jobId: string,
+  unit: string,
+  cgroup: string,
+  immediate: boolean,
+  deps: JobRunDependencies,
+): Promise<LeftoverProcesses | undefined> {
+  const scope = scopeOf(unit);
+  const budget = deps.leftoverBudget ?? LEFTOVER_BUDGET;
+  if (!immediate) {
+    let ended: boolean;
+    try {
+      ended = runtime.hostJobSessionEnded(jobId);
+    } catch (cause) {
+      deps.report(
+        `ops job: ${jobId} leftovers in ${scope} not ended: its session is uninspectable (${causeText(cause)})`,
+      );
+      return undefined;
+    }
+    // Proof: skipping this check made `a member of the payload's own session is never ended as
+    // a leftover` (job-run.test.ts) find the member ended, its `survived` file absent
+    // (2026-11-19, task 6.24).
+    if (!ended) {
+      deps.report(
+        `ops job: ${jobId} leftovers in ${scope} not ended: the payload's session still has members; watch settles it`,
+      );
+      return undefined;
+    }
+  }
+  let count: number;
+  let examples: LeftoverProcess[];
+  try {
+    count = scopeSubtreeMembers(deps.telemetry, cgroup, jobId).length;
+    examples = leftoverMembers(deps.telemetry, cgroup, jobId)
+      .slice(0, LEFTOVER_EXAMPLE_LIMIT)
+      .flatMap((pid) => describeLeftover(pid) ?? []);
+  } catch (cause) {
+    if (!immediate) {
+      deps.report(
+        `ops job: ${jobId} leftovers in ${scope} not ended: members unreadable (${causeText(cause)})`,
+      );
+      return undefined;
+    }
+    deps.report(
+      `ops job: members of ${scope} unreadable (${causeText(cause)}); SIGKILL regardless`,
+    );
+    const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
+    if (unkilled !== null)
+      deps.report(`ops job: SIGKILL to what is left of ${scope} failed: ${unkilled}`);
+    return undefined;
+  }
+  if (count === 0) return { count: 0, examples: [], endedWith: 'none' };
+  const unsignalled = (failure: string): LeftoverProcesses => {
+    deps.report(
+      `ops job: ${jobId} ${String(count)} leftover processes in ${scope} were not signalled: ${failure}; its tmp directory stays charged`,
+    );
+    return { count, examples, endedWith: 'signal-failed', failure };
+  };
+  const unverified = (failure: string): LeftoverProcesses => {
+    deps.report(
+      `ops job: ${jobId} leftovers in ${scope} unverified: ${failure}; its tmp directory stays charged`,
+    );
+    return { count, examples, endedWith: 'unverified', failure };
+  };
+  if (!immediate) {
+    deps.report(
+      `ops job: ${jobId} ${String(count)} leftover processes in ${scope} after its session ended; SIGTERM`,
+    );
+    // Proof: waiting out the grace after a failed SIGTERM made `a failed SIGTERM is recorded as
+    // signal-failed, nothing waited for` (job-run.test.ts) take the 2 s grace and record the
+    // SIGKILL's failure instead, and `a leftover that exits on its own after a failed SIGTERM is
+    // not labelled SIGTERM` record `SIGTERM` (2026-11-19, review of #954 S3-1).
+    const unterminated = await systemctlFailure(deps.environment, [
+      'kill',
+      '--signal=SIGTERM',
+      scope,
+    ]);
+    if (unterminated !== null) return unsignalled(`SIGTERM: ${unterminated}`);
+    const termed = await awaitEmptyScope(cgroup, jobId, budget.termGraceMs, deps);
+    if (termed.kind === 'empty') return { count, examples, endedWith: 'SIGTERM' };
+    if (termed.kind === 'unreadable') return unverified(termed.failure);
+    // Proof: dropping this SIGKILL made `a leftover that ignores SIGTERM is SIGKILLed after the
+    // grace, recorded` (job-run.test.ts) record `endedWith: timeout` against `SIGKILL`
+    // (2026-11-19, task 6.24).
+    deps.report(
+      `ops job: ${jobId} leftovers in ${scope} outlived SIGTERM by ${String(budget.termGraceMs)} ms; SIGKILL`,
+    );
+  } else {
+    deps.report(`ops job: ${String(count)} processes left in ${scope} after its leader; SIGKILL`);
+  }
+  // Proof: not calling this after the leader's exit made `a setsid'd descendant outlives a
+  // payload that honours SIGTERM, not the bound` (job-run.test.ts) find it alive, `members`
+  // `[90]` against `[]` (2026-11-18, review of #942 S2-1); skipping it on the bound path once it
+  // moved here, `[1797]` (2026-11-19, task 6.24).
+  const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
+  if (unkilled !== null) {
+    deps.report(`ops job: SIGKILL to what is left of ${scope} failed: ${unkilled}`);
+    return unsignalled(`SIGKILL: ${unkilled}`);
+  }
+  const killed = await awaitEmptyScope(cgroup, jobId, budget.killWaitMs, deps);
+  if (killed.kind === 'empty') return { count, examples, endedWith: 'SIGKILL' };
+  if (killed.kind === 'unreadable') return unverified(killed.failure);
+  deps.report(
+    `ops job: ${jobId} ${scope} still has members ${String(budget.killWaitMs)} ms after SIGKILL; its tmp directory stays charged`,
+  );
+  return { count, examples, endedWith: 'timeout' };
+}
+
 async function runAdmitted(
   runtime: ResourceRuntime,
   records: HostJobRunRecords,
   admitted: HostJob,
-  catalogued: CataloguedJob,
+  catalogued: BoundJob,
   systemdRun: string,
   docker: string | null,
   containers: ContainerEvidence,
@@ -611,6 +967,12 @@ async function runAdmitted(
     });
   }
   const unit = scopeUnitOf(job.id);
+  // A clamped memoryGib (task 6.25, S25-A6) says which figure set its bound before the launch.
+  // Proof: dropping the line or the record's `memoryBoundGib` below made `a clamped entry sets
+  // MemoryHigh to its heuristic; …` (job-run.test.ts) miss the line, or read `memoryBoundGib`
+  // undefined (2026-11-20, S25-A6).
+  if (job.calibration !== true && catalogued.memoryBound.term !== 'envelope')
+    deps.report(`ops job: ${job.id} ${boundLine(catalogued)}`);
   let launched: Launched;
   try {
     launched = launchGated(systemdRun, unit, catalogued, job, request.argv, request.label, deps);
@@ -696,6 +1058,9 @@ async function runAdmitted(
     return refuseAtGate(70, `systemd-run did not start scope ${unit}`);
   }
   const startedAt = deps.clock.read();
+  // The runtime bound is measured on the monotonic clock, as every other launcher deadline is;
+  // `startedAt` stays the wall-clock instant the record states.
+  const startedMonotonic = deps.monotonic.now();
   const gateSample = readSample('gate', startedAt, deps.telemetry, cgroup, job.locator);
   // Proof: skipping this refusal made `refuses 70 when memory.peak is unreadable at the gate`
   // (job-run.test.ts) run the payload unmeasured, no refusal (2026-11-01, Slice 3).
@@ -728,7 +1093,9 @@ async function runAdmitted(
         argv: request.argv,
         hostClass: hostClassOf(deps.host),
         toolchain,
-        ...(job.calibration === true ? { calibration: true as const } : {}),
+        ...(job.calibration === true
+          ? { calibration: true as const }
+          : { memoryBoundGib: catalogued.memoryBound.memoryGib }),
         unit,
         cgroup,
         tmpDirectory: job.locator,
@@ -763,7 +1130,9 @@ async function runAdmitted(
     throw cause;
   });
   onSignal((signal) => {
-    // The whole session: the payload and its children, not only the gated shell.
+    // The whole session: the payload and its children, not only the gated shell. Forwarding
+    // neither lifts `MemoryHigh` nor escalates (task 6.14, S14-A2): an operator's signal is the
+    // operator's own end, and the manual sequence in docs/infra/gate-hosts.md does both.
     try {
       killSession(pid, signal);
     } catch (cause) {
@@ -787,6 +1156,8 @@ async function runAdmitted(
       payload.ended = true;
     },
   );
+  const { maxRuntimeMinutes } = catalogued.jobType;
+  let endedByLauncher: string | undefined;
   for (;;) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // A cleared timer, not `Bun.sleep`: a pending sleep would hold the process open for up to
@@ -804,6 +1175,27 @@ async function runAdmitted(
     const sample = readSample('interval', deps.clock.read(), deps.telemetry, cgroup, job.locator);
     if (watch !== null) sample.containers = await watch.sample();
     persist(sample);
+    // Proof: never ending the payload made `a job past its maxRuntimeMinutes is ended with 124`
+    // (job-run.test.ts) wait for its payload and return 0; measuring on the wall clock instead
+    // made the three bounded tests return 0 under their advanced monotonic clock (2026-11-12).
+    if (
+      maxRuntimeMinutes !== undefined &&
+      endedByLauncher === undefined &&
+      deps.monotonic.now() - startedMonotonic > maxRuntimeMinutes * 60_000
+    ) {
+      endedByLauncher = `exceeded maxRuntimeMinutes ${String(maxRuntimeMinutes)}: ended by the launcher`;
+      deps.report(`ops job: ${job.id} ${endedByLauncher}`);
+      // A failed kill must not skip the exit, the record and settlement: the loop goes on
+      // sampling until the payload ends, and the run still records 124 and its reason.
+      // Proof: without this catch `a failed kill at the runtime bound still records 124 and
+      // settles` (job-run.test.ts) reject with `kill EPERM` before the exit was recorded
+      // (2026-11-12).
+      try {
+        await endPayload(pid, unit, ending, deps);
+      } catch (cause) {
+        deps.report(`ops job: ending ${unit} at its runtime bound failed: ${causeText(cause)}`);
+      }
+    }
   }
   const exitSample = readSample('exit', deps.clock.read(), deps.telemetry, cgroup, job.locator);
   if (watch !== null) exitSample.containers = await watch.sample();
@@ -813,19 +1205,41 @@ async function runAdmitted(
   // status, or with its own when it died before reporting one.
   launched.gate.end('done\n');
   const leaderStatus = await launched.leaderExit;
-  const status = payload.status ?? leaderStatus;
+  // The run ends with its payload: the leftover ending below takes up to 30 s that are not the
+  // job's wall time, so neither the record's `endedAt` nor the ledger's exit waits for it.
+  const payloadEndedAt = deps.clock.read();
+  const payloadStatus = payload.status ?? leaderStatus;
+  const status = endedByLauncher === undefined ? payloadStatus : RUNTIME_EXCEEDED_EXIT_CODE;
   // A status above 128 is how a shell reports a signal; the record names the signal it implies.
   const signal =
-    Object.entries(constants.signals).find(([, number]) => number === status - 128)?.[0] ?? null;
+    Object.entries(constants.signals).find(([, number]) => number === payloadStatus - 128)?.[0] ??
+    null;
   let ledgerFailure: string | null = null;
   // Proof: letting this throw made `a ledger write failure is recorded apart; the status is
   // still the payload's` (job-run.test.ts) reject instead of returning 4 (2026-11-01, Slice 3).
+  // Recording it after the leftover ending below put the ledger's exit 2034 ms after the
+  // leftover line in `a leftover's grace is not the job's wall time` (2026-11-19, #954 S2-1).
   try {
     runtime.recordHostJobExit(job.id, status);
   } catch (cause) {
     ledgerFailure = `exit unrecorded in the resource ledger: ${causeText(cause)}`;
     deps.report(`ops job: ${job.id} ${ledgerFailure}`);
   }
+  // What is left in the scope now is no longer the payload's: a server a test never stopped, or
+  // at the bound a `setsid`'d descendant of a payload that honoured SIGTERM, holding the tmp
+  // directory, cores, memory and its units. The gated shell is gone, so ending them takes nothing
+  // the exit sample needed; settlement below then sees the scope empty (task 6.24).
+  // Proof: dropping this call (keeping only the bound's) made `a leftover in the scope is ended
+  // before tmp settlement (task 6.24)` (job-run.test.ts) see `tmp blocked: tmp directory
+  // unverified: live file hold remains charged` and the scope's members `[362]` (2026-11-19).
+  const leftoverProcesses = await endLeftovers(
+    runtime,
+    job.id,
+    unit,
+    cgroup,
+    endedByLauncher !== undefined,
+    deps,
+  );
   const telemetryFailure = failures.length === 0 ? null : failures.join('; ');
   // A run during which the singleton guard's holder died had no guarantee against a stale
   // launcher beside it: its attribution is incomplete (review H5).
@@ -847,14 +1261,21 @@ async function runAdmitted(
   if (guardLost !== undefined) deps.report(`ops job: ${job.id} ${guardLost}`);
   if (telemetryFailure !== null)
     deps.report(`ops job: ${job.id} telemetry failure recorded: ${telemetryFailure}`);
-  const incomplete = verdicts.filter((verdict) => verdict.verdict !== 'bounded');
+  // A declared, bounded host service beside the job is attributed, not charged (task 6.22).
+  // Proof: counting only `bounded` here made `a labelled, bounded host-service container beside
+  // the job keeps attribution complete (task 6.22)` (job-run.test.ts) record attribution
+  // incomplete (2026-11-19).
+  const incomplete = verdicts.filter((verdict) => !isAttributed(verdict));
   for (const verdict of incomplete)
     deps.report(
       `ops job: ${job.id} attribution incomplete: ${verdict.id.slice(0, 12)} ${verdict.verdict}: ${verdict.reason}`,
     );
   try {
     records.finish(job.id, {
-      endedAt: deps.clock.read(),
+      // Proof: reading the clock here, after the leftover ending, made `a leftover's grace is
+      // not the job's wall time (review of #954 S2-1)` (job-run.test.ts) record `wallMs` above
+      // the 2 s grace (2026-11-19).
+      endedAt: payloadEndedAt,
       exitCode: status,
       signal,
       telemetryFailure,
@@ -864,6 +1285,8 @@ async function runAdmitted(
       attributionIncomplete: incomplete.length > 0 || guardLost !== undefined,
       containers: verdicts,
       ...(guardLost === undefined ? {} : { guardLost }),
+      ...(endedByLauncher === undefined ? {} : { endedByLauncher }),
+      ...(leftoverProcesses === undefined ? {} : { leftoverProcesses }),
     });
   } catch (cause) {
     deps.report(`ops job: ${job.id} run record outcome unrecorded: ${causeText(cause)}`);

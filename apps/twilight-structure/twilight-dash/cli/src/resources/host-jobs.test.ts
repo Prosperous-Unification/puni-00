@@ -400,6 +400,90 @@ if (insideLinuxNamespace(import.meta.path)) {
       runtime.close();
     });
 
+    test('the largest envelope is admitted and one more in any dimension is refused 73 (task 6.25)', () => {
+      // 16 disk units of just under 1.3 GiB hold 20.8 GiB: 20 whole GiB.
+      const { runtime } = pool(scenarioPool, { diskUnitBytes: 1_395_864_371 });
+      const largest = runtime.largestEnvelope();
+      expect(largest).toEqual({ cpuCores: 8, memoryGib: 13, tmpDiskGib: 20 });
+      const request = (cpuCores: number, memoryGib: number, tmpDiskGib: number) =>
+        runtime.enqueueHostJob(
+          {
+            descriptor: jobType('gate', cpuCores, memoryGib, [], tmpDiskGib),
+            label: 'gate:edge',
+            waitSeconds: 600,
+          },
+          process.pid,
+        );
+      expect(request(9, 13, 20)).toMatchObject({ kind: 'refused', exitCode: 73 });
+      expect(request(8, 14, 20)).toMatchObject({ kind: 'refused', exitCode: 73 });
+      expect(request(8, 13, 21)).toEqual({
+        kind: 'refused',
+        exitCode: 73,
+        reason: 'host job gate refused: tmpDiskGib 21 exceeds allocatable 20',
+      });
+      expect(request(largest.cpuCores, largest.memoryGib, largest.tmpDiskGib)).toMatchObject({
+        kind: 'queued',
+      });
+      runtime.close();
+    });
+
+    test('a clamped gate reserves the whole pool in its clamped dimensions; nothing fits beside it (S25-A7)', () => {
+      const { runtime } = pool(scenarioPool);
+      // The landed gate's shape: 6 cores and 9 GiB declared, both clamped, on 8 cores and 13 GiB;
+      // 1 GiB of tmp, so the host's free space never decides the test.
+      const clamped = {
+        ...jobType('gate', 6, 9, ['gate_tree'], 1),
+        clampedToAllocatable: ['cpuCores' as const, 'memoryGib' as const],
+        memoryBoundGib: 13,
+      };
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: clamped, label: 'gate:clamped', waitSeconds: 0 }),
+      );
+      expect(job.reserved).toEqual({
+        cpuCores: 8,
+        memoryGib: 13,
+        diskUnits: 1,
+        workspaceSlots: 1,
+        tmpDiskGib: 1,
+      });
+      expect(runtime.hostPoolStatus().reserved).toMatchObject({ cpuCores: 8, memoryGib: 13 });
+      // A 1-core, 1-GiB job would fit beside the envelope's 6 and 9; it does not beside the pool.
+      const small = queue(runtime, {
+        descriptor: jobType('test-queued', 1, 1, [], 1),
+        label: 'small',
+        waitSeconds: 0,
+      });
+      expect(runtime.pollHostJob(small, silent)).toMatchObject({ kind: 'refused', exitCode: 75 });
+      // The envelope, not the reservation, is what oversize() judges: a clamped figure above the
+      // pool is still refused 73.
+      expect(
+        runtime.enqueueHostJob(
+          {
+            descriptor: { ...clamped, envelope: { ...clamped.envelope, memoryGib: 14 } },
+            label: 'gate:big',
+            waitSeconds: 0,
+          },
+          process.pid,
+        ),
+      ).toMatchObject({ kind: 'refused', exitCode: 73 });
+      runtime.close();
+      // The other order: beside a 1-GiB job already held, the clamped gate does not fit either,
+      // though its envelope (6 + 1 cores, 9 + 1 GiB) would.
+      const second = pool(scenarioPool).runtime;
+      admitted(
+        second,
+        queue(second, {
+          descriptor: jobType('test-queued', 1, 1, [], 1),
+          label: 'small',
+          waitSeconds: 0,
+        }),
+      );
+      const late = queue(second, { descriptor: clamped, label: 'gate:clamped', waitSeconds: 0 });
+      expect(second.pollHostJob(late, silent)).toMatchObject({ kind: 'refused', exitCode: 75 });
+      second.close();
+    });
+
     test('refuses an exclusive id the pool lacks, exit 73 without a ticket', () => {
       const { runtime } = pool({ ...scenarioPool, gateTrees: 0 });
       expect(
@@ -639,6 +723,69 @@ if (insideLinuxNamespace(import.meta.path)) {
         diskUnits: 1,
         workspaceSlots: 1,
       });
+      runtime.close();
+    });
+
+    // Task 6.16: be-01 backup fixtures hardlink `wbs-backup-*/wbs.db` to its `.original` twin,
+    // both inside the gate's tmp directory; every h4claw gate stayed blocked on them.
+    test('hardlinks whose every link lies inside the tmp directory are removed', async () => {
+      const { runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: jobType('test-queued', 1, 1, [], 1),
+          label: 'q',
+          waitSeconds: 0,
+        }),
+      );
+      const payload = launch(runtime, job);
+      mkdirSync(join(job.locator, 'wbs-backup-1'));
+      mkdirSync(join(job.locator, 'wbs-backup-1.original'));
+      writeFileSync(join(job.locator, 'wbs-backup-1', 'wbs.db'), 'bytes');
+      linkSync(
+        join(job.locator, 'wbs-backup-1', 'wbs.db'),
+        join(job.locator, 'wbs-backup-1.original', 'wbs.db'),
+      );
+      linkSync(join(job.locator, 'wbs-backup-1', 'wbs.db'), join(job.locator, 'third-link'));
+      await payload.release();
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.tmpDisk).toEqual({
+        state: 'released',
+        reason: 'tmp directory removed and holds verified',
+      });
+      expect(settled.state).toBe('released');
+      expect(existsSync(job.locator)).toBe(false);
+      expect(runtime.hostPoolStatus().reserved.diskUnits).toBe(0);
+      runtime.close();
+    });
+
+    test('an in-tree hardlink pair with a third link outside stays blocked and untouched', async () => {
+      const { runtime, base } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: jobType('test-queued', 1, 1, [], 1),
+          label: 'q',
+          waitSeconds: 0,
+        }),
+      );
+      const payload = launch(runtime, job);
+      mkdirSync(join(job.locator, 'nested'));
+      writeFileSync(join(job.locator, 'shared'), 'bytes');
+      linkSync(join(job.locator, 'shared'), join(job.locator, 'nested', 'twin'));
+      linkSync(join(job.locator, 'shared'), join(base, 'outside-link'));
+      await payload.release();
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.tmpDisk).toEqual({
+        state: 'blocked',
+        reason: 'tmp directory cleanup failed: descriptor-relative removal refused',
+      });
+      expect(readFileSync(join(base, 'outside-link'), 'utf8')).toBe('bytes');
+      expect(lstatSync(join(base, 'outside-link')).nlink).toBe(3);
+      expect(existsSync(join(job.locator, 'nested', 'twin'))).toBe(true);
+      expect(runtime.hostPoolStatus().reserved.diskUnits).toBe(1);
       runtime.close();
     });
   });

@@ -124,14 +124,19 @@ prepare_gate_steps_path() {
   printf '%s\n' \
     '#!/bin/bash' \
     'printf '\''%s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
+    'printf '\''%s\n'\'' "${NODE_OPTIONS-unset}" >>"$GATE_NODE_OPTIONS_LOG"' \
     'printf '\''later\n'\'' >"$GATE_LATER_MARKER"' \
     >"$fixture_root/bin/bunx"
   chmod +x "$fixture_root/bin/bunx"
 }
 
+# The fourth argument is the NODE_OPTIONS the steps inherit, empty by default so a caller's own
+# environment never reaches the fixture.
 run_gate_steps_fixture() {
-  local fixture_root=$1 mode=$2 bun_mode=${3:-ok}
+  local fixture_root=$1 mode=$2 bun_mode=${3:-ok} node_options=${4:-}
   GATE_CALL_LOG="$fixture_root/calls" \
+    GATE_NODE_OPTIONS_LOG="$fixture_root/node-options" \
+    NODE_OPTIONS="$node_options" \
     GATE_LATER_MARKER="$fixture_root/later" \
     GATE_OPEN_SPEC_MODE="$mode" \
     GATE_BUN_MODE="$bun_mode" \
@@ -1004,6 +1009,55 @@ expect_status 64 "$status" '47: the real launcher refuses a target that names no
 if grep -q "h2puni gate: not-a-commit is not a commit in $repo_root" "$scratch/launcher-stderr"; then
   pass '47: the refusal names the target and the checkout'
 else fail "47: the refusal did not name the target: $(cat "$scratch/launcher-stderr")"; fi
+
+# 48. Every Node process the steps start runs with the pinned 4096 MiB heap (A-NODE-HEAP-1,
+# `dash-host-jobs` task 6.26). Node sizes its default heap from the job scope's MemoryHigh, so on
+# 2026-11-20 h4claw job f776195f lost four lint tasks at ~2017 MB that its unbounded calibrations
+# had passed. Inherited options are kept; another heap figure is refused before any work.
+# Proof (2026-11-20): with the pin block deleted from bin/h2puni-gate-steps.sh, `48: every Nx call
+# ran with the pinned heap` failed for the empty and kept-options inputs and both conflicting
+# inputs exited 0; with only its refusal branch deleted, both conflicting inputs failed `want exit
+# 78, got 0`.
+expect_heap_pinned() {
+  local fixture_root=$1 want=$2 what=$3 seen
+  seen=$(sort -u "$fixture_root/node-options" 2>/dev/null)
+  if [[ -s $fixture_root/node-options && $seen == "$want" ]]; then
+    pass "48: every Nx call ran with the pinned heap ($what)"
+  else
+    fail "48: every Nx call ran with the pinned heap ($what): want '$want', got '$seen'"
+  fi
+}
+for heap_case in empty kept pinned; do
+  heap_fixture="$scratch/node-heap-$heap_case"
+  prepare_gate_steps_path "$heap_fixture" yes
+  case $heap_case in
+    empty) inherited='' want='--max-old-space-size=4096' ;;
+    kept) inherited='--enable-source-maps' want='--enable-source-maps --max-old-space-size=4096' ;;
+    pinned) inherited='--max-old-space-size=4096' want='--max-old-space-size=4096' ;;
+  esac
+  status=0
+  run_gate_steps_fixture "$heap_fixture" passed ok "$inherited" || status=$?
+  expect_status 0 "$status" "48: the gate steps run with NODE_OPTIONS '$inherited'"
+  expect_heap_pinned "$heap_fixture" "$want" "$heap_case"
+done
+for conflict in '--enable-source-maps --max-old-space-size=2048' '--max_old_space_size=1024'; do
+  heap_fixture="$scratch/node-heap-conflict-${conflict##*=}"
+  prepare_gate_steps_path "$heap_fixture" yes
+  status=0
+  run_gate_steps_fixture "$heap_fixture" passed ok "$conflict" || status=$?
+  expect_status 78 "$status" "48: a conflicting heap size refuses the gate steps ('$conflict')"
+  if grep -q "NODE_OPTIONS already sets ${conflict##* }; the gate pins --max-old-space-size=4096" \
+    "$heap_fixture/stderr"; then
+    pass '48: the refusal names the inherited and the pinned heap'
+  else
+    fail "48: the refusal did not name the heap sizes: $(cat "$heap_fixture/stderr")"
+  fi
+  if [[ -e $heap_fixture/calls || -e $heap_fixture/later ]]; then
+    fail '48: the conflicting heap size allowed the install or later Nx work'
+  else
+    pass '48: the conflicting heap size stops before the install'
+  fi
+done
 
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2

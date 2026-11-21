@@ -11,7 +11,12 @@ WorkingDirectory={{ puni_gate_launcher_checkout }}
 Environment=PATH={{ puni_gate_service_path }}
 Environment=TMPDIR={{ puni_gate_tmpdir }}
 ExecStart={{ puni_gate_bun_path }} {{ puni_gate_dash_entrypoint }} resources watch --config {{ puni_gate_pool_config }}
-Restart=on-failure
+# Restart=always, not on-failure (task 6.7, decided 2026-11-12): `resources watch` answers
+# SIGTERM by cancelling and exiting 0 (resources/command.ts), which on-failure reads as a clean
+# exit and never restarts, stalling the outbox and cleanup-request pulls. `systemctl --user stop`
+# is the only intended way down: man systemd.service, Restart=, exempts a service "stopped with
+# systemctl stop or an equivalent operation" from every setting, always included.
+Restart=always
 RestartSec=30
 # The concurrent-mode singleton guard's holder must outlive a restarted watch; the default
 # control-group mode would kill it with the watch (S6B-A8).

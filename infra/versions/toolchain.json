@@ -104,6 +104,14 @@
       "sha256": "5b91c75d971509e96f673fa9f46e5d8ea294b6bbfedbc8ff458aedd88775d94c",
       "os": "linux",
       "arch": "amd64"
+    },
+    "crane": {
+      "version": "v0.22.1",
+      "url": "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz",
+      "sha256": "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0",
+      "executableSha256": "8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992",
+      "os": "linux",
+      "arch": "amd64"
     }
   },
   "terraform": {

@@ -1,6 +1,7 @@
 ---
 # Makes a fleet host run `bin/h2puni-gate.sh <sha>` as h2puni does, under its own heavy lock.
-# Docker itself is the host's existing engine: this role neither installs nor reconfigures it.
+# Docker itself is the host's existing engine: this role neither installs nor reconfigures it;
+# it adds only the pinned buildx client plugin the solver smoke's builds need.
 - name: Require supported host and gate inputs
   tags: [gate_host, validate]
   ansible.builtin.assert:
@@ -64,6 +65,38 @@
   ansible.builtin.getent:
     database: group
     key: docker
+
+# Inside a Dash job the solver smoke refuses the legacy builder, whose per-step intermediate
+# containers carry no `puni.job` label (dash-host-jobs task 6.21). It comes after the Docker
+# group read, which fails on a host without Docker: the package depends on docker.io without a
+# version, so here it can only add the plugin to the existing engine, never install one.
+- name: Install the pinned docker-buildx package
+  tags: [gate_host]
+  ansible.builtin.apt:
+    name: ['docker-buildx={{ puni_gate_docker_buildx_version }}']
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Read the installed docker-buildx package version
+  tags: [gate_host, validate]
+  ansible.builtin.command:
+    argv: [dpkg-query, '--showformat=${Version}', --show, docker-buildx]
+  register: puni_gate_buildx_package
+  changed_when: false
+
+- name: Require the pinned docker-buildx package
+  tags: [gate_host, validate]
+  ansible.builtin.assert:
+    that:
+      - puni_gate_buildx_package.stdout == puni_gate_docker_buildx_version
+    fail_msg: >-
+      The gate host's docker-buildx is {{ puni_gate_buildx_package.stdout }}, not the pinned
+      {{ puni_gate_docker_buildx_version }} (puni_gate_docker_buildx_version in the gate_host
+      role defaults)
+  # Proof: ansible.test.ts `installs the pinned docker-buildx package and asserts its version`
+  # failed against the role before task 6.21. No live negative: neither host had the package, and
+  # no apply has run yet (verify.md, task 6.21, S21-A2).
 
 # Membership in the docker group is root-equivalent on this host: the gate builds and runs the
 # solver image. The account has no sudo grant and exists only for gates; a pre-existing grant is
