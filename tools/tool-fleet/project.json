@@ -269,6 +269,13 @@
         "command": "bun test ./infra/ansible/tests/registry-pulls.test.ts --timeout=180000"
       }
     },
+    "rehearse-registry-pressure-source": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/registry-pressure-source-native.ts"
+      }
+    },
     "rehearse:registry-client-installation": {
       "executor": "nx:run-commands",
       "cache": false,

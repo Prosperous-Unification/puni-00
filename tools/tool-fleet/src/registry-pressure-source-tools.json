@@ -1,0 +1,7 @@
+{
+  "packageVersion": "1:9.6p1-3ubuntu13.20",
+  "sourceUrl": "http://apt.pop-os.org/ubuntu/pool/main/o/openssh/openssh-server_9.6p1-3ubuntu13.20_amd64.deb",
+  "archiveSha256": "5d0d5eb672ddc27601e2da4e8465c5736dc73375a21bc1cd1834fcb08fb155bf",
+  "executableSha256": "95b291d957f87dd200796c4986c97b6f4d970e26ad620ec9174e69c13ec5c137",
+  "version": "OpenSSH_9.6p1 Ubuntu-3ubuntu13.20, OpenSSL 3.0.13 30 Jan 2024"
+}
