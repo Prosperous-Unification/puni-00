@@ -10669,3 +10669,61 @@ The complete owning target above remains verified only on the pre-fix
 implementation commit. A fresh clean unfiltered run remains required
 after the final source wave and the deferred whole-client cancellation
 correction. Task5.1c and adoption gates remain open.
+
+### Rejected fixture directory cleanup
+
+The next review exposed an owned directory leak before key generation.
+With an actual subprocess umask of0777, the native fixture helper correctly
+refused the generated mode000 directory and left it under the disposable
+parent. The regression observes that parent before test teardown.
+
+The helper now records the original admission failure and rechecks the
+identity of a known owned directory before requesting empty-only removal.
+A restrictive mode remains an admission failure after successful cleanup.
+If the initial identity cannot be read, ownership is unproven, the path
+has changed, or the directory is nonempty, the helper preserves the path
+and reports the original failure with bounded cleanup context. The rejected
+directory path uses neither chmod nor recursive deletion.
+
+```sh
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-native.test.ts
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts tools/tool-fleet/src/registry-pressure-source-native.test.ts
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:lint --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:typecheck --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:build --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+```
+
+The admission tests reproduced six baseline failures and passed35 cases
+with19 Bun assertions after the correction. The full four-file covering
+run passed281 tests with778 Bun assertions and zero failures.
+The actual uncached native command exited0 in13.6s with12 cases, UID1000
+and port34965. The nonzero prefix case returned the intended public SSH
+failure after the fixture wrote37 bytes. The cap measurements remained
+65538 stdout bytes and4097 stderr bytes. The timeout read completed at
+1513ms under its original2500ms deadline. The independent dispatcher
+settled at5232ms with exit124. Parent exit0, reaping and fixture removal
+were observed. The separate forced-kill fallback remains unexercised.
+
+| Fault                                                                       | Observed negative                                                                   |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Skip empty-directory removal                                                | Real umask test failed because the rejected directory remained in the parent.       |
+| Substitute recursive removal                                                | Nonempty fixture test failed on the missing directory before asserting diagnostics. |
+| Skip the fresh identity read                                                | The replaced-path test failed because the empty replacement was removed.            |
+| Omit retained-path context for unknown owner or unreadable initial metadata | The corresponding named refusal failed despite preserving the disposable path.      |
+| Omit the initiating refusal after ENOTEMPTY                                 | The diagnostic assertion failed while the physical fixture remained.                |
+
+Each selected fault was applied alone to an isolated verifier copy, then
+restored. Each faulty invocation exited1 and each restored test exited0.
+The tests inspect the rejected parent and known content before their own
+cleanup. Owning lint, typecheck, build, scoped format and OpenSpec checks
+passed. No admitted-path actor, process supervisor, contract, scoped tool
+profile or stopped implementation changed. The inspected source SHA-256
+values are
+`271abb676a43fa57af01d67cd93c177e9f0c60de10d2c39288f21575cfa11a89`
+for the verifier and
+`6e5d46ccc89476ba31e3fb732e9e58131ba8aa38fb3f873db804f03a13983a62`
+for its admission tests. The earlier unfiltered suite receipt continues
+to apply only to its stated commit. Final clean owning tests and whole-client
+cancellation correction remain pending. Task5.1c remains open.

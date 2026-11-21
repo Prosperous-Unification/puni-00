@@ -256,9 +256,13 @@ test.each([
     return path;
   }) as typeof fs.mkdtemp);
   try {
-    await rejects(createNativeFixture(home, uid + offset), {
-      message: 'native fixture directory is not private and owned',
-    });
+    await rejects(
+      createNativeFixture(home, uid + offset),
+      offset === 0
+        ? { message: 'native fixture directory is not private and owned' }
+        : /native fixture directory is not private and owned.*native fixture retained at/,
+    );
+    expect(await fs.readdir(home)).toHaveLength(offset);
   } finally {
     generated.mockRestore();
     await fs.rm(home, { recursive: true });
@@ -281,3 +285,97 @@ test('native cleanup refuses a replacement and preserves its contents', async ()
     await fs.rm(home, { recursive: true });
   }
 });
+
+test('refuses the real mode 000 fixture and leaves its parent empty', async () => {
+  const home = await fs.mkdtemp('/tmp/puni-native-restricted-umask-');
+  try {
+    const module = new URL('./registry-pressure-source-native.ts', import.meta.url).href;
+    const child = Bun.spawnSync(
+      [
+        process.execPath,
+        '-e',
+        `
+      import { createNativeFixture } from ${JSON.stringify(module)};
+      process.umask(0o777);
+      try {
+        await createNativeFixture(process.argv[1], process.getuid());
+        process.exitCode = 2;
+      } catch (cause) {
+        console.log(cause.message);
+        process.exitCode = 1;
+      }
+    `,
+        home,
+      ],
+      { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 3000 },
+    );
+    expect(child.exitCode).toBe(1);
+    expect(child.stdout.toString().trim()).toBe(
+      'native fixture directory is not private and owned',
+    );
+    expect(child.stderr.toString()).toBe('');
+    expect(await fs.readdir(home)).toEqual([]);
+  } finally {
+    for (const entry of await fs.readdir(home)) await fs.rmdir(home + '/' + entry);
+    await fs.rmdir(home);
+  }
+});
+
+test.each(['nonempty', 'replaced', 'unreadable'] as const)(
+  'native admission retains the %s fixture path and preserves the primary refusal',
+  async (fault) => {
+    const home = await fs.mkdtemp('/tmp/puni-native-admission-retention-');
+    const uid = os.userInfo().uid;
+    const mkdtemp = fs.mkdtemp;
+    let generatedPath: string | undefined;
+    const generated = spyOn(fs, 'mkdtemp').mockImplementation((async (prefix: string) => {
+      const path = await mkdtemp(prefix);
+      generatedPath = path;
+      await fs.chmod(path, 0o755);
+      if (fault === 'nonempty') await fs.writeFile(path + '/marker', 'owned content');
+      return path;
+    }) as typeof fs.mkdtemp);
+    const lstat = fs.lstat;
+    let inspected = false;
+    const stats = spyOn(fs, 'lstat').mockImplementation((async (
+      path: Parameters<typeof fs.lstat>[0],
+    ) => {
+      const stat = await lstat(path);
+      if (path === generatedPath && !inspected) {
+        inspected = true;
+        if (fault === 'unreadable') throw new Error('injected initial metadata read failure');
+        if (fault === 'replaced') {
+          await fs.rename(generatedPath, generatedPath + '-first');
+          await fs.writeFile(generatedPath + '-first/marker', 'original content');
+          await fs.mkdir(generatedPath, { mode: 0o700 });
+        }
+      }
+      return stat;
+    }) as typeof fs.lstat);
+    try {
+      const refusal =
+        fault === 'unreadable'
+          ? /injected initial metadata read failure.*native fixture retained at/
+          : /native fixture directory is not private and owned.*native fixture retained at/;
+      const rejection = await createNativeFixture(home, uid).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(await fs.readdir(home)).toHaveLength(fault === 'replaced' ? 2 : 1);
+      if (generatedPath === undefined) throw new Error('fixture was not generated');
+      if (fault === 'nonempty')
+        expect(await fs.readFile(generatedPath + '/marker', 'utf8')).toBe('owned content');
+      if (fault === 'replaced') {
+        expect(await fs.readdir(generatedPath)).toEqual([]);
+        expect(await fs.readFile(generatedPath + '-first/marker', 'utf8')).toBe('original content');
+      }
+      expect(rejection).toBeInstanceOf(Error);
+      if (!(rejection instanceof Error)) throw new Error('fixture admission did not reject');
+      expect(rejection.message).toMatch(refusal);
+    } finally {
+      stats.mockRestore();
+      generated.mockRestore();
+      await fs.rm(home, { recursive: true });
+    }
+  },
+);

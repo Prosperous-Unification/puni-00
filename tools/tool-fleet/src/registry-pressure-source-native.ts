@@ -441,20 +441,42 @@ interface NativeFixture {
   readonly ino: number;
 }
 
-/** Admits the actual freshly generated fixture before any credentials are written. */
+/**
+ * Admits the freshly generated fixture before credentials are written.
+ * A rejected fixture is released only when its unchanged ownership and emptiness can be established.
+ */
 export async function createNativeFixture(homedir: string, uid: number): Promise<NativeFixture> {
   const directory = await fs.mkdtemp(homedir + '/.puni-registry-native-');
-  const identity = await fs.lstat(directory);
-  // Proof: Removing mode or owner admission broke its actual generated-directory test.
-  ok(
-    identity.isDirectory() && identity.uid === uid && (identity.mode & 0o7777) === 0o700,
-    'native fixture directory is not private and owned',
+  const retained = 'native fixture retained at ' + directory;
+  const failures: string[] = [];
+  const identity = await attempt(failures, () =>
+    before(fs.lstat(directory), performance.now() + 500, 'native fixture admission identity'),
   );
-  return { directory, uid, dev: identity.dev, ino: identity.ino };
+  // Proof: Omitting the retained path broke the injected unreadable-identity test.
+  if (identity === undefined) throw new FixtureFailure([...failures, retained]);
+
+  const owned = identity.isDirectory() && identity.uid === uid;
+  const fixture = { directory, uid, dev: identity.dev, ino: identity.ino };
+  // Proof: Removing mode or owner admission broke its actual generated-directory test.
+  if (owned && (identity.mode & 0o7777) === 0o700) return fixture;
+
+  const refusal = 'native fixture directory is not private and owned';
+  // Proof: Omitting retention reporting broke the generated-owner refusal test.
+  if (!owned) throw new FixtureFailure([refusal, retained]);
+  const removed = await attempt(failures, async () => {
+    const deadline = performance.now() + 500;
+    // Proof: Without this recheck an empty replacement was treated as the rejected directory.
+    await before(requireFixtureIdentity(fixture), deadline, 'rejected native fixture identity');
+    // Proof: Omitting rmdir leaked mode 000. Recursive removal broke the nonempty refusal.
+    await before(fs.rmdir(directory), deadline, 'rejected native fixture removal');
+    return true;
+  });
+  if (removed === true) throw new Error(refusal);
+  // Proof: Omitting the initiating error broke the nonempty fixture diagnostic test.
+  throw new FixtureFailure([refusal, ...failures, retained]);
 }
 
-/** Deletes only the original fixture after its work has been independently settled. */
-export async function removeNativeFixture(fixture: NativeFixture): Promise<void> {
+async function requireFixtureIdentity(fixture: NativeFixture): Promise<void> {
   const current = await fs.lstat(fixture.directory);
   // Proof: Removing inode equality let the real replacement be deleted and broke the cleanup test.
   ok(
@@ -464,6 +486,11 @@ export async function removeNativeFixture(fixture: NativeFixture): Promise<void>
       current.ino === fixture.ino,
     'native fixture directory identity changed',
   );
+}
+
+/** Deletes only the original fixture after its work has been independently settled. */
+export async function removeNativeFixture(fixture: NativeFixture): Promise<void> {
+  await requireFixtureIdentity(fixture);
   await fs.rm(fixture.directory, { recursive: true });
 }
 
