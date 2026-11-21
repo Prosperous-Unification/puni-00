@@ -4911,3 +4911,95 @@ paragraph of `docs/infra/gate-hosts.md`.
   HEAD carries the merge; run one ordinary gate on h4claw and expect the four lint tasks to pass
   under `MemoryHigh=13G` and `ops job audit` to show no new drift; then the same on h2puni under
   `MemoryHigh=12G`.
+
+## 2026-11-21 the smoke's BuildKit cache ate the calibration margin (task 6.27)
+
+Branch `ops/gate-smoke-cache-prune-20261121` from `main` e8e568784 (after #961); laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change. The host
+figures are the coordinator's, from shells on h2puni (150 GB disk, 15.6 GB RAM).
+
+- The pool admits a `gate` calibration on h2puni only with 23.62 GB free: 12 disk units of
+  1 GiB (12.88 GB) plus the 10 GiB headroom (10.74 GB). The 12 units are h2puni's pinned
+  `diskBudgetUnits`, the whole allocatable vector a calibration reserves (`wholePool`
+  in `runtime.ts`), not the catalogue's `tmpDiskGib: 11`.
+- On 2026-11-20 the cold calibration started at 25.2 GB free and left 16.9 GB.
+  `docker system df` then showed Build Cache 3.72 GB, reclaimable 3.72 GB, beside about 2 GB
+  of images.
+- On 2026-11-21 `docker builder prune -af` reclaimed 3.72 GB and lifted the host from 20 to
+  23 GiB free (24.7 GB, about 1 GB above admission).
+- So a three-run calibration series refuses its second run for lack of disk unless an operator
+  prunes between runs.
+- The smoke (`apps/wbs/be-01/scripts/solver-image-smoke.sh`) runs two BuildKit builds, the
+  solver image from `apps/wbs/be-01/Dockerfile` (stages from `oven/bun:1.4.4`,
+  `python:3.14.4-slim-trixie` and a pinned `busybox`) and, under `WBS_RUN_SOLVER_ORPHAN_PROC=1`,
+  the orphan fixture on top of it. Every tag carries the attempt's UUID, and the smoke's own
+  cleanup removes each tag it created, newest first, and fails if any survives. It therefore
+  leaves no dangling image; what stays is tagged (`registry:2`, pulled by `docker run`, and
+  whatever the image store keeps of the base images), which `docker image prune -f` would not
+  remove. No image prune was added. Which images make up the 2 GB was not measured on the host.
+- The smoke is not the host daemon's only BuildKit user: on h2puni puni-pr-00's
+  `website-dev-build` builds three images through the same daemon and shares its cache
+  (`docs/infra/heavy-job-launchers.md`, the `docker_build` unit). `solver-image-publish` and
+  `release-build` build inside the Dagger engine's own cache, which the prune does not reach.
+  Narrowing the prune to the smoke was considered and rejected: build cache records carry no
+  image labels, and `docker builder prune --filter` matches only `id`, `parent`, `type`,
+  `description`, `inuse`, `shared`, `private` and `until`. Diffing record ids around the smoke
+  would depend on the host's `docker buildx du --format` (buildx 0.30.1 there, unverified) and
+  would never reclaim what earlier gates left. So the prune is `-af` and the website's cache is
+  part of the trade-off (S27-A1).
+- On the laptop (buildx v0.36.1), `docker builder prune -af --filter id=doesnotexist000` printed
+  exactly `Total:\t0B` and exited 0, so the prune's own output carries the reclaimed total to
+  the gate log.
+
+`bin/h2puni-gate-steps.sh` now records the smoke's exit status instead of letting `set -e` end
+the script there, runs `docker builder prune -af` whatever that status was, and then exits with
+the smoke's status when the prune succeeded. When the prune fails (including a missing `docker`,
+exit 127), it prints `h2puni gate: docker builder prune -af failed (exit N) after the solver
+smoke exited M; its BuildKit cache is still on disk (A-GATE-SMOKE-CACHE-1)` and exits with the
+smoke's status when the smoke failed, else 1. The prune runs after a failed smoke too, because a
+failed gate leaves the same cache and the next calibration needs the disk. In
+`bin/h2puni-gate.test.sh` the fake `bunx` exits with a chosen status for the smoke call, and a
+fake `docker` appends its argv to the call log and prints `Total:\t3.72GB` or fails. Case 30's
+exact stdout check now drops the prune's `Total:` line.
+
+| Command                                                                                                        | Result                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | exit 0, `all cases passed` (case 49: 11 ok lines)                                                            |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                       | 36 pass, 0 fail                                                                                              |
+| `bun test tools/tool-devsync/src/poller.test.ts -t "canonical h2puni gate wiring"`                             | 1 pass, 0 fail                                                                                               |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)        | 58 pass, 0 fail                                                                                              |
+| `bunx nx run twilight-burokrat:test --skip-nx-cache`                                                           | not completed: stopped after 35 min on the laptop with no output; only the file above reads the steps script |
+| `bash -n` on both changed scripts                                                                              | exit 0                                                                                                       |
+| `shellcheck -s bash bin/h2puni-gate-steps.sh bin/h2puni-gate.test.sh` (local 0.9.0)                            | exit 0, no findings                                                                                          |
+| `bunx prettier --check` on every changed Markdown file                                                         | all matched files use Prettier code style                                                                    |
+| `bunx openspec validate --all --json`                                                                          | exit 0; 347 items, 347 passed, 0 failed                                                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A` | exit 0 (review debt listed only for two unrelated pre-existing indexes)                                      |
+| host gate                                                                                                      | not run: no host touched; the next h2puni calibration series is the proof                                    |
+
+| Injected fault (in `bin/h2puni-gate-steps.sh`)                  | Observed in `bin/h2puni-gate.test.sh`                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the prune line replaced by `:`                                  | exit 1, 8 failing: both `49: the gate prunes the BuildKit cache after the smoke` (`prune line ''`), the total missing from the log, `49: a failed prune fails the gate: want exit 1, got 0`, both naming checks, `49: a missing docker fails the gate after the smoke: want exit 1, got 0` and its naming check |
+| the prune's failure ignored (`if false`)                        | exit 1, 5 failing: `49: a failed prune fails the gate: want exit 1, got 0`, the missing docker `want exit 1, got 0`, and the three naming checks                                                                                                                                                                |
+| the smoke's status dropped (`exit 0`)                           | exit 1, 2 failing: `49: a failed smoke still fails the gate with its own status: want exit 3, got 0` and the double failure `want exit 3, got 1`                                                                                                                                                                |
+| the prune moved above the smoke                                 | exit 1, 2 failing: both ordering checks, `smoke line '10', prune line '9'`                                                                                                                                                                                                                                      |
+| the smoke unguarded, so `set -e` ends the script on its failure | exit 1, 2 failing: `(failed smoke): ... prune line ''` and the double failure not naming the prune                                                                                                                                                                                                              |
+
+- **S27-A1** A-GATE-SMOKE-CACHE-1: every host gate trades a warm BuildKit cache for disk
+  headroom on 15 GiB gate hosts, and on h2puni also empties what `website-dev-build` left, so
+  its next build runs cold. This is assumed and awaits Dany's confirmation. The alternatives
+  are a larger disk on h2puni or a Dash-side post-job hook that prunes after any job declaring
+  `docker_build`; the prune is reversible by restoring the smoke as the last line.
+  The gate does not hold the `docker_build` unit, but no website build can overlap the prune
+  today: puni-pr-00's `build-release.sh` takes the same canonical heavy lock
+  (`with-heavy-lock.sh`) that the gate holds through `run_heavy_job`, and that holds until the
+  lock retires (Phase 7). After that, the gate must hold `docker_build` or the prune must move
+  to a post-job hook.
+- **S27-A2** Disk alone does not make h2puni's gate records complete: h2puni's root-owned
+  `keinos/sqlite3` backup still starts unlabelled containers (S21-A3, task 6.22), so a gate it
+  overlaps stays attribution-incomplete until that backup carries the `puni.host-service` label
+  and bounds.
+- **S27-A3** The host proof is the next calibration series on h2puni on a launcher carrying
+  this change: each run's log should end with Docker's `Total:` line, and `df` before the second
+  run should show the cache's 3.72 GB returned. The prune recovers only the cache; whether a
+  whole three-run series then fits above 23.62 GB, given the images and whatever else a gate
+  leaves, is not yet measured.
