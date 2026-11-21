@@ -25,6 +25,26 @@ both), so since the first bounded gate lost four lint tasks to a heap out of mem
 `bin/h2puni-gate-steps.sh` pins
 `--max-old-space-size=4096` in `NODE_OPTIONS` (A-NODE-HEAP-1, `dash-host-jobs` task 6.26).
 
+Since 2026-11-21 the same pin also applies in CI. The capped `gate workspace` and heavy-leaf
+steps run their Nx phase inside a 12 GiB `MemoryMax` scope (A-CI-LEAF-MEMORYMAX-1), and Node sized
+its heap to 2240 MB there too
+([R5-32](../findings/checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+
+A pinned `NODE_OPTIONS` in the gate's environment breaks any test that passes the ambient
+environment to `tool-remote-scripts`'s leaf runner. The runner refuses `NODE_OPTIONS` and
+`BUN_OPTIONS` as selection overrides by design, and then runs nothing. The h4claw proof gate on
+main `e8e568784` (job `c24eac90`, 2026-11-21) passed all four lints it had lost before, but failed
+three tests in `ci-remote-tests.test.ts`, each with an empty `executed(...)`:
+
+- "fresh fixed leaves preserve real canonical Bun discovery including future and collision files"
+- "actual noncached Nx leaf targets preserve environment and run dependency builds with Caddy only
+  in rest"
+- "remainder rejects a malformed terminal outer summary after a real nested child joins"
+
+Those tests now build the child's environment with `leafEnvironment`, which drops both
+variables, and the production refusal stays. A new test that spawns the leaf runner must do the
+same.
+
 ## What the host gate runs
 
 `bin/h2puni-gate-steps.sh` runs the same Nx targets as CI, with one exception since 2026-11-18

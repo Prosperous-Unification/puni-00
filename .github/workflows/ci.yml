@@ -461,17 +461,94 @@ jobs:
               exit 1
               ;;
           esac
+          # A-CI-LEAF-MEMORYMAX-1 (R5-32): the Nx phase runs in a transient systemd scope with a hard
+          # MemoryMax and no swap. A suite that outgrows it is OOM-killed inside the scope instead of
+          # thrashing the runner until GitHub loses the job with no log. The kernel kills the largest
+          # process; Nx's signalToCode maps a SIGKILLed task child to 128, so the phase ends `exit=1` with
+          # Nx naming the failed task, and the end record adds the kernel's OOM lines to tell that kill
+          # from an abort or a fixture's kill. OOMPolicy=continue keeps Nx alive to report it; the default
+          # `stop` would end the whole scope. 12G (12288 MiB) of the runner's 15701 MiB MemTotal leaves
+          # 3413 MiB for the agent and OS. The headroom sampler stays outside the scope, so the kernel
+          # cannot pick it and it outlives a kill. sudo resets the environment and systemd-run --uid keeps
+          # root's supplementary groups, so setpriv restores this user's uid, gid and groups, and `env -i`
+          # the exported environment; --expand-environment=no keeps systemd from rewriting `${…}` in it.
+          # On cancellation the runner kills its runner-uid descendants, and sudo exits with its child.
+          # A probe scope with the same chain must report the kernel's memory.max and memory.swap.max and
+          # Node's heap limit before any gate work, or the step refuses: uncapped would hide the next loss.
+          # Arithmetic and proof plan: docs/findings/checks-that-cannot-fail.md, R5-32.
+          # Proof (2026-11-21, pr-merge-base.test.ts memory-scope tests): deleting the probe let an
+          # absent systemd-run reach ci-run-runtime.ts; a probe reporting memory.max=max, swap 3G or a
+          # 2240 MB heap was refused; dropping a scope property, setpriv or the environment restoration
+          # failed the scope argv and environment ledger.
+          memory_max=12G
+          memory_max_bytes=12884901888
+          cgroup_root=/sys/fs/cgroup
+          scope_unit="ci-gate-$partition-$$"
+          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue)
+          gate_uid="$(id -u)"
+          gate_gid="$(id -g)"
+          gate_groups="$(id -G | tr ' ' ,)"
+          # A-NODE-HEAP-1 (#956) applies here as on the gate hosts: inside a memory.max=12G cgroup Node
+          # sizes its default heap from the constraint (2240 MB), and #964's first hosted run lost three
+          # lints to `JavaScript heap out of memory` (job 136732392386). 4096 MiB of old space is the
+          # uncapped runner's default (heap limit 4345298944 B), so capped and uncapped runs stay alike.
+          # The pin joins any inherited NODE_OPTIONS; another heap figure there is refused, as in
+          # bin/h2puni-gate-steps.sh. Bun ignores NODE_OPTIONS; Nx, eslint and other Node children read it.
+          # Proof (2026-11-21, pr-merge-base.test.ts): with the pin deleted the runtime ledger recorded an
+          # empty NODE_OPTIONS; with the refusal deleted a conflicting 2048 figure reached the runtime.
+          gate_node_heap='--max-old-space-size=4096'
+          gate_heap_floor=4294967296
+          read -ra node_options <<< "${NODE_OPTIONS:-}"
+          heap_pinned=no
+          for option in "${node_options[@]}"; do
+            case $option in
+              "$gate_node_heap" | --max_old_space_size=4096) heap_pinned=yes ;;
+              --max-old-space-size* | --max_old_space_size*)
+                printf 'A-NODE-HEAP-1: NODE_OPTIONS already sets %s; the capped gate pins %s\n' \
+                  "$option" "$gate_node_heap" >&2
+                exit 1
+                ;;
+            esac
+          done
+          if [ "$heap_pinned" = no ]; then
+            NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }$gate_node_heap"
+          fi
+          export NODE_OPTIONS
+          # The scope gets this exported environment through argv, so it also appears in sudo's journal
+          # line and briefly in the root processes' /proc/<pid>/cmdline; this step exports no secret
+          # (`permissions: contents: read`).
+          mapfile -d '' -t gate_environment < <(env -0)
+          run_in_scope() {
+            local unit=$1
+            shift
+            sudo -n systemd-run --scope --quiet --collect --expand-environment=no --unit="$unit" \
+              "${scope_properties[@]}" -- \
+              setpriv --reuid="$gate_uid" --regid="$gate_gid" --groups="$gate_groups" -- \
+              env -i "${gate_environment[@]}" "$@"
+          }
+          # $0 is the cgroup root and $1 the heap script; a cgroup v2 /proc/self/cgroup line is `0::<path>`.
+          heap_script='process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))'
+          # shellcheck disable=SC2016 # expanded by the probe's own bash inside the scope
+          scope_probe='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" &&
+            printf "memoryMax=%s swapMax=%s heapSizeLimit=%s\n" "$(cat "$cgroup/memory.max")" \
+              "$(cat "$cgroup/memory.swap.max")" \
+              "$(node -e "$1")"'
+          refuse_uncapped() {
+            printf 'A-CI-LEAF-MEMORYMAX-1: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
+            exit 1
+          }
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
           # leaves evidence in nx-gate.log for the next run that survives long enough to upload it.
-          # - Start record (strict): image, OS, Node heap limit, `free -m`, `df -h /`. It runs before
-          #   any gate work, so a missing tool fails in seconds instead of hiding behind 70 minutes.
+          # - Start record (strict): image, OS, Node heap limit (from the probe scope), `free -m`,
+          #   `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
+          #   hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
           #   MemAvailable, node/bun process counts and the largest-RSS process. Its failure writes
           #   `unavailable` and never changes the gate status; it is stopped before the end record.
-          # - End record (best-effort): `free -m`, `df -h /` and leaked children; its failure writes
-          #   `runtime headroom end unavailable` and must not turn a passing gate red.
+          # - End record (best-effort): `free -m`, `df -h /`, leaked children and kernel OOM lines; its
+          #   failure writes `runtime headroom end unavailable` and must not turn a passing gate red.
           # Every record runs with NO_COLOR=1 and prints the heap limit without util.inspect: on
           # ab1607590 the runner's colour-capable environment made `node -p` wrap it in ANSI escapes.
           # A lost runner uploads no log, so none of this explains a loss by itself.
@@ -482,9 +559,10 @@ jobs:
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s scope=%s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
-              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')"
+              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
+              "$memory_max" "$scope_unit.scope"
             free -m
             df -h /
           }
@@ -501,10 +579,32 @@ jobs:
           }
           record_headroom_end() {
             printf 'runtime headroom end partition=%s utc=%s\n' "$partition" "$(headroom_utc)" &&
-              free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5'
+              free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5' &&
+              record_kernel_oom
+          }
+          # The kernel log since the phase began, filtered to OOM-killer lines: a test the scope killed
+          # shows here, an abort or a fixture's os.killpg does not.
+          record_kernel_oom() {
+            local kernel
+            kernel="$(sudo -n journalctl -k --no-pager -o short-iso --since "@$phase_epoch")" &&
+              printf 'runtime headroom kernel oom since=@%s\n' "$phase_epoch" &&
+              awk 'tolower($0) ~ /out of memory|oom-kill|killed process/' <<< "$kernel" | tail -20
           }
           phase_started=$SECONDS
+          phase_epoch="$(date +%s)"
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
+          if ! scope_report="$(run_in_scope "$scope_unit-probe" bash -c "$scope_probe" "$cgroup_root" "$heap_script" 2>> nx-gate.log)"; then
+            refuse_uncapped "cannot open a MemoryMax=$memory_max systemd scope with sudo -n systemd-run"
+          fi
+          scope_heap="${scope_report#"memoryMax=$memory_max_bytes swapMax=0 heapSizeLimit="}"
+          case "$scope_heap" in
+            "$scope_report" | '' | *[!0-9]*)
+              refuse_uncapped "the probe scope reported '$scope_report', not memoryMax=$memory_max_bytes swapMax=0 and a heap limit"
+              ;;
+          esac
+          if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
+            refuse_uncapped "the probe scope's Node heap limit $scope_heap is below the $gate_node_heap pin"
+          fi
           NO_COLOR=1 record_headroom_start >> nx-gate.log
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
@@ -520,7 +620,8 @@ jobs:
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
-          timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
+          run_in_scope "$scope_unit" \
+            timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?
@@ -681,17 +782,94 @@ jobs:
               exit 1
               ;;
           esac
+          # A-CI-LEAF-MEMORYMAX-1 (R5-32): the Nx phase runs in a transient systemd scope with a hard
+          # MemoryMax and no swap. A suite that outgrows it is OOM-killed inside the scope instead of
+          # thrashing the runner until GitHub loses the job with no log. The kernel kills the largest
+          # process; Nx's signalToCode maps a SIGKILLed task child to 128, so the phase ends `exit=1` with
+          # Nx naming the failed task, and the end record adds the kernel's OOM lines to tell that kill
+          # from an abort or a fixture's kill. OOMPolicy=continue keeps Nx alive to report it; the default
+          # `stop` would end the whole scope. 12G (12288 MiB) of the runner's 15701 MiB MemTotal leaves
+          # 3413 MiB for the agent and OS. The headroom sampler stays outside the scope, so the kernel
+          # cannot pick it and it outlives a kill. sudo resets the environment and systemd-run --uid keeps
+          # root's supplementary groups, so setpriv restores this user's uid, gid and groups, and `env -i`
+          # the exported environment; --expand-environment=no keeps systemd from rewriting `${…}` in it.
+          # On cancellation the runner kills its runner-uid descendants, and sudo exits with its child.
+          # A probe scope with the same chain must report the kernel's memory.max and memory.swap.max and
+          # Node's heap limit before any gate work, or the step refuses: uncapped would hide the next loss.
+          # Arithmetic and proof plan: docs/findings/checks-that-cannot-fail.md, R5-32.
+          # Proof (2026-11-21, pr-merge-base.test.ts memory-scope tests): deleting the probe let an
+          # absent systemd-run reach ci-run-runtime.ts; a probe reporting memory.max=max, swap 3G or a
+          # 2240 MB heap was refused; dropping a scope property, setpriv or the environment restoration
+          # failed the scope argv and environment ledger.
+          memory_max=12G
+          memory_max_bytes=12884901888
+          cgroup_root=/sys/fs/cgroup
+          scope_unit="ci-gate-$partition-$$"
+          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue)
+          gate_uid="$(id -u)"
+          gate_gid="$(id -g)"
+          gate_groups="$(id -G | tr ' ' ,)"
+          # A-NODE-HEAP-1 (#956) applies here as on the gate hosts: inside a memory.max=12G cgroup Node
+          # sizes its default heap from the constraint (2240 MB), and #964's first hosted run lost three
+          # lints to `JavaScript heap out of memory` (job 136732392386). 4096 MiB of old space is the
+          # uncapped runner's default (heap limit 4345298944 B), so capped and uncapped runs stay alike.
+          # The pin joins any inherited NODE_OPTIONS; another heap figure there is refused, as in
+          # bin/h2puni-gate-steps.sh. Bun ignores NODE_OPTIONS; Nx, eslint and other Node children read it.
+          # Proof (2026-11-21, pr-merge-base.test.ts): with the pin deleted the runtime ledger recorded an
+          # empty NODE_OPTIONS; with the refusal deleted a conflicting 2048 figure reached the runtime.
+          gate_node_heap='--max-old-space-size=4096'
+          gate_heap_floor=4294967296
+          read -ra node_options <<< "${NODE_OPTIONS:-}"
+          heap_pinned=no
+          for option in "${node_options[@]}"; do
+            case $option in
+              "$gate_node_heap" | --max_old_space_size=4096) heap_pinned=yes ;;
+              --max-old-space-size* | --max_old_space_size*)
+                printf 'A-NODE-HEAP-1: NODE_OPTIONS already sets %s; the capped gate pins %s\n' \
+                  "$option" "$gate_node_heap" >&2
+                exit 1
+                ;;
+            esac
+          done
+          if [ "$heap_pinned" = no ]; then
+            NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }$gate_node_heap"
+          fi
+          export NODE_OPTIONS
+          # The scope gets this exported environment through argv, so it also appears in sudo's journal
+          # line and briefly in the root processes' /proc/<pid>/cmdline; this step exports no secret
+          # (`permissions: contents: read`).
+          mapfile -d '' -t gate_environment < <(env -0)
+          run_in_scope() {
+            local unit=$1
+            shift
+            sudo -n systemd-run --scope --quiet --collect --expand-environment=no --unit="$unit" \
+              "${scope_properties[@]}" -- \
+              setpriv --reuid="$gate_uid" --regid="$gate_gid" --groups="$gate_groups" -- \
+              env -i "${gate_environment[@]}" "$@"
+          }
+          # $0 is the cgroup root and $1 the heap script; a cgroup v2 /proc/self/cgroup line is `0::<path>`.
+          heap_script='process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))'
+          # shellcheck disable=SC2016 # expanded by the probe's own bash inside the scope
+          scope_probe='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" &&
+            printf "memoryMax=%s swapMax=%s heapSizeLimit=%s\n" "$(cat "$cgroup/memory.max")" \
+              "$(cat "$cgroup/memory.swap.max")" \
+              "$(node -e "$1")"'
+          refuse_uncapped() {
+            printf 'A-CI-LEAF-MEMORYMAX-1: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
+            exit 1
+          }
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
           # leaves evidence in nx-gate.log for the next run that survives long enough to upload it.
-          # - Start record (strict): image, OS, Node heap limit, `free -m`, `df -h /`. It runs before
-          #   any gate work, so a missing tool fails in seconds instead of hiding behind 70 minutes.
+          # - Start record (strict): image, OS, Node heap limit (from the probe scope), `free -m`,
+          #   `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
+          #   hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
           #   MemAvailable, node/bun process counts and the largest-RSS process. Its failure writes
           #   `unavailable` and never changes the gate status; it is stopped before the end record.
-          # - End record (best-effort): `free -m`, `df -h /` and leaked children; its failure writes
-          #   `runtime headroom end unavailable` and must not turn a passing gate red.
+          # - End record (best-effort): `free -m`, `df -h /`, leaked children and kernel OOM lines; its
+          #   failure writes `runtime headroom end unavailable` and must not turn a passing gate red.
           # Every record runs with NO_COLOR=1 and prints the heap limit without util.inspect: on
           # ab1607590 the runner's colour-capable environment made `node -p` wrap it in ANSI escapes.
           # A lost runner uploads no log, so none of this explains a loss by itself.
@@ -702,9 +880,10 @@ jobs:
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s scope=%s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
-              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')"
+              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
+              "$memory_max" "$scope_unit.scope"
             free -m
             df -h /
           }
@@ -721,10 +900,32 @@ jobs:
           }
           record_headroom_end() {
             printf 'runtime headroom end partition=%s utc=%s\n' "$partition" "$(headroom_utc)" &&
-              free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5'
+              free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5' &&
+              record_kernel_oom
+          }
+          # The kernel log since the phase began, filtered to OOM-killer lines: a test the scope killed
+          # shows here, an abort or a fixture's os.killpg does not.
+          record_kernel_oom() {
+            local kernel
+            kernel="$(sudo -n journalctl -k --no-pager -o short-iso --since "@$phase_epoch")" &&
+              printf 'runtime headroom kernel oom since=@%s\n' "$phase_epoch" &&
+              awk 'tolower($0) ~ /out of memory|oom-kill|killed process/' <<< "$kernel" | tail -20
           }
           phase_started=$SECONDS
+          phase_epoch="$(date +%s)"
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
+          if ! scope_report="$(run_in_scope "$scope_unit-probe" bash -c "$scope_probe" "$cgroup_root" "$heap_script" 2>> nx-gate.log)"; then
+            refuse_uncapped "cannot open a MemoryMax=$memory_max systemd scope with sudo -n systemd-run"
+          fi
+          scope_heap="${scope_report#"memoryMax=$memory_max_bytes swapMax=0 heapSizeLimit="}"
+          case "$scope_heap" in
+            "$scope_report" | '' | *[!0-9]*)
+              refuse_uncapped "the probe scope reported '$scope_report', not memoryMax=$memory_max_bytes swapMax=0 and a heap limit"
+              ;;
+          esac
+          if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
+            refuse_uncapped "the probe scope's Node heap limit $scope_heap is below the $gate_node_heap pin"
+          fi
           NO_COLOR=1 record_headroom_start >> nx-gate.log
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
@@ -740,7 +941,8 @@ jobs:
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
-          timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
+          run_in_scope "$scope_unit" \
+            timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?

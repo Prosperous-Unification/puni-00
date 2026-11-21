@@ -406,6 +406,150 @@ The proof plan is the next full-mode main run. At least three leaves should be g
 lost, that project gets its own issue. Telemetry from the surviving leaves should also show
 which suite's samples were climbing.
 
+### Amendment, 2026-11-21: a hard memory cap, so the hungry suite fails with a log
+
+The one-job-per-project split did its job on its first full-mode run. On main `e8e568784`
+(run 44859286080) `gate workspace` passed in 21 minutes and three leaves passed: `wbs-core` in 5.5
+minutes, `wbs-store-sqlite` in 11 and `tool-devsync` in 17.5. `gate workspace-heavy (tool-fleet)`
+(job 136708786587, 03:05:42 to 04:12:45Z) was lost with the same annotation, no step conclusion
+and no artifact. This is the fifteenth identified loss, and the first one attributed to a single
+suite: `tool-fleet:test`. Its owners' fix is tracked in #963.
+
+GitHub declared the loss 67 minutes after the job started. The leaf's task time at parallelism
+two was 42.9 minutes, and `tool-devsync` ran faster at parallelism one than at two. A leaf still
+running about 24 minutes past its estimate, before the runner died, matches memory thrashing.
+It does not prove it, because a declaration time is not the time of death. On the gate hosts
+(15 GiB, `MemoryHigh` 13 GiB) `tool-fleet:test` passes inside the five-hour gate.
+
+The samples from the surviving leaves of that run give the scale. Consumption is the start
+record's `available` minus the lowest `memAvailableKiB` sample:
+
+| Shard                    | Start available | Lowest sample | Consumed | Largest process |
+| ------------------------ | --------------- | ------------- | -------- | --------------- |
+| `workspace`              | 14311 MiB       | 11271 MiB     | 3040 MiB | `tsc` 2.6 GiB   |
+| `heavy-tool-devsync`     | 14375 MiB       | 9236 MiB      | 5139 MiB | `bun` 5.0 GiB   |
+| `heavy-wbs-store-sqlite` | 14610 MiB       | 13023 MiB     | 1587 MiB | `node` 1.7 GiB  |
+| `heavy-wbs-core`         | 14419 MiB       | 8574 MiB      | 5845 MiB | `bun` 5.7 GiB   |
+
+Every runner reported 3071 MiB of swap. Swap lets a hungry suite slow the runner down for a long
+time without the kernel ever killing anything, which fits a leaf that overruns and then goes
+silent.
+
+**The lever (A-CI-LEAF-MEMORYMAX-1).** A lost runner leaves no log, so the hungry test is still
+unknown. The workspace and heavy-leaf gate steps now run their Nx phase, with `timeout` and
+`ci-run-runtime.ts` unchanged, inside a transient systemd scope:
+
+- **Scope properties.** The scope is opened with `sudo -n systemd-run --scope --quiet --collect`
+  under the unit name `ci-gate-$partition-$$`, with `-p MemoryMax=12G`, `-p MemorySwapMax=0` and
+  `-p OOMPolicy=continue`.
+- **Identity.** systemd-run's `--uid` changes only the uid and gid; in v255's scope path it never
+  calls `setgroups`, so the process would keep root's supplementary groups. Instead,
+  `setpriv --reuid --regid --groups` restores this user's exact identity.
+- **Environment.** sudo resets the environment and replaces `PATH`. The step captures its
+  exported environment with `env -0` before the scope, and `env -i` restores exactly that set
+  inside it.
+- **What an overrun now does.** When a process tree goes over the cap, the kernel's OOM killer
+  kills the largest process inside the scope. Nx's `signalToCode` maps a SIGKILLed task child
+  to 128, so the phase should end with `exit=1` and Nx naming the failed task. The end record's
+  kernel OOM lines show that the scope killed it. The phase end record, the sampler trail and the
+  artifact all survive.
+- **Why OOMPolicy is set.** systemd's default `stop` would end the whole scope on the first kill.
+  A laptop probe (`systemd-run --user --scope`, 128M cap, a Python allocator under a bash parent
+  that then sleeps five seconds) ended with exit 143 under `stop`. Under `continue` the allocator
+  exited 137 and the parent finished normally.
+- **The sampler stays outside the scope.** It runs in the step's own cgroup, so the scope's OOM
+  killer cannot pick it, and it keeps sampling through the kill.
+- **No silent fallback.** Before the first sample, a probe scope with the same properties must run
+  `true`. If `sudo` needs a password or `systemd-run` is missing, the step writes a refusal
+  naming A-CI-LEAF-MEMORYMAX-1 to stderr and `nx-gate.log`, then fails before any gate work. The
+  start record ends with the cap and the unit, as in `memoryMax=12G scope=ci-gate-workspace-1234.scope`.
+
+The cap is `12G`, which systemd reads as 12 GiB (12288 MiB). The runners' `MemTotal` was 15701
+MiB on images `20261116.133.1` and 15983 MiB on `20261116.376.1`. That leaves 3413 to 3695 MiB
+outside the scope for the runner agent, the OS and the sampler. The largest consumption seen in a
+surviving shard was 5845 MiB, so no passing suite comes near the cap in resident memory. That
+ignored Node's heap heuristic, which the next amendment corrects. Page cache charged to the
+scope is reclaimed before the kernel kills anything.
+
+The workspace shard gets the cap too. Thirteen of the fifteen losses were workspace jobs, its step
+text is held byte-equal to the heavy leaf's, and its 3040 MiB peak leaves it 9 GiB under the cap.
+The backend, remote and frontend shards have no recorded losses and stay uncapped.
+
+The laptop probe ran under the user manager, with no `sudo`, `setpriv` or system slice. The hosted
+`sudo` form is proved only by the production-shell ledger, which uses fake `sudo`, `systemd-run`
+and `setpriv`, and by the next hosted run.
+
+**Proof plan.** The next full-mode main run should end in one of two ways:
+
+- **The `tool-fleet` leaf passes.** The cap holds and the earlier losses were swap thrash.
+- **It fails with a log.** The log names the task the kernel killed and the samples before it.
+  That goes to #963.
+
+Either outcome is progress. If the leaf is lost again with the cap in place, the cause is not
+memory. The next candidates are then a test that terminates processes it does not own (the
+Python `os.killpg` sites in `tool-fleet/src/lab-guest-*.py`) and network blocking.
+
+`pr-merge-base.test.ts` holds the scope's argv, identity and restored environment in a ledger.
+It also has a negative where `systemd-run` is absent or `sudo` needs a password; there the
+runtime is never called and no sampler starts. Dropping `OOMPolicy=continue`,
+`MemorySwapMax=0`, the `setpriv` line or the environment restoration failed the ledger. Deleting
+the probe failed both the ledger and the refusal test.
+
+### Amendment, 2026-11-21: the cap's first hosted run, and the heap pin in CI
+
+#964's own run 44866833236 was the first hosted run of the cap. The scope worked in its
+`gate workspace` job 136732392386. The start record read `heapSizeLimit=4345298944
+memoryMax=12G scope=ci-gate-workspace-2977.scope`, and the log kept 47 samples and the end
+record. The phase still failed (`elapsedSeconds=1411 exit=1`) with `Failed tasks:
+twilight-dash:lint, wbs-be-01:lint, wbs-fe-01:lint`, each `FATAL ERROR: … JavaScript heap out of
+memory`.
+
+This is the gate hosts' A-NODE-HEAP-1 mechanism (#956). Node sizes its default heap from the
+cgroup's memory constraint. A laptop probe in a `systemd-run --user --scope` with the step's
+properties reported `heapSizeLimit=2348810240` (2240 MB) without a pin, and 4496293888 with
+`--max-old-space-size=4096`. The start record's 4345298944 was measured outside the scope, so it
+hid the inside figure. The claim above that "no passing suite comes near the cap" holds for
+resident memory, but not for Node's heap heuristic.
+
+The steps changed as follows:
+
+- **The heap pin applies in CI.** A-NODE-HEAP-1 now covers CI as well. Both capped steps append
+  `--max-old-space-size=4096` to any inherited `NODE_OPTIONS` before the `env -0` capture, so the
+  pin reaches the scope. Another heap figure there is refused, as in `bin/h2puni-gate-steps.sh`.
+  4096 MiB of old space is the uncapped runner's default, so capped runs behave like today's
+  uncapped ones.
+- **The probe proves the scope.** It runs through the same `sudo`, `setpriv` and `env -i` chain,
+  and reads the probe scope's own `memory.max` and `memory.swap.max`. It also runs `node` for its
+  heap limit. The step refuses unless the probe reports `memoryMax=12884901888 swapMax=0` and a
+  heap limit of at least 4294967296 bytes. The start record's `heapSizeLimit` is now that
+  inside-scope figure.
+- **The end record includes kernel OOM lines.** It adds `journalctl -k` since the phase began,
+  filtered to OOM-killer lines. A test the scope killed is then distinguishable from an abort or
+  a fixture's `os.killpg`.
+- **Wording.** The realistic end record for a kill is `exit=1` with Nx naming the task, not 137.
+- **`--expand-environment=no` is explicit.** systemd v255 disables expansion for `--scope` by
+  default, but has announced that the default will flip. The environment rides in argv.
+- **Exposure and cancellation.** The step comment now records that the exported environment
+  appears in sudo's journal line and briefly in the root processes' `/proc/<pid>/cmdline`. No
+  secret is exported. On cancellation the runner kills its runner-uid descendants, and sudo exits
+  with its child.
+
+The production-shell test's fake chain had no Node inside, which is why its 75 green tests missed
+the heap. The fake runtime now records `NODE_OPTIONS`, and the probe runs a real `node` through
+the chain. The fixture redirects the probe's one `cgroup_root=` line to scratch copies of
+`memory.max` and `memory.swap.max`. The following each failed a test: deleting the pin, the
+conflicting-figure refusal, the probe, its report check or its heap floor; dropping
+`--expand-environment=no`; and dropping the kernel record.
+
+The pin also exposed a hermeticity gap. The h4claw proof gate on main `e8e568784` (job `c24eac90`)
+runs with #956's pin. It failed three `ci-remote-tests.test.ts` tests, which pass the ambient
+environment to `tool-remote-scripts`'s leaf runner, and that runner refuses `NODE_OPTIONS`. The
+gate-hosts note on A-NODE-HEAP-1 names the three tests and the fix
+([gate hosts](../infra/gate-hosts.md)). CI's capped steps would have hit the same failure.
+
+The proof is one green hosted run. The three lints must pass, and the start record must show an
+inside-scope `heapSizeLimit` of at least 4294967296.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved
