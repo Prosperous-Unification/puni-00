@@ -2,11 +2,11 @@
 
 ### Requirement: One trust class per host
 
-Every fleet host SHALL hold exactly one trust class, and a node's capabilities MUST be ones
-that class allows. A node MAY carry `nonproduction` and `ingress` beside `observability`.
-No node SHALL carry both `product` and `nonproduction`. No app and no database SHALL run on
-a continuous integration host. The classes of the database, the agents host and the
-workstation are defined by the changes `host-postgres` and `add-agent-hosts`.
+Every fleet host SHALL hold one trust class, and a node's capabilities MUST be ones that
+class allows. A node MAY carry `nonproduction` and `ingress` beside `observability`. No
+node SHALL carry both `product` and `nonproduction`. No app and no database SHALL run on a
+continuous integration host. The classes outside this change, and the one host that MAY
+hold two, are defined by the changes `host-postgres` and `add-agent-hosts`.
 
 #### Scenario: Declared fleet, minimal profile
 
@@ -35,24 +35,80 @@ workstation are defined by the changes `host-postgres` and `add-agent-hosts`.
 
 A workload SHALL select a capability and MUST NOT name a server. The mapping from capability
 to server SHALL live in the fleet's desired state and inventory alone, so that moving a
-capability to another node changes no file under `infra/argocd`. The capability labels of a
-node that has already joined SHALL follow its inventory through a play that touches no other
-label and refuses to remove a capability while a pod that selects it runs on the node.
+capability to another node changes no file under `infra/argocd`.
 
 #### Scenario: Workload names a server
 
 - **WHEN** a pod template in the rebuilt cluster's tree selects a node by host name
 - **THEN** the delivery check fails and names the workload
 
+### Requirement: A joined node's capabilities follow its inventory
+
+The capability labels of a node that has already joined, and the host settings that depend
+on its capabilities, SHALL follow its inventory through a play that touches no other label.
+The play MUST refuse to remove a capability while a pod that selects it, other than a
+DaemonSet's, is on the node, or while a retained volume of an environment that selects it
+is bound to the node.
+
 #### Scenario: Capability added to a joined node
 
 - **WHEN** the inventory gives a joined node a capability and the capability play runs
 - **THEN** the node carries the label, and it still does after the agent restarts
 
+#### Scenario: Ingress added to a joined node
+
+- **WHEN** the inventory gives a joined node `ingress` and the capability play runs
+- **THEN** a non-root process on that host can bind ports 80 and 443
+
 #### Scenario: Capability removed under a running pod
 
-- **WHEN** the play would remove a capability while a pod that selects it is on the node
+- **WHEN** the play would remove a capability while a pod that selects it, other than a
+  DaemonSet's, is on the node
 - **THEN** the play fails, names the pod and removes nothing
+
+#### Scenario: Capability removed under a DaemonSet only
+
+- **WHEN** the only pod on the node that selects the capability belongs to a DaemonSet
+- **THEN** the play removes the label
+
+#### Scenario: Capability removed while a volume is bound
+
+- **WHEN** the play would remove a capability while a retained volume of an environment that
+  selects it is bound to the node and its workload runs no pod
+- **THEN** the play fails, names the volume and removes nothing
+
+### Requirement: Every role has a minimum disk
+
+Each role SHALL state the smallest root disk its server may have, and the step that creates
+a server MUST stop before anything is installed when the server's disk is smaller, whatever
+provider or product the server comes from.
+
+#### Scenario: Server with the memory and not the disk
+
+- **WHEN** a server created for a role reports a root disk under that role's minimum
+- **THEN** the step stops and the server is not bootstrapped or joined
+
+### Requirement: Monitoring outranks non-production on a shared node
+
+The pods of the observability units and of MLflow SHALL carry a priority class above the
+cluster default from their first start, and a pod in a staging or dev namespace MUST NOT
+name a priority class.
+
+#### Scenario: Observability pod without the class
+
+- **WHEN** a pod template of an observability unit or of MLflow lacks the priority class
+- **THEN** the delivery check fails and names the workload
+
+#### Scenario: Non-production pod names a priority class
+
+- **WHEN** a pod that names a priority class is created in a staging or dev namespace
+- **THEN** admission denies it
+
+#### Scenario: Node short of memory
+
+- **WHEN** a node's available memory stays under the floor, or a container is killed for
+  memory
+- **THEN** an alert fires and names the node
 
 #### Scenario: Other labels
 

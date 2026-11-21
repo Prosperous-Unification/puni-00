@@ -2,14 +2,12 @@
 
 ### Requirement: Database capabilities are placed under the two profiles
 
-The fleet model SHALL define the capabilities `database` and `restore-drill` for platform
-clusters only. A node that carries `database` SHALL be the control-plane node or SHALL carry
-nothing else but `restore-drill`. A node that carries `restore-drill` SHALL carry `product`
-or `database` and no capability of another trust class.
+The fleet model SHALL define the capability `database` for platform clusters only. A node
+that carries `database` SHALL be the control-plane node or SHALL carry nothing else.
 
-#### Scenario: Workers node carries a capability
+#### Scenario: Workers node carries the capability
 
-- **WHEN** a workers-cluster node declares `database` or `restore-drill`
+- **WHEN** a workers-cluster node declares `database`
 - **THEN** the fleet decoder refuses the fleet
 
 #### Scenario: Floor not met
@@ -19,14 +17,14 @@ or `database` and no capability of another trust class.
 
 #### Scenario: Declared fleet, minimal profile
 
-- **WHEN** the desired state gives the control-plane node `database` and the production apps
-  node `restore-drill`
+- **WHEN** the desired state gives the control-plane node `database` beside
+  `platform-services`
 - **THEN** the placement check passes
 
 #### Scenario: Declared fleet, full profile
 
 - **WHEN** the desired state declares a database node
-- **THEN** that node carries `database` and `restore-drill` and nothing else
+- **THEN** that node carries `database` and nothing else
 
 #### Scenario: Database beside apps or monitoring
 
@@ -34,15 +32,11 @@ or `database` and no capability of another trust class.
   `nonproduction`, `ingress` or `observability`
 - **THEN** the placement check fails and names the node
 
-#### Scenario: Drill beside non-production
-
-- **WHEN** the desired state gives a node `restore-drill` together with `nonproduction`
-- **THEN** the placement check fails and names the node
-
 ### Requirement: PostgreSQL runs where its capability is
 
-The production cluster SHALL select `database` and its drill's throwaway cluster
-`restore-drill`. A `database` node that is not the control-plane node SHALL carry the taint
+The production cluster and its drill's throwaway cluster SHALL select `database`, and the
+non-production cluster's drill `nonproduction`. A `database` node that is not the
+control-plane node SHALL carry the taint
 `puni.dev/role=database:NoSchedule`, which only that cluster's unit and the node agents MAY
 tolerate. On the control-plane node the production claim MUST be on a bounded filesystem.
 A non-production cluster MUST select `nonproduction`. Hosting SHALL NOT move any app's
@@ -65,11 +59,16 @@ data.
 - **WHEN** a write to the bounded claim passes its size
 - **THEN** the write fails and the host's free space is unchanged
 
-#### Scenario: Drill beside the control plane
+#### Scenario: Scheduled drill beside the control plane
 
-- **WHEN** a drill's throwaway cluster selects `database` while the control-plane node
-  carries it
-- **THEN** the delivery check fails and names the drill
+- **WHEN** the production cluster's drill job is not suspended while the inventory gives the
+  control-plane node `database`, or is suspended once another node carries it
+- **THEN** the delivery check fails and names the job
+
+#### Scenario: Drill pod under the placement policy
+
+- **WHEN** a drill starts a throwaway cluster in a database namespace
+- **THEN** its pods select that namespace's capability and admission admits them
 
 #### Scenario: Cluster on the wrong node
 
@@ -164,15 +163,27 @@ used, and Velero MUST NOT back up a database namespace.
 ### Requirement: A restore is proven before production data arrives
 
 Every cluster SHALL be dumped per database every night. The production cluster SHALL be
-restored every week into a throwaway cluster whose storage is reclaimed with it, watched by
-an alert. A drill MUST NOT archive WAL or leave a copy of the data on the node. No production
-data SHALL be written before one restore and one single-database rollback have a receipt,
-and no staging data before one restore of the non-production cluster has.
+restored into a throwaway cluster: weekly once a database node carries it, and by an
+attended run while the control-plane node does. A drill MUST NOT archive WAL or leave a
+copy of the data on the node. No production data SHALL be written before one restore and
+one single-database rollback have a receipt, and no staging data before one restore of the
+non-production cluster has.
 
-#### Scenario: Restore drill fails or is absent
+#### Scenario: Restore drill fails
 
-- **WHEN** the weekly restore fails its sanity queries, or no drill result exists
+- **WHEN** a restore fails its sanity queries
 - **THEN** an alert fires, and the throwaway cluster is deleted
+
+#### Scenario: Weekly drill absent on a database node
+
+- **WHEN** a database node carries the production cluster and no drill result exists for a
+  week
+- **THEN** an alert fires
+
+#### Scenario: Drill without room in memory
+
+- **WHEN** the node's available memory is under the drill's floor
+- **THEN** the drill does not start and reports failure
 
 #### Scenario: Drill leaves a volume
 
@@ -205,6 +216,12 @@ and no staging data before one restore of the non-production cluster has.
 - **WHEN** the production cluster is restored beside the live one to an earlier time and one
   database is copied back
 - **THEN** that database holds its earlier state and every other database is unchanged
+
+#### Scenario: Port while drills are attended
+
+- **WHEN** an app's port would write production data while the production cluster's drill is
+  still attended, and the owner has not said in writing that it stays so for that app
+- **THEN** the port does not proceed
 
 #### Scenario: Production data before a proven restore
 

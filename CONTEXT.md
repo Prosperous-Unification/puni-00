@@ -2174,9 +2174,18 @@ _Avoid_: platform cluster (for activity execution)
 The one kind of work a fleet host is reserved for: production apps, non-production apps,
 platform services, observability, databases, continuous integration, unattended agents, or
 the operator's remote workstation. A role's workloads select its capabilities, and a
-placement profile maps those to hosts: one role per host in the full profile, and in the
-minimal profile two roles of one trust class on a host.
+placement profile maps those to hosts.
 _Avoid_: server type, tier, node pool
+
+**Trust class**:
+The set of node roles that may share one fleet host because losing the host to one of them
+costs the others nothing they do not already risk. A host holds one trust class.
+_Avoid_: security zone, tier
+
+**Placement profile**:
+One mapping of capabilities to fleet hosts for the same workloads: the minimal profile puts
+several roles of a trust class on a host, and the full profile gives each role a host.
+_Avoid_: environment, layout, topology
 
 **Granularity policy**:
 One identified arrangement of the knowledge, review, ownership, task and integration

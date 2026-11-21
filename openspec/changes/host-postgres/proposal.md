@@ -19,8 +19,8 @@ delivers it by Argo CD, and [`add-agent-hosts`](../add-agent-hosts/proposal.md).
 - A production cluster, `platform-db`, and a non-production cluster, `nonproduction-db`,
   beside staging, each with one instance, one database and one role per
   app, and a backup key of its own.
-- Continuous WAL archiving, nightly base backups and nightly dumps per database; a weekly
-  restore drill, off the control plane's disk, whose volume is reclaimed; a runbook for rolling one database back; alerts.
+- Continuous WAL archiving, nightly base backups and nightly dumps per database; a
+  restore drill whose volume is reclaimed, by hand at first and weekly on a database server; a runbook for rolling one database back; alerts.
 - No app is ported. Each port is its own follow-up change.
 
 ## Non-Goals
@@ -56,7 +56,7 @@ PG-0.2).
 
 ## Impact
 
-`tools/tool-fleet` (the `database` and `restore-drill` capabilities, a placement rule, rule
+`tools/tool-fleet` (the `database` capability, a placement rule, rule
 (o) of the `delivery` check), the `k3s_agent` template, the `registry_storage` role, `infra/versions/toolchain.json`, four units under
 `infra/argocd`, the `namespaces`, `policy` and `secret-sync` units, the retention planner,
 and a recovery runbook. Follow-ups in the OpenBao design, the Harbor change and the four

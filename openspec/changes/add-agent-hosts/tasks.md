@@ -8,8 +8,8 @@ with a production-path negative, watched failing with the check removed, and an 
 
 ## 0. Decisions
 
-- [ ] AH-0.1 Owner reads assumptions AH1 to AH4 and the open question in design.md and
-      overrules by id. Receipt: the overrules and the answers, dated and quoted, in
+- [ ] AH-0.1 Owner reads assumptions AH1 to AH4 and what design.md leaves him to settle at
+      a step, and overrules by id. Receipt: the overrules and the answers, dated and quoted, in
       verify.md.
 - [ ] AH-0.2 File the decision record from design.md as an ADR under the next free number,
       once the core change's two have theirs, link it from proposal.md, and delete the
@@ -61,7 +61,7 @@ retires h1claw (AH3).
 
 - [ ] AH-A1 The shared host for OpenClaw and the owner's sessions (AH4, minimal profile),
       after slice AH-S1. Who: owner creates, as early as he wants, in the region he
-      chooses and at the size of open question 1, with the admin key and no private network attached;
+      chooses, with 8 vCPUs and 16 GiB (AH4) and a root disk of at least 100 GiB, with the admin key and no private network attached;
       operator applies, with the host in both groups and the automation key list in
       `$OPS`. Commands:
       `fleet_ansible --limit h11ops playbooks/base-host.yml` twice. Receipt: as the core
@@ -73,10 +73,12 @@ retires h1claw (AH3).
       entry and no supplementary group, and a listing of the operator's home refused to
       it; no gate launcher and no runner on the host. Stop: the host has a private
       interface, any of those files, a key of the CI host or a cluster workload
-      authorized, or the OpenClaw user can read the operator's home. Rollback: delete the
+      authorized, the OpenClaw user can read the operator's home, or `df -h /` shows less
+      than the minimum. Rollback: delete the
       server. Installing OpenClaw is the follow-up `host-openclaw`; tooling, accounts and
-      `herdr` are the owner's. The controller (R17) is not moved here without his written
-      word, recorded in verify.md with the date.
+      `herdr` are the owner's. The controller (R17) does not run here: the receipt reads
+      that no age identity of the cluster and no admin key is on the host (design
+      decision 1).
 - [ ] AH-A2 Growth step only: a workstation of its own (AH2, design decision 3). Who:
       owner creates, at one of the triggers, in a region he chooses, with 4
       vCPUs and 8 GiB; operator applies the play for `h12work` as a workstation alone,
@@ -91,7 +93,8 @@ retires h1claw (AH3).
       the owner's. If he moves the controller there (R17), that is recorded in verify.md
       with the date.
 - [ ] AH-A3 Delete h1claw (AH3, core R46). Who: owner. Preconditions: the receipt of the
-      core change's task 0.5, which is recorded; and either the follow-up `host-openclaw`
+      core change's task 0.5, the read-back of the escrowed values on a second machine,
+      which has not been taken yet; and either the follow-up `host-openclaw`
       has its receipt that OpenClaw runs on the agents host with the state it needs, or the
       owner's dated word that the state is not wanted. Command: delete the server in the
       console. Receipt: the provider's server list without it; which of the two

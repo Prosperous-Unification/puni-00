@@ -40,6 +40,22 @@ except for the ninth review's findings below and for ids:
 The eighth review's findings on this part were fixed in the ninth draft and came across with
 the text: the CRDs protected from prune, the drill on a reclaiming class, the 16 GiB server.
 
+## Tenth review: what became of its findings here
+
+A tenth review read the three changes at `cb5689194` and found no S1 and six S2. Those that
+landed here:
+
+| Finding                                                                                     | What became of it                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-2 The drill was denied by the plan's own admission clause, in both profiles              | Fixed: the capability `restore-drill` is withdrawn. A drill's throwaway cluster selects `database` (or `nonproduction` for the non-production cluster) and tolerates what its cluster tolerates, so the clause "a pod in `postgres` selects `database`" admits it (PG-S3, PG-S5) |
+| The reviewer's opinion: a weekly restore on the production apps node is unwise as a default | Taken: nothing of this change lands on that node. While the server carries `database` the drill is attended and on demand; it is weekly on a database server. Decision 3 gives the three reasons                                                                                 |
+| PG-S5 said "on the database node"; rule (o)'s throwaway sentence contradicted the drill     | Fixed: both name the capability of the drill's own unit                                                                                                                                                                                                                          |
+| S3 etcd's metrics are not exposed; the bounded claim shares the root journal                | Stated in decision 2 and under Risks; core slice 1.2 adds `etcd-expose-metrics` to the server template                                                                                                                                                                           |
+| S3 A static class cannot serve a replica on the database node                               | Stated: decision 4 and PG-A2 count on a restore with the writers stopped, and try a replica on a volume of the same class first                                                                                                                                                  |
+
+Withdrawn ids: none. Withdrawn capability: `restore-drill`, with its placement rule, its
+spec scenarios and the receipt lines that named it.
+
 ## Minimal placement profile (added 2026-11-22)
 
 At the owner's request for the minimal setup that can grow (core R45), and unreviewed.
@@ -48,8 +64,8 @@ At the owner's request for the minimal setup that can grow (core R45), and unrev
 | -------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
 | Where `platform-db` runs first         | a database server, `h10db`    | the platform node, which carries `database` (PG8); the server is a growth step (decision 4) |
 | The database taint                     | on every node with `database` | on a node with `database` that is not the server; the pods tolerate both taints             |
-| "A database node carries nothing else" | a rule                        | the server may carry `database`; a database node carries `database` and `restore-drill`     |
-| Where a restore drill runs             | the database node             | the node that carries the new capability `restore-drill`: the production apps node first    |
+| "A database node carries nothing else" | a rule                        | the server may carry `database`; a database node carries `database` and nothing else        |
+| Where a restore drill runs             | the database node             | the node that carries `database`; attended while that is the server (see the tenth review)  |
 | The production claim                   | `puni-retain`, unbounded      | on the server, a bounded filesystem and a static volume (new slice PG-S6)                   |
 | The production instance's limit        | 4,096 MiB                     | 2,048 MiB on the server; 4,096 after the move                                               |
 | PG-A1 and PG-A2                        | steps of the database stage   | growth-step steps; PG-A4 runs on the platform node                                          |

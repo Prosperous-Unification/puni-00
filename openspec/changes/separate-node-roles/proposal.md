@@ -20,7 +20,7 @@ others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting) 
 - The production apps node hosts Traefik, `puni-website`, `puni-request-app` and
   `puni-user-platform` (the WBS app).
 - The observability node hosts Elasticsearch, Prometheus and MLflow, and at first
-  staging, which replaces the dev stacks, if a measurement allows.
+  staging, which replaces the dev stacks.
 - The CI host runs gates and builds in one host pool.
 - Argo CD delivers the cluster from its own tree, `infra/argocd`. A merge to `main`
   reaches staging through a build that commits rendered manifests to a pins repository;

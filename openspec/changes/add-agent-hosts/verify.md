@@ -15,13 +15,13 @@ part here. The split is its scoping, and the owner may overrule it. Text was mov
 rewritten, except for the review's findings, the owner's later decision on the
 workstation's size, and ids:
 
-| In the ninth draft of `separate-node-roles`    | Here                |
-| ---------------------------------------------- | ------------------- |
-| R43, R44                                       | AH1, AH2            |
-| Slice 1.6                                      | AH-S1               |
-| A29, A30                                       | AH-A1, AH-A2        |
-| The host rows and bullets of decisions 1, 2, 9 | decisions 1, 2, 4   |
-| Open questions 3 and 4                         | open questions 1, 2 |
+| In the ninth draft of `separate-node-roles`    | Here                                                           |
+| ---------------------------------------------- | -------------------------------------------------------------- |
+| R43, R44                                       | AH1, AH2                                                       |
+| Slice 1.6                                      | AH-S1                                                          |
+| A29, A30                                       | AH-A1, AH-A2                                                   |
+| The host rows and bullets of decisions 1, 2, 9 | decisions 1, 2, 4                                              |
+| Open questions 3 and 4                         | settled at a step (design, "Open questions"); none is open now |
 
 ## Ninth review: what became of its findings here
 
@@ -29,7 +29,7 @@ workstation's size, and ids:
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | S2-5 The workstation's key check could not be built         | Fixed. Read first: `base` installs exactly the operator keys it is given and sets nothing in `sshd` and no firewall; its key list and the gate role's are `$OPS` inputs; its kernel-settings template reads the node's capabilities. So the key check is an assert in the play; the play turns password login off, installs a default-deny inbound firewall and sets an empty capability list; an agents-host key has its own negative |
 | S3 R43 dated 2026-11-21                                     | Fixed: both host decisions are dated 2026-11-22                                                                                                                                                                                                                                                                                                                                                                                        |
-| S3 "The one thing" before h1claw's deletion                 | Stated in decision 3 and open question 1: OpenClaw's state has to be settled first if it is wanted                                                                                                                                                                                                                                                                                                                                     |
+| S3 "The one thing" before h1claw's deletion                 | Stated in decision 3 and under "Open questions": OpenClaw's state has to be settled first if it is wanted                                                                                                                                                                                                                                                                                                                              |
 | The workstation as controller, against "decrypt only there" | Stated in decision 1: the workstation is then the controller, so the rule is unchanged; it stays an option                                                                                                                                                                                                                                                                                                                             |
 
 ## What the split and later decisions changed in substance
@@ -83,6 +83,19 @@ revision.
 - No playbook was run and no host was created.
 - This revision has not been reviewed since the split.
 
+## Tenth review: what became of its findings here
+
+| Finding                                                             | What became of it                                                                                                                                                                               |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-5 Task 0.5's receipt was called recorded                         | Fixed: design decision 3 and AH-A3 say the copy of 2026-11-21 is not the read-back, and AH-A3 requires the read-back                                                                            |
+| S2-6 Disks come with the type                                       | The shared host has a minimum root disk of 100 GiB, which AH-A1 stops on (core decision 2's table)                                                                                              |
+| S3 The owner's country in public text                               | Removed here in three places                                                                                                                                                                    |
+| S3 The workstation as controller, against the shared host           | Fixed: the controller may not run on the shared host; a workstation of its own may be the controller                                                                                            |
+| S3 The decision record said "two more servers"; stale ids and dates | Fixed: the record describes one shared server first; the id map's last row no longer points at open questions; both host decisions are dated 2026-11-22 here and in the core change's verify.md |
+
+Decided since the tenth draft: the shared host is 8 vCPUs and 16 GiB ("shared operator
+16GiB", 2026-11-22). No open question is left in this change.
+
 ## Primary sources read
 
 `infra/ansible/roles/base/tasks/main.yml` and its kernel-settings template;
@@ -99,11 +112,12 @@ infra, all old nodes can be retired" (core R46): AH3 and AH-A3 are new and retir
 here. His earlier words, that he may delete it at any time and accepts the backup windows,
 stand. Nothing was renumbered.
 
-Later on 2026-11-22 the owner replaced "two hosts" for the minimal profile: "power outages
-in Ukraine demand i have a remote workstation; can have just one for openclaw + workers".
+Later on 2026-11-22 the owner replaced "two hosts" for the minimal profile: because of
+power cuts where he works he needs a remote workstation, and "can have just one for
+openclaw + workers".
 AH4 is new: one shared server in the minimal profile, two in the full one; AH-A1 creates
-the shared host and AH-A2 became the growth step. Its size is assumed, 8 vCPUs and 16 GiB,
-and is this change's open question 1. What the shared host gives up, and the four limits
+the shared host and AH-A2 became the growth step. Its size was assumed, 8 vCPUs and 16 GiB,
+and he then decided it: "shared operator 16GiB". What the shared host gives up, and the four limits
 that the play and AH-A1's receipt check, are in design decision 1. Not read: how OpenClaw's
 units are installed, so that it can run as a user without `sudo` is assumed and is the
 follow-up's to confirm.

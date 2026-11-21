@@ -525,13 +525,49 @@ R2, R3, R29 and R30 were reworded; nothing was withdrawn.
   believed and is slice 1.7's stop condition, not a reading.
 
 **What the figures say against the trial size of the apps node.** On limits the production
-workloads fill an 8 GiB node with nothing left for a solve or a restore drill (design
-decision 2). The owner chose to try it; A19 and A20 measure and the rescale has triggers.
+workloads fill an 8 GiB node with nothing left for a solve (design decision 2). The owner
+chose to try it; A19 and A20 measure, A19 stops before WBS is added, and the rescale has
+triggers that are alerts as well.
 
-**What the figures say against one co-location.** On the declared figures staging does not
-fit beside the observability stack on 16 GiB (design decision 2): 972 MiB are left before
-the staging database and any solve. The owner chose that placement; the plan keeps it and
-makes A14's measurement its condition, with two priced exits. It is the open question.
+**What the figures said against one co-location.** On the declared figures staging did not
+fit beside the observability stack on 16 GiB: 972 MiB were left before the staging database
+and any solve. Shown that, the owner chose a larger server (below); on 24 GiB the same rows
+leave 5,442 MiB, or 2,498 with dev. A14's measurement stays the condition.
+
+## Tenth review (2026-11-22)
+
+A tenth review read the three changes at `cb5689194`: no S1, six S2, and an opinion on
+where the restore drill runs. This draft is the eleventh. It has not been reviewed.
+
+| Finding                                                                                      | What became of it                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 A17 cannot pass: `base` sets the unprivileged-port sysctl only if `ingress` is present  | Fixed: slice 1.7's play re-applies the capability-derived host settings before it sets labels, with a negative in the rehearsal; A17's receipt reads the sysctl                                                                                                                                          |
+| S2-2 The restore drill is denied by the plan's own admission clause                          | Fixed in `host-postgres`: the capability `restore-drill` is withdrawn and a drill selects its cluster's capability. The reviewer's opinion was taken: nothing lands on the apps node; the drill is attended while the server carries the database                                                        |
+| S2-3 Slice 1.7's guard is wrong both ways                                                    | Fixed: DaemonSet pods do not block a removal; a `Retain` volume bound to the node does, whatever the replica count. The non-production growth step stops the whole environment, deletes the old claims, moves the label and only then restores, so no claim can bind on the old node. Its cost is stated |
+| S2-4 The PriorityClass protection is unwired                                                 | Fixed: the class is in slice 2.8 and on the pods from their first start; rule 2.4(p) and a requirement hold it; admission denies any `priorityClassName` in a non-production namespace (slice 2.10)                                                                                                      |
+| S2-5 A false done-claim on an irreversible step                                              | Fixed in `add-agent-hosts`: the copy of 2026-11-21 is called a copy; AH-A3 requires task 0.5's read-back, which has not been done                                                                                                                                                                        |
+| S2-6 Disk floors contradict the decided sizes                                                | Fixed: the 150 GiB readings are of servers rescaled without their disk. Design decision 2 gives every role a minimum disk as a requirement, checked by the step that creates the server, and says what a rescale does and does not do to a disk. The apps floor is 50 GiB now that no drill lands there  |
+| S3 The owner's country in public text                                                        | Removed in the four places                                                                                                                                                                                                                                                                               |
+| S3 A14 measures before MLflow and before any telemetry source                                | Fixed: the sum is written after A15, and again a day after A18 and after A20, against the same stop                                                                                                                                                                                                      |
+| S3 A19 has no memory stop; A1 lacks its disk stop; no alert for low memory or memory kills   | Fixed: A19 stops under 1,024 MiB before WBS is added; A1 stops on the role's minimum disk, as every creating step does; two node rules in slice 2.8                                                                                                                                                      |
+| S3 etcd metrics; the loop-backed claim shares the root journal; a static class and a replica | Slice 1.2 adds `etcd-expose-metrics`; Risks says the bound is on space and not on I/O; `host-postgres` counts on a restore for the database's move                                                                                                                                                       |
+| S3 h7obs holds production logs and carried keys beside staging                               | Added to Risks with what bounds it                                                                                                                                                                                                                                                                       |
+| S3 Workstation as controller against the shared host                                         | Fixed: the shared operator host may not be the controller (decision 10, Risks, `add-agent-hosts`)                                                                                                                                                                                                        |
+| S3 `CONTEXT.md` lacks "trust class" and "placement profile"; "exactly one trust class"       | Added; the requirement names the one exception                                                                                                                                                                                                                                                           |
+| S3 "A moved label and nothing more" overstates                                               | Fixed: decision 11 gives each growth step's cost                                                                                                                                                                                                                                                         |
+
+New since the tenth draft, at the owner's word: the observability server is larger (R2), so
+the "does not fit on paper" statement for staging is withdrawn for 24 GiB and kept for the
+stack's limits; Harbor and the custom runner are confirmed as built (R10, R31); an
+orchestrator in front of the pool is open question 1. New rule: 2.4(p). No id was
+renumbered.
+
+Checks rerun on this draft, 2026-11-22, the same way as the table under "Repository
+checks": `openspec validate --strict` for each of the three changes (valid) and `--all`
+(351 of 351); `prettier --check` on the three change directories and `CONTEXT.md`; the
+three `tool-devsync` document tests (34 pass) and `tool-rename-work-package` (37 pass);
+`check-indexes` (exit 0); the two hooks on the changed files (exit 0). Not run: `bun
+install`, every Nx target, `check-documents-target`, any lab.
 
 **One pull request.** The branches of `host-postgres` and `add-agent-hosts` were merged
 into this change's branch on the owner's request, which the forge records as those two pull
@@ -628,7 +664,8 @@ After the eighth review, still on 2026-11-21:
   MiB at its peak.
 - The Slack webhook of `#puni-alerts-dev` exists and he holds it outside this repository.
   It is written into OpenBao in A14. No address, path or file name is recorded here.
-- "let's also add a host for openclaw to this mix" (R43). Measured on h1claw that day,
+- On 2026-11-22: "let's also add a host for openclaw to this mix" (R43, now AH1 of the
+  change `add-agent-hosts`). Measured on h1claw on 2026-11-21,
   read-only: 4 vCPUs; 7.75 GiB of memory, 3.2 GiB available; the OpenClaw gateway at about
   2 GiB resident; a 75 GB disk at 91%, about 21 GiB of it OpenClaw's state; user-level
   systemd units outside any cluster; Tailscale for private access; agent sessions with
@@ -648,13 +685,26 @@ On 2026-11-22:
   8 vCPU and 16 GiB class; staging and dev "ok to keep on the obs node".
 - "prod apps on 8GiB - yeah we can try": the production apps node is 4 vCPUs and 8 GiB in
   the minimal profile, as a trial (R2).
-- "power outages in Ukraine demand i have a remote workstation; can have just one for
-  openclaw + workers": one host for OpenClaw and his own sessions in the minimal profile,
+- Because of power cuts where he works he needs a remote workstation, and said he "can
+  have just one for openclaw + workers": one host for OpenClaw and his own sessions in the minimal profile,
   replacing his "two hosts" of earlier that day (change `add-agent-hosts`).
 - "i want all new infra, all old nodes can be retired" (R46), after the planning session
   had offered to keep h1claw and h2puni.
 - "can you merge all plans into one PR?": the three changes are in one pull request and
   stay three change directories.
+- "i want to keep both harbor and custom ci runner; if i have those operating normally, i
+  can have them replaced with cheaper options; and once i have them built i'm sure that i
+  have a plan to grow that will work; we're keeping them" (R10, R31), after the planning
+  session had listed a hosted registry and hosted runners as ways to defer both.
+- He asked for a self-hosted tool that orchestrates CI "so that i don't need to build
+  one" and named Dagger; the planning session answered that Dagger defines a job and does
+  not trigger or queue one, and named Woodpecker CI for that part. Nothing was decided
+  (open question 1).
+- "ok let's go for bigger obs server & shared operator 16GiB", after the tenth draft showed
+  that staging did not fit beside the stack on 16 GiB on paper: the observability server
+  is larger than that class (R2: at least 24 GiB recorded, 12 vCPUs and 24 GiB assumed,
+  since he named no size), and the shared operator host is 8 vCPUs and 16 GiB (change
+  `add-agent-hosts`).
 
 Not the owner's: R34, that dev is delivered by a follow-up change, is the planning session's
 scoping after the seventh review, and R35 is its statement of what the CI host is trusted

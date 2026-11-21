@@ -48,41 +48,41 @@ server is planned now and created when he chooses, and that it has 16 GiB; and o
 | Id  | Assumption                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Alternative and its cost                                                                                                                                                                                                                            |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | PG1 | **Decided.** The owner on 2026-11-21: "i'll also need you to include hosting postgres in the plan", and, asked who uses it, "i want everybody to use it once it's in place". Earlier the same day he had said "I want to use SQLite for as long as possible"; this reverses it. A brief from another session came with the request; he then said "this session supersedes the decisions from brief". Assumed: this change hosts PostgreSQL and ports no app. The three apps and MLflow arrive on SQLite as already planned and move in follow-up changes (decision 3); every SQLite-specific element of this plan holds until that app's port lands | SQLite kept, with continuous replication to object storage. Cost: one writer bound to one node stays, so deployments stop the backend and nothing fails over; far less work, and it remains the fallback for an app whose port proves too expensive |
-| PG2 | **The full profile's database server.** A node role, `database`: one server, `h10db`, an agent of the new cluster that carries `database` and `restore-drill` and nothing else and is registered with the taint `puni.dev/role=database:NoSchedule`, with a root disk of at least 140 GiB (decision 2). **Decided:** the owner on 2026-11-21, "let's do db node at 16GiB": 8 vCPUs and 16 GiB; and "just plan for it for now, i'll evaluate the options": the server is created when he chooses, and nothing in stages 1 to 5 waits for it. Since 2026-11-22 it is a growth step (PG8, decision 4)                                                  | The production instance on the production apps node. Cost: the database shares a node with the public edge and with the apps it serves. Dedicated vCPUs from the start. Cost: paid before the first consumer exists                                 |
+| PG2 | **The full profile's database server.** A node role, `database`: one server, `h10db`, an agent of the new cluster that carries `database` and nothing else and is registered with the taint `puni.dev/role=database:NoSchedule`, with a root disk of at least 140 GiB (decision 2). **Decided:** the owner on 2026-11-21, "let's do db node at 16GiB": 8 vCPUs and 16 GiB; and "just plan for it for now, i'll evaluate the options": the server is created when he chooses, and nothing in stages 1 to 5 waits for it. Since 2026-11-22 it is a growth step (PG8, decision 4)                                                                      | The production instance on the production apps node. Cost: the database shares a node with the public edge and with the apps it serves. Dedicated vCPUs from the start. Cost: paid before the first consumer exists                                 |
 | PG3 | CloudNativePG runs PostgreSQL: operator v1.30.2 on the platform node, physical backups and WAL archiving through its Barman Cloud plugin v0.16.0. The in-tree Barman integration is deprecated and is not used (decision 3)                                                                                                                                                                                                                                                                                                                                                                                                                         | A hand-written StatefulSet with nightly dumps. Cost: no point-in-time recovery and no managed switchover when a replica comes                                                                                                                       |
 | PG4 | One production cluster, `platform-db`, with one instance. Each app gets one database and one owner role, and no role can read another app's database. A cluster for client apps and a cluster per large client come later, each with its first consumer                                                                                                                                                                                                                                                                                                                                                                                             | A cluster per app. Cost: an instance's memory for each, on one server                                                                                                                                                                               |
 | PG5 | Staging's databases are in a second cluster, `nonproduction-db`, one instance on the node that carries `nonproduction` (h7obs in the minimal profile), with a backup credential and bucket of its own. It needs no database server: it can run once that node carries the capability and the operator runs                                                                                                                                                                                                                                                                                                                                          | A second cluster beside `platform-db`. Cost: staging, which follows `main`, shares a disk and a kernel with production data                                                                                                                         |
 | PG6 | Recovery targets for `platform-db`, assumed: at most 5 minutes of committed data lost when the node is lost (the WAL archive interval), 30 days of point-in-time recovery, logical dumps kept 90 days, and a full restore into a new cluster within 2 hours, to be replaced by the measured time of the first drill (PG-A5)                                                                                                                                                                                                                                                                                                                         | Hourly base backups without WAL archiving. Cost: up to an hour lost, which is what SQLite gives today                                                                                                                                               |
 | PG7 | Harbor keeps the database its own change bundles, on the platform node. "Everybody" (PG1) is read as the apps and MLflow                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Harbor on `platform-db`. Cost: a registry that cannot serve a pull while the database node is down, and a start-up loop if a database image ever came from Harbor                                                                                   |
-| PG8 | **Decided** by the owner's request of 2026-11-22 for the minimal setup that can grow (core R45): in the minimal profile the capability `database` is carried by the platform node, and `platform-db` runs there beside the control plane. Assumed, as the planning session's working-out of that: the instance starts at 2,048 MiB; its claim is on a bounded filesystem (slice PG-S6); its restore drill runs on the production apps node under a capability of its own, `restore-drill`; and the database server of PG2 is the growth step with the triggers of decision 4                                                                        | The database server from the start. Cost: one more server before any app has been ported                                                                                                                                                            |
+| PG8 | **Decided** by the owner's request of 2026-11-22 for the minimal setup that can grow (core R45): in the minimal profile the capability `database` is carried by the platform node, and `platform-db` runs there beside the control plane. Assumed, as the planning session's working-out of that: the instance starts at 2,048 MiB; its claim is on a bounded filesystem (slice PG-S6); its restore drill is attended and on demand while the server carries the database, and weekly once a database server does (decision 3); and the database server of PG2 is the growth step with the triggers of decision 4                                   | The database server from the start. Cost: one more server before any app has been ported                                                                                                                                                            |
 
 ## Decisions
 
 ### 1. The database role and its node
 
-The core change's placement table names two capabilities and leaves them to this change:
+The core change's placement table names one capability and leaves it to this change:
 
-| Capability      | What selects it                                    | Minimal profile (PG8) | Full profile (PG2) |
-| --------------- | -------------------------------------------------- | --------------------- | ------------------ |
-| `database`      | the instances of `platform-db` and its dump job    | h5plat, the server    | h10db, an agent    |
-| `restore-drill` | the throwaway instance of a drill of `platform-db` | h6apps                | h10db              |
+| Capability | What selects it                                                                      | Minimal profile (PG8) | Full profile (PG2) |
+| ---------- | ------------------------------------------------------------------------------------ | --------------------- | ------------------ |
+| `database` | the instances of `platform-db`, its dump job and the throwaway instance of its drill | h5plat, the server    | h10db, an agent    |
 
-- Both are new capabilities, added to `CapabilitySchema`, `fleetCapabilities`,
+- It is a new capability, added to `CapabilitySchema`, `fleetCapabilities`,
   `purposeCapabilities.platform` and `RequiredCapabilitiesSchema` by slice PG-S1, as slice
   1.1 adds the core's two.
 - **Where `database` may sit.** On the control-plane node, beside `platform-services`, or on
-  a node that carries nothing else but `restore-drill`. A production database is in the
-  trust class of the secret store, which is why the server may hold it; it never sits with
-  `product`, `nonproduction`, `ingress` or `observability`.
-- **Why a drill has a capability of its own.** A drill restores a whole copy of
-  `platform-db`: memory and a burst of disk writes. On the server that would compete with
-  etcd, so in the minimal profile it runs where production data already is, on the
-  production apps node. `restore-drill` may sit with `product` or with `database` and with
-  nothing else.
-- **The pods tolerate both taints they can meet.** The `Cluster` of `platform-db` and its
-  dump job tolerate `CriticalAddonsOnly`, which the server carries (core R25), and the
-  database taint below; the drill's throwaway cluster tolerates the database taint. A move
-  between profiles then changes no manifest.
+  a node that carries nothing else. A production database is in the trust class of the
+  secret store, which is why the server may hold it; it never sits with `product`,
+  `nonproduction`, `ingress` or `observability`.
+- **A drill has no capability of its own.** The tenth draft gave it one, `restore-drill`,
+  and put it on the production apps node; the tenth review found that unwise as a default
+  (a weekly copy of production data on a node tried at 8 GiB with no margin, and a disk
+  floor that existed for the drill alone) and that the plan's own admission clause denied
+  it. A drill's throwaway cluster selects `database`, like the cluster it proves, and where
+  and how often it runs is decision 3's.
+- **The pods tolerate both taints they can meet.** The `Cluster` of `platform-db`, its dump
+  job and the drill's throwaway cluster tolerate `CriticalAddonsOnly`, which the server
+  carries (core R25), and the database taint below. A move between profiles then changes
+  no manifest.
 - **The taint is the full profile's.** A node that carries `database` and not
   `control-plane` is registered with the taint
   `puni.dev/role=database:NoSchedule` (PG2). The server gets no second taint: it already
@@ -92,9 +92,9 @@ The core change's placement table names two capabilities and leaves them to this
   none has to tolerate it. Only pods of the `platform-db` unit and the three node agents may
   tolerate it: the unit's PostgreSQL instances with their backup sidecars, its dump and
   drill jobs, and a drill's throwaway instance (decision 3).
-- The cluster's capability floor gains `database: 1` and `restore-drill: 1` in the revision
-  that gives a node each. In the minimal profile that revision changes two nodes that have
-  already joined, so the labels are applied by the core's capability play (slice 1.7).
+- The cluster's capability floor gains `database: 1` in the revision that gives a node the
+  capability. In the minimal profile that revision changes a node that has already joined,
+  so the label is applied by the core's capability play (slice 1.7).
 
 ### 2. Budgets
 
@@ -102,20 +102,20 @@ Memory in MiB, counted as core decision 2 counts it.
 
 **What this change adds to nodes the core change sized, in the minimal profile.**
 
-| Node            | Workload                                                     | Limit | Sum and margin after it                                                       |
-| --------------- | ------------------------------------------------------------ | ----: | ----------------------------------------------------------------------------- |
-| Platform        | CloudNativePG operator and the Barman plugin                 |   512 | 9,066; with reservations 11,882; margin 3,720                                 |
-| Platform        | `platform-db`: one instance and its backup sidecar           | 2,304 | 11,370; with reservations 14,186; margin 1,416                                |
-| Platform        | The nightly logical dump                                     |   256 | margin 1,160 while it runs                                                    |
-| Production apps | A restore drill's throwaway instance and its sidecar, weekly | 1,280 | 7,296; on that node's trial size of 8 GiB there is no margin on paper (below) |
-| Observability   | `nonproduction-db`: one instance and its backup sidecar      | 1,280 | counted in core decision 2's sum for that node, which A14 tests               |
+| Node          | Workload                                                   | Limit | Sum and margin after it                                                    |
+| ------------- | ---------------------------------------------------------- | ----: | -------------------------------------------------------------------------- |
+| Platform      | CloudNativePG operator and the Barman plugin               |   512 | 9,066; with reservations 11,882; margin 3,720                              |
+| Platform      | `platform-db`: one instance and its backup sidecar         | 2,304 | 11,370; with reservations 14,186; margin 1,416                             |
+| Platform      | The nightly logical dump                                   |   256 | margin 1,160 while it runs                                                 |
+| Platform      | An attended restore drill's throwaway instance and sidecar | 1,280 | margin 136 for its run, without the dump: it does not fit on paper (below) |
+| Observability | `nonproduction-db`: one instance and its backup sidecar    | 1,280 | counted in core decision 2's sum for that node, which A14 tests            |
 
-The production apps node is 4 vCPUs and 8 GiB in the minimal profile, as a trial (core R2),
-and its own limits already fill it on paper (core decision 2). A drill there depends on
-the apps using far less than their limits, so it is guarded: it reads the node's available
-memory first and does not start under 2,304 MiB, its own 1,280 and the 1,024 floor. A drill
-that does not start reports as a failed drill, and that alert is one of the triggers that
-rescale the node. On 16 GiB the same row leaves 6,642.
+A drill on the server does not fit beside everything else at its limits: it would leave 136
+MiB, under the 1,024 MiB the plan stops on everywhere. So it is attended and guarded
+(decision 3): it reads the node's available memory first and does not start under 2,304
+MiB, its own 1,280 and that floor, and the operator runs it at an hour with no dump and no
+Harbor backup. It rests, like the rest of that node's budget, on use being below the
+limits, which PG-A4 measures. Nothing of this change lands on the production apps node.
 
 Every figure is assumed (256 each for the operator and the plugin; 2,048 and 256 for the
 production instance and its sidecar; 1,024 and 256 for the others) and PG-A3 and PG-A4
@@ -125,7 +125,8 @@ platform node keeps 1,160 MiB, so an instance that needs more than about 2,180 M
 margin under the 1,024 MiB the plan stops on everywhere. A port that needs more is
 therefore the trigger for the database server (decision 4), unless the Harbor change's
 measurement returns memory first; Harbor's 2,112 MiB is a planned figure too. The one
-drill of PG-A3 adds a throwaway instance of 1,280 on the non-production node for its run.
+drill of PG-A3 adds a throwaway instance of 1,280 on the non-production node for its run,
+under the same guard.
 Disk for `nonproduction-db`: one claim of 10 GiB (assumed).
 
 **Database node, in the full profile** (PG2). 8 vCPUs and 16 GiB by the owner's decision,
@@ -165,9 +166,16 @@ plane, and the kubelet's eviction does not help: it ranks pods by what they writ
 own layers and `emptyDir`s, not by a local volume's use. So there the claim is bounded: a
 preallocated filesystem of 30 GiB with a static `local` PersistentVolume on it, the way the
 `registry_storage` role bounds the registry's store today (slice PG-S6). When it fills,
-PostgreSQL stops and the host does not. The drill's 30 GiB land on the production apps
-node, whose root disk the core change sizes for it (A16). The platform node's floor of 140
-GiB in core decision 2 already counts the 30.
+PostgreSQL stops and the host does not. An attended drill's throwaway volume is on the
+server's root filesystem, on the packaged `local-path` class: until the first port it holds
+two canary databases, megabytes, and the drill's 65% guard refuses a restore that would be
+larger than the room. The platform node's minimum disk in core decision 2 counts the
+bounded 30 GiB and 30 more for a drill.
+
+What the bounded filesystem does not separate: it is a loop device on the root filesystem,
+so its writes share the root's journal and device with etcd. A full database cannot fill
+the host; a busy one can still slow etcd's `fsync`. That is the I/O risk listed below and
+one of the triggers of the growth step.
 
 ### 3. Operator, clusters, backups and observability
 
@@ -239,11 +247,12 @@ objects of its apps.
 **Placement and containment.** The operator makes the pods of a cluster, its instances and
 the jobs that initialise or recover one, so no pod template of theirs is in the tree. Rule
 (o) of the `delivery` check reads each `Cluster` instead: its `affinity.nodeSelector` names
-the capability of its row above, and a drill's throwaway `Cluster` names `restore-drill`.
-Only objects of the `platform-db` unit tolerate the database taint: the `Cluster`, from
-which its instances and its jobs take theirs, the drill's throwaway `Cluster`, and the dump
-and drill CronJobs. Of those only the live `Cluster` and the dump job also tolerate the
-platform taint. The three node agents tolerate every taint and
+the capability of its row above, and a drill's throwaway `Cluster` names the capability of
+the cluster it proves: `database` for `platform-db`'s, `nonproduction` for
+`nonproduction-db`'s. Only objects of the `platform-db` unit tolerate the database taint
+and the platform taint: the `Cluster`, from which its instances and its jobs take theirs,
+the drill's throwaway `Cluster`, and the dump and drill CronJobs. Nothing of
+`nonproduction-db` tolerates either. The three node agents tolerate every taint and
 run there as on every node (core decision 1). The scheduling page says the `affinity` section
 applies to all the pods of a `Cluster`; that this covers its jobs is seen in slice PG-S3's k3d
 test, which starts a cluster under the placement policy. The admission policy of slice 2.10
@@ -303,18 +312,30 @@ by a restart of that app, and the port's change says how.
   object store, to the end of the archive or to a point in time. So rolling one app back
   means restoring the whole cluster beside the live one and copying that one database
   across. Slice PG-S5 writes that as a runbook and PG-A5 runs it once.
-- _The drill._ A weekly CronJob restores `platform-db` into a throwaway cluster on the node
-  that carries `restore-drill`, runs sanity queries and deletes the cluster. In the minimal
-  profile that is the production apps node, so that a restore's writes never share a disk
-  with etcd. It does not start when the restore would take that node's filesystem above 65%
-  or when the node's available memory is under 2,304 MiB (decision 2). The throwaway cluster's
-  claim is on `local-path`, the class k3s packages, whose reclaim policy is `Delete`, so
-  deleting the cluster removes the volume and its directory. On `puni-retain` every drill
-  would leave a copy of production data on the node's disk. The job ends by checking that
-  no volume of the throwaway cluster is left, Released or as a directory, and fails
-  otherwise. Its result is read from the kube-state-metrics series of its CronJob, as the
-  SQLite rule reads a backup job's, and its duration from the Job's start and completion
-  times; a failed or missing drill is an alert.
+- _The drill._ A CronJob restores `platform-db` into a throwaway cluster on the node that
+  carries `database`, runs sanity queries and deletes the cluster. It does not start when
+  the restore would take that node's filesystem above 65% or when the node's available
+  memory is under 2,304 MiB (decision 2). The throwaway cluster's claim is on `local-path`,
+  the class k3s packages, whose reclaim policy is `Delete`, so deleting the cluster removes
+  the volume and its directory. On `puni-retain` every drill would leave a copy of
+  production data on the node's disk. The job ends by checking that no volume of the
+  throwaway cluster is left, Released or as a directory, and fails otherwise. Its result is
+  read from the kube-state-metrics series of its CronJob, as the SQLite rule reads a backup
+  job's, and its duration from the Job's start and completion times.
+- _When the drill runs._ On a database server it is weekly, and a failed or missing drill
+  is an alert. While the server carries `database` (the minimal profile) the CronJob is
+  `suspend: true` and the operator starts it by hand: in PG-A5, before each port's
+  cut-over, and after any change to the backup path; a run that fails is an alert, a week
+  without one is not. Three reasons. Until the first port the cluster holds two canaries,
+  so a weekly restore beside etcd would prove little and cost the control plane's disk a
+  write burst every week. The alternative, a second bounded filesystem for drills on the
+  server, preallocates 30 GiB more for megabytes of data, and a static volume is Released
+  and not reclaimed when its cluster is deleted, so every drill would need a host step.
+  And the first app's data is already where this arrangement ends: each port's change
+  either waits for the database server, where the CronJob is resumed, or carries the
+  owner's dated word that attended drills continue for that app. Rule (o) holds the two
+  states to the inventory: suspended while the server carries `database`, not suspended
+  once another node does.
 - _The non-production cluster's restore_ is proven once, in PG-A3, before the tracker's
   port puts data there. The `nonproduction-db` unit carries the same drill CronJob,
   suspended: it restores into a throwaway cluster in `postgres-nonproduction` on the
@@ -334,8 +355,9 @@ by a restart of that app, and the port's change says how.
 - Alerts, as PrometheusRules that land with each cluster unit, since a rule lands with its
   subject (core decision 3): the instance's volume and its node's filesystem above 80% and above
   90%; WAL not archived for 10 minutes; no base backup for 26 hours; instance not ready; connections above 80% of the
-  limit; a transaction open for more than 5 minutes; the restore drill failed or absent. The
-  replica-lag rule lands with the replica. The exact series are read from the operator's
+  limit; a transaction open for more than 5 minutes; a restore drill that failed. The rule
+  for a drill absent for a week lands with the database server, and the replica-lag rule
+  with the replica. The exact series are read from the operator's
   default monitoring ConfigMap at the pinned version in slice PG-S4, not written from memory.
 - Logs: the operator writes PostgreSQL's log as JSON to standard output, which the OTel
   collector already ships. The units set `log_min_duration_statement` to 500 ms,
@@ -386,15 +408,21 @@ evaluate when; that now means when to start it, and later when to give it a serv
 **The growth step to a database server** (core decision 11). Trigger: a port needs the
 production instance above about 2,180 MiB, the platform node's available memory falls under
 1,024 MiB, or the control plane slows with the database's load (apiserver latency, or etcd's
-slow-apply warnings in the server's log; whether etcd's own metrics are scraped on k3s was
-not checked). Procedure: PG-A1 and PG-A2 create and join `h10db` with `database` and
-`restore-drill`; the operator adds a replica of `platform-db` there, on `puni-retain`;
-after it has caught up, a switchover makes it the primary and the old instance is removed;
-the core's capability play then takes `database` from h5plat and `restore-drill` from
-h6apps, and the instance's limit is raised to the full profile's 4,096 MiB. No restore and
-no change to an app. That a replica may use another storage class than the primary was not
-read; if it may not, the move is a restore from the archive into a new cluster on the
-server, with the apps' writers stopped.
+slow-apply warnings in the server's log; the k3s server template does not expose etcd's
+metrics today, and core slice 1.2 adds `etcd-expose-metrics` so that the latency can be
+read), or the first app's data, unless the owner says attended drills continue (decision
+3). Procedure: PG-A1 and PG-A2 create and join `h10db` with `database`. Then the instance
+moves, and the plan counts on the costlier of two ways. The cheap one is a replica there
+and a switchover; but on the server the claim is of a static class that no provisioner
+serves (PG-S6), and a `Cluster` names one storage class for its instances, so a replica on
+`h10db` needs a volume of that same class there. PG-A2 applies PG-S6's role to `h10db` to
+make one; whether the operator then places a replica on it was not read. If it does not,
+the move is a restore from the archive into a new cluster on `h10db`, on `puni-retain`,
+with the apps' writers stopped for its length, which PG-A5 has timed: planned downtime, the
+size of the data. Either way the core's capability play then takes `database` from h5plat
+(the volume there is empty or removed first, slice 1.7's guard), the drill CronJob is
+resumed, and the instance's limit is raised to the full profile's 4,096 MiB. No app's
+manifest changes.
 
 **What is missing in source.** Each row is an agent slice in [tasks.md](tasks.md).
 
@@ -496,9 +524,9 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
 > ## Consequences
 >
 > Databases are a node role placed by capability. In the minimal profile, built first, the
-> production cluster runs on the platform node, on a bounded filesystem, and its restore
-> drill on the production apps node; a server that carries nothing else is the step it grows
-> into, by a replica and a switchover. CloudNativePG runs that production cluster and one
+> production cluster runs on the platform node, on a bounded filesystem, with a restore
+> drill run by hand; a server that carries nothing else is the step it grows into, by a
+> replica and a switchover or by a restore, and there the drill is weekly. CloudNativePG runs that production cluster and one
 > non-production cluster on the node that carries `nonproduction`. Each app has its own database and role. Backups are
 > continuous WAL archiving, nightly base backups and nightly dumps per database; recovery
 > restores a whole cluster beside the live one, so rolling one app back is a restore and a
@@ -523,24 +551,28 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
   real consumer will probably outgrow, which is the trigger for its own server. Its disk is
   bounded, so a full database stops PostgreSQL and not etcd; its I/O is not bounded, and a
   heavy query can still slow the control plane. Losing that node loses all four.
-- **The move to a database server rests on one unread point**: that a replica may sit on
-  another storage class than the primary. If not, the move is a restore (decision 4).
+- **The move to a database server is probably a restore, with the apps' writers stopped**
+  (decision 4). The replica-and-switchover way needs a volume of the server's static class
+  on the new node, and whether the operator will use one there was not read.
 - **On a database server nothing bounds a database's disk use at its claim** (decision 3).
   Alerts and the kubelet's eviction threshold are the guards, and eviction stops the only
   instance. On the platform node the claim is bounded (PG-S6).
-- **A restore drill copies production data onto a node every week**: the production apps
-  node in the minimal profile. Its volume is reclaimed with the throwaway cluster, and a
-  drill that leaves one fails loudly.
+- **In the minimal profile no drill runs unless a person starts one** (decision 3). A backup
+  path that breaks between two attended drills is seen by the WAL and base-backup alerts,
+  not by a restore. That ends with the first app's data or the database server.
+- **A restore drill copies production data beside the live cluster**, on the node that
+  carries `database`. Its volume is reclaimed with the throwaway cluster, and a drill that
+  leaves one fails loudly.
 - **Database backups are not encrypted by the client.** They rely on the bucket and on a
   key of their own; what the provider does at rest was not read.
 - **Two stores per app for a while.** Between an app's arrival on SQLite and its port, the
   plan carries both mechanisms, and the ports are four changes this one does not size.
 - **A password rotation needs an app restart** (decision 3).
-- **In the minimal profile a drill may not find room.** The production apps node is tried
-  at 8 GiB, and the drill starts only with 2,304 MiB available there. Until that node is
-  rescaled, a week without a drill is possible, and it shows as the drill alert.
+- **In the minimal profile an attended drill may not find room.** On paper the platform
+  node keeps 136 MiB with a drill running, so the drill starts only with 2,304 MiB
+  available there. If it never does, that is the memory trigger of the growth step.
 - **The drill's free-space and memory guards are new.** A drill that does not start for lack of room
-  reports as a failed drill, which is the alert that should follow.
+  reports as a failed drill.
 
 ## Open questions for the owner
 
@@ -553,7 +585,7 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
 
 Not questions, but his to overrule by id: PG3 to PG6, the shape of the PostgreSQL service
 and its recovery targets, and the working-out of PG8: the starting limit, the bounded
-claim and where the drill runs.
+claim, and that drills are attended until the database server.
 
 ## Not verified
 
